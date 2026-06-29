@@ -20,8 +20,10 @@ for p in (_REPO_ROOT, _CODE_ROOT):
         sys.path.insert(0, str(p))
 
 import argparse
+import csv
 import time
 import multiprocessing as mp
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -176,13 +178,26 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from checkpoint")
     parser.add_argument("--save-every", type=int, default=10)
-    parser.add_argument("--save-dir", type=str, default="checkpoints")
+    parser.add_argument("--out-dir", type=str, default=None,
+                        help="output directory (default: training_history_<timestamp>)")
     args = parser.parse_args()
 
-    # ── Logger ─────────────────────────────────────────────────────
-    save_dir = Path(args.save_dir)
-    log = get_logger(save_dir / "train.log")
+    # ── Prepare output directory ──────────────────────────────────
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_dir = Path(args.out_dir) if args.out_dir else Path(f"training_history_{ts}")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
+    # ── Logger ────────────────────────────────────────────────────
+    log = get_logger(out_dir / "train.log")
+    csv_path = out_dir / "history.csv"
+
+    # Save config
+    with open(out_dir / "config.txt", "w") as f:
+        for key, val in vars(args).items():
+            f.write(f"{key}={val}\n")
+        f.write(f"timestamp={ts}\n")
+
+    # ── Trainer ───────────────────────────────────────────────────
     trainer = ESTrainer(
         population_size=args.pop_size,
         sigma=args.sigma,
@@ -196,9 +211,11 @@ def main():
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
 
-    # ── Print config ────────────────────────────────────────────────
+    # ── Print config ──────────────────────────────────────────────
     log.header("ES Training")
+    log.print(key="out_dir", value=out_dir)
     log.print(key="params", value=f"{trainer.param_count:,}")
+    log.print(key="seed", value=args.seed)
     log.print(key="pop_size", value=args.pop_size)
     log.print(key="sigma", value=args.sigma)
     log.print(key="lr", value=args.lr)
@@ -208,7 +225,12 @@ def main():
     log.print(key="generations", value=args.generations)
     log.separator("-")
 
-    # ── Training loop ───────────────────────────────────────────────
+    # ── CSV header ────────────────────────────────────────────────
+    with open(csv_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["generation", "best_fitness", "avg_fitness", "eval_time_s", "total_time_s"])
+
+    # ── Training loop ─────────────────────────────────────────────
     log.print_table(gen="gen", best="best_fit", avg="avg_fit", eval_s="eval(s)", total_s="total(s)")
     log.separator("-", width=50, timestamp=False)
 
@@ -224,15 +246,28 @@ def main():
             total_s=f"{result['total_time']:.1f}",
         )
 
+        # Append to CSV
+        with open(csv_path, "a", newline="") as f:
+            w = csv.writer(f)
+            w.writerow([
+                result["generation"],
+                f"{result['best_fitness']:.6f}",
+                f"{result['avg_fitness']:.6f}",
+                f"{result['eval_time']:.3f}",
+                f"{result['total_time']:.3f}",
+            ])
+
         if args.save_every > 0 and (gen + 1) % args.save_every == 0:
-            ckpt_path = save_dir / f"gen_{gen+1:04d}.pt"
+            ckpt_path = out_dir / f"gen_{gen+1:04d}.pt"
             trainer.save_checkpoint(ckpt_path)
             log.print(key="checkpoint", value=ckpt_path)
 
-    # ── Final ───────────────────────────────────────────────────────
-    trainer.save_checkpoint(save_dir / "final.pt")
+    # ── Final ─────────────────────────────────────────────────────
+    trainer.save_checkpoint(out_dir / "final.pt")
     log.separator("=")
+    log.print(key="final_best_fitness", value=f"{result['best_fitness']:.4f}")
     log.print(key="final_avg_fitness", value=f"{result['avg_fitness']:.4f}")
+    log.print(key="history", value=csv_path)
     log.print("Done.")
 
 
