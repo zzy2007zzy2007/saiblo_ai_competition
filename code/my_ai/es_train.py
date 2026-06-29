@@ -59,21 +59,30 @@ def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     else:
         raise ValueError(f"unknown opponent: {opponent}")
 
+    # Alternate first/second player by seed parity for fairness
+    our_player = seed % 2
+    opp_player = 1 - our_player
+
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
 
     for _ in range(MAX_ROUND):
         if state.terminal:
             break
-        ops0 = agent._choose_operations(state, 0)
-        ops1 = opp.choose_operations(state, 1)
-        state.resolve_turn(ops0, ops1)
+        ops_us = agent._choose_operations(state, our_player)
+        ops_opp = opp.choose_operations(state, opp_player)
+        # resolve_turn expects (player0_ops, player1_ops) in that order
+        if our_player == 0:
+            state.resolve_turn(ops_us, ops_opp)
+        else:
+            state.resolve_turn(ops_opp, ops_us)
 
-    hp0, hp1 = state.bases[0].hp, state.bases[1].hp
-    if hp0 <= 0 and hp1 <= 0:
+    hp_us = state.bases[our_player].hp
+    hp_opp = state.bases[opp_player].hp
+    if hp_us <= 0 and hp_opp <= 0:
         return 0.5
-    if hp0 > hp1:
+    if hp_us > hp_opp:
         return 1.0
-    if hp1 > hp0:
+    if hp_opp > hp_us:
         return 0.0
     return 0.5
 
@@ -174,7 +183,7 @@ def main():
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--games", type=int, default=2, help="games per individual per generation")
     parser.add_argument("--generations", type=int, default=100)
-    parser.add_argument("--opponent", default="random", choices=["random", "example"])
+    parser.add_argument("--opponent", default="example", choices=["random", "example"])
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from checkpoint")
     parser.add_argument("--save-every", type=int, default=10)
