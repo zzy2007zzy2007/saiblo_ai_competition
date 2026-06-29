@@ -1,0 +1,5 @@
+# Ignore the official game repo (already has its own git)
+/Ant-Game/
+
+__pycache__/
+*.pyc
