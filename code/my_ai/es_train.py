@@ -1,11 +1,11 @@
 """Minimal Evolution Strategies trainer for Ant-Game AI.
 
 Core algorithm (OpenAI-ES style):
-  1. Sample noise → create perturbed models: θ ± σ·ε
-  2. Evaluate each against baseline opponent → fitness = win rate
+  1. Sample noise -> create perturbed models: theta +/- sigma*eps
+  2. Evaluate each against baseline opponent -> fitness = win rate
   3. Fitness shaping (rank-based normalization)
-  4. Gradient estimate: g = 1/(N·σ) · Σ(fᵢ · εᵢ)
-  5. Update: θ ← θ + lr · g
+  4. Gradient estimate: g = 1/(N*sigma) * sum(f_i * eps_i)
+  5. Update: theta <- theta + lr * g
 """
 
 from __future__ import annotations
@@ -22,24 +22,26 @@ for p in (_REPO_ROOT, _CODE_ROOT):
 import argparse
 import time
 import multiprocessing as mp
-from functools import partial
 
 import numpy as np
 import torch
 
-from my_ai.network import create_model, AntWarNetwork
+from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
 
-# Lazy-import SDK inside worker processes to avoid pickling issues
+
 def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     """Run one match: params vs opponent. Return 1/0.5/0 for win/draw/loss."""
+    # Worker must set up its own import paths
     import sys
     from pathlib import Path
     _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
-    if str(_RP) not in sys.path:
-        sys.path.insert(0, str(_RP))
+    _CODE = Path(__file__).resolve().parents[1]
+    for p in (_RP, _CODE):
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
 
-    from SDK.backend import GameState
+    from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
     from AI.ai_random import AI as RandomAI
 
@@ -55,20 +57,17 @@ def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     else:
         raise ValueError(f"unknown opponent: {opponent}")
 
-    state = GameState.initial(seed=seed)
-    player = 0  # our agent always plays as player 0
+    # Use cold_handle_rule_illegal=True so illegal ops are filtered instead of
+    # instantly losing -- critical during early training when the network is random.
+    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
 
     for _ in range(MAX_ROUND):
         if state.terminal:
             break
-
         ops0 = agent._choose_operations(state, 0)
-        state.apply_operation_list(0, ops0)
-
         ops1 = opp.choose_operations(state, 1)
-        state.apply_operation_list(1, ops1)
-
-        state.advance_round()
+        # resolve_turn handles: apply ops (with validation), check terminal, advance round
+        state.resolve_turn(ops0, ops1)
 
     hp0, hp1 = state.bases[0].hp, state.bases[1].hp
     if hp0 <= 0 and hp1 <= 0:
@@ -110,17 +109,8 @@ class ESTrainer:
         self.mean = self.model.get_parameters_as_vector()
 
         print(f"Model parameters: {self.param_count:,}")
-        print(f"ES config: pop={population_size}, σ={sigma}, lr={lr}, workers={num_workers}")
+        print(f"ES config: pop={population_size}, sigma={sigma}, lr={lr}, workers={num_workers}")
         print(f"Games per eval: {games_per_individual}")
-
-    def evaluate(self, params: np.ndarray, seeds: list[int]) -> float:
-        """Evaluate params across multiple seeds, return average fitness."""
-        with mp.Pool(self.num_workers) as pool:
-            results = pool.map(
-                partial(_eval_worker, params, opponent=self.opponent),
-                seeds,
-            )
-        return float(np.mean(results))
 
     def step(self, generation: int) -> dict:
         """Run one ES generation."""
@@ -130,27 +120,28 @@ class ESTrainer:
         noise = self.rng.randn(self.population_size, self.param_count).astype(np.float32)
 
         # 2. Generate seeds for each individual's games
-        seeds = [self.seed + generation * self.population_size * self.games_per_individual + i
-                 for i in range(self.population_size * self.games_per_individual)]
+        seeds = [
+            self.seed + generation * self.population_size * self.games_per_individual + i
+            for i in range(self.population_size * self.games_per_individual)
+        ]
 
-        # 3. Evaluate each individual
-        # Use multiprocessing for parallel evaluation
+        # 3. Evaluate all individuals in parallel
         params_list = [self.mean + self.sigma * n for n in noise]
-        fitness = np.zeros(self.population_size)
-
-        # Simple sequential evaluation first (can be parallelized later)
-        # Actually let's use the pool properly
         eval_start = time.time()
+
         with mp.Pool(self.num_workers) as pool:
+            tasks = []
             for idx in range(self.population_size):
-                ind_seeds = seeds[idx * self.games_per_individual : (idx + 1) * self.games_per_individual]
-                results = []
-                for s in ind_seeds:
-                    results.append(
-                        pool.apply_async(_eval_worker, (params_list[idx], s, self.opponent))
-                    )
-                match_scores = [r.get() for r in results]
-                fitness[idx] = np.mean(match_scores)
+                for g in range(self.games_per_individual):
+                    s = seeds[idx * self.games_per_individual + g]
+                    tasks.append(pool.apply_async(_eval_worker, (params_list[idx], s, self.opponent)))
+            all_scores = [t.get() for t in tasks]
+
+        # Reshape: (pop_size * games_per_individual) -> (pop_size, games_per_individual)
+        fitness = np.mean(
+            np.array(all_scores).reshape(self.population_size, self.games_per_individual),
+            axis=1,
+        )
         eval_time = time.time() - eval_start
 
         # 4. Fitness shaping (rank-based)
@@ -168,24 +159,26 @@ class ESTrainer:
         best_fitness = float(fitness.max())
         avg_fitness = float(fitness.mean())
 
-        result = {
+        return {
             "generation": generation,
             "best_fitness": best_fitness,
             "avg_fitness": avg_fitness,
             "eval_time": eval_time,
             "total_time": total_time,
         }
-        return result
 
     def save_checkpoint(self, path: str | Path) -> None:
         """Save model checkpoint."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({
-            "mean": torch.from_numpy(self.mean),
-            "model_state": self.model.state_dict(),
-            "generation": self.step_count if hasattr(self, "step_count") else 0,
-        }, path)
+        torch.save(
+            {
+                "mean": torch.from_numpy(self.mean),
+                "model_state": self.model.state_dict(),
+                "generation": self.step_count if hasattr(self, "step_count") else 0,
+            },
+            path,
+        )
         print(f"  Checkpoint saved: {path}")
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -231,11 +224,13 @@ def main():
     for gen in range(args.generations):
         result = trainer.step(gen)
         trainer.step_count = gen + 1
-        print(f"{result['generation']:>4}  {result['best_fitness']:>8.4f}  "
-              f"{result['avg_fitness']:>8.4f}  {result['eval_time']:>7.1f}  "
-              f"{result['total_time']:>7.1f}")
+        print(
+            f"{result['generation']:>4}  {result['best_fitness']:>8.4f}  "
+            f"{result['avg_fitness']:>8.4f}  {result['eval_time']:>7.1f}  "
+            f"{result['total_time']:>7.1f}"
+        )
 
-        if (gen + 1) % args.save_every == 0:
+        if args.save_every > 0 and (gen + 1) % args.save_every == 0:
             trainer.save_checkpoint(Path(args.save_dir) / f"gen_{gen+1:04d}.pt")
 
     trainer.save_checkpoint(Path(args.save_dir) / "final.pt")
