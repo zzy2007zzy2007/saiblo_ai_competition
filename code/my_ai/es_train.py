@@ -28,11 +28,11 @@ import torch
 
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
+from utils.logger import get_logger
 
 
 def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     """Run one match: params vs opponent. Return 1/0.5/0 for win/draw/loss."""
-    # Worker must set up its own import paths
     import sys
     from pathlib import Path
     _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
@@ -57,8 +57,6 @@ def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     else:
         raise ValueError(f"unknown opponent: {opponent}")
 
-    # Use cold_handle_rule_illegal=True so illegal ops are filtered instead of
-    # instantly losing -- critical during early training when the network is random.
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
 
     for _ in range(MAX_ROUND):
@@ -66,7 +64,6 @@ def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
             break
         ops0 = agent._choose_operations(state, 0)
         ops1 = opp.choose_operations(state, 1)
-        # resolve_turn handles: apply ops (with validation), check terminal, advance round
         state.resolve_turn(ops0, ops1)
 
     hp0, hp1 = state.bases[0].hp, state.bases[1].hp
@@ -101,31 +98,21 @@ class ESTrainer:
         self.seed = seed
         self.rng = np.random.RandomState(seed)
 
-        # Create initial model and get parameter count
         self.model = create_model()
         self.param_count = self.model.count_parameters()
-
-        # Mean parameters (current best estimate)
         self.mean = self.model.get_parameters_as_vector()
-
-        print(f"Model parameters: {self.param_count:,}")
-        print(f"ES config: pop={population_size}, sigma={sigma}, lr={lr}, workers={num_workers}")
-        print(f"Games per eval: {games_per_individual}")
 
     def step(self, generation: int) -> dict:
         """Run one ES generation."""
         t0 = time.time()
 
-        # 1. Sample noise
         noise = self.rng.randn(self.population_size, self.param_count).astype(np.float32)
 
-        # 2. Generate seeds for each individual's games
         seeds = [
             self.seed + generation * self.population_size * self.games_per_individual + i
             for i in range(self.population_size * self.games_per_individual)
         ]
 
-        # 3. Evaluate all individuals in parallel
         params_list = [self.mean + self.sigma * n for n in noise]
         eval_start = time.time()
 
@@ -137,38 +124,29 @@ class ESTrainer:
                     tasks.append(pool.apply_async(_eval_worker, (params_list[idx], s, self.opponent)))
             all_scores = [t.get() for t in tasks]
 
-        # Reshape: (pop_size * games_per_individual) -> (pop_size, games_per_individual)
         fitness = np.mean(
             np.array(all_scores).reshape(self.population_size, self.games_per_individual),
             axis=1,
         )
         eval_time = time.time() - eval_start
 
-        # 4. Fitness shaping (rank-based)
-        ranks = np.argsort(np.argsort(fitness))  # 0..pop_size-1
-        shaped = (ranks + 1) / (self.population_size + 1) - 0.5  # ~[-0.5, 0.5]
+        ranks = np.argsort(np.argsort(fitness))
+        shaped = (ranks + 1) / (self.population_size + 1) - 0.5
 
-        # 5. Gradient estimate & update
         gradient = (noise.T @ shaped) / (self.population_size * self.sigma)
         self.mean += self.lr * gradient.astype(self.mean.dtype)
-
-        # 6. Update model with new mean
         self.model.set_parameters_from_vector(self.mean)
 
         total_time = time.time() - t0
-        best_fitness = float(fitness.max())
-        avg_fitness = float(fitness.mean())
-
         return {
             "generation": generation,
-            "best_fitness": best_fitness,
-            "avg_fitness": avg_fitness,
+            "best_fitness": float(fitness.max()),
+            "avg_fitness": float(fitness.mean()),
             "eval_time": eval_time,
             "total_time": total_time,
         }
 
     def save_checkpoint(self, path: str | Path) -> None:
-        """Save model checkpoint."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
@@ -179,14 +157,11 @@ class ESTrainer:
             },
             path,
         )
-        print(f"  Checkpoint saved: {path}")
 
     def load_checkpoint(self, path: str | Path) -> None:
-        """Load model checkpoint."""
         ckpt = torch.load(path, map_location="cpu", weights_only=True)
         self.mean = ckpt["mean"].numpy()
         self.model.set_parameters_from_vector(self.mean)
-        print(f"  Checkpoint loaded: {path} (gen {ckpt.get('generation', '?')})")
 
 
 def main():
@@ -204,6 +179,10 @@ def main():
     parser.add_argument("--save-dir", type=str, default="checkpoints")
     args = parser.parse_args()
 
+    # ── Logger ─────────────────────────────────────────────────────
+    save_dir = Path(args.save_dir)
+    log = get_logger(save_dir / "train.log")
+
     trainer = ESTrainer(
         population_size=args.pop_size,
         sigma=args.sigma,
@@ -217,25 +196,46 @@ def main():
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
 
-    print(f"\nStarting ES training for {args.generations} generations...")
-    print(f"{'gen':>4}  {'best_fit':>8}  {'avg_fit':>8}  {'eval(s)':>7}  {'total(s)':>7}")
-    print("-" * 45)
+    # ── Print config ────────────────────────────────────────────────
+    log.header("ES Training")
+    log.print(key="params", value=f"{trainer.param_count:,}")
+    log.print(key="pop_size", value=args.pop_size)
+    log.print(key="sigma", value=args.sigma)
+    log.print(key="lr", value=args.lr)
+    log.print(key="workers", value=args.workers)
+    log.print(key="games_per_ind", value=args.games)
+    log.print(key="opponent", value=args.opponent)
+    log.print(key="generations", value=args.generations)
+    log.separator("-")
+
+    # ── Training loop ───────────────────────────────────────────────
+    log.print_table(gen="gen", best="best_fit", avg="avg_fit", eval_s="eval(s)", total_s="total(s)")
+    log.separator("-", width=50, timestamp=False)
 
     for gen in range(args.generations):
         result = trainer.step(gen)
         trainer.step_count = gen + 1
-        print(
-            f"{result['generation']:>4}  {result['best_fitness']:>8.4f}  "
-            f"{result['avg_fitness']:>8.4f}  {result['eval_time']:>7.1f}  "
-            f"{result['total_time']:>7.1f}"
+
+        log.print_table(
+            gen=result["generation"],
+            best=f"{result['best_fitness']:.4f}",
+            avg=f"{result['avg_fitness']:.4f}",
+            eval_s=f"{result['eval_time']:.1f}",
+            total_s=f"{result['total_time']:.1f}",
         )
 
         if args.save_every > 0 and (gen + 1) % args.save_every == 0:
-            trainer.save_checkpoint(Path(args.save_dir) / f"gen_{gen+1:04d}.pt")
+            ckpt_path = save_dir / f"gen_{gen+1:04d}.pt"
+            trainer.save_checkpoint(ckpt_path)
+            log.print(key="checkpoint", value=ckpt_path)
 
-    trainer.save_checkpoint(Path(args.save_dir) / "final.pt")
-    print(f"\nTraining complete. Final mean fitness: {result['avg_fitness']:.4f}")
+    # ── Final ───────────────────────────────────────────────────────
+    trainer.save_checkpoint(save_dir / "final.pt")
+    log.separator("=")
+    log.print(key="final_avg_fitness", value=f"{result['avg_fitness']:.4f}")
+    log.print("Done.")
 
 
 if __name__ == "__main__":
     main()
+
