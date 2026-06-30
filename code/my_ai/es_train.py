@@ -21,6 +21,8 @@ for p in (_REPO_ROOT, _CODE_ROOT):
 
 import argparse
 import csv
+import signal
+import sys
 import time
 import multiprocessing as mp
 from datetime import datetime
@@ -35,6 +37,9 @@ from utils.logger import get_logger
 
 def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     """Run one match: params vs opponent. Return 1/0.5/0 for win/draw/loss."""
+    import os
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
     import sys
     from pathlib import Path
     _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
@@ -42,6 +47,9 @@ def _eval_worker(params_flat: np.ndarray, seed: int, opponent: str) -> float:
     for p in (_RP, _CODE):
         if str(p) not in sys.path:
             sys.path.insert(0, str(p))
+
+    import torch
+    torch.set_num_threads(1)
 
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
@@ -113,8 +121,8 @@ class ESTrainer:
         self.param_count = self.model.count_parameters()
         self.mean = self.model.get_parameters_as_vector()
 
-    def step(self, generation: int) -> dict:
-        """Run one ES generation."""
+    def step(self, generation: int, pool: mp.Pool) -> dict:
+        """Run one ES generation using an external pool (for interrupt safety)."""
         t0 = time.time()
 
         noise = self.rng.randn(self.population_size, self.param_count).astype(np.float32)
@@ -127,13 +135,12 @@ class ESTrainer:
         params_list = [self.mean + self.sigma * n for n in noise]
         eval_start = time.time()
 
-        with mp.Pool(self.num_workers) as pool:
-            tasks = []
-            for idx in range(self.population_size):
-                for g in range(self.games_per_individual):
-                    s = seeds[idx * self.games_per_individual + g]
-                    tasks.append(pool.apply_async(_eval_worker, (params_list[idx], s, self.opponent)))
-            all_scores = [t.get() for t in tasks]
+        tasks = []
+        for idx in range(self.population_size):
+            for g in range(self.games_per_individual):
+                s = seeds[idx * self.games_per_individual + g]
+                tasks.append(pool.apply_async(_eval_worker, (params_list[idx], s, self.opponent)))
+        all_scores = [t.get() for t in tasks]
 
         fitness = np.mean(
             np.array(all_scores).reshape(self.population_size, self.games_per_individual),
@@ -243,39 +250,79 @@ def main():
     log.print_table(gen="gen", best="best_fit", avg="avg_fit", eval_s="eval(s)", total_s="total(s)")
     log.separator("-", width=50, timestamp=False)
 
-    for gen in range(args.generations):
-        result = trainer.step(gen)
-        trainer.step_count = gen + 1
+    pool = mp.Pool(args.workers)
+    interrupted = False
 
-        log.print_table(
-            gen=result["generation"],
-            best=f"{result['best_fitness']:.4f}",
-            avg=f"{result['avg_fitness']:.4f}",
-            eval_s=f"{result['eval_time']:.1f}",
-            total_s=f"{result['total_time']:.1f}",
-        )
+    def _signal_handler(signum, frame):
+        nonlocal interrupted
+        if interrupted:
+            # Second Ctrl+C: force quit
+            log.print("Forced exit.")
+            pool.terminate()
+            sys.exit(1)
+        interrupted = True
+        log.print("")
+        log.print(key="interrupt", value="Ctrl+C received, stopping after current generation...")
+        log.print("  (press Ctrl+C again to force exit)")
+    signal.signal(signal.SIGINT, _signal_handler)
+    # Windows doesn't have SIGALRM, only SIGINT and SIGTERM are common.
+    # But Python on Windows does support SIGTERM.
+    try:
+        signal.signal(signal.SIGTERM, _signal_handler)
+    except AttributeError:
+        pass
 
-        # Append to CSV
-        with open(csv_path, "a", newline="") as f:
-            w = csv.writer(f)
-            w.writerow([
-                result["generation"],
-                f"{result['best_fitness']:.6f}",
-                f"{result['avg_fitness']:.6f}",
-                f"{result['eval_time']:.3f}",
-                f"{result['total_time']:.3f}",
-            ])
+    try:
+        for gen in range(args.generations):
+            if interrupted:
+                break
+            result = trainer.step(gen, pool)
+            trainer.step_count = gen + 1
 
-        if args.save_every > 0 and (gen + 1) % args.save_every == 0:
-            ckpt_path = out_dir / f"gen_{gen+1:04d}.pt"
-            trainer.save_checkpoint(ckpt_path)
-            log.print(key="checkpoint", value=ckpt_path)
+            log.print_table(
+                gen=result["generation"],
+                best=f"{result['best_fitness']:.4f}",
+                avg=f"{result['avg_fitness']:.4f}",
+                eval_s=f"{result['eval_time']:.1f}",
+                total_s=f"{result['total_time']:.1f}",
+            )
+
+            # Append to CSV
+            with open(csv_path, "a", newline="") as f:
+                w = csv.writer(f)
+                w.writerow([
+                    result["generation"],
+                    f"{result['best_fitness']:.6f}",
+                    f"{result['avg_fitness']:.6f}",
+                    f"{result['eval_time']:.3f}",
+                    f"{result['total_time']:.3f}",
+                ])
+
+            if args.save_every > 0 and (gen + 1) % args.save_every == 0:
+                ckpt_path = out_dir / f"gen_{gen+1:04d}.pt"
+                trainer.save_checkpoint(ckpt_path)
+                log.print(key="checkpoint", value=ckpt_path)
+
+    except KeyboardInterrupt:
+        # Fallback in case signal handler didn't catch it
+        interrupted = True
+        log.print("")
+        log.print(key="interrupt", value="KeyboardInterrupt, saving checkpoint...")
+    finally:
+        pool.terminate()
+        pool.join()
 
     # ── Final ─────────────────────────────────────────────────────
-    trainer.save_checkpoint(out_dir / "final.pt")
+    if interrupted:
+        ckpt_path = out_dir / f"interrupt_gen_{trainer.step_count:04d}.pt"
+        trainer.save_checkpoint(ckpt_path)
+        log.print(key="interrupt_checkpoint", value=ckpt_path)
+    else:
+        trainer.save_checkpoint(out_dir / "final.pt")
+
     log.separator("=")
-    log.print(key="final_best_fitness", value=f"{result['best_fitness']:.4f}")
-    log.print(key="final_avg_fitness", value=f"{result['avg_fitness']:.4f}")
+    log.print(key="best_fitness", value=f"{result['best_fitness']:.4f}" if not interrupted else "N/A (interrupted)")
+    log.print(key="avg_fitness", value=f"{result['avg_fitness']:.4f}" if not interrupted else "N/A (interrupted)")
     log.print(key="history", value=csv_path)
     log.print("Done.")
 
