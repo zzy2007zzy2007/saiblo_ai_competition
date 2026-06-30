@@ -140,6 +140,7 @@ class ESTrainer:
         population_size: int = 16,
         sigma: float = 0.2,
         lr: float = 0.01,
+        momentum: float = 0.9,
         num_workers: int = 4,
         games_per_individual: int = 2,
         seed: int = 0,
@@ -147,6 +148,7 @@ class ESTrainer:
         self.population_size = population_size
         self.sigma = sigma
         self.lr = lr
+        self.momentum = momentum
         self.num_workers = num_workers
         self.games_per_individual = games_per_individual
         self.seed = seed
@@ -156,6 +158,7 @@ class ESTrainer:
         self.param_count = self.model.count_parameters()
         self.mean = self.model.get_parameters_as_vector()
         self.synthetic_target: np.ndarray | None = None
+        self.velocity: np.ndarray | None = None
 
     def step(self, generation: int, pool: mp.Pool) -> dict:
         """Run one ES generation with mirrored sampling (reduces variance by 2x)."""
@@ -238,7 +241,12 @@ class ESTrainer:
         shaped_pairs = shaped.reshape(n_noise, 2)
         pair_diffs = shaped_pairs[:, 0] - shaped_pairs[:, 1]
         gradient = (noise.T @ pair_diffs) / (self.population_size * self.sigma)
-        self.mean += self.lr * gradient.astype(self.mean.dtype)
+
+        # Momentum update: v = μ·v + lr·g ; θ += v
+        if self.velocity is None:
+            self.velocity = np.zeros_like(self.mean)
+        self.velocity = self.momentum * self.velocity + self.lr * gradient.astype(self.mean.dtype)
+        self.mean += self.velocity
         self.model.set_parameters_from_vector(self.mean)
 
         total_time = time.time() - t0
@@ -280,6 +288,7 @@ def main():
     parser.add_argument("--pop-size", type=int, default=16)
     parser.add_argument("--sigma", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--games", type=int, default=2, help="games per individual per generation")
     parser.add_argument("--generations", type=int, default=100)
@@ -312,6 +321,7 @@ def main():
         population_size=args.pop_size,
         sigma=args.sigma,
         lr=args.lr,
+        momentum=args.momentum,
         num_workers=args.workers,
         games_per_individual=args.games,
         seed=args.seed,
@@ -340,6 +350,7 @@ def main():
     log.print(key="pop_size", value=args.pop_size)
     log.print(key="sigma", value=args.sigma)
     log.print(key="lr", value=args.lr)
+    log.print(key="momentum", value=args.momentum)
     log.print(key="workers", value=args.workers)
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
