@@ -43,12 +43,19 @@ class ResBlock(nn.Module):
 class AntWarNetwork(nn.Module):
     """Full neural network for Ant-Game.
 
+    NUM_CLASSES = 24:
+      0-15  → tower actions (build/upgrade/downgrade)
+      16    → downgrade tower
+      17-20 → super weapons
+      21-22 → base upgrades
+      23    → HOLD (do nothing this turn)
+
     When ``single_head=True``, only one policy head is created (head1),
     reducing parameters by ~5.9K. This is useful for early-stage ES training
     to avoid conflicting behavior between multiple heads.
     """
 
-    NUM_CLASSES = 23  # 0-22 action classes
+    NUM_CLASSES = 24  # 0-22 action classes + 23 = HOLD
     BOARD_CHANNELS = 28
     BOARD_SIZE = 19
     STATS_DIM = 42

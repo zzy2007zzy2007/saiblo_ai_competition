@@ -12,6 +12,8 @@ for p in (_REPO, _CODE):
 import numpy as np
 import torch
 
+TOP1 = False  # overridden by --top1 flag
+
 
 def _worker(ckpt_path: str, seed: int) -> dict:
     import os
@@ -33,10 +35,16 @@ def _worker(ckpt_path: str, seed: int) -> dict:
     from my_ai.network import create_model
     from my_ai.agent import NeuralAgent
 
-    # Load checkpoint
+    # Load checkpoint — auto-detect single_head vs 3-head
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
-    model = create_model()
-    model.set_parameters_from_vector(ckpt["mean"].numpy())
+    param_vec = ckpt["top2_params"][0].numpy() if TOP1 else ckpt["mean"].numpy()
+    # Try single_head first (fewer params = 550,063)
+    model = create_model(single_head=True)
+    if model.count_parameters() == len(param_vec):
+        pass  # single_head matches
+    else:
+        model = create_model(single_head=False)
+    model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
 
     # Opponent
@@ -58,13 +66,18 @@ def _worker(ckpt_path: str, seed: int) -> dict:
 
     hp_us = state.bases[our_player].hp
     hp_opp = state.bases[opp_player].hp
+    side = "1st" if our_player == 0 else "2nd"
     if hp_us <= 0 and hp_opp <= 0:
-        return {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
-    if hp_us > hp_opp:
-        return {"score": 1.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
-    if hp_opp > hp_us:
-        return {"score": 0.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
-    return {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+        result = {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    elif hp_us > hp_opp:
+        result = {"score": 1.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    elif hp_opp > hp_us:
+        result = {"score": 0.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    else:
+        result = {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    tag = {1.0: "WIN", 0.5: "DRAW", 0.0: "LOSS"}[result["score"]]
+    print(f"  [{side}] seed={seed:3d}  {tag}  us={int(hp_us):2d}  opp={int(hp_opp):2d}", flush=True)
+    return result
 
 
 def main():
@@ -73,7 +86,11 @@ def main():
     parser.add_argument("ckpt", type=str, help="path to checkpoint .pt file")
     parser.add_argument("--games", type=int, default=30)
     parser.add_argument("--workers", type=int, default=12)
+    parser.add_argument("--top1", action="store_true", help="use top2_params[0] instead of mean")
     args = parser.parse_args()
+
+    global TOP1
+    TOP1 = args.top1
 
     ckpt_path = str(Path(args.ckpt).resolve())
 
@@ -91,7 +108,8 @@ def main():
     hp_us_all = [r["hp_us"] for r in results]
     hp_opp_all = [r["hp_opp"] for r in results]
 
-    print(f"\nCheckpoint: {ckpt_path}")
+    label = " (TOP1)" if TOP1 else " (mean)"
+    print(f"\nCheckpoint: {ckpt_path}{label}")
     print(f"Games: {args.games} ({args.workers} workers, {dt:.1f}s)")
     print(f"  Win rate:  {wins / args.games:.3f} ({wins}/{args.games})")
     print(f"  Draw rate: {draws / args.games:.3f} ({draws}/{args.games})")

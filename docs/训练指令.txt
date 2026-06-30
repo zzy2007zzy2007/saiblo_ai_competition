@@ -1,0 +1,3 @@
+python code/my_ai/es_train.py --pop-size 54 --workers 24 --games 6 --generations 500 --save-every 3 --single-head --single-head
+python code/my_ai/es_train.py --pop-size 54 --workers 16 --games 8 --generations 500 --save-every 1 --single-head --checkpoint training_history/20260630_182516/gen_0011_with_pool.pt
+python code/my_ai/es_train.py --pop-size 100 --workers 21 --games 12 --generations 500 --save-every 1 --single-head --checkpoint training_history/20260630_182516/gen_0011_with_pool.pt

@@ -192,15 +192,15 @@ class ESTrainer:
                 opp_pool.append(entry[1])  # top1
             n_pool = len(opp_pool)
             # Weighted selection: newer generations have higher probability
-            # weight = 0.85^(generation_distance), so most recent gen has weight ~1.0,
-            # 5 gens ago ~0.44, 10 gens ago ~0.20, 20 gens ago ~0.04
             gen_weights = np.array([0.85 ** (i // 2) for i in range(n_pool)], dtype=np.float64)
             gen_weights /= gen_weights.sum()
+            # Select K opponents ONCE per generation — all individuals face the same opponents
+            replace = k_per_ind > n_pool
+            selected_opps = self.rng.choice(n_pool, size=k_per_ind, p=gen_weights, replace=replace)
             all_args = []
             for idx in range(self.population_size):
                 for k in range(k_per_ind):
-                    opp_idx = self.rng.choice(n_pool, p=gen_weights)
-                    opp_params = opp_pool[opp_idx]
+                    opp_params = opp_pool[selected_opps[k]]
                     base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
                     all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
                     all_args.append((params_list[idx], opp_params, base_seed + 1, self.single_head, self.synthetic_target))
@@ -481,7 +481,7 @@ def main():
             # Update elite pool with this generation's mean and top1
             top2 = result.get("top2_params")
             if top2 and len(top2) >= 1:
-                trainer.elite_pool.append((trainer.mean.copy(), top2[0].numpy().copy()))
+                trainer.elite_pool.append((trainer.mean.copy(), top2[0].copy()))
                 # Keep at most 20 generations (40 opponents) for diversity
                 max_gens = 20
                 if len(trainer.elite_pool) > max_gens:

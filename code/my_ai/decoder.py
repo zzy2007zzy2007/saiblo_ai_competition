@@ -66,7 +66,7 @@ SUPER_WEAPON_TO_OP_TYPE: dict[SuperWeaponType, OperationType] = {
     SuperWeaponType.EMERGENCY_EVASION: OperationType.USE_EMERGENCY_EVASION,
 }
 
-NUM_CLASSES = 23
+NUM_CLASSES = 24  # 0-22 action classes + 23 = HOLD
 
 # ─── Helper: find upgrade step toward target ───────────────────────────────
 
@@ -147,6 +147,9 @@ def make_class_mask(
         and state.coins[player] >= BASE_UPGRADE_COST[state.bases[player].ant_level]
     )
 
+    # HOLD (23): always valid
+    mask[23] = True
+
     return mask
 
 
@@ -211,13 +214,17 @@ def decode_head(
     if not class_mask[class_id]:
         return None  # No valid action
 
-    # Step 2: Base upgrades (no position)
+    # Step 2: HOLD — do nothing this turn
+    if class_id == 23:
+        return None
+
+    # Step 3: Base upgrades (no position)
     if class_id == 21:
         return Operation(OperationType.UPGRADE_GENERATION_SPEED)
     if class_id == 22:
         return Operation(OperationType.UPGRADE_GENERATED_ANT)
 
-    # Step 3: Super weapons
+    # Step 4: Super weapons
     if 17 <= class_id <= 20:
         sw_type = CHANNEL_TO_SUPER_WEAPON[class_id]
         op_type = SUPER_WEAPON_TO_OP_TYPE[sw_type]

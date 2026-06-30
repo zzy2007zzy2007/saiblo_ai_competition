@@ -45,13 +45,29 @@ def expand_checkpoint(ckpt_path: str, out_path: str | None = None):
                 # Should not happen: new parameter with no source
                 print(f"  WARNING: no source for {name}, keeping random init")
 
-    # Save as new checkpoint
-    out = out_path or (Path(ckpt_path).stem + "_3heads.pt")
-    torch.save({
+    # Save as new checkpoint (preserve top2_params if present)
+    out_data = {
         "mean": torch.from_numpy(model_3h.get_parameters_as_vector()),
         "model_state": model_3h.state_dict(),
         "generation": ckpt.get("generation", 0),
-    }, out)
+    }
+    if "top2_params" in ckpt:
+        # Expand each top-2 param as well
+        expanded_top2 = []
+        for p_vec in ckpt["top2_params"]:
+            # Load into single-head model, then expand to 3-head
+            model_1h.set_parameters_from_vector(p_vec.numpy())
+            for name, p3 in model_3h.named_parameters():
+                if name in params_1h:
+                    p3.data.copy_(model_1h.state_dict()[name])
+                elif name.startswith("policy_head2") or name.startswith("policy_head3"):
+                    head1_name = name.replace("head2", "head1").replace("head3", "head1")
+                    p3.data.copy_(model_1h.state_dict()[head1_name])
+            expanded_top2.append(torch.from_numpy(model_3h.get_parameters_as_vector()))
+        out_data["top2_params"] = expanded_top2
+        out_data["top2_scores"] = ckpt.get("top2_scores", [])
+    out = out_path or (Path(ckpt_path).stem + "_3heads.pt")
+    torch.save(out_data, out)
     print(f"Expanded to 3 heads: {out}")
     print(f"  Mean shape: {model_3h.get_parameters_as_vector().shape}")
     print(f"  Params: {model_3h.count_parameters():,}")
