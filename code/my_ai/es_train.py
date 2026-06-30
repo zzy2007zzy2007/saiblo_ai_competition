@@ -191,10 +191,15 @@ class ESTrainer:
                 opp_pool.append(entry[0])  # mean
                 opp_pool.append(entry[1])  # top1
             n_pool = len(opp_pool)
+            # Weighted selection: newer generations have higher probability
+            # weight = 0.85^(generation_distance), so most recent gen has weight ~1.0,
+            # 5 gens ago ~0.44, 10 gens ago ~0.20, 20 gens ago ~0.04
+            gen_weights = np.array([0.85 ** (i // 2) for i in range(n_pool)], dtype=np.float64)
+            gen_weights /= gen_weights.sum()
             all_args = []
             for idx in range(self.population_size):
                 for k in range(k_per_ind):
-                    opp_idx = self.rng.randint(n_pool)
+                    opp_idx = self.rng.choice(n_pool, p=gen_weights)
                     opp_params = opp_pool[opp_idx]
                     base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
                     all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
@@ -307,6 +312,11 @@ class ESTrainer:
             data["top2_scores"] = top2_scores
         if self.velocity is not None:
             data["velocity"] = torch.from_numpy(self.velocity)
+        if self.elite_pool:
+            data["elite_pool"] = [
+                (torch.from_numpy(m), torch.from_numpy(t))
+                for m, t in self.elite_pool
+            ]
         torch.save(data, path)
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -315,6 +325,8 @@ class ESTrainer:
         self.model.set_parameters_from_vector(self.mean)
         if "velocity" in ckpt:
             self.velocity = ckpt["velocity"].numpy()
+        if "elite_pool" in ckpt:
+            self.elite_pool = [(m.numpy(), t.numpy()) for m, t in ckpt["elite_pool"]]
 
 
 def main():
