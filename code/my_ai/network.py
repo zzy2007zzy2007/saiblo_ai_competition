@@ -41,7 +41,12 @@ class ResBlock(nn.Module):
 
 
 class AntWarNetwork(nn.Module):
-    """Full neural network for Ant-Game."""
+    """Full neural network for Ant-Game.
+
+    When ``single_head=True``, only one policy head is created (head1),
+    reducing parameters by ~5.9K. This is useful for early-stage ES training
+    to avoid conflicting behavior between multiple heads.
+    """
 
     NUM_CLASSES = 23  # 0-22 action classes
     BOARD_CHANNELS = 28
@@ -49,9 +54,10 @@ class AntWarNetwork(nn.Module):
     STATS_DIM = 42
     LATENT_DIM = 64
 
-    def __init__(self, num_resblocks: int = 6):
+    def __init__(self, num_resblocks: int = 6, single_head: bool = False):
         super().__init__()
         self.num_resblocks = num_resblocks
+        self.single_head = single_head
 
         # Board encoder
         self.initial_conv = nn.Sequential(
@@ -73,14 +79,15 @@ class AntWarNetwork(nn.Module):
         # Policy head - spatial
         self.action_map_conv = nn.Conv2d(self.LATENT_DIM, self.NUM_CLASSES, kernel_size=1)
 
-        # Policy head - class (×3 action heads)
+        # Policy head - class
         self.policy_base = nn.Sequential(
             nn.Linear(self.LATENT_DIM, self.LATENT_DIM),
             nn.ReLU(),
         )
         self.policy_head1 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
-        self.policy_head2 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
-        self.policy_head3 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
+        if not single_head:
+            self.policy_head2 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
+            self.policy_head3 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
 
         # Value head
         self.value_head = nn.Sequential(
@@ -98,7 +105,8 @@ class AntWarNetwork(nn.Module):
         Returns:
             dict with keys:
               - action_map: (B, 23, 19, 19)
-              - head1/head2/head3_logits: (B, 23)
+              - head1_logits: (B, 23)
+              - head2_logits, head3_logits: (B, 23) — only if single_head=False
               - value: (B, 1)
         """
         # Board encoder
@@ -117,25 +125,21 @@ class AntWarNetwork(nn.Module):
         state_emb = torch.cat([board_emb, stats_emb], dim=1)  # (B, 128)
 
         # --- Policy head ---
-        # Spatial: action map (shared, not copied)
+        # Spatial: action map (shared)
         action_map = self.action_map_conv(spatial_feat)  # (B, 23, 19, 19)
 
         # Class heads
         policy_base = self.policy_base(board_emb)  # (B, 64)
         head1_logits = self.policy_head1(policy_base)  # (B, 23)
-        head2_logits = self.policy_head2(policy_base)  # (B, 23)
-        head3_logits = self.policy_head3(policy_base)  # (B, 23)
-
-        # --- Value head ---
-        value = self.value_head(state_emb)  # (B, 1)
-
-        return {
+        result: dict[str, torch.Tensor] = {
             "action_map": action_map,
             "head1_logits": head1_logits,
-            "head2_logits": head2_logits,
-            "head3_logits": head3_logits,
-            "value": value,
+            "value": self.value_head(state_emb),  # (B, 1)
         }
+        if not self.single_head:
+            result["head2_logits"] = self.policy_head2(policy_base)  # (B, 23)
+            result["head3_logits"] = self.policy_head3(policy_base)  # (B, 23)
+        return result
 
     def get_parameters_as_vector(self) -> np.ndarray:
         """Flatten all parameters into a single vector (for ES)."""
@@ -156,15 +160,15 @@ class AntWarNetwork(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
 
-def create_model(num_resblocks: int = 6) -> AntWarNetwork:
+def create_model(num_resblocks: int = 6, single_head: bool = False) -> AntWarNetwork:
     """Create a model and initialize all weights to very small random values."""
-    model = AntWarNetwork(num_resblocks=num_resblocks)
+    model = AntWarNetwork(num_resblocks=num_resblocks, single_head=single_head)
     return model
 
 
-def create_zero_model(num_resblocks: int = 6) -> AntWarNetwork:
+def create_zero_model(num_resblocks: int = 6, single_head: bool = False) -> AntWarNetwork:
     """Create a model with all weights set to exactly zero (for testing)."""
-    model = AntWarNetwork(num_resblocks=num_resblocks)
+    model = AntWarNetwork(num_resblocks=num_resblocks, single_head=single_head)
     for p in model.parameters():
         nn.init.zeros_(p)
     # Need to set some non-zero biases to avoid dead ReLU in testing

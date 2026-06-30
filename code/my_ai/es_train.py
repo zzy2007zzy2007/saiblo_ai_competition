@@ -65,6 +65,7 @@ def _eval_worker(
     params_flat: np.ndarray,
     opp_params_flat: np.ndarray,
     seed: int,
+    single_head: bool = False,
     synthetic_target: np.ndarray | None = None,
 ) -> dict:
     """Run one match: params vs opponent params.
@@ -98,11 +99,11 @@ def _eval_worker(
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    model = create_model()
+    model = create_model(single_head=single_head)
     model.set_parameters_from_vector(params_flat)
     agent = NeuralAgent(model=model)
 
-    opp_model = create_model()
+    opp_model = create_model(single_head=single_head)
     opp_model.set_parameters_from_vector(opp_params_flat)
     opponent = NeuralAgent(model=opp_model)
 
@@ -144,6 +145,7 @@ class ESTrainer:
         num_workers: int = 4,
         games_per_individual: int = 2,
         seed: int = 0,
+        single_head: bool = False,
     ):
         self.population_size = population_size
         self.sigma = sigma
@@ -152,9 +154,10 @@ class ESTrainer:
         self.num_workers = num_workers
         self.games_per_individual = games_per_individual
         self.seed = seed
+        self.single_head = single_head
         self.rng = np.random.RandomState(seed)
 
-        self.model = create_model()
+        self.model = create_model(single_head=single_head)
         self.param_count = self.model.count_parameters()
         self.mean = self.model.get_parameters_as_vector()
         self.synthetic_target: np.ndarray | None = None
@@ -187,8 +190,8 @@ class ESTrainer:
                 opp_idx = opp_indices[idx][k]
                 base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
                 # base_seed is always even → our_player=0; base_seed+1 → our_player=1
-                all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.synthetic_target))
-                all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.synthetic_target))
+                all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.single_head, self.synthetic_target))
+                all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.single_head, self.synthetic_target))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -293,6 +296,8 @@ def main():
     parser.add_argument("--games", type=int, default=2, help="games per individual per generation")
     parser.add_argument("--generations", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--single-head", action="store_true",
+                        help="train with only 1 policy head (reduce conflicting actions)")
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from checkpoint")
     parser.add_argument("--save-every", type=int, default=10)
     parser.add_argument("--synthetic-test", action="store_true",
@@ -325,6 +330,7 @@ def main():
         num_workers=args.workers,
         games_per_individual=args.games,
         seed=args.seed,
+        single_head=args.single_head,
     )
 
     if args.checkpoint:
@@ -354,6 +360,7 @@ def main():
     log.print(key="workers", value=args.workers)
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
+    log.print(key="single_head", value=args.single_head)
     log.print(key="opponents", value="random from population (self-play)")
     log.separator("-")
 

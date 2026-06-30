@@ -309,8 +309,10 @@ def decode_network_output(
 
     action_map = _to_np(network_output["action_map"])  # (23, 19, 19)
     head_logits_list = [
-        _to_np(network_output[f"head{i}_logits"]) for i in (1, 2, 3)
-    ]  # each (23,)
+        _to_np(network_output[f"head{i}_logits"])
+        for i in (1, 2, 3)
+        if f"head{i}_logits" in network_output
+    ]  # 1 or 3 entries, each (23,)
 
     # Compute masks
     position_mask = make_position_masks(state, player)
