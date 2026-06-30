@@ -1,9 +1,14 @@
-# Ignore the official game repo (already has its own git)
-/Ant-Game/
-
 __pycache__/
 *.pyc
 
 # Training run outputs (checkpoints, logs, configs)
 training_history/
 code/my_ai/training_history/
+
+# BC temp files (per-worker .npz, merged .npz datasets, checkpoints)
+_bc_tmp_*/
+bc_data_*.npz
+bc_checkpoint.pt
+baseline_*.pt
+default_baseline.pt
+zero_baseline.pt
