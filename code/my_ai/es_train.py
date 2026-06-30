@@ -162,6 +162,9 @@ class ESTrainer:
         self.mean = self.model.get_parameters_as_vector()
         self.synthetic_target: np.ndarray | None = None
         self.velocity: np.ndarray | None = None
+        # Elite pool: [(mean_vector, top1_vector), ...] from past generations
+        # Used as opponents so learners face diverse strategies.
+        self.elite_pool: list[tuple[np.ndarray, np.ndarray]] = []
 
     def step(self, generation: int, pool: mp.Pool) -> dict:
         """Run one ES generation with mirrored sampling (reduces variance by 2x)."""
@@ -179,19 +182,33 @@ class ESTrainer:
             params_list.append(self.mean - self.sigma * n)
         eval_start = time.time()
 
-        # Select opponent pairs (each pair = one first-player + one second-player game)
+        # Select opponent pairs — use elite pool if available, else current population
         k_per_ind = self.games_per_individual // 2
-        opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
-
-        # Build task arguments: each opponent pair creates 2 games (alternating first/second)
-        all_args = []
-        for idx in range(self.population_size):
-            for k in range(k_per_ind):
-                opp_idx = opp_indices[idx][k]
-                base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
-                # base_seed is always even → our_player=0; base_seed+1 → our_player=1
-                all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.single_head, self.synthetic_target))
-                all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.single_head, self.synthetic_target))
+        if self.elite_pool:
+            # Build flat opponent pool: newest gen's mean, top1, then second newest, etc.
+            opp_pool: list[np.ndarray] = []
+            for entry in reversed(self.elite_pool):
+                opp_pool.append(entry[0])  # mean
+                opp_pool.append(entry[1])  # top1
+            n_pool = len(opp_pool)
+            all_args = []
+            for idx in range(self.population_size):
+                for k in range(k_per_ind):
+                    opp_idx = self.rng.randint(n_pool)
+                    opp_params = opp_pool[opp_idx]
+                    base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
+                    all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
+                    all_args.append((params_list[idx], opp_params, base_seed + 1, self.single_head, self.synthetic_target))
+        else:
+            # First generation: use current population as opponents
+            opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
+            all_args = []
+            for idx in range(self.population_size):
+                for k in range(k_per_ind):
+                    opp_idx = opp_indices[idx][k]
+                    base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
+                    all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.single_head, self.synthetic_target))
+                    all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.single_head, self.synthetic_target))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -312,7 +329,9 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--single-head", action="store_true",
                         help="train with only 1 policy head (reduce conflicting actions)")
-    parser.add_argument("--checkpoint", type=str, default=None, help="resume from checkpoint")
+    parser.add_argument("--checkpoint", type=str, default=None, help="resume from ES checkpoint")
+    parser.add_argument("--load-bc", type=str, default=None,
+                        help="load BC checkpoint as initialization (for cold start)")
     parser.add_argument("--save-every", type=int, default=10)
     parser.add_argument("--synthetic-test", action="store_true",
                         help="synthetic fitness: converge toward random target (test ES correctness)")
@@ -351,6 +370,13 @@ def main():
 
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
+
+    if args.load_bc:
+        ckpt = torch.load(args.load_bc, map_location="cpu", weights_only=True)
+        trainer.mean = ckpt["mean"].numpy()
+        trainer.model.set_parameters_from_vector(trainer.mean)
+        trainer.velocity = None  # reset momentum
+        log.print(key="load_bc", value=args.load_bc)
 
     # ── Synthetic test: generate random target ──────────────────
     if args.synthetic_test:
@@ -398,12 +424,14 @@ def main():
                     **({"dist": "dist_to_target"} if args.synthetic_test else {}))
     log.separator("-", width=50 if not args.synthetic_test else 65, timestamp=False)
     log.print("  [Ctrl+C: stop after current gen | Second Ctrl+C: force quit]")
-    log.print("  [PAUSE file: create PAUSE in out_dir to pause, delete to resume]")
+    log.print("  [PAUSE: write 'pause' into PAUSE file to pause, 'resume' to continue]")
     log.separator("-", width=50 if not args.synthetic_test else 65, timestamp=False)
 
     pool = mp.Pool(args.workers)
     interrupted = False
     pause_file = out_dir / "PAUSE"
+    # Start in running state by default
+    pause_file.write_text("resume", encoding="utf-8")
     result = None
     trainer.step_count = 0
 
@@ -428,8 +456,8 @@ def main():
         for gen in range(args.generations):
             if interrupted:
                 break
-            # Check for PAUSE file before starting a generation
-            while pause_file.exists() and not interrupted:
+            # Check PAUSE file content before starting a generation
+            while pause_file.read_text(encoding="utf-8").strip().lower() == "pause" and not interrupted:
                 time.sleep(2)
             if interrupted:
                 break
@@ -437,6 +465,15 @@ def main():
             if interrupted:
                 break
             trainer.step_count = gen + 1
+
+            # Update elite pool with this generation's mean and top1
+            top2 = result.get("top2_params")
+            if top2 and len(top2) >= 1:
+                trainer.elite_pool.append((trainer.mean.copy(), top2[0].numpy().copy()))
+                # Keep at most 20 generations (40 opponents) for diversity
+                max_gens = 20
+                if len(trainer.elite_pool) > max_gens:
+                    trainer.elite_pool.pop(0)
 
             log.print_table(
                 gen=result["generation"],
