@@ -1,0 +1,22 @@
+============================================================
+                       ES Training                       
+============================================================
+[10:09:09] out_dir=training_history_20260630_100909
+[10:09:09] params=553,053
+[10:09:09] seed=42
+[10:09:09] pop_size=42
+[10:09:09] sigma=0.05
+[10:09:09] lr=0.01
+[10:09:09] workers=16
+[10:09:09] games_per_ind=6
+[10:09:09] generations=500
+[10:09:09] opponents=random from population (self-play)
+------------------------------------------------------------
+[10:09:09] mode=real game (self-play)
+gen=gen  best=best_fit  avg=avg_fit  eval_s=eval(s)  total_s=total(s)
+--------------------------------------------------
+[10:09:09]   [Ctrl+C: stop after current gen | Second Ctrl+C: force quit]
+[10:09:09]   [PAUSE file: create PAUSE in out_dir to pause, delete to resume]
+--------------------------------------------------
+[10:09:14] 
+[10:09:14] interrupt=Ctrl+C received, stopping after current generation...

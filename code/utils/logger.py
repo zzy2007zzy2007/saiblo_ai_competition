@@ -65,8 +65,9 @@ class Logger:
         self.separator(char, width, timestamp=False)
 
     def print_table(self, **columns: object) -> None:
-        """Print space-separated key=value pairs in a single line (no timestamp)."""
-        parts = [f"{k}={v}" for k, v in columns.items()]
+        """Print space-separated key=value pairs with timestamp prefix."""
+        t = datetime.now().strftime("%H:%M:%S")
+        parts = [f"[{t}]"] + [f"{k}={v}" for k, v in columns.items()]
         line = "  ".join(parts)
         # To file
         self._file.write(line + "\n")

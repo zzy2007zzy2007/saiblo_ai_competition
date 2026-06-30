@@ -1,0 +1,12 @@
+pop_size=6
+sigma=0.05
+lr=0.01
+workers=6
+games=1
+generations=5
+seed=42
+checkpoint=None
+save_every=10
+synthetic_test=False
+out_dir=None
+timestamp=20260630_100315

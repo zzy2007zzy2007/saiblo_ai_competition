@@ -1,0 +1,28 @@
+============================================================
+                       ES Training                       
+============================================================
+[10:07:58] out_dir=training_history_20260630_100758
+[10:07:58] params=553,053
+[10:07:58] seed=42
+[10:07:58] pop_size=6
+[10:07:58] sigma=0.05
+[10:07:58] lr=0.01
+[10:07:58] workers=6
+[10:07:58] games_per_ind=1
+[10:07:58] generations=3
+[10:07:58] opponents=random from population (self-play)
+------------------------------------------------------------
+[10:07:58] mode=real game (self-play)
+gen=gen  best=best_fit  avg=avg_fit  eval_s=eval(s)  total_s=total(s)
+--------------------------------------------------
+[10:07:58]   [Ctrl+C: stop after current gen | Second Ctrl+C: force quit]
+[10:07:58]   [PAUSE file: create PAUSE in out_dir to pause, delete to resume]
+--------------------------------------------------
+gen=0  best=1.0000  avg=0.6667  eval_s=4.1  total_s=4.2
+gen=1  best=1.0000  avg=0.6667  eval_s=3.6  total_s=3.6
+gen=2  best=1.0000  avg=0.5000  eval_s=3.4  total_s=3.4
+============================================================
+[10:08:11] best_fitness=1.0000
+[10:08:11] avg_fitness=0.5000
+[10:08:11] history=training_history_20260630_100758\history.csv
+[10:08:11] Done.

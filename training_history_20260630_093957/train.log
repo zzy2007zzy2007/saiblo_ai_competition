@@ -1,0 +1,246 @@
+============================================================
+                       ES Training                       
+============================================================
+[09:39:57] out_dir=training_history_20260630_093957
+[09:39:57] params=553,053
+[09:39:57] seed=42
+[09:39:57] pop_size=16
+[09:39:57] sigma=5.0
+[09:39:57] lr=0.1
+[09:39:57] workers=12
+[09:39:57] games_per_ind=1
+[09:39:57] generations=200
+[09:39:57] opponents=random from population (self-play)
+------------------------------------------------------------
+[09:39:57] mode=synthetic test
+[09:39:57] init_dist_to_target=217.2721
+gen=gen  best=best_fit  avg=avg_fit  eval_s=eval(s)  total_s=total(s)  dist=dist_to_target
+-----------------------------------------------------------------
+gen=0  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.4  dist=217.28
+gen=1  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.4  dist=217.28
+gen=2  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.4  dist=217.28
+gen=3  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.29
+gen=4  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.3  dist=217.29
+gen=5  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.29
+gen=6  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.29
+gen=7  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.29
+gen=8  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.30
+gen=9  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.30
+[09:40:02] checkpoint=training_history_20260630_093957\gen_0010.pt
+gen=10  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.30
+gen=11  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.30
+gen=12  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=13  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=14  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=15  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=16  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=17  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.31
+gen=18  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.32
+gen=19  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.32
+[09:40:05] checkpoint=training_history_20260630_093957\gen_0020.pt
+gen=20  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.32
+gen=21  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.32
+gen=22  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.33
+gen=23  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.33
+gen=24  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.33
+gen=25  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.33
+gen=26  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.33
+gen=27  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.34
+gen=28  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.3  dist=217.34
+gen=29  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.34
+[09:40:09] checkpoint=training_history_20260630_093957\gen_0030.pt
+gen=30  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.35
+gen=31  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.35
+gen=32  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.35
+gen=33  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.35
+gen=34  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.36
+gen=35  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.36
+gen=36  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.36
+gen=37  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.36
+gen=38  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.37
+gen=39  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.37
+[09:40:12] checkpoint=training_history_20260630_093957\gen_0040.pt
+gen=40  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.37
+gen=41  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.37
+gen=42  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.38
+gen=43  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.37
+gen=44  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.38
+gen=45  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.38
+gen=46  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.38
+gen=47  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=48  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=49  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+[09:40:15] checkpoint=training_history_20260630_093957\gen_0050.pt
+gen=50  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=51  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=52  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=53  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.39
+gen=54  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+gen=55  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+gen=56  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+gen=57  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+gen=58  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+gen=59  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.40
+[09:40:18] checkpoint=training_history_20260630_093957\gen_0060.pt
+gen=60  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.41
+gen=61  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.41
+gen=62  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.41
+gen=63  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.41
+gen=64  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.41
+gen=65  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=66  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=67  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=68  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=69  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+[09:40:21] checkpoint=training_history_20260630_093957\gen_0070.pt
+gen=70  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=71  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=72  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.42
+gen=73  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=74  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=75  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=76  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=77  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=78  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.43
+gen=79  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+[09:40:24] checkpoint=training_history_20260630_093957\gen_0080.pt
+gen=80  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+gen=81  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+gen=82  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+gen=83  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+gen=84  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.44
+gen=85  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.45
+gen=86  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.45
+gen=87  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.45
+gen=88  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.45
+gen=89  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.45
+[09:40:27] checkpoint=training_history_20260630_093957\gen_0090.pt
+gen=90  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.46
+gen=91  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.46
+gen=92  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.46
+gen=93  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=94  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=95  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=96  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=97  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=98  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=99  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+[09:40:30] checkpoint=training_history_20260630_093957\gen_0100.pt
+gen=100  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.47
+gen=101  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.48
+gen=102  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.48
+gen=103  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.48
+gen=104  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.48
+gen=105  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.48
+gen=106  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.49
+gen=107  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.49
+gen=108  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.49
+gen=109  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.49
+[09:40:34] checkpoint=training_history_20260630_093957\gen_0110.pt
+gen=110  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.49
+gen=111  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.50
+gen=112  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.3  dist=217.50
+gen=113  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.4  dist=217.50
+gen=114  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.50
+gen=115  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.50
+gen=116  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.50
+gen=117  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.50
+gen=118  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.51
+gen=119  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.51
+[09:40:37] checkpoint=training_history_20260630_093957\gen_0120.pt
+gen=120  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.51
+gen=121  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.51
+gen=122  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.51
+gen=123  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.52
+gen=124  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.52
+gen=125  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.52
+gen=126  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.52
+gen=127  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.52
+gen=128  best=0.0003  avg=0.0003  eval_s=0.2  total_s=0.3  dist=217.53
+gen=129  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.53
+[09:40:40] checkpoint=training_history_20260630_093957\gen_0130.pt
+gen=130  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.53
+gen=131  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.53
+gen=132  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.53
+gen=133  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=134  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=135  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=136  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=137  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=138  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+gen=139  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.54
+[09:40:43] checkpoint=training_history_20260630_093957\gen_0140.pt
+gen=140  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=141  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=142  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=143  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=144  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=145  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=146  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=147  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=148  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.55
+gen=149  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.56
+[09:40:46] checkpoint=training_history_20260630_093957\gen_0150.pt
+gen=150  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.56
+gen=151  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.56
+gen=152  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=153  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=154  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=155  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=156  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=157  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.57
+gen=158  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.58
+gen=159  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.58
+[09:40:49] checkpoint=training_history_20260630_093957\gen_0160.pt
+gen=160  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.58
+gen=161  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.58
+gen=162  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=163  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=164  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=165  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=166  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=167  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=168  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=169  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+[09:40:52] checkpoint=training_history_20260630_093957\gen_0170.pt
+gen=170  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=171  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=172  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.59
+gen=173  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=174  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=175  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=176  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=177  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=178  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.60
+gen=179  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.61
+[09:40:55] checkpoint=training_history_20260630_093957\gen_0180.pt
+gen=180  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.61
+gen=181  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.61
+gen=182  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.61
+gen=183  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.62
+gen=184  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.62
+gen=185  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.62
+gen=186  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.62
+gen=187  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.62
+gen=188  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=189  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+[09:40:58] checkpoint=training_history_20260630_093957\gen_0190.pt
+gen=190  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=191  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=192  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=193  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=194  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=195  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.63
+gen=196  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.64
+gen=197  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.64
+gen=198  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.64
+gen=199  best=0.0003  avg=0.0003  eval_s=0.1  total_s=0.3  dist=217.64
+[09:41:01] checkpoint=training_history_20260630_093957\gen_0200.pt
+============================================================
+[09:41:01] best_fitness=0.0003
+[09:41:01] avg_fitness=0.0003
+[09:41:01] final_dist_to_target=217.6406
+[09:41:01] dist_reduction=1.0x
+[09:41:01]   ⚠️  ES did NOT converge; check hyperparameters.
+[09:41:01] history=training_history_20260630_093957\history.csv
+[09:41:01] Done.
