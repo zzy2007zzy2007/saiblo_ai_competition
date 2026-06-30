@@ -253,6 +253,12 @@ class ESTrainer:
         self.model.set_parameters_from_vector(self.mean)
 
         total_time = time.time() - t0
+
+        # Top-2 individuals' parameters
+        top2_idx = np.argsort(fitness)[-2:]
+        top2_params = [params_list[i].copy() for i in top2_idx]
+        top2_scores = [float(fitness[i]) for i in top2_idx]
+
         result = {
             "generation": generation,
             "best_fitness": float(fitness.max()),
@@ -260,6 +266,8 @@ class ESTrainer:
             "eval_time": eval_time,
             "total_time": total_time,
             "ind_details": ind_details,
+            "top2_params": top2_params,
+            "top2_scores": top2_scores,
         }
         if self.synthetic_target is not None:
             target_exists = self.synthetic_target != 0
@@ -268,22 +276,28 @@ class ESTrainer:
             result["dist_to_target"] = float(np.linalg.norm(sub_mean - sub_target))
         return result
 
-    def save_checkpoint(self, path: str | Path) -> None:
+    def save_checkpoint(self, path: str | Path, top2_params: list[np.ndarray] | None = None,
+                        top2_scores: list[float] | None = None) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "mean": torch.from_numpy(self.mean),
-                "model_state": self.model.state_dict(),
-                "generation": self.step_count if hasattr(self, "step_count") else 0,
-            },
-            path,
-        )
+        data: dict = {
+            "mean": torch.from_numpy(self.mean),
+            "model_state": self.model.state_dict(),
+            "generation": self.step_count if hasattr(self, "step_count") else 0,
+        }
+        if top2_params is not None:
+            data["top2_params"] = [torch.from_numpy(p) for p in top2_params]
+            data["top2_scores"] = top2_scores
+        if self.velocity is not None:
+            data["velocity"] = torch.from_numpy(self.velocity)
+        torch.save(data, path)
 
     def load_checkpoint(self, path: str | Path) -> None:
         ckpt = torch.load(path, map_location="cpu", weights_only=True)
         self.mean = ckpt["mean"].numpy()
         self.model.set_parameters_from_vector(self.mean)
+        if "velocity" in ckpt:
+            self.velocity = ckpt["velocity"].numpy()
 
 
 def main():
@@ -308,7 +322,9 @@ def main():
 
     # ── Prepare output directory ──────────────────────────────────
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(args.out_dir) if args.out_dir else Path(f"training_history_{ts}")
+    base_dir = Path("training_history")
+    base_dir.mkdir(exist_ok=True)
+    out_dir = Path(args.out_dir) if args.out_dir else base_dir / f"{ts}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Logger ────────────────────────────────────────────────────
@@ -472,7 +488,9 @@ def main():
 
             if args.save_every > 0 and (gen + 1) % args.save_every == 0:
                 ckpt_path = out_dir / f"gen_{gen+1:04d}.pt"
-                trainer.save_checkpoint(ckpt_path)
+                trainer.save_checkpoint(ckpt_path,
+                                        top2_params=result.get("top2_params"),
+                                        top2_scores=result.get("top2_scores"))
                 log.print(key="checkpoint", value=ckpt_path)
 
     except KeyboardInterrupt:
@@ -487,10 +505,14 @@ def main():
     # ── Final ─────────────────────────────────────────────────────
     if interrupted:
         ckpt_path = out_dir / f"interrupt_gen_{trainer.step_count:04d}.pt"
-        trainer.save_checkpoint(ckpt_path)
+        trainer.save_checkpoint(ckpt_path,
+                                top2_params=result.get("top2_params") if result else None,
+                                top2_scores=result.get("top2_scores") if result else None)
         log.print(key="interrupt_checkpoint", value=ckpt_path)
     else:
-        trainer.save_checkpoint(out_dir / "final.pt")
+        trainer.save_checkpoint(out_dir / "final.pt",
+                                top2_params=result.get("top2_params") if result else None,
+                                top2_scores=result.get("top2_scores") if result else None)
 
     log.separator("=")
     if result is not None and not interrupted:
