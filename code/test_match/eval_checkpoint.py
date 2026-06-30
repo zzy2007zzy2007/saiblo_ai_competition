@@ -1,0 +1,111 @@
+"""Evaluate a trained checkpoint against ExampleAI."""
+from __future__ import annotations
+import sys, time, multiprocessing as mp
+from pathlib import Path
+
+_REPO = Path(__file__).resolve().parents[2] / "Ant-Game"
+_CODE = Path(__file__).resolve().parents[1]
+for p in (_REPO, _CODE):
+    if str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
+import numpy as np
+import torch
+
+
+def _worker(ckpt_path: str, seed: int) -> dict:
+    import os
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    import sys
+    from pathlib import Path
+    _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
+    _CODE = Path(__file__).resolve().parents[1]
+    for p in (_RP, _CODE):
+        if str(p) not in sys.path:
+            sys.path.insert(0, str(p))
+    import torch
+    torch.set_num_threads(1)
+
+    from SDK.backend.engine import GameState
+    from SDK.utils.constants import MAX_ROUND
+    from AI.ai_example import AI as ExampleAI
+    from my_ai.network import create_model
+    from my_ai.agent import NeuralAgent
+
+    # Load checkpoint
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    model = create_model()
+    model.set_parameters_from_vector(ckpt["mean"].numpy())
+    agent = NeuralAgent(model=model)
+
+    # Opponent
+    opp = ExampleAI(seed=seed)
+
+    our_player = seed % 2
+    opp_player = 1 - our_player
+
+    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    for _ in range(MAX_ROUND):
+        if state.terminal:
+            break
+        ops_us = agent._choose_operations(state, our_player)
+        ops_opp = opp.choose_operations(state, opp_player)
+        if our_player == 0:
+            state.resolve_turn(ops_us, ops_opp)
+        else:
+            state.resolve_turn(ops_opp, ops_us)
+
+    hp_us = state.bases[our_player].hp
+    hp_opp = state.bases[opp_player].hp
+    if hp_us <= 0 and hp_opp <= 0:
+        return {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    if hp_us > hp_opp:
+        return {"score": 1.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    if hp_opp > hp_us:
+        return {"score": 0.0, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+    return {"score": 0.5, "first": our_player == 0, "hp_us": int(hp_us), "hp_opp": int(hp_opp)}
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("ckpt", type=str, help="path to checkpoint .pt file")
+    parser.add_argument("--games", type=int, default=30)
+    parser.add_argument("--workers", type=int, default=12)
+    args = parser.parse_args()
+
+    ckpt_path = str(Path(args.ckpt).resolve())
+
+    t0 = time.perf_counter()
+    with mp.Pool(args.workers) as pool:
+        results = pool.starmap(_worker, [(ckpt_path, s) for s in range(args.games)])
+    dt = time.perf_counter() - t0
+
+    scores = [r["score"] for r in results]
+    wins = sum(1 for s in scores if s == 1.0)
+    draws = sum(1 for s in scores if s == 0.5)
+    losses = sum(1 for s in scores if s == 0.0)
+    as_first = [r for r in results if r["first"]]
+    as_second = [r for r in results if not r["first"]]
+    hp_us_all = [r["hp_us"] for r in results]
+    hp_opp_all = [r["hp_opp"] for r in results]
+
+    print(f"\nCheckpoint: {ckpt_path}")
+    print(f"Games: {args.games} ({args.workers} workers, {dt:.1f}s)")
+    print(f"  Win rate:  {wins / args.games:.3f} ({wins}/{args.games})")
+    print(f"  Draw rate: {draws / args.games:.3f} ({draws}/{args.games})")
+    print(f"  Loss rate: {losses / args.games:.3f} ({losses}/{args.games})")
+    if as_first:
+        w1 = sum(1 for r in as_first if r["score"] == 1.0)
+        print(f"  As first:  {w1}/{len(as_first)} ({w1/len(as_first):.3f})")
+    if as_second:
+        w2 = sum(1 for r in as_second if r["score"] == 1.0)
+        print(f"  As second: {w2}/{len(as_second)} ({w2/len(as_second):.3f})")
+    print(f"  Avg HP (us/opp): {np.mean(hp_us_all):.1f} / {np.mean(hp_opp_all):.1f}")
+    print(f"  Median HP:       {np.median(hp_us_all):.0f} / {np.median(hp_opp_all):.0f}")
+    print()
+
+
+if __name__ == "__main__":
+    main()

@@ -3,3 +3,7 @@
 
 __pycache__/
 *.pyc
+
+# Training run outputs (checkpoints, logs, configs)
+training_history_*/
+code/my_ai/training_history_*/

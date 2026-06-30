@@ -41,25 +41,23 @@ def select_opponents(
     games_per_individual: int,
     rng: np.random.RandomState,
 ) -> list[list[int]]:
-    """Select opponent index for each individual's each game.
+    """Select opponent indices for each individual.
 
-    Args:
-        population_size: number of individuals in the population
-        games_per_individual: games per individual per generation
-        rng: random state for reproducibility
+    Returns `games_per_individual // 2` opponents per individual.
+    Each opponent is played twice: once as first player, once as second player
+    (handled in step() by creating two tasks per opponent with alternating parity).
 
     Returns:
-        opp_indices[i][g]: index of the opponent for individual i, game g.
-            Always != i (never plays against self).
+        opp_indices[i][k]: opponent index for individual i, pair k.
+            Always != i (never plays against self).  k < games_per_individual // 2.
     """
+    assert games_per_individual % 2 == 0, "games_per_individual must be even (for fair first/second player swap)"
+    n_pairs = games_per_individual // 2
     opp_indices: list[list[int]] = []
     for i in range(population_size):
-        games: list[int] = []
-        for _ in range(games_per_individual):
-            candidates = [j for j in range(population_size) if j != i]
-            opp = rng.choice(candidates)
-            games.append(int(opp))
-        opp_indices.append(games)
+        candidates = [j for j in range(population_size) if j != i]
+        opps = rng.choice(candidates, size=n_pairs, replace=False)
+        opp_indices.append([int(o) for o in opps])
     return opp_indices
 
 
@@ -68,7 +66,7 @@ def _eval_worker(
     opp_params_flat: np.ndarray,
     seed: int,
     synthetic_target: np.ndarray | None = None,
-) -> float:
+) -> dict:
     """Run one match: params vs opponent params.
 
     If synthetic_target is provided, fitness = distance to target (no game).
@@ -140,7 +138,7 @@ class ESTrainer:
     def __init__(
         self,
         population_size: int = 16,
-        sigma: float = 0.05,
+        sigma: float = 0.2,
         lr: float = 0.01,
         num_workers: int = 4,
         games_per_individual: int = 2,
@@ -160,28 +158,34 @@ class ESTrainer:
         self.synthetic_target: np.ndarray | None = None
 
     def step(self, generation: int, pool: mp.Pool) -> dict:
-        """Run one ES generation using an external pool (for interrupt safety)."""
+        """Run one ES generation with mirrored sampling (reduces variance by 2x)."""
         t0 = time.time()
 
-        noise = self.rng.randn(self.population_size, self.param_count).astype(np.float32)
+        assert self.population_size % 2 == 0, "population_size must be even (mirrored sampling)"
+        n_noise = self.population_size // 2
 
-        seeds = [
-            self.seed + generation * self.population_size * self.games_per_individual + i
-            for i in range(self.population_size * self.games_per_individual)
-        ]
+        noise = self.rng.randn(n_noise, self.param_count).astype(np.float32)
 
-        params_list = [self.mean + self.sigma * n for n in noise]
+        # Mirrored sampling: +sigma and -sigma for each noise vector
+        params_list: list[np.ndarray] = []
+        for n in noise:
+            params_list.append(self.mean + self.sigma * n)
+            params_list.append(self.mean - self.sigma * n)
         eval_start = time.time()
 
-        # Select opponent for each individual's each game
+        # Select opponent pairs (each pair = one first-player + one second-player game)
+        k_per_ind = self.games_per_individual // 2
         opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
 
-        # Build task arguments
-        all_args = [
-            (params_list[idx], params_list[opp_indices[idx][g]], seeds[idx * self.games_per_individual + g], self.synthetic_target)
-            for idx in range(self.population_size)
-            for g in range(self.games_per_individual)
-        ]
+        # Build task arguments: each opponent pair creates 2 games (alternating first/second)
+        all_args = []
+        for idx in range(self.population_size):
+            for k in range(k_per_ind):
+                opp_idx = opp_indices[idx][k]
+                base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
+                # base_seed is always even → our_player=0; base_seed+1 → our_player=1
+                all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.synthetic_target))
+                all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.synthetic_target))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -230,7 +234,10 @@ class ESTrainer:
         ranks = np.argsort(np.argsort(fitness))
         shaped = (ranks + 1) / (self.population_size + 1) - 0.5
 
-        gradient = (noise.T @ shaped) / (self.population_size * self.sigma)
+        # Mirrored sampling gradient: sum of (f_pos - f_neg) * noise / (N * sigma)
+        shaped_pairs = shaped.reshape(n_noise, 2)
+        pair_diffs = shaped_pairs[:, 0] - shaped_pairs[:, 1]
+        gradient = (noise.T @ pair_diffs) / (self.population_size * self.sigma)
         self.mean += self.lr * gradient.astype(self.mean.dtype)
         self.model.set_parameters_from_vector(self.mean)
 
@@ -271,7 +278,7 @@ class ESTrainer:
 def main():
     parser = argparse.ArgumentParser(description="ES training for Ant-Game AI (self-play)")
     parser.add_argument("--pop-size", type=int, default=16)
-    parser.add_argument("--sigma", type=float, default=0.05)
+    parser.add_argument("--sigma", type=float, default=0.2)
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--games", type=int, default=2, help="games per individual per generation")
@@ -411,12 +418,20 @@ def main():
             if details and not args.synthetic_test:
                 best_i = max(range(len(details)), key=lambda i: details[i]["score"])
                 b = details[best_i]
-                # Fitness distribution histogram (buckets of 0.25)
-                hist = {"0.00": 0, "0.25": 0, "0.50": 0, "0.75": 0, "1.00": 0}
+                # Fitness distribution histogram (auto-select bucket count)
+                # Try [8, 6, 5, 4] that divide games evenly, pick the largest match
+                n_candidates = [8, 6, 5, 4]
+                n_bins = next((n for n in n_candidates if args.games % n == 0), 6)
+                n_buckets = n_bins + 1
+                step = 1.0 / n_bins
+                bin_labels = [f"{(i * step):.3f}" for i in range(n_buckets)]
+                hist = {lbl: 0 for lbl in bin_labels}
                 for d in details:
-                    bkt = f"{round(d['score'] * 4) / 4:.2f}"
+                    bkt = f"{round(d['score'] / step) * step:.3f}"
                     hist[bkt] = hist.get(bkt, 0) + 1
-                hist_str = " ".join(f"{k}:{v}" for k, v in sorted(hist.items()))
+                # Only show non-empty buckets
+                non_empty = {k: v for k, v in sorted(hist.items()) if v > 0}
+                hist_str = " ".join(f"{k}:{v}" for k, v in non_empty.items())
                 log.print_table(
                     **{"ind_dist": hist_str,
                        "best": f"#{best_i} {b['score']:.3f} "
