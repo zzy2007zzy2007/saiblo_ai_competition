@@ -90,6 +90,16 @@ class WinGraph:
         Returns: [{"gen": int, "win_rate_vs_example": float}, ...]
         """
 
+    def get_node_depths(self) -> list[dict]:
+        """
+        返回所有节点的"到 source 的最长路径长度"排序列表。
+        路径长度=0 表示 source SCC 中的节点（最强），值越大离顶层越远。
+
+        Returns:
+            [{"gen": int, "params": np.ndarray, "depth": int,
+              "example_win_rate": float | None, "win_rate": float}, ...]
+        """
+
     def recompute_scc(self) -> tuple[list, list]:
         """
         重新运行 SCC 缩点和 DAG 拓扑排序。

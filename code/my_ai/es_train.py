@@ -218,8 +218,12 @@ class ESTrainer:
         # Select opponent pairs — use WinGraph if available, else elite pool, else current population
         k_per_ind = self.games_per_individual // 2
         if self.win_graph is not None and len(self.win_graph.nodes) >= k_per_ind:
-            top_opps = self.win_graph.get_top_opponents(k=k_per_ind)
-            opp_params_list = [o["params"] for o in top_opps]
+            # Depth-weighted sampling: weight = 0.85^depth, so strongest (depth=0) most likely
+            depth_nodes = self.win_graph.get_node_depths()
+            weights = np.array([0.85 ** nd["depth"] for nd in depth_nodes], dtype=np.float64)
+            weights /= weights.sum()
+            selected = self.rng.choice(len(depth_nodes), size=k_per_ind, p=weights, replace=True)
+            opp_params_list = [depth_nodes[i]["params"] for i in selected]
         elif self.elite_pool:
             # Build flat opponent pool from elite pool
             opp_pool: list[np.ndarray] = []
@@ -429,7 +433,9 @@ def main():
     # ── WinGraph (optional, DAG-based opponent selection) ──────
     if args.wg:
         from my_ai.win_graph import WinGraph
-        trainer.win_graph = WinGraph(n_max=30, edge_games=10, win_threshold=0.55, workers=max(1, args.workers // 2))
+        trainer.win_graph = WinGraph(n_max=30, edge_games=10, win_threshold=0.55,
+                                       workers=max(1, args.workers // 2),
+                                       single_head=args.single_head)
         log.print(key="win_graph", value=f"enabled (n_max=30, edge_games=10, threshold=0.55)")
 
     if args.load_bc:

@@ -379,6 +379,67 @@ class WinGraph:
             "n_max": self._n_max,
         }
 
+    def get_node_depths(self) -> list[dict]:
+        """
+        Return all nodes sorted by DAG depth (longest path from source SCC).
+        depth=0 → source SCC (strongest), larger values → farther from top.
+
+        Returns:
+            [{"gen": int, "params": np.ndarray, "depth": int,
+              "example_win_rate": float | None, "win_rate": float}, ...]
+        """
+        if not self._topo_order:
+            self._rebuild_scc()
+
+        # Build SCC DAG adjacency
+        dag_adj = defaultdict(set)
+        for (a, b), rec in self.edges.items():
+            ca, cb = self._comp_of.get(a), self._comp_of.get(b)
+            if ca is not None and cb is not None and ca != cb:
+                dag_adj[ca].add(cb)
+
+        # Reverse adj for predecessor tracking
+        radj = defaultdict(set)
+        for ca, cbs in dag_adj.items():
+            for cb in cbs:
+                radj[cb].add(ca)
+
+        # Compute SCC depths
+        scc_depth = {}
+        for cid in self._topo_order:
+            if cid in radj:
+                scc_depth[cid] = max(scc_depth.get(p, 0) for p in radj[cid]) + 1
+            else:
+                scc_depth[cid] = 0
+
+        # Per-node win rate
+        def _node_win_rate(g):
+            wins, games = 0, 0
+            for (a, b), rec in self.edges.items():
+                if a == g:
+                    wins += rec["wins_a"]
+                    games += rec["wins_a"] + rec["wins_b"] + rec["draws"]
+                elif b == g:
+                    wins += rec["wins_b"]
+                    games += rec["wins_a"] + rec["wins_b"] + rec["draws"]
+            return wins / games if games > 0 else 0.0
+
+        nodes_sorted = sorted(
+            self.nodes.keys(),
+            key=lambda g: (scc_depth.get(self._comp_of.get(g, -1), 999), -_node_win_rate(g)),
+        )
+
+        result = []
+        for g in nodes_sorted:
+            result.append({
+                "gen": g,
+                "params": self.nodes[g]["params"],
+                "depth": scc_depth.get(self._comp_of.get(g, -1), -1),
+                "example_win_rate": self.nodes[g]["example_win_rate"],
+                "win_rate": _node_win_rate(g),
+            })
+        return result
+
     def recompute_scc(self) -> tuple[dict, dict]:
         """Force recompute SCC condensation. Returns (comp_of, comps)."""
         self._rebuild_scc()
