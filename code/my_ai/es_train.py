@@ -115,12 +115,23 @@ def _eval_worker(
     hp_us = state.bases[our_player].hp
     hp_opp = state.bases[opp_player].hp
     if hp_us <= 0 and hp_opp <= 0:
-        return {"score": 0.5, "our_player": our_player}
-    if hp_us > hp_opp:
-        return {"score": 1.0, "our_player": our_player}
-    if hp_opp > hp_us:
-        return {"score": 0.0, "our_player": our_player}
-    return {"score": 0.5, "our_player": our_player}
+        result = {"score": 0.5, "our_player": our_player}
+    elif hp_us > hp_opp:
+        result = {"score": 1.0, "our_player": our_player}
+    elif hp_opp > hp_us:
+        result = {"score": 0.0, "our_player": our_player}
+    else:
+        result = {"score": 0.5, "our_player": our_player}
+    score = result["score"]
+    if score == 1.0:
+        color = "\033[92m"   # green = win
+    elif score == 0.0:
+        color = "\033[91m"   # red = loss
+    else:
+        color = "\033[93m"   # yellow = draw
+    reset = "\033[0m"
+    print(f"{color}.{reset}", end="", flush=True)
+    return result
 
 
 class ESTrainer:
@@ -301,12 +312,6 @@ class ESTrainer:
                 "p1_n": int(len(p1)),
                 "score": float(fitness[idx]),
             })
-
-        # Print per-individual results to terminal only
-        for idx in range(self.population_size):
-            d = ind_details[idx]
-            print(f"  ind #{idx:>3}: score={d['score']:.4f}  "
-                  f"1st: {d['p0_w']}/{d['p0_n']}  2nd: {d['p1_w']}/{d['p1_n']}")
 
         ranks = np.argsort(np.argsort(fitness))
         shaped = (ranks + 1) / (self.population_size + 1) - 0.5
@@ -583,8 +588,9 @@ def main():
     except AttributeError:
         pass
 
+    start_gen = trainer.step_count
     try:
-        for gen in range(trainer.generations):
+        for gen in range(start_gen, trainer.generations):
             if interrupted:
                 break
             # Check PAUSE file content before starting a generation

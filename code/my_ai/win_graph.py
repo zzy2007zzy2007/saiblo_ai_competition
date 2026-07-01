@@ -244,7 +244,11 @@ class WinGraph:
              "win_rate": float, "n_nodes": int}
         """
         if gen in self.nodes:
-            raise ValueError(f"gen {gen} already in graph")
+            # Already exists (e.g. on checkpoint resume), skip silently
+            return {
+                "gen": gen, "wins": 0, "losses": 0, "draws": 0,
+                "win_rate": 0.5, "n_nodes": len(self.nodes),
+            }
 
         self.nodes[gen] = {
             "params": params.copy(),
