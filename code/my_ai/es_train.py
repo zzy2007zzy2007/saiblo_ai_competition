@@ -157,6 +157,8 @@ class ESTrainer:
         # Elite pool: [(mean_vector, top1_vector), ...] from past generations
         # Used as opponents so learners face diverse strategies.
         self.elite_pool: list[tuple[np.ndarray, np.ndarray]] = []
+        # Elite retention: top-k individuals kept across generations (pop_size^0.25)
+        self.elite_params: list[np.ndarray] = []
         self.step_count = 0
         self.out_dir: str | None = None  # set by main() for config hot-reload
         self.win_graph = None  # WinGraph instance (optional, set by main())
@@ -213,6 +215,13 @@ class ESTrainer:
         for n in noise:
             params_list.append(self.mean + self.sigma * n)
             params_list.append(self.mean - self.sigma * n)
+
+        # Elite retention: replace bottom individuals with stored elites
+        if self.elite_params:
+            n_elite = max(1, int(self.population_size ** 0.25))
+            for i in range(min(n_elite, len(self.elite_params))):
+                params_list[-(i + 1)] = self.elite_params[i].copy()
+
         eval_start = time.time()
 
         # Select opponent pairs — use WinGraph if available, else elite pool, else current population
@@ -315,6 +324,15 @@ class ESTrainer:
         top2_params = [params_list[i].copy() for i in top2_idx]
         top2_scores = [float(fitness[i]) for i in top2_idx]
 
+        # Update elite retention buffer with current top performers
+        n_elite = max(1, int(self.population_size ** 0.25))
+        top_k_idx = np.argsort(fitness)[-n_elite:]
+        new_elites = [params_list[i].copy() for i in reversed(top_k_idx)]
+        # Merge with existing elites, keep top n_elite overall
+        combined = new_elites + self.elite_params
+        # Simple fitness proxy: newer elites ranked higher (we don't have fitness for stored ones)
+        self.elite_params = combined[:n_elite]
+
         result = {
             "generation": generation,
             "best_fitness": float(fitness.max()),
@@ -354,6 +372,8 @@ class ESTrainer:
                 (torch.from_numpy(m), torch.from_numpy(t))
                 for m, t in self.elite_pool
             ]
+        if self.elite_params:
+            data["elite_params"] = [torch.from_numpy(p) for p in self.elite_params]
         if self.win_graph is not None:
             data["win_graph"] = self.win_graph.state_dict()
         torch.save(data, path)
@@ -368,6 +388,8 @@ class ESTrainer:
             self.elite_pool = [(m.numpy(), t.numpy()) for m, t in ckpt["elite_pool"]]
         if self.win_graph is not None and "win_graph" in ckpt:
             self.win_graph.load_state_dict(ckpt["win_graph"])
+        if "elite_params" in ckpt:
+            self.elite_params = [p.numpy() for p in ckpt["elite_params"]]
         if "generation" in ckpt:
             self.step_count = ckpt["generation"]
 
