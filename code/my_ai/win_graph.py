@@ -249,19 +249,65 @@ class WinGraph:
             "example_win_rate": example_win_rate,
         }
 
+        # Batch all games into a single Pool to avoid repeated Pool creation overhead
+        existing_gens = [g for g in self.nodes if g != gen]
+        if not existing_gens:
+            self._rebuild_scc()
+            return {
+                "gen": gen, "wins": 0, "losses": 0, "draws": 0,
+                "win_rate": 0.5, "n_nodes": 1,
+            }
+
+        n2 = self._edge_games // 2
+        single_head = self._single_head
+
+        # Build all args: for each opponent, (seed, params, opp_params, single_head)
+        all_args = []
+        pair_info = []  # (opp_gen, index_in_results)
+        for opp_gen in existing_gens:
+            opp_params = self.nodes[opp_gen]["params"]
+            for s in range(n2):
+                all_args.append((s, params, opp_params, single_head))
+                pair_info.append((opp_gen, "fwd"))
+                all_args.append((s + 10000, opp_params, params, single_head))
+                pair_info.append((opp_gen, "rev"))
+
+        with mp.Pool(self._workers) as pool:
+            results = pool.map(_game_worker, all_args)
+
+        # Distribute results into edge records
         total_wins = 0
         total_losses = 0
         total_draws = 0
 
-        for existing_gen in list(self.nodes.keys()):
-            if existing_gen == gen:
-                continue
-            wa, wb, d = compute_win_rate(
-                params, self.nodes[existing_gen]["params"],
-                self._edge_games, self._workers,
-                single_head=self._single_head,
-            )
-            self.edges[(gen, existing_gen)] = {"wins_a": wa, "wins_b": wb, "draws": d}
+        # Accumulate per-opponent
+        opp_wins: dict[int, int] = defaultdict(int)
+        opp_losses: dict[int, int] = defaultdict(int)
+        opp_draws: dict[int, int] = defaultdict(int)
+
+        for (opp_gen, direction), r in zip(pair_info, results):
+            if direction == "fwd":
+                # params is first player
+                if r == 1.0:
+                    opp_wins[opp_gen] += 1
+                elif r == 0.0:
+                    opp_losses[opp_gen] += 1
+                else:
+                    opp_draws[opp_gen] += 1
+            else:
+                # opp_params is first player
+                if r == 1.0:
+                    opp_losses[opp_gen] += 1
+                elif r == 0.0:
+                    opp_wins[opp_gen] += 1
+                else:
+                    opp_draws[opp_gen] += 1
+
+        for opp_gen in existing_gens:
+            wa = opp_wins[opp_gen]
+            wb = opp_losses[opp_gen]
+            d = opp_draws[opp_gen]
+            self.edges[(gen, opp_gen)] = {"wins_a": wa, "wins_b": wb, "draws": d}
             total_wins += wa
             total_losses += wb
             total_draws += d
@@ -463,6 +509,10 @@ class WinGraph:
                 }
                 for gen, nd in self.nodes.items()
             },
+            "node_params": {
+                str(gen): nd["params"].tolist()
+                for gen, nd in self.nodes.items()
+            },
             # edges: store as list of tuples for JSON compat
             "edges": [
                 (a, b, rec["wins_a"], rec["wins_b"], rec["draws"])
@@ -482,8 +532,11 @@ class WinGraph:
         self.nodes = {}
         for gen_str, nd in d["nodes"].items():
             gen = int(gen_str)
+            # Restore params from saved data, fall back to empty array for backward compat
+            params_raw = d.get("node_params", {}).get(gen_str)
+            params = np.array(params_raw, dtype=np.float32) if params_raw else np.array([], dtype=np.float32)
             self.nodes[gen] = {
-                "params": np.array([]),  # caller must fill
+                "params": params,
                 "example_win_rate": nd["example_win_rate"],
             }
 
