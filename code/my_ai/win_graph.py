@@ -261,17 +261,16 @@ class WinGraph:
             }
 
         n2 = self._edge_games // 2
-        single_head = self._single_head
 
-        # Build all args: for each opponent, (seed, params, opp_params, single_head)
+        # Build per-game tasks (better load balancing across workers)
         all_args = []
-        pair_info = []  # (opp_gen, index_in_results)
+        pair_info = []
         for opp_gen in existing_gens:
             opp_params = self.nodes[opp_gen]["params"]
             for s in range(n2):
-                all_args.append((s, params, opp_params, single_head))
+                all_args.append((s, params, opp_params, self._single_head))
                 pair_info.append((opp_gen, "fwd"))
-                all_args.append((s + 10000, opp_params, params, single_head))
+                all_args.append((s + 10000, opp_params, params, self._single_head))
                 pair_info.append((opp_gen, "rev"))
 
         if pool is not None:
@@ -280,11 +279,6 @@ class WinGraph:
             with mp.Pool(self._workers) as new_pool:
                 results = new_pool.map(_game_worker, all_args)
 
-        # Distribute results into edge records
-        total_wins = 0
-        total_losses = 0
-        total_draws = 0
-
         # Accumulate per-opponent
         opp_wins: dict[int, int] = defaultdict(int)
         opp_losses: dict[int, int] = defaultdict(int)
@@ -292,7 +286,6 @@ class WinGraph:
 
         for (opp_gen, direction), r in zip(pair_info, results):
             if direction == "fwd":
-                # params is first player
                 if r == 1.0:
                     opp_wins[opp_gen] += 1
                 elif r == 0.0:
@@ -300,13 +293,16 @@ class WinGraph:
                 else:
                     opp_draws[opp_gen] += 1
             else:
-                # opp_params is first player
                 if r == 1.0:
                     opp_losses[opp_gen] += 1
                 elif r == 0.0:
                     opp_wins[opp_gen] += 1
                 else:
                     opp_draws[opp_gen] += 1
+
+        total_wins = 0
+        total_losses = 0
+        total_draws = 0
 
         for opp_gen in existing_gens:
             wa = opp_wins[opp_gen]
