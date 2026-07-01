@@ -159,6 +159,7 @@ class ESTrainer:
         self.elite_pool: list[tuple[np.ndarray, np.ndarray]] = []
         self.step_count = 0
         self.out_dir: str | None = None  # set by main() for config hot-reload
+        self.win_graph = None  # WinGraph instance (optional, set by main())
 
     def reload_config(self, config_path: str) -> bool:
         """Hot-reload training parameters from config.txt at generation boundary.
@@ -214,9 +215,12 @@ class ESTrainer:
             params_list.append(self.mean - self.sigma * n)
         eval_start = time.time()
 
-        # Select opponent pairs — use elite pool if available, else current population
+        # Select opponent pairs — use WinGraph if available, else elite pool, else current population
         k_per_ind = self.games_per_individual // 2
-        if self.elite_pool:
+        if self.win_graph is not None and len(self.win_graph.nodes) >= k_per_ind:
+            top_opps = self.win_graph.get_top_opponents(k=k_per_ind)
+            opp_params_list = [o["params"] for o in top_opps]
+        elif self.elite_pool:
             # Build flat opponent pool from elite pool
             opp_pool: list[np.ndarray] = []
             for entry in reversed(self.elite_pool):
@@ -346,6 +350,8 @@ class ESTrainer:
                 (torch.from_numpy(m), torch.from_numpy(t))
                 for m, t in self.elite_pool
             ]
+        if self.win_graph is not None:
+            data["win_graph"] = self.win_graph.state_dict()
         torch.save(data, path)
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -356,6 +362,10 @@ class ESTrainer:
             self.velocity = ckpt["velocity"].numpy()
         if "elite_pool" in ckpt:
             self.elite_pool = [(m.numpy(), t.numpy()) for m, t in ckpt["elite_pool"]]
+        if self.win_graph is not None and "win_graph" in ckpt:
+            self.win_graph.load_state_dict(ckpt["win_graph"])
+        if "generation" in ckpt:
+            self.step_count = ckpt["generation"]
 
 
 def main():
@@ -374,6 +384,8 @@ def main():
     parser.add_argument("--load-bc", type=str, default=None,
                         help="load BC checkpoint as initialization (for cold start)")
     parser.add_argument("--save-every", type=int, default=10)
+    parser.add_argument("--wg", action="store_true",
+                        help="enable WinGraph opponent selection (DAG-based elite ranking)")
     parser.add_argument("--synthetic-test", action="store_true",
                         help="synthetic fitness: converge toward random target (test ES correctness)")
     parser.add_argument("--out-dir", type=str, default=None,
@@ -414,6 +426,12 @@ def main():
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
 
+    # ── WinGraph (optional, DAG-based opponent selection) ──────
+    if args.wg:
+        from my_ai.win_graph import WinGraph
+        trainer.win_graph = WinGraph(n_max=30, edge_games=10, win_threshold=0.55, workers=max(1, args.workers // 2))
+        log.print(key="win_graph", value=f"enabled (n_max=30, edge_games=10, threshold=0.55)")
+
     if args.load_bc:
         ckpt = torch.load(args.load_bc, map_location="cpu", weights_only=True)
         trainer.mean = ckpt["mean"].numpy()
@@ -446,7 +464,7 @@ def main():
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
     log.print(key="single_head", value=args.single_head)
-    log.print(key="opponents", value="random from population (self-play)")
+    log.print(key="opponents", value="WinGraph (DAG top-k)" if args.wg else "random from population (self-play)")
     log.separator("-")
 
     # ── Print mode info ──────────────────────────────────────────
@@ -518,6 +536,12 @@ def main():
                 if len(trainer.elite_pool) > max_gens:
                     trainer.elite_pool.pop(0)
 
+            # Update WinGraph with mean and top1 (triggers edge recomputation)
+            g = trainer.step_count
+            if trainer.win_graph is not None:
+                trainer.win_graph.add_node(g * 2, trainer.mean.copy())
+                trainer.win_graph.add_node(g * 2 + 1, top2[0].copy())
+
             log.print_table(
                 gen=result["generation"],
                 best=f"{result['best_fitness']:.4f}",
@@ -551,6 +575,13 @@ def main():
                        "best": f"#{best_i} {b['score']:.3f} "
                                f"[1st:{b['p0_w']}/{b['p0_n']} 2nd:{b['p1_w']}/{b['p1_n']}]"},
                 )
+                if trainer.win_graph is not None:
+                    gi = trainer.win_graph.get_graph_info()
+                    if gi["n_scc"] > 1:
+                        top_scc_sizes = [len(r) for r in gi["topo_ranks"]]
+                        log.print(key="wg",
+                                  value=f"nodes={gi['n_nodes']} scc={gi['n_scc']} "
+                                        f"top_scc={top_scc_sizes[-1] if top_scc_sizes else 0}")
 
             # Append to CSV
             row = [
