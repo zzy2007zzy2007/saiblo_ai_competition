@@ -328,9 +328,13 @@ class ESTrainer:
         n_elite = max(1, int(self.population_size ** 0.25))
         top_k_idx = np.argsort(fitness)[-n_elite:]
         new_elites = [params_list[i].copy() for i in reversed(top_k_idx)]
-        # Merge with existing elites, keep top n_elite overall
-        combined = new_elites + self.elite_params
-        # Simple fitness proxy: newer elites ranked higher (we don't have fitness for stored ones)
+        # Alternate new and old elites so old ones survive if they're strong
+        combined = []
+        for i in range(max(len(new_elites), len(self.elite_params))):
+            if i < len(new_elites):
+                combined.append(new_elites[i])
+            if i < len(self.elite_params):
+                combined.append(self.elite_params[i])
         self.elite_params = combined[:n_elite]
 
         result = {
