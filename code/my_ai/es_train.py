@@ -375,6 +375,7 @@ class ESTrainer:
         data: dict = {
             "mean": torch.from_numpy(self.mean),
             "model_state": self.model.state_dict(),
+            "num_heads": self.num_heads,
             "generation": self.step_count,
         }
         if top2_params is not None:
