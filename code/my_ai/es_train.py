@@ -388,8 +388,14 @@ def main():
     parser.add_argument("--load-bc", type=str, default=None,
                         help="load BC checkpoint as initialization (for cold start)")
     parser.add_argument("--save-every", type=int, default=10)
-    parser.add_argument("--wg", action="store_true",
-                        help="enable WinGraph opponent selection (DAG-based elite ranking)")
+    parser.add_argument("--no-wg", action="store_true",
+                        help="disable WinGraph opponent selection (fall back to elite pool)")
+    parser.add_argument("--wg-n-max", type=int, default=30,
+                        help="WinGraph max nodes (default: 30)")
+    parser.add_argument("--wg-edge-games", type=int, default=10,
+                        help="WinGraph games per edge (default: 10)")
+    parser.add_argument("--wg-threshold", type=float, default=0.55,
+                        help="WinGraph win threshold for directed edge (default: 0.55)")
     parser.add_argument("--synthetic-test", action="store_true",
                         help="synthetic fitness: converge toward random target (test ES correctness)")
     parser.add_argument("--out-dir", type=str, default=None,
@@ -426,17 +432,18 @@ def main():
         log=log,
     )
     trainer.out_dir = str(out_dir)
+    trainer.generations = args.generations  # allows hot-reload from config
+
+    # ── WinGraph (enabled by default, DAG-based opponent selection) ──
+    if not args.no_wg:
+        from my_ai.win_graph import WinGraph
+        trainer.win_graph = WinGraph(n_max=args.wg_n_max, edge_games=args.wg_edge_games,
+                                       win_threshold=args.wg_threshold, workers=args.workers,
+                                       single_head=args.single_head)
+        log.print(key="win_graph", value=f"enabled (n_max={args.wg_n_max}, edge={args.wg_edge_games}, threshold={args.wg_threshold})")
 
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
-
-    # ── WinGraph (optional, DAG-based opponent selection) ──────
-    if args.wg:
-        from my_ai.win_graph import WinGraph
-        trainer.win_graph = WinGraph(n_max=30, edge_games=10, win_threshold=0.55,
-                                       workers=max(1, args.workers // 2),
-                                       single_head=args.single_head)
-        log.print(key="win_graph", value=f"enabled (n_max=30, edge_games=10, threshold=0.55)")
 
     if args.load_bc:
         ckpt = torch.load(args.load_bc, map_location="cpu", weights_only=True)
@@ -470,7 +477,7 @@ def main():
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
     log.print(key="single_head", value=args.single_head)
-    log.print(key="opponents", value="WinGraph (DAG top-k)" if args.wg else "random from population (self-play)")
+    log.print(key="opponents", value="WinGraph (DAG top-k)" if not args.no_wg else "random from population (self-play)")
     log.separator("-")
 
     # ── Print mode info ──────────────────────────────────────────
@@ -520,7 +527,7 @@ def main():
         pass
 
     try:
-        for gen in range(args.generations):
+        for gen in range(trainer.generations):
             if interrupted:
                 break
             # Check PAUSE file content before starting a generation
@@ -545,8 +552,8 @@ def main():
             # Update WinGraph with mean and top1 (triggers edge recomputation)
             g = trainer.step_count
             if trainer.win_graph is not None:
-                trainer.win_graph.add_node(g * 2, trainer.mean.copy())
-                trainer.win_graph.add_node(g * 2 + 1, top2[0].copy())
+                trainer.win_graph.add_node(g * 2, trainer.mean.copy(), pool=pool)
+                trainer.win_graph.add_node(g * 2 + 1, top2[0].copy(), pool=pool)
 
             log.print_table(
                 gen=result["generation"],

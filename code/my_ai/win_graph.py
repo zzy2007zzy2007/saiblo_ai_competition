@@ -228,7 +228,8 @@ class WinGraph:
     # ── core operations ─────────────────────────────────────────────
 
     def add_node(self, gen: int, params: np.ndarray,
-                 example_win_rate: float | None = None) -> dict:
+                 example_win_rate: float | None = None,
+                 pool: mp.Pool | None = None) -> dict:
         """
         Add a new elite individual and compute edges against all existing nodes.
 
@@ -236,6 +237,7 @@ class WinGraph:
             gen: generation number (unique identifier)
             params: parameter vector (1D numpy array)
             example_win_rate: optional win rate vs ExampleAI (for logging)
+            pool: optional multiprocessing Pool to reuse (avoids cold start).
 
         Returns:
             {"gen": gen, "wins": int, "losses": int, "draws": int,
@@ -272,8 +274,11 @@ class WinGraph:
                 all_args.append((s + 10000, opp_params, params, single_head))
                 pair_info.append((opp_gen, "rev"))
 
-        with mp.Pool(self._workers) as pool:
+        if pool is not None:
             results = pool.map(_game_worker, all_args)
+        else:
+            with mp.Pool(self._workers) as new_pool:
+                results = new_pool.map(_game_worker, all_args)
 
         # Distribute results into edge records
         total_wins = 0
