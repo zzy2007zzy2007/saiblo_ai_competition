@@ -55,7 +55,7 @@ def _eval_worker(
     params_flat: np.ndarray,
     opp_params_flat: np.ndarray,
     seed: int,
-    single_head: bool = False,
+    num_heads: int = 3,
     synthetic_target: np.ndarray | None = None,
 ) -> dict:
     """Run one match: params vs opponent params.
@@ -89,11 +89,11 @@ def _eval_worker(
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    model = create_model(single_head=single_head)
+    model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(params_flat)
     agent = NeuralAgent(model=model)
 
-    opp_model = create_model(single_head=single_head)
+    opp_model = create_model(num_heads=num_heads)
     opp_model.set_parameters_from_vector(opp_params_flat)
     opponent = NeuralAgent(model=opp_model)
 
@@ -135,7 +135,7 @@ class ESTrainer:
         num_workers: int = 4,
         games_per_individual: int = 2,
         seed: int = 0,
-        single_head: bool = False,
+        num_heads: int = 3,
         log=None,
     ):
         self.population_size = population_size
@@ -145,11 +145,11 @@ class ESTrainer:
         self.num_workers = num_workers
         self.games_per_individual = games_per_individual
         self.seed = seed
-        self.single_head = single_head
+        self.num_heads = num_heads
         self.log = log
         self.rng = np.random.RandomState(seed)
 
-        self.model = create_model(single_head=single_head)
+        self.model = create_model(num_heads=num_heads)
         self.param_count = self.model.count_parameters()
         self.mean = self.model.get_parameters_as_vector()
         self.synthetic_target: np.ndarray | None = None
@@ -255,8 +255,8 @@ class ESTrainer:
             for k in range(k_per_ind):
                 opp_params = opp_params_list[k]
                 base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
-                all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
-                all_args.append((params_list[idx], opp_params, base_seed + 1, self.single_head, self.synthetic_target))
+                all_args.append((params_list[idx], opp_params, base_seed, self.num_heads, self.synthetic_target))
+                all_args.append((params_list[idx], opp_params, base_seed + 1, self.num_heads, self.synthetic_target))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -364,7 +364,7 @@ class ESTrainer:
         data: dict = {
             "mean": torch.from_numpy(self.mean),
             "model_state": self.model.state_dict(),
-            "generation": self.step_count if hasattr(self, "step_count") else 0,
+            "generation": self.step_count,
         }
         if top2_params is not None:
             data["top2_params"] = [torch.from_numpy(p) for p in top2_params]
@@ -392,6 +392,24 @@ class ESTrainer:
             self.elite_pool = [(m.numpy(), t.numpy()) for m, t in ckpt["elite_pool"]]
         if self.win_graph is not None and "win_graph" in ckpt:
             self.win_graph.load_state_dict(ckpt["win_graph"])
+        # Backward compat: old single_head checkpoint → remap state_dict keys
+        sd = ckpt.get("model_state", {})
+        if "policy_head1.weight" in sd:
+            import collections
+            new_sd = collections.OrderedDict()
+            single = "policy_head2.weight" not in sd  # single_head=True vs False
+            for key, val in sd.items():
+                if key.startswith("policy_head"):
+                    parts = key.split(".")
+                    idx = parts[0].replace("policy_head", "")
+                    new_key = f"policy_heads.{int(idx)-1}.{parts[1]}"
+                    new_sd[new_key] = val
+                else:
+                    new_sd[key] = val
+            self.model.load_state_dict(new_sd)
+            # If old single_head=True (1 head), we need to set num_heads=1 for correct param count
+            if single:
+                self.num_heads = 1
         if "elite_params" in ckpt:
             self.elite_params = [p.numpy() for p in ckpt["elite_params"]]
         if "generation" in ckpt:
@@ -408,8 +426,8 @@ def main():
     parser.add_argument("--games", type=int, default=2, help="games per individual per generation")
     parser.add_argument("--generations", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--single-head", action="store_true",
-                        help="train with only 1 policy head (reduce conflicting actions)")
+    parser.add_argument("--num-heads", type=int, default=3,
+                        help="number of policy heads (default: 3)")
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from ES checkpoint")
     parser.add_argument("--load-bc", type=str, default=None,
                         help="load BC checkpoint as initialization (for cold start)")
@@ -454,7 +472,7 @@ def main():
         num_workers=args.workers,
         games_per_individual=args.games,
         seed=args.seed,
-        single_head=args.single_head,
+        num_heads=args.num_heads,
         log=log,
     )
     trainer.out_dir = str(out_dir)
@@ -465,7 +483,7 @@ def main():
         from my_ai.win_graph import WinGraph
         trainer.win_graph = WinGraph(n_max=args.wg_n_max, edge_games=args.wg_edge_games,
                                        win_threshold=args.wg_threshold, workers=args.workers,
-                                       single_head=args.single_head)
+                                       num_heads=args.num_heads)
         log.print(key="win_graph", value=f"enabled (n_max={args.wg_n_max}, edge={args.wg_edge_games}, threshold={args.wg_threshold})")
 
     if args.checkpoint:
@@ -502,7 +520,7 @@ def main():
     log.print(key="workers", value=args.workers)
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
-    log.print(key="single_head", value=args.single_head)
+    log.print(key="num_heads", value=args.num_heads)
     log.print(key="opponents", value="WinGraph (DAG top-k)" if not args.no_wg else "random from population (self-play)")
     log.separator("-")
 

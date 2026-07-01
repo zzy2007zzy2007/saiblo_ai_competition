@@ -230,20 +230,20 @@ state.resolve_turn(u, v) if p == 0 else state.resolve_turn(v, u)
 
 **修复**：直接 `state.resolve_turn(u, v)`，不判断 p。因为不管 p 为多少，`u` 始终是 P0 的操作，`v` 始终是 P1 的操作。
 
-### Bug 2：`single_head` 硬编码（2026-07-01）
+### Bug 2：`num_heads` 硬编码（2026-07-01）
 
 **位置**：`_game_worker()` 中
 
 **问题代码**：
 ```python
-ma = create_model(single_head=True)
-mb = create_model(single_head=True)
+ma = create_model(num_heads=3)
+mb = create_model(num_heads=3)
 ```
 
-如果训练时用了 `--single_head=False`（3-head 模型，约 55 万参数），WinGraph 创建的 1-head 模型（约 35 万参数）参数向量长度不一致，`set_parameters_from_vector` 会下标越界。
+如果训练时用了 `--num-heads 3`（3-head 模型，约 55 万参数），WinGraph 创建的 1-head 模型（约 35 万参数）参数向量长度不一致，`set_parameters_from_vector` 会下标越界。
 
 **修复**：
-- `WinGraph.__init__` 增加 `single_head=True` 参数
-- 通过 `compute_win_rate(single_head=...)` 传递到 `_game_worker`
+- `WinGraph.__init__` 增加 `num_heads=1` 参数
+- 通过 `compute_win_rate(num_heads=...)` 传递到 `_game_worker`
 - 在 `state_dict` / `load_state_dict` 中保存/恢复
-- 提供 `wg.single_head` 可读写属性
+- 提供 `wg.num_heads` 可读写属性

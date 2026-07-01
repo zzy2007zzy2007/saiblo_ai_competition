@@ -27,16 +27,12 @@ def _worker(args):
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    ma = create_model(single_head=True)
-    mb = create_model(single_head=True)
+    ma = create_model(num_heads=3)
+    mb = create_model(num_heads=3)
     ca = torch.load(ckpt_a, map_location="cpu", weights_only=True)
     cb = torch.load(ckpt_b, map_location="cpu", weights_only=True)
     va = ca["top2_params"][0].numpy()
     vb = cb["top2_params"][0].numpy()
-    if ma.count_parameters() != len(va):
-        ma = create_model(single_head=False)
-    if mb.count_parameters() != len(vb):
-        mb = create_model(single_head=False)
     ma.set_parameters_from_vector(va)
     mb.set_parameters_from_vector(vb)
     aa = NeuralAgent(model=ma)

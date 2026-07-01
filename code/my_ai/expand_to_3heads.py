@@ -3,6 +3,13 @@
 Usage:
     python code/my_ai/expand_to_3heads.py <checkpoint.pt> [output.pt]
 """
+import warnings
+warnings.warn(
+    "expand_to_3heads.py is deprecated. Use --num-heads 3 directly during training.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from __future__ import annotations
 import sys
 from pathlib import Path

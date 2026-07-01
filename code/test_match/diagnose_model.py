@@ -51,13 +51,11 @@ CLASS_NAMES = {
 }
 
 
-def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False):
+def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3):
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
 
-    model = create_model(single_head=True)
-    if model.count_parameters() != len(param_vec):
-        model = create_model(single_head=False)
+    model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
 
@@ -166,6 +164,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("ckpt", type=str)
     parser.add_argument("--games", type=int, default=10)
+    parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     parser.add_argument("--verbose", "-v", action="store_true", help="print per-turn actions")
     args = parser.parse_args()
-    diagnose(args.ckpt, args.games, verbose=args.verbose)
+    diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads)

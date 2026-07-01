@@ -12,7 +12,8 @@ for p in (_REPO, _CODE):
 import numpy as np
 import torch
 
-TOP1 = False  # overridden by --top1 flag
+TOP1 = True  # default: use top2_params[0] (top1)
+NUM_HEADS = 3  # default number of policy heads
 
 
 def _worker(ckpt_path: str, seed: int) -> dict:
@@ -35,15 +36,10 @@ def _worker(ckpt_path: str, seed: int) -> dict:
     from my_ai.network import create_model
     from my_ai.agent import NeuralAgent
 
-    # Load checkpoint — auto-detect single_head vs 3-head
+    # Load checkpoint
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     param_vec = ckpt["top2_params"][0].numpy() if TOP1 else ckpt["mean"].numpy()
-    # Try single_head first (fewer params = 550,063)
-    model = create_model(single_head=True)
-    if model.count_parameters() == len(param_vec):
-        pass  # single_head matches
-    else:
-        model = create_model(single_head=False)
+    model = create_model(num_heads=NUM_HEADS)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
 
@@ -86,11 +82,13 @@ def main():
     parser.add_argument("ckpt", type=str, help="path to checkpoint .pt file")
     parser.add_argument("--games", type=int, default=30)
     parser.add_argument("--workers", type=int, default=12)
-    parser.add_argument("--top1", action="store_true", help="use top2_params[0] instead of mean")
+    parser.add_argument("--mean", action="store_true", help="use mean instead of top2_params[0]")
+    parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     args = parser.parse_args()
 
-    global TOP1
-    TOP1 = args.top1
+    global TOP1, NUM_HEADS
+    TOP1 = not args.mean
+    NUM_HEADS = args.num_heads
 
     ckpt_path = str(Path(args.ckpt).resolve())
 

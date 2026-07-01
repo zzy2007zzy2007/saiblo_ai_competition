@@ -3,7 +3,7 @@
 ## 评估脚本
 
 `code/test_match/eval_checkpoint.py` — 加载 checkpoint 与 ExampleAI 对战 N 局，报告胜率、HP 统计。
-注意：如果 checkpoint 是单头模型（`--single-head` 训练），仍可用此脚本评估，解码器自动适配。
+注意：如果 checkpoint 是单头模型（`--num-heads 1` 训练），仍可用此脚本评估，解码器自动适配。
 
 ### 选项
 
@@ -26,7 +26,7 @@ python code/test_match/eval_checkpoint.py <checkpoint.pt> --games 100 --workers 
 **配置**：
 - pop_size=54, sigma=0.2, lr=0.01, momentum=0.9
 - games_per_ind=6, workers=6, generations=500
-- Mirrored Sampling, 自对弈（无 single-head）
+- Mirrored Sampling, 自对弈（无 num-heads，即默认3头）
 
 **已运行的测试点**：
 
@@ -45,7 +45,7 @@ python code/test_match/eval_checkpoint.py code/my_ai/training_history_20260630_1
 
 ## 训练运行 2：`training_history/20260630_152924`
 
-**配置**（single_head=True）：
+**配置**（num_heads=3）：
 - pop_size=54, sigma=0.2, lr=0.01, momentum=0.9
 - games_per_ind=8, workers=24, generations=500
 - Mirrored Sampling, 自对弈

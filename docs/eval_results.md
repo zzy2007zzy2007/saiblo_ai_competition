@@ -6,7 +6,7 @@
 
 ## 训练 1：`training_history_20260630_115331`
 
-**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=6, workers=6, 无 single-head
+**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=6, workers=6, 无 num-heads（即默认3头）
 
 | Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP |
 |----:|:----:|:----:|:----:|:------:|:------:|:---------------:|:---------:|
@@ -17,7 +17,7 @@
 
 ## 训练 2：`training_history/20260630_152924`
 
-**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=8, workers=24, single_head=True
+**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=8, workers=24, num_heads=3
 
 | Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP | 耗时 |
 |----:|:----:|:----:|:----:|:------:|:------:|:---------------:|:---------:|:----:|
@@ -29,7 +29,7 @@
 
 ## 训练 3：`training_history/20260630_182516`
 
-**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=8, workers=24, single_head=True
+**配置**：pop_size=54, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=8, workers=24, num_heads=3
 
 | Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP | 耗时 |
 |----:|:----:|:----:|:----:|:------:|:------:|:---------------:|:---------:|:----:|
@@ -46,7 +46,7 @@
 
 ## 训练 4：`training_history/20260630_215620`
 
-**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=12, workers=22, single_head=True
+**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=12, workers=22, num_heads=3
 从 gen_0011_with_pool.pt 恢复（训练 3 的峰值 checkpoint）
 
 | Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP | 耗时 |
@@ -65,7 +65,7 @@
 
 ## 训练 5：`training_history/20260630_234243`
 
-**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=12, workers=22, single_head=True
+**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=12, workers=22, num_heads=3
 从 gen_0012.pt 恢复（训练 4 gen_12，50%）
 
 | Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP | 耗时 |
@@ -82,7 +82,7 @@
 
 ## 训练 6：`training_history/20260701_004058`
 
-**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games=30, workers=22, single_head=True
+**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games=30, workers=22, num_heads=3
 从训练 5 gen_0008（50%）恢复，支持热加载参数
 **新增**：每代结束时热加载 config.txt，可动态调参
 
@@ -110,3 +110,27 @@
 | 25 | top1 | 150 | 53.3% | 40/75 | 40/75 | 3.9 / 2.9 | 1 / 0 | 1262s |
 | 26 | top1 | 150 | 48.7% | 39/75 | 34/75 | 3.5 / 2.8 | 0 / 1 | 1250s |
 | 28 | top1 | 150 | 52.7% | 40/75 | 39/75 | 3.4 / 3.1 | 1 / 0 | 1279s |
+| 34 | top1 | 20 | 40% | 3/10 | 5/10 | 2.9 / 2.6 | 0 / 2 | 40s |
+| 38 | top1 | 20 | 45% | 4/10 | 5/10 | 3.1 / 2.7 | 0 / 2 | 208s |
+| 39 | top1 | 20 | 50% | 5/10 | 5/10 | 2.8 / 2.8 | 0 / 1 | 41s |
+| 44 | top1 | 20 | 55% | 6/10 | 5/10 | 5.0 / 2.7 | 2 / 0 | 41s |
+
+### 训练 7（20260701_142121，WinGraph 选对手）
+
+**配置**：pop_size=100, sigma=0.2, lr=0.01, momentum=0.9, games_per_ind=30, workers=22, num_heads=3, opponents=WinGraph
+
+| Gen | 类型 | 局数 | 胜率 | 先手胜 | 后手胜 | Avg HP (us/opp) | Median HP | 耗时 |
+|----:|:----:|:----:|:----:|:------:|:------:|:---------------:|:---------:|:----:|
+| 3 | top1 | 30 | **63.3%** | 9/15 | 10/15 | 6.3 / 2.6 | 7 / 0 | 53s |
+| 6 | top1 | 30 | **60%** | 8/15 | 10/15 | 5.5 / 2.2 | 2 / 0 | 66s |
+| 8 | top1 | 30 | 53.3% | 7/15 | 9/15 | 5.7 / 2.8 | 2 / 0 | 71s |
+
+**内部传递链**（20 局，20 进程）：
+
+```
+gen_8 → gen_6: 55%   (11/9)
+gen_6 → gen_3: 55%   (11/9)
+gen_3 → gen_8: 65%   (13/7)  ← 反常
+```
+
+vs ExampleAI 的胜率：gen_3(63%) > gen_6(60%) > gen_8(53%)，但内部互打有石头剪刀布嫌疑。样本太少（20 局），尚不能下结论。

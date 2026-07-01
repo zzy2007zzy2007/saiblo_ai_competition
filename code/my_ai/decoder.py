@@ -300,7 +300,7 @@ def decode_network_output(
     Args:
         network_output: dict with keys:
             - action_map: (1, 23, 19, 19) or (23, 19, 19)
-            - head1_logits, head2_logits, head3_logits: (1, 23) or (23,)
+            - head1_logits, ..., headN_logits: (1, 23) or (23,)
             - value: (1, 1) or (1,) — ignored for decoding
         state: current game state
         player: current player (0 or 1)
@@ -315,11 +315,8 @@ def decode_network_output(
         return np.squeeze(t)  # Remove batch dim if present
 
     action_map = _to_np(network_output["action_map"])  # (23, 19, 19)
-    head_logits_list = [
-        _to_np(network_output[f"head{i}_logits"])
-        for i in (1, 2, 3)
-        if f"head{i}_logits" in network_output
-    ]  # 1 or 3 entries, each (23,)
+    head_keys = sorted(k for k in network_output if k.startswith("head") and k.endswith("_logits"))
+    head_logits_list = [_to_np(network_output[k]) for k in head_keys]
 
     # Compute masks
     position_mask = make_position_masks(state, player)

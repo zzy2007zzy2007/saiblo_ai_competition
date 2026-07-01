@@ -50,9 +50,8 @@ class AntWarNetwork(nn.Module):
       21-22 → base upgrades
       23    → HOLD (do nothing this turn)
 
-    When ``single_head=True``, only one policy head is created (head1),
-    reducing parameters by ~5.9K. This is useful for early-stage ES training
-    to avoid conflicting behavior between multiple heads.
+    ``num_heads`` controls how many policy heads are created (default 3).
+    The forward method produces ``head1_logits, ..., headN_logits``.
     """
 
     NUM_CLASSES = 24  # 0-22 action classes + 23 = HOLD
@@ -61,10 +60,10 @@ class AntWarNetwork(nn.Module):
     STATS_DIM = 42
     LATENT_DIM = 64
 
-    def __init__(self, num_resblocks: int = 6, single_head: bool = False):
+    def __init__(self, num_resblocks: int = 6, num_heads: int = 3):
         super().__init__()
         self.num_resblocks = num_resblocks
-        self.single_head = single_head
+        self.num_heads = num_heads
 
         # Board encoder
         self.initial_conv = nn.Sequential(
@@ -91,10 +90,9 @@ class AntWarNetwork(nn.Module):
             nn.Linear(self.LATENT_DIM, self.LATENT_DIM),
             nn.ReLU(),
         )
-        self.policy_head1 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
-        if not single_head:
-            self.policy_head2 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
-            self.policy_head3 = nn.Linear(self.LATENT_DIM, self.NUM_CLASSES)
+        self.policy_heads = nn.ModuleList([
+            nn.Linear(self.LATENT_DIM, self.NUM_CLASSES) for _ in range(num_heads)
+        ])
 
         # Value head
         self.value_head = nn.Sequential(
@@ -112,8 +110,7 @@ class AntWarNetwork(nn.Module):
         Returns:
             dict with keys:
               - action_map: (B, 23, 19, 19)
-              - head1_logits: (B, 23)
-              - head2_logits, head3_logits: (B, 23) — only if single_head=False
+              - head1_logits, ..., headN_logits: (B, 23) — one per head, N = self.num_heads
               - value: (B, 1)
         """
         # Board encoder
@@ -137,15 +134,12 @@ class AntWarNetwork(nn.Module):
 
         # Class heads
         policy_base = self.policy_base(board_emb)  # (B, 64)
-        head1_logits = self.policy_head1(policy_base)  # (B, 23)
         result: dict[str, torch.Tensor] = {
             "action_map": action_map,
-            "head1_logits": head1_logits,
             "value": self.value_head(state_emb),  # (B, 1)
         }
-        if not self.single_head:
-            result["head2_logits"] = self.policy_head2(policy_base)  # (B, 23)
-            result["head3_logits"] = self.policy_head3(policy_base)  # (B, 23)
+        for i in range(self.num_heads):
+            result[f"head{i+1}_logits"] = self.policy_heads[i](policy_base)  # (B, 23)
         return result
 
     def get_parameters_as_vector(self) -> np.ndarray:
@@ -167,15 +161,15 @@ class AntWarNetwork(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
 
-def create_model(num_resblocks: int = 6, single_head: bool = False) -> AntWarNetwork:
+def create_model(num_resblocks: int = 6, num_heads: int = 3) -> AntWarNetwork:
     """Create a model and initialize all weights to very small random values."""
-    model = AntWarNetwork(num_resblocks=num_resblocks, single_head=single_head)
+    model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads)
     return model
 
 
-def create_zero_model(num_resblocks: int = 6, single_head: bool = False) -> AntWarNetwork:
+def create_zero_model(num_resblocks: int = 6, num_heads: int = 3) -> AntWarNetwork:
     """Create a model with all weights set to exactly zero (for testing)."""
-    model = AntWarNetwork(num_resblocks=num_resblocks, single_head=single_head)
+    model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads)
     for p in model.parameters():
         nn.init.zeros_(p)
     # Need to set some non-zero biases to avoid dead ReLU in testing
@@ -199,13 +193,13 @@ def create_tuned_model() -> AntWarNetwork:
         model.action_map_conv.bias[0] = 5.0  # bias for build Basic channel
 
         # Set head1_logits bias to prefer class 0
-        model.policy_head1.bias[0] = 5.0
+        model.policy_heads[0].bias[0] = 5.0
 
         # Set head2_logits bias to prefer class 16 (downgrade/demolish)
-        model.policy_head2.bias[16] = 5.0
+        model.policy_heads[1].bias[16] = 5.0
 
         # Set head3_logits bias to prefer class 17 (lightning storm)
-        model.policy_head3.bias[17] = 5.0
+        model.policy_heads[2].bias[17] = 5.0
 
     return model
 

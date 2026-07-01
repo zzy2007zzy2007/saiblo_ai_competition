@@ -33,8 +33,8 @@ def worker(args):
     db = torch.load(pt_b, map_location="cpu", weights_only=True)
     va = da["top2_params"][0].numpy()
     vb = db["top2_params"][0].numpy()
-    ma = create_model(single_head=True); ma.set_parameters_from_vector(va)
-    mb = create_model(single_head=True); mb.set_parameters_from_vector(vb)
+    ma = create_model(num_heads=3); ma.set_parameters_from_vector(va)
+    mb = create_model(num_heads=3); mb.set_parameters_from_vector(vb)
     aa = NeuralAgent(model=ma); ab = NeuralAgent(model=mb)
 
     state = GameState.initial(seed=s, cold_handle_rule_illegal=True)
