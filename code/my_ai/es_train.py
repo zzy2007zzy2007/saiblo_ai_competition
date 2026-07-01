@@ -2,8 +2,7 @@
 
 Core algorithm (OpenAI-ES style):
   1. Sample noise -> create perturbed models: theta +/- sigma*eps
-  2. Self-play: each individual plays against random population member
-     (opponent selected by select_opponents() — extensible to elite pools)
+  2. Self-play: each individual plays against selected opponents
   3. Fitness = win rate, shaped via rank-based normalization
   4. Gradient estimate: g = 1/(N*sigma) * sum(f_i * eps_i)
   5. Update: theta <- theta + lr * g
@@ -40,25 +39,16 @@ def select_opponents(
     population_size: int,
     games_per_individual: int,
     rng: np.random.RandomState,
-) -> list[list[int]]:
-    """Select opponent indices for each individual.
+) -> list[int]:
+    """Select K opponent indices shared by ALL individuals this generation.
 
-    Returns `games_per_individual // 2` opponents per individual.
-    Each opponent is played twice: once as first player, once as second player
-    (handled in step() by creating two tasks per opponent with alternating parity).
-
-    Returns:
-        opp_indices[i][k]: opponent index for individual i, pair k.
-            Always != i (never plays against self).  k < games_per_individual // 2.
+    Returns a single list of `games_per_individual // 2` opponent indices.
+    Each opponent is played twice (first/second player parity handled in step()).
+    All individuals face the same opponents for fair rank-based fitness comparison.
     """
     assert games_per_individual % 2 == 0, "games_per_individual must be even (for fair first/second player swap)"
     n_pairs = games_per_individual // 2
-    opp_indices: list[list[int]] = []
-    for i in range(population_size):
-        candidates = [j for j in range(population_size) if j != i]
-        opps = rng.choice(candidates, size=n_pairs, replace=False)
-        opp_indices.append([int(o) for o in opps])
-    return opp_indices
+    return rng.choice(population_size, size=n_pairs, replace=False).tolist()
 
 
 def _eval_worker(
@@ -146,6 +136,7 @@ class ESTrainer:
         games_per_individual: int = 2,
         seed: int = 0,
         single_head: bool = False,
+        log=None,
     ):
         self.population_size = population_size
         self.sigma = sigma
@@ -155,6 +146,7 @@ class ESTrainer:
         self.games_per_individual = games_per_individual
         self.seed = seed
         self.single_head = single_head
+        self.log = log
         self.rng = np.random.RandomState(seed)
 
         self.model = create_model(single_head=single_head)
@@ -165,6 +157,46 @@ class ESTrainer:
         # Elite pool: [(mean_vector, top1_vector), ...] from past generations
         # Used as opponents so learners face diverse strategies.
         self.elite_pool: list[tuple[np.ndarray, np.ndarray]] = []
+        self.step_count = 0
+        self.out_dir: str | None = None  # set by main() for config hot-reload
+
+    def reload_config(self, config_path: str) -> bool:
+        """Hot-reload training parameters from config.txt at generation boundary.
+
+        Reads the config file and updates trainer attributes that can be changed
+        mid-training (sigma, lr, momentum, generations, pop_size, games, workers).
+        Returns True if any parameter was changed.
+        """
+        try:
+            kv: dict[str, str] = {}
+            with open(config_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        kv[k.strip()] = v.strip()
+            float_keys = {"sigma", "lr", "momentum"}
+            int_keys = {"generations", "pop_size", "games", "workers"}
+            attr_map = {
+                "sigma": "sigma", "lr": "lr", "momentum": "momentum",
+                "generations": "generations", "pop_size": "population_size",
+                "games": "games_per_individual", "workers": "num_workers",
+            }
+            changed = False
+            for file_key, attr in attr_map.items():
+                if file_key in kv:
+                    old = getattr(self, attr, None)
+                    new = float(kv[file_key]) if file_key in float_keys else int(kv[file_key])
+                    if old is not None and new != old:
+                        setattr(self, attr, new)
+                        changed = True
+            if changed and self.log is not None:
+                self.log.print(key="config_reload",
+                               value=f"sigma={self.sigma} lr={self.lr} momentum={self.momentum} "
+                                     f"pop={self.population_size} games={self.games_per_individual} workers={self.num_workers}")
+            return changed
+        except Exception:
+            return False
 
     def step(self, generation: int, pool: mp.Pool) -> dict:
         """Run one ES generation with mirrored sampling (reduces variance by 2x)."""
@@ -185,35 +217,29 @@ class ESTrainer:
         # Select opponent pairs — use elite pool if available, else current population
         k_per_ind = self.games_per_individual // 2
         if self.elite_pool:
-            # Build flat opponent pool: newest gen's mean, top1, then second newest, etc.
+            # Build flat opponent pool from elite pool
             opp_pool: list[np.ndarray] = []
             for entry in reversed(self.elite_pool):
                 opp_pool.append(entry[0])  # mean
                 opp_pool.append(entry[1])  # top1
             n_pool = len(opp_pool)
-            # Weighted selection: newer generations have higher probability
             gen_weights = np.array([0.85 ** (i // 2) for i in range(n_pool)], dtype=np.float64)
             gen_weights /= gen_weights.sum()
-            # Select K opponents ONCE per generation — all individuals face the same opponents
             replace = k_per_ind > n_pool
             selected_opps = self.rng.choice(n_pool, size=k_per_ind, p=gen_weights, replace=replace)
-            all_args = []
-            for idx in range(self.population_size):
-                for k in range(k_per_ind):
-                    opp_params = opp_pool[selected_opps[k]]
-                    base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
-                    all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
-                    all_args.append((params_list[idx], opp_params, base_seed + 1, self.single_head, self.synthetic_target))
+            opp_params_list = [opp_pool[i] for i in selected_opps]
         else:
-            # First generation: use current population as opponents
+            # First generation: select K opponents from current population once
             opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
-            all_args = []
-            for idx in range(self.population_size):
-                for k in range(k_per_ind):
-                    opp_idx = opp_indices[idx][k]
-                    base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
-                    all_args.append((params_list[idx], params_list[opp_idx], base_seed, self.single_head, self.synthetic_target))
-                    all_args.append((params_list[idx], params_list[opp_idx], base_seed + 1, self.single_head, self.synthetic_target))
+            opp_params_list = [params_list[i] for i in opp_indices]
+
+        all_args = []
+        for idx in range(self.population_size):
+            for k in range(k_per_ind):
+                opp_params = opp_params_list[k]
+                base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
+                all_args.append((params_list[idx], opp_params, base_seed, self.single_head, self.synthetic_target))
+                all_args.append((params_list[idx], opp_params, base_seed + 1, self.single_head, self.synthetic_target))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -296,6 +322,9 @@ class ESTrainer:
             sub_mean = self.mean[target_exists]
             sub_target = self.synthetic_target[target_exists]
             result["dist_to_target"] = float(np.linalg.norm(sub_mean - sub_target))
+        # Hot-reload config if config.txt was modified during training
+        if self.out_dir is not None:
+            self.reload_config(str(Path(self.out_dir) / "config.txt"))
         return result
 
     def save_checkpoint(self, path: str | Path, top2_params: list[np.ndarray] | None = None,
@@ -378,7 +407,9 @@ def main():
         games_per_individual=args.games,
         seed=args.seed,
         single_head=args.single_head,
+        log=log,
     )
+    trainer.out_dir = str(out_dir)
 
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
@@ -510,7 +541,7 @@ def main():
                 bin_labels = [f"{(i * step):.3f}" for i in range(n_buckets)]
                 hist = {lbl: 0 for lbl in bin_labels}
                 for d in details:
-                    bkt = f"{round(d['score'] / step) * step:.3f}"
+                    bkt = f"{int(d['score'] / step) * step:.3f}"
                     hist[bkt] = hist.get(bkt, 0) + 1
                 # Only show non-empty buckets
                 non_empty = {k: v for k, v in sorted(hist.items()) if v > 0}
