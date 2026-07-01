@@ -302,6 +302,12 @@ class ESTrainer:
                 "score": float(fitness[idx]),
             })
 
+        # Print per-individual results to terminal only
+        for idx in range(self.population_size):
+            d = ind_details[idx]
+            print(f"  ind #{idx:>3}: score={d['score']:.4f}  "
+                  f"1st: {d['p0_w']}/{d['p0_n']}  2nd: {d['p1_w']}/{d['p1_n']}")
+
         ranks = np.argsort(np.argsort(fitness))
         shaped = (ranks + 1) / (self.population_size + 1) - 0.5
 
@@ -412,6 +418,13 @@ class ESTrainer:
                 self.num_heads = 1
         if "elite_params" in ckpt:
             self.elite_params = [p.numpy() for p in ckpt["elite_params"]]
+        # If loading from top1_init checkpoint, seed elite_params with it
+        # to protect the strategy from being immediately replaced
+        if "top2_params" in ckpt and not self.elite_params:
+            top1 = ckpt["top2_params"][0]
+            if isinstance(top1, np.ndarray):
+                top1 = torch.from_numpy(top1)
+            self.elite_params = [top1.numpy()]
         if "generation" in ckpt:
             self.step_count = ckpt["generation"]
 
