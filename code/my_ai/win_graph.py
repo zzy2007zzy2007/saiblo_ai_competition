@@ -17,7 +17,7 @@ from collections import defaultdict
 # ─── module-level worker (must be picklable for multiprocessing) ───
 def _game_worker(args):
     """Play one game between two parameter vectors. Returns 1.0 if first player wins."""
-    s, params_a, params_b = args
+    s, params_a, params_b, single_head = args
     import os
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
@@ -29,8 +29,8 @@ def _game_worker(args):
     from my_ai.network import create_model
     from my_ai.agent import NeuralAgent
 
-    ma = create_model(single_head=True); ma.set_parameters_from_vector(params_a)
-    mb = create_model(single_head=True); mb.set_parameters_from_vector(params_b)
+    ma = create_model(single_head=single_head); ma.set_parameters_from_vector(params_a)
+    mb = create_model(single_head=single_head); mb.set_parameters_from_vector(params_b)
     aa = NeuralAgent(model=ma); ab = NeuralAgent(model=mb)
 
     state = GameState.initial(seed=s, cold_handle_rule_illegal=True)
@@ -42,7 +42,7 @@ def _game_worker(args):
             u, v = aa._choose_operations(state, 0), ab._choose_operations(state, 1)
         else:
             u, v = ab._choose_operations(state, 0), aa._choose_operations(state, 1)
-        state.resolve_turn(u, v) if p == 0 else state.resolve_turn(v, u)
+        state.resolve_turn(u, v)
     h0, h1 = state.bases[0].hp, state.bases[1].hp
     if h0 > h1:
         return 1.0
@@ -52,7 +52,8 @@ def _game_worker(args):
 
 
 def compute_win_rate(params_a: np.ndarray, params_b: np.ndarray,
-                     games: int, workers: int = 2) -> tuple[int, int, int]:
+                     games: int, workers: int = 2,
+                     single_head: bool = True) -> tuple[int, int, int]:
     """
     Play `games` games between two individuals (half as first, half as second).
     Returns: (wins_a, wins_b, draws)
@@ -60,9 +61,11 @@ def compute_win_rate(params_a: np.ndarray, params_b: np.ndarray,
     n2 = games // 2
     seeds_fwd = list(range(n2))
     seeds_rev = list(range(1000, 1000 + n2))
+    args_fwd = [(s, params_a, params_b, single_head) for s in seeds_fwd]
+    args_rev = [(s, params_b, params_a, single_head) for s in seeds_rev]
     with mp.Pool(workers) as pool:
-        ra = pool.map(_game_worker, [(s, params_a, params_b) for s in seeds_fwd])
-        rb = pool.map(_game_worker, [(s, params_b, params_a) for s in seeds_rev])
+        ra = pool.map(_game_worker, args_fwd)
+        rb = pool.map(_game_worker, args_rev)
     wins_a = sum(1 for r in ra if r == 1.0) + sum(1 for r in rb if r == 0.0)
     wins_b = sum(1 for r in rb if r == 1.0) + sum(1 for r in ra if r == 0.0)
     draws = games - wins_a - wins_b
@@ -159,11 +162,13 @@ class WinGraph:
     """
 
     def __init__(self, n_max: int = 30, edge_games: int = 10,
-                 win_threshold: float = 0.55, workers: int = 2):
+                 win_threshold: float = 0.55, workers: int = 2,
+                 single_head: bool = True):
         self._n_max = n_max
         self._edge_games = edge_games
         self._win_threshold = win_threshold
         self._workers = workers
+        self._single_head = single_head
 
         # node data: gen → {"params": np.ndarray, "example_win_rate": float | None}
         self.nodes: dict[int, dict] = {}
@@ -212,6 +217,14 @@ class WinGraph:
     def workers(self, value: int):
         self._workers = value
 
+    @property
+    def single_head(self) -> bool:
+        return self._single_head
+
+    @single_head.setter
+    def single_head(self, value: bool):
+        self._single_head = value
+
     # ── core operations ─────────────────────────────────────────────
 
     def add_node(self, gen: int, params: np.ndarray,
@@ -246,6 +259,7 @@ class WinGraph:
             wa, wb, d = compute_win_rate(
                 params, self.nodes[existing_gen]["params"],
                 self._edge_games, self._workers,
+                single_head=self._single_head,
             )
             self.edges[(gen, existing_gen)] = {"wins_a": wa, "wins_b": wb, "draws": d}
             total_wins += wa
@@ -380,6 +394,7 @@ class WinGraph:
                 "edge_games": self._edge_games,
                 "win_threshold": self._win_threshold,
                 "workers": self._workers,
+                "single_head": self._single_head,
             },
             "nodes": {
                 str(gen): {
@@ -401,6 +416,7 @@ class WinGraph:
         self._edge_games = cfg["edge_games"]
         self._win_threshold = cfg["win_threshold"]
         self._workers = cfg.get("workers", 2)
+        self._single_head = cfg.get("single_head", True)
 
         self.nodes = {}
         for gen_str, nd in d["nodes"].items():

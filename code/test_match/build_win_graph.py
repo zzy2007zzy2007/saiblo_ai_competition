@@ -46,7 +46,7 @@ def worker(args):
             u, v = aa._choose_operations(state, 0), ab._choose_operations(state, 1)
         else:
             u, v = ab._choose_operations(state, 0), aa._choose_operations(state, 1)
-        state.resolve_turn(u, v) if p == 0 else state.resolve_turn(v, u)
+        state.resolve_turn(u, v)
     h0, h1 = state.bases[0].hp, state.bases[1].hp
     # 1 if first player wins, 0 if second wins, 0.5 draw
     if h0 > h1:

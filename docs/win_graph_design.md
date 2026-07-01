@@ -198,3 +198,42 @@ docs/win_graph_design.md   ← 本文档
 2. **阈值选择**：55% 是经验值，可能需要调优。太松（如 50%）导致全连通图没信息，太严（如 70%）导致边太少
 3. **冷启动**：前几代节点很少时，无法做 SCC 缩点。需要至少 5 个节点才有意义
 4. **ExampleAI 评分可选**：图中不一定需要存 vs ExampleAI 的胜率，但可以作为辅助维度帮助决策
+
+---
+
+## Bug 修复记录
+
+### Bug 1：`resolve_turn` 先后手参数交换错误（2026-07-01）
+
+**位置**：`_game_worker()` 中
+
+**问题代码**：
+```python
+state.resolve_turn(u, v) if p == 0 else state.resolve_turn(v, u)
+```
+
+当 `p==1` 时：
+- `u = ab._choose_operations(state, 0)` → u 是 P0 的操作
+- `v = aa._choose_operations(state, 1)` → v 是 P1 的操作
+
+但条件分支传参时交换了 v, u，相当于把 P1 的操作传给了 P0。这个 bug 会导致 `p==1`（即新个体后手）时，双方的操作角色错乱。
+
+**修复**：直接 `state.resolve_turn(u, v)`，不判断 p。因为不管 p 为多少，`u` 始终是 P0 的操作，`v` 始终是 P1 的操作。
+
+### Bug 2：`single_head` 硬编码（2026-07-01）
+
+**位置**：`_game_worker()` 中
+
+**问题代码**：
+```python
+ma = create_model(single_head=True)
+mb = create_model(single_head=True)
+```
+
+如果训练时用了 `--single_head=False`（3-head 模型，约 55 万参数），WinGraph 创建的 1-head 模型（约 35 万参数）参数向量长度不一致，`set_parameters_from_vector` 会下标越界。
+
+**修复**：
+- `WinGraph.__init__` 增加 `single_head=True` 参数
+- 通过 `compute_win_rate(single_head=...)` 传递到 `_game_worker`
+- 在 `state_dict` / `load_state_dict` 中保存/恢复
+- 提供 `wg.single_head` 可读写属性
