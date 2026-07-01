@@ -160,11 +160,25 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
 
 
 if __name__ == "__main__":
-    import argparse
+    import argparse, torch, re
     parser = argparse.ArgumentParser()
     parser.add_argument("ckpt", type=str)
     parser.add_argument("--games", type=int, default=10)
     parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     parser.add_argument("--verbose", "-v", action="store_true", help="print per-turn actions")
     args = parser.parse_args()
+
+    if args.num_heads == 3:
+        # Auto-detect num_heads from checkpoint
+        ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
+        if "num_heads" in ckpt:
+            args.num_heads = ckpt["num_heads"]
+        elif "config" in ckpt and "num_heads" in ckpt["config"]:
+            args.num_heads = ckpt["config"]["num_heads"]
+        elif "model_state" in ckpt:
+            heads = [k for k in ckpt["model_state"] if re.match(r"policy_heads\.\d+\.weight", k)]
+            args.num_heads = max(len(heads), 1)
+        elif "policy_head2.weight" in ckpt.get("model_state", {}):
+            args.num_heads = 3
+
     diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads)

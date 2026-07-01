@@ -88,7 +88,25 @@ def main():
 
     global TOP1, NUM_HEADS
     TOP1 = not args.mean
-    NUM_HEADS = args.num_heads
+
+    if args.num_heads != 3:
+        NUM_HEADS = args.num_heads
+    else:
+        # Auto-detect num_heads from checkpoint metadata
+        ckpt_meta = torch.load(str(Path(args.ckpt).resolve()), map_location="cpu", weights_only=True)
+        if "num_heads" in ckpt_meta:
+            NUM_HEADS = ckpt_meta["num_heads"]
+        elif "config" in ckpt_meta and "num_heads" in ckpt_meta["config"]:
+            NUM_HEADS = ckpt_meta["config"]["num_heads"]
+        elif "model_state" in ckpt_meta:
+            import re
+            keys = list(ckpt_meta["model_state"].keys())
+            heads = [k for k in keys if re.match(r"policy_heads\.\d+\.weight", k)]
+            NUM_HEADS = max(len(heads), 1)
+        elif "policy_head2.weight" in ckpt_meta.get("model_state", {}):
+            NUM_HEADS = 3
+        else:
+            NUM_HEADS = 3  # old single_head=True or unknown
 
     ckpt_path = str(Path(args.ckpt).resolve())
 
