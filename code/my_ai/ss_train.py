@@ -216,11 +216,14 @@ class SSDataset(Dataset):
         rng_item = torch.Generator()
         rng_item.manual_seed(int(torch.randint(0, 2**31, (1,)).item()))
 
-        # Class mutation: replace argmax with temperature-softmax sampling
+        # Class mutation: temperature-softmax sampling, EXCLUDING HOLD (class 23)
         if torch.rand(1).item() < self.p_mutate:
             logits_row = self.head_logits[idx]  # (N_heads, 24) — numpy
             for hi in range(logits_row.shape[0]):
                 logits_t = torch.from_numpy(logits_row[hi])  # (24,)
+                logits_t = torch.clamp(logits_t, -50.0, 50.0)  # 安全兜底防 inf/nan
+                # Mask out HOLD class so mutation always explores non-HOLD actions
+                logits_t[self.HOLD_CLASS] = float("-inf")
                 probs = F.softmax(logits_t / self.temperature, dim=0)
                 cls_label[hi] = torch.multinomial(probs, 1).item()
 
@@ -326,17 +329,18 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
 def write_npz(path, board, stats, class_, action_map, head_logits):
     """Save game timestep data as compressed .npz.
 
-    board/action_map/head_logits/stats saved as float16,
+    board/action_map/head_logits/stats saved as float16 (with clip to safe range),
     class_ saved as int64.
     """
+    F16_MAX = 65504.0
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         path,
         board=board.astype(np.float16),
         stats=stats.astype(np.float16),
         class_=class_,
-        action_map=action_map.astype(np.float16),
-        head_logits=head_logits.astype(np.float16),
+        action_map=np.clip(action_map, -F16_MAX, F16_MAX).astype(np.float16),
+        head_logits=np.clip(head_logits, -F16_MAX, F16_MAX).astype(np.float16),
     )
 
 
@@ -392,6 +396,38 @@ def select_opponents(population_size, games_per_individual, rng):
 # ════════════════════════════════════════════════
 
 
+def reload_config(config_path: str, args) -> bool:
+    """Hot-reload training parameters from config.txt at generation boundary.
+    Returns True if any parameter was changed.
+    """
+    try:
+        kv: dict[str, str] = {}
+        with open(config_path) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    kv[k.strip()] = v.strip()
+        float_keys = {"sigma", "lr"}
+        int_keys = {"generations", "pop_size", "games", "workers", "k", "p_mutate", "temperature"}
+        changed = False
+        for key in float_keys:
+            if key in kv:
+                new = float(kv[key])
+                if getattr(args, key.replace("-", "_"), None) != new:
+                    setattr(args, key.replace("-", "_"), new)
+                    changed = True
+        for key in int_keys:
+            if key in kv:
+                new = int(kv[key])
+                if getattr(args, key.replace("-", "_"), None) != new:
+                    setattr(args, key.replace("-", "_"), new)
+                    changed = True
+        return changed
+    except Exception:
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Strategy Space Evolution training")
@@ -443,6 +479,9 @@ def main():
     # ── Model ─────────────────────────────────────────────────────
     model = create_model(num_heads=args.num_heads)
     param_count = model.count_parameters()
+
+    # Elite retention
+    elite_params: list[np.ndarray] = []
 
     if args.checkpoint:
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
@@ -510,6 +549,8 @@ def main():
 
     # ── Training loop ─────────────────────────────────────────────
     pool = mp.Pool(args.workers)
+    pause_file = out_dir / "PAUSE"
+    pause_file.write_text("resume", encoding="utf-8")
     latest_result = None
 
     try:
@@ -517,9 +558,19 @@ def main():
             if interrupted:
                 break
 
+            # PAUSE check + config reload
+            while pause_file.read_text(encoding="utf-8").strip().lower() == "pause" and not interrupted:
+                time.sleep(2)
+            if interrupted:
+                break
+            if reload_config(str(out_dir / "config.txt"), args):
+                log.print(key="config_reload",
+                          value=f"sigma={args.sigma} lr={args.lr} "
+                                f"pop={args.pop_size} games={args.games} workers={args.workers}")
+
             t0 = time.time()
 
-            # 1. Mirrored sampling
+            # 1. Mirrored sampling (with elite retention injection)
             assert args.pop_size % 2 == 0, "pop_size must be even (mirrored sampling)"
             n_noise = args.pop_size // 2
             noise = rng.randn(n_noise, param_count).astype(np.float32)
@@ -527,6 +578,12 @@ def main():
             for n in noise:
                 params_list.append(mean + args.sigma * n)
                 params_list.append(mean - args.sigma * n)
+
+            # Elite retention: replace bottom individuals with stored elites
+            if elite_params:
+                n_elite = max(1, int(args.pop_size ** 0.25))
+                for i in range(min(n_elite, len(elite_params))):
+                    params_list[-(i + 1)] = elite_params[i].copy()
 
             # 2. Select opponents
             opp_indices = select_opponents(args.pop_size, args.games, rng)
@@ -614,6 +671,33 @@ def main():
                 total_s=f"{total_time:.1f}",
                 ss=f"{ss_ret['total_loss']:.4f}",
             )
+
+            # Fitness distribution histogram
+            n_candidates = [8, 6, 5, 4]
+            n_bins = next((n for n in n_candidates if args.games % n == 0), 6)
+            n_buckets = n_bins + 1
+            step = 1.0 / n_bins
+            bin_labels = [f"{(i * step):.3f}" for i in range(n_buckets)]
+            hist = {lbl: 0 for lbl in bin_labels}
+            for fv in fitness:
+                bkt = f"{int(fv / step) * step:.3f}"
+                hist[bkt] = hist.get(bkt, 0) + 1
+            non_empty = {k: v for k, v in sorted(hist.items()) if v > 0}
+            hist_str = " ".join(f"{k}:{v}" for k, v in non_empty.items())
+            best_i = int(fitness.argmax())
+            log.print_table(**{"ind_dist": hist_str, "best": f"#{best_i} {fitness[best_i]:.3f}"})
+
+            # Update elite retention pool with top performers
+            n_elite = max(1, int(args.pop_size ** 0.25))
+            top_k_idx_full = np.argsort(fitness)[-n_elite:]
+            new_elites = [params_list[i].copy() for i in reversed(top_k_idx_full)]
+            combined = []
+            for i in range(max(len(new_elites), len(elite_params))):
+                if i < len(new_elites):
+                    combined.append(new_elites[i])
+                if i < len(elite_params):
+                    combined.append(elite_params[i])
+            elite_params = combined[:n_elite]
 
             # 8. CSV
             row = [
