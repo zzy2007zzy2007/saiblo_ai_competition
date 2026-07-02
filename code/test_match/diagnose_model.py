@@ -58,6 +58,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
+    print(f"num_heads={num_heads}, params={len(param_vec):,}")
 
     # Aggregated stats
     total_turns = 0

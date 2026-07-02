@@ -1,4 +1,4 @@
-"""Show what each head wants to do. Uses NeuralAgent for gameplay (identical to diagnose_model.py)."""
+"""Show what each head wants to do. Uses NeuralAgent for gameplay, vs ExampleAI."""
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -12,6 +12,7 @@ for p in (_REPO, _CODE):
 import torch
 import numpy as np
 from SDK.backend.engine import GameState
+from AI.ai_example import AI as ExampleAI
 from SDK.utils.constants import MAX_ROUND
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
@@ -47,7 +48,9 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(params)
+    print(f"num_heads={num_heads}, params={len(params):,}")
     agent = NeuralAgent(model=model)
+    opponent = ExampleAI(seed=seed)
 
     stats = {i: {"ops": 0, "rejected": 0, "classes": []} for i in range(num_heads)}
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
@@ -58,10 +61,10 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
         if state.terminal:
             break
 
-        # Use NeuralAgent's _choose_operations (identical to diagnose_model.py)
         u = agent._choose_operations(state, 0)
+        opp = opponent.choose_operations(state, 1)
 
-        # Also peek at what each head wants (re-run forward on current state)
+        # Peek at what each head wants
         obs = agent.feature_extractor.encode_observation(state, 0, np.zeros(agent.max_actions))
         board = torch.from_numpy(obs["board"]).unsqueeze(0).float()
         st = torch.from_numpy(obs["stats"]).unsqueeze(0).float()
@@ -93,7 +96,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
             if okay and op.op_type.name == "BUILD_TOWER":
                 pos_mask[:, op.arg0, op.arg1] = False
 
-        state.resolve_turn(u, [])
+        state.resolve_turn(u, opp)
         total_ops += len(u) if u else 0
         if not u:
             total_holds += 1
