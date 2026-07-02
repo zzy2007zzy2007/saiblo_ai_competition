@@ -27,6 +27,10 @@ CLASS_SHORT = {
 
 
 def diagnose_heads(ckpt_path: str, seed: int = 0):
+    if not torch.cuda.is_available():
+        torch.set_num_threads(1)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
 
     if "num_heads" in ckpt:
@@ -48,7 +52,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(params)
-    print(f"num_heads={num_heads}, params={len(params):,}")
+    print(f"num_heads={num_heads}, params={len(params):,} device={device}")
     agent = NeuralAgent(model=model)
     opponent = ExampleAI(seed=seed)
 
@@ -86,7 +90,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
                 continue
             hl = _to_np(output[key])
             op = decode_head(hl, action_map, cls_mask, pos_mask, state, 0)
-            cid = int(np.argmax(hl * cls_mask.astype(np.float32)))
+            cid = int(np.argmax(hl))
             stats[h]["classes"].append(cid)
             okay = op is not None and state.can_apply_operation(0, op, [])
             if okay:
@@ -108,7 +112,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
     print(f"Seed={seed}, turns={turn+1}, result={r} ({state.bases[0].hp} vs {state.bases[1].hp})")
     print(f"Bundle: {total_ops} ops, {total_holds} holds across {turn+1} turns")
     print()
-    print(f"{'Head':>6} {'Ops':>6} {'Rej':>6}  Top-3 classes (what head wants to do)")
+    print(f"{'Head':>6} {'Ops':>6} {'Rej':>6}  Top-8 classes (what head wants to do)")
     print("-" * 55)
     for h in range(num_heads):
         s = stats[h]
@@ -116,7 +120,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
         if total == 0:
             print(f"  H{h+1}:  (inactive)")
             continue
-        top3 = sorted(set(s["classes"]), key=lambda c: s["classes"].count(c), reverse=True)[:3]
+        top3 = sorted(set(s["classes"]), key=lambda c: s["classes"].count(c), reverse=True)[:8]
         t3 = ", ".join(f"{CLASS_SHORT.get(c,'?')}({s['classes'].count(c)})" for c in top3)
         acc = s["ops"] / total * 100
         print(f"  H{h+1}: {s['ops']:>4d}/{total:<3d}  {acc:3.0f}%  {t3}")

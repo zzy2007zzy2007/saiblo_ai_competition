@@ -3,6 +3,10 @@ from __future__ import annotations
 import sys, time
 from pathlib import Path
 
+import torch
+if not torch.cuda.is_available():
+    torch.set_num_threads(1)
+
 _REPO = Path(__file__).resolve().parents[2] / "Ant-Game"
 _CODE = Path(__file__).resolve().parents[1]
 for p in (_REPO, _CODE):

@@ -24,6 +24,13 @@ from diagnose_heads import diagnose_heads
 
 def main():
     import argparse
+
+    # Set CPU threads to 1 if no GPU (avoids thread contention)
+    device = "GPU (CUDA)" if torch.cuda.is_available() else "CPU"
+    if not torch.cuda.is_available():
+        torch.set_num_threads(1)
+    print(f"Device: {device}")
+
     parser = argparse.ArgumentParser(description="Combined diagnosis: behavior + head analysis")
     parser.add_argument("ckpt", type=str, help="checkpoint path")
     parser.add_argument("--seed", type=int, default=0, help="random seed")

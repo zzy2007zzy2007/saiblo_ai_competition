@@ -206,13 +206,20 @@ def decode_head(
     state: BackendState,
     player: int,
 ) -> Operation | None:
-    """Decode one policy head into a single Operation (or None if pass)."""
-    # Step 1: Mask class logits and select class
-    masked_class = np.where(class_mask, head_logits, -np.inf)
-    class_id = int(np.argmax(masked_class))
+    """Decode one policy head into a single Operation (or None if pass).
+
+    Unlike the traditional "mask-then-argmax" approach, this decoder
+    checks the RAW (unmasked) argmax first. If the head's top choice
+    is illegal, the head is skipped (returns None) instead of falling
+    back to the next-best legal action. This prevents heads from
+    automatically decaying into wasteful fallback actions (e.g. DOWNGRADE)
+    when their preferred action is temporarily unavailable.
+    """
+    # Step 1: Raw argmax — what the head truly wants
+    class_id = int(np.argmax(head_logits))
 
     if not class_mask[class_id]:
-        return None  # No valid action
+        return None  # Head's top choice is illegal → skip this head
 
     # Step 2: HOLD — do nothing this turn
     if class_id == 23:
