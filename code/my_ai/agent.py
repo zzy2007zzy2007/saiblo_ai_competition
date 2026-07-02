@@ -42,6 +42,7 @@ class NeuralAgent(BaseAgent):
         self.model = model or create_zero_model()
         self.model.eval()  # inference mode
         self.feature_extractor = FeatureExtractor(max_actions=max_actions)
+        self.last_output = None
 
     def set_model(self, model: AntWarNetwork) -> None:
         """Replace the model (used by ES to update weights)."""
@@ -81,6 +82,7 @@ class NeuralAgent(BaseAgent):
         # Network forward
         with torch.no_grad():
             output = self.model(board, stats)
+        self.last_output = output
 
         # Decode
         operations = decode_network_output(output, state, player)

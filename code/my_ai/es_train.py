@@ -32,6 +32,7 @@ import torch
 
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
+from my_ai.elite_bc import TopKSelector, BCDataset, supervised_update, write_bc_npz, collect_bc_data, cleanup_gen_npz, BCConfig
 from utils.logger import get_logger
 
 
@@ -57,6 +58,7 @@ def _eval_worker(
     seed: int,
     num_heads: int = 3,
     synthetic_target: np.ndarray | None = None,
+    bc_dir=None, gen=0, ind=0,
 ) -> dict:
     """Run one match: params vs opponent params.
 
@@ -102,15 +104,34 @@ def _eval_worker(
 
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
 
+    bc_boards, bc_stats, bc_class_labels, bc_map_labels = [], [], [], []
+
     for _ in range(MAX_ROUND):
         if state.terminal:
             break
         ops_us = agent._choose_operations(state, our_player)
+        if bc_dir:
+            feat = agent.feature_extractor.encode_observation(
+                state, our_player, np.zeros(agent.max_actions))
+            bc_boards.append(feat["board"].copy())
+            bc_stats.append(feat["stats"].copy())
+            map_arg = agent.last_output["action_map"].reshape(-1).argmax().item()
+            cls_labels = [agent.last_output[f"head{hi+1}_logits"].argmax().item() for hi in range(num_heads)]
+            bc_class_labels.append(cls_labels)
+            bc_map_labels.append([map_arg] * num_heads)
         ops_opp = opponent._choose_operations(state, opp_player)
         if our_player == 0:
             state.resolve_turn(ops_us, ops_opp)
         else:
             state.resolve_turn(ops_opp, ops_us)
+
+    if bc_dir and bc_boards:
+        from my_ai.elite_bc import write_bc_npz
+        boards_arr = np.stack(bc_boards, axis=0)
+        stats_arr = np.stack(bc_stats, axis=0)
+        write_bc_npz(Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
+                     [boards_arr], [stats_arr],
+                     [np.array(bc_class_labels)], [np.array(bc_map_labels)])
 
     hp_us = state.bases[our_player].hp
     hp_opp = state.bases[opp_player].hp
@@ -148,6 +169,7 @@ class ESTrainer:
         seed: int = 0,
         num_heads: int = 3,
         log=None,
+        bc_config: BCConfig | None = None,
     ):
         self.population_size = population_size
         self.sigma = sigma
@@ -158,6 +180,8 @@ class ESTrainer:
         self.seed = seed
         self.num_heads = num_heads
         self.log = log
+        self.bc_config = bc_config or BCConfig()
+        self.bc_dir: Path | None = None
         self.rng = np.random.RandomState(seed)
 
         self.model = create_model(num_heads=num_heads)
@@ -266,8 +290,20 @@ class ESTrainer:
             for k in range(k_per_ind):
                 opp_params = opp_params_list[k]
                 base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
-                all_args.append((params_list[idx], opp_params, base_seed, self.num_heads, self.synthetic_target))
-                all_args.append((params_list[idx], opp_params, base_seed + 1, self.num_heads, self.synthetic_target))
+                all_args.append((
+                    params_list[idx], opp_params, base_seed,
+                    self.num_heads, self.synthetic_target,
+                    str(self.bc_dir) if self.bc_config.enabled else None,  # bc_dir
+                    generation,  # gen
+                    idx,         # ind
+                ))
+                all_args.append((
+                    params_list[idx], opp_params, base_seed + 1,
+                    self.num_heads, self.synthetic_target,
+                    str(self.bc_dir) if self.bc_config.enabled else None,  # bc_dir
+                    generation,  # gen
+                    idx,         # ind
+                ))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
         async_result = pool.starmap_async(_eval_worker, all_args)
@@ -313,20 +349,21 @@ class ESTrainer:
                 "score": float(fitness[idx]),
             })
 
-        ranks = np.argsort(np.argsort(fitness))
-        shaped = (ranks + 1) / (self.population_size + 1) - 0.5
+        if not self.bc_config.enabled:
+            ranks = np.argsort(np.argsort(fitness))
+            shaped = (ranks + 1) / (self.population_size + 1) - 0.5
 
-        # Mirrored sampling gradient: sum of (f_pos - f_neg) * noise / (N * sigma)
-        shaped_pairs = shaped.reshape(n_noise, 2)
-        pair_diffs = shaped_pairs[:, 0] - shaped_pairs[:, 1]
-        gradient = (noise.T @ pair_diffs) / (self.population_size * self.sigma)
+            # Mirrored sampling gradient: sum of (f_pos - f_neg) * noise / (N * sigma)
+            shaped_pairs = shaped.reshape(n_noise, 2)
+            pair_diffs = shaped_pairs[:, 0] - shaped_pairs[:, 1]
+            gradient = (noise.T @ pair_diffs) / (self.population_size * self.sigma)
 
-        # Momentum update: v = μ·v + lr·g ; θ += v
-        if self.velocity is None:
-            self.velocity = np.zeros_like(self.mean)
-        self.velocity = self.momentum * self.velocity + self.lr * gradient.astype(self.mean.dtype)
-        self.mean += self.velocity
-        self.model.set_parameters_from_vector(self.mean)
+            # Momentum update: v = μ·v + lr·g ; θ += v
+            if self.velocity is None:
+                self.velocity = np.zeros_like(self.mean)
+            self.velocity = self.momentum * self.velocity + self.lr * gradient.astype(self.mean.dtype)
+            self.mean += self.velocity
+            self.model.set_parameters_from_vector(self.mean)
 
         total_time = time.time() - t0
 
@@ -392,6 +429,11 @@ class ESTrainer:
             data["elite_params"] = [torch.from_numpy(p) for p in self.elite_params]
         if self.win_graph is not None:
             data["win_graph"] = self.win_graph.state_dict()
+        if self.bc_config.enabled:
+            data["bc_config"] = {"k": self.bc_config.k, "epochs": self.bc_config.epochs,
+                                 "lr": self.bc_config.lr, "batch_size": self.bc_config.batch_size,
+                                 "lambda_map": self.bc_config.lambda_map,
+                                 "lambda_class": self.bc_config.lambda_class}
         torch.save(data, path)
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -433,6 +475,9 @@ class ESTrainer:
             self.elite_params = [top1.numpy()]
         if "generation" in ckpt:
             self.step_count = ckpt["generation"]
+        if "bc_config" in ckpt and self.bc_config.enabled:
+            for k, v in ckpt["bc_config"].items():
+                setattr(self.bc_config, k, v)
 
 
 def main():
@@ -463,6 +508,14 @@ def main():
                         help="synthetic fitness: converge toward random target (test ES correctness)")
     parser.add_argument("--out-dir", type=str, default=None,
                         help="output directory (default: training_history_<timestamp>)")
+    parser.add_argument("--bc", action="store_true", help="enable Elite Behavior Cloning")
+    parser.add_argument("--bc-k", type=int, default=5)
+    parser.add_argument("--bc-epochs", type=int, default=3)
+    parser.add_argument("--bc-lr", type=float, default=1e-3)
+    parser.add_argument("--bc-batch-size", type=int, default=64)
+    parser.add_argument("--bc-lambda-map", type=float, default=1.0)
+    parser.add_argument("--bc-lambda-class", type=float, default=1.0)
+    parser.add_argument("--bc-device", type=str, default="cuda")
     args = parser.parse_args()
 
     # ── Prepare output directory ──────────────────────────────────
@@ -493,9 +546,16 @@ def main():
         seed=args.seed,
         num_heads=args.num_heads,
         log=log,
+        bc_config=BCConfig.from_args(args) if args.bc else None,
     )
     trainer.out_dir = str(out_dir)
     trainer.generations = args.generations  # allows hot-reload from config
+
+    # ── BC data directory ─────────────────────────────────────────
+    if args.bc:
+        bc_dir = out_dir / "bc_data"
+        bc_dir.mkdir(parents=True, exist_ok=True)
+        trainer.bc_dir = bc_dir
 
     # ── WinGraph (enabled by default, DAG-based opponent selection) ──
     if not args.no_wg:
@@ -602,6 +662,35 @@ def main():
             result = trainer.step(gen, pool)
             if interrupted:
                 break
+
+            # ── Elite Behavior Cloning ──
+            if trainer.bc_config.enabled and trainer.bc_dir is not None:
+                fitness_arr = np.array([d["score"] for d in result.get("ind_details", [])])
+                if len(fitness_arr) > 0:
+                    selector = TopKSelector(k=trainer.bc_config.k)
+                    selected = selector.select(fitness_arr.tolist())
+                    npz_paths = collect_bc_data(trainer.bc_dir, selected, gen)
+                    if npz_paths:
+                        ds = BCDataset(npz_paths)
+                        if len(ds) > 0:
+                            bc_ret = supervised_update(trainer.model, ds,
+                                device=trainer.bc_config.device,
+                                epochs=trainer.bc_config.epochs,
+                                lr=trainer.bc_config.lr,
+                                batch_size=trainer.bc_config.batch_size,
+                                lambda_map=trainer.bc_config.lambda_map,
+                                lambda_class=trainer.bc_config.lambda_class)
+                            trainer.mean = trainer.model.get_parameters_as_vector()
+                            log.print(key="bc",
+                                value=f"top{selected} samples={bc_ret['samples']} "
+                                      f"loss={bc_ret['total_loss']:.4f} "
+                                      f"cls={bc_ret['class_loss']:.4f} map={bc_ret['map_loss']:.4f}")
+                        else:
+                            log.print(key="bc", value="all-HOLD filtered, no valid samples")
+                    else:
+                        log.print(key="bc", value="no data files for top-K")
+                cleanup_gen_npz(trainer.bc_dir, gen)
+
             trainer.step_count = gen + 1
 
             # Update elite pool with this generation's mean and top1
