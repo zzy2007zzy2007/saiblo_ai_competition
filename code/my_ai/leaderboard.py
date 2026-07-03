@@ -43,54 +43,57 @@ class Leaderboard:
                       match_fn=None) -> bool:
         """Try to insert a new candidate, keeping the pool sorted.
 
-        Two modes:
-        1. ``score`` is provided → used directly (caller already computed it).
-        2. ``match_fn`` is provided and pool is non-empty → calls
-           ``match_fn(candidate_params, strongest_params)`` to compute
-           the score, then enforces the threshold.
+        If ``match_fn`` is provided, the candidate challenges entries
+        from strongest to weakest and is inserted at the highest rank
+        it can beat (score > threshold). If it beats no one, it is
+        appended to the tail (if room) or rejected.
 
-        If the pool already has entries, the candidate's score must
-        exceed ``threshold`` to be added. This prevents weak entries
-        from accumulating.
+        If ``score`` is provided directly (no match_fn), standard
+        score-based insertion is used.
 
         Args:
             gen: generation number.
             params: candidate parameter vector.
             score: pre-computed win rate (optional if match_fn given).
             match_fn: callable ``(params_a, params_b) -> win_rate``.
-                      Used to evaluate candidate vs strongest.
 
         Returns:
             True if inserted, False if rejected.
         """
-        # Determine score via match_fn if needed
-        if score is None and match_fn is not None and self.entries:
-            strongest = self.entries[0]
-            score = match_fn(params, strongest.params)
-        elif score is None:
-            score = 1.0  # First entry when no opponent to compare
-
-        # Threshold check: candidate must beat strongest to enter
-        if self.entries and score <= self.threshold:
+        if match_fn is not None and self.entries:
+            # ── Challenge ladder: strongest → weakest ──
+            for rank, entry in enumerate(self.entries):
+                s = match_fn(params, entry.params)
+                if s > self.threshold:
+                    # Beats this opponent → insert above it
+                    self.entries.insert(rank, LeaderboardEntry(
+                        gen=gen, params=params.copy(), score=s))
+                    if len(self.entries) > self.max_size:
+                        self.entries.pop()
+                    return True
+            # Couldn't beat anyone → append to tail (if room)
+            if len(self.entries) < self.max_size:
+                s = match_fn(params, self.entries[-1].params)
+                self.entries.append(LeaderboardEntry(
+                    gen=gen, params=params.copy(), score=s))
+                return True
             return False
 
-        # Reject early if pool is full and candidate is too weak
-        if len(self.entries) >= self.max_size:
-            if score <= self.entries[-1].score:
-                return False
+        # ── Direct score insertion ──
+        if score is None:
+            score = 1.0
+
+        if self.entries and score <= self.threshold:
+            return False
+        if len(self.entries) >= self.max_size and score <= self.entries[-1].score:
+            return False
 
         entry = LeaderboardEntry(gen=gen, params=params.copy(), score=score)
-
-        # Insert at correct position (descending score)
-        # Use negated score so bisect works with descending order
         neg_scores = [-e.score for e in self.entries]
         pos = bisect.bisect_left(neg_scores, -score)
         self.entries.insert(pos, entry)
-
-        # Prune if over capacity
         if len(self.entries) > self.max_size:
             self.entries.pop()
-
         return True
 
     def get_ranked_entries(self) -> list[dict[str, Any]]:
