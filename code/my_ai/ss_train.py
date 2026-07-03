@@ -363,6 +363,10 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
             sampled = torch.multinomial(probs, 1).squeeze(-1)
             cls_label[mask, hi] = sampled
 
+        # Freeze encoder: gradient only for policy_heads + action_map_conv
+        for name, param in model_template.named_parameters():
+            param.requires_grad = name.startswith("policy_heads") or "action_map_conv" in name
+
         # Forward + backward
         model_template.zero_grad()
         output = model_template(board, stats)
@@ -372,11 +376,13 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
         cls_loss /= NH
         cls_loss.backward()
 
-        # Extract + normalize gradient direction
-        grad = _extract_grad_vector(model_template)
-        grad_norm = np.linalg.norm(grad) + 1e-8
-        grad_basis.append(grad / grad_norm)
+        # Extract gradient with per-head normalization
+        grad = _extract_grad_per_head(model_template, NH)
+        grad_basis.append(grad)
 
+        # Restore requires_grad for next iteration
+        for param in model_template.parameters():
+            param.requires_grad = True
         model_template.zero_grad()
 
     n_dirs_actual = len(grad_basis)
@@ -384,6 +390,8 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
         return []
 
     # Phase 2: Generate individuals as linear combinations
+    # Each direction is per-head normalized → each head changes equally
+    # mutation_step ~ 100.0 gives per-weight change ≈ 0.9 (enough to flip argmax)
     params_list = []
     rng = np.random.RandomState()
     rng.seed(42)
@@ -414,6 +422,38 @@ def _extract_grad_vector(model):
         else:
             grads.append(np.zeros(p.numel(), dtype=np.float32))
     return np.concatenate(grads)
+
+
+def _extract_grad_per_head(model, num_heads):
+    """Extract gradient with per-head normalization.
+
+    Uses parameter NAMES to identify head-specific parameters.
+    Each head's gradient (weight+bias) is normalized independently.
+    Returns a full-size gradient vector (same shape as get_parameters_as_vector())
+    with encoder and action_map_conv gradients zeroed out.
+    """
+    full = _extract_grad_vector(model)
+    result = np.zeros_like(full)
+
+    # Collect head parameters by name
+    named_params = dict(model.named_parameters())
+    idx = 0
+    for name, p in model.named_parameters():
+        size = p.numel()
+        # Check if this is a head-specific parameter using NAME
+        is_head_param = False
+        for hi in range(num_heads):
+            if name.startswith(f"policy_heads.{hi}."):
+                is_head_param = True
+                break
+        if is_head_param and p.grad is not None:
+            g = p.grad.detach().view(-1).cpu().numpy().astype(np.float32)
+            gn = np.linalg.norm(g)
+            if gn > 1e-8:
+                result[idx:idx + size] = g / gn
+        # Everything else stays zero (encoder, action_map_conv)
+        idx += size
+    return result
 
 
 # ════════════════════════════════════════════════
@@ -496,6 +536,51 @@ def select_opponents(population_size, games_per_individual, rng):
 # ════════════════════════════════════════════════
 
 
+def build_eval_args(params_list, opp_params_list, pop_size, games, num_heads, bc_dir, gen, seed, only_idx=None, seed_offset=0):
+    """Build argument tuples for _eval_worker.
+    
+    Args:
+        only_idx: list of indices to run (None = all).
+        seed_offset: added to all seeds (for Phase 2 non-overlap).
+    
+    Returns:
+        list of (params, opp_params, seed, num_heads, bc_dir, gen, idx)
+    """
+    k_per_ind = games // 2
+    all_args = []
+    indices = only_idx if only_idx is not None else range(pop_size)
+    for idx in indices:
+        for k_idx in range(k_per_ind):
+            base_seed = (seed + gen * pop_size * games
+                         + idx * games + k_idx * 2 + seed_offset)
+            all_args.append((
+                params_list[idx], opp_params_list[k_idx], base_seed,
+                num_heads,
+                bc_dir, gen, idx,
+            ))
+            all_args.append((
+                params_list[idx], opp_params_list[k_idx], base_seed + 1,
+                num_heads,
+                bc_dir, gen, idx,
+            ))
+    return all_args
+
+
+def run_eval(pool, all_args):
+    """Submit and collect evaluation results, handling interrupts."""
+    if not all_args:
+        return []
+    async_result = pool.starmap_async(_eval_worker, all_args)
+    while True:
+        try:
+            return async_result.get(timeout=2)
+        except mp.TimeoutError:
+            # Check for interrupt (handled via global)
+            continue
+        except (mp.context.BrokenProcessPool, OSError, ValueError):
+            raise
+
+
 def reload_config(config_path: str, args) -> bool:
     """Hot-reload training parameters from config.txt at generation boundary.
     Returns True if any parameter was changed.
@@ -509,7 +594,7 @@ def reload_config(config_path: str, args) -> bool:
                     k, v = line.split("=", 1)
                     kv[k.strip()] = v.strip()
         float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std", "p_hold"}
-        int_keys = {"generations", "pop_size", "games", "workers", "k"}
+        int_keys = {"generations", "pop_size", "games", "workers", "k", "data_games"}
         changed = False
         for key in float_keys:
             if key in kv:
@@ -548,12 +633,16 @@ def main():
     parser.add_argument("--temperature", type=float, default=3.0)
     parser.add_argument("--p-hold", type=float, default=1.0)
     parser.add_argument("--pos-noise-std", type=float, default=0.1)
-    parser.add_argument("--mutation-step", type=float, default=0.01,
-                        help="gradient-guided mutation step size")
+    parser.add_argument("--mutation-step", type=float, default=50.0,
+                        help="gradient-guided mutation step size (per-head normalized)")
     parser.add_argument("--n-grad-dirs", type=int, default=20,
                         help="number of gradient basis directions for mutation")
     parser.add_argument("--no-lb", action="store_true",
                         help="disable Leaderboard opponent selection (use random from population)")
+    parser.add_argument("--save-data", action="store_true", dest="save_data", default=False,
+                        help="single-phase eval: save all individuals' data to disk")
+    parser.add_argument("--data-games", type=int, default=6,
+                        help="games per top-K individual for data collection (2-phase eval)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out-dir", type=str, default=None,
                         help="output directory (default: auto timestamp)")
@@ -727,47 +816,48 @@ def main():
 
             # 3. Build all evaluation tasks
             eval_start = time.time()
-            all_args = []
-            for idx in range(args.pop_size):
-                for k_idx in range(k_per_ind):
-                    opp_params = opp_params_list[k_idx]
-                    base_seed = (args.seed + gen * args.pop_size * args.games
-                                 + idx * args.games + k_idx * 2)
-                    all_args.append((
-                        params_list[idx], opp_params, base_seed,
-                        args.num_heads,
-                        str(bc_dir), gen, idx,
-                    ))
-                    all_args.append((
-                        params_list[idx], opp_params, base_seed + 1,
-                        args.num_heads,
-                        str(bc_dir), gen, idx,
-                    ))
 
-            # 4. Submit and collect results
-            async_result = pool.starmap_async(_eval_worker, all_args)
-            while True:
-                try:
-                    all_results = async_result.get(timeout=2)
+            if args.save_data:
+                # Single phase: save all data
+                all_args = build_eval_args(
+                    params_list, opp_params_list, args.pop_size, args.games,
+                    args.num_heads, str(bc_dir), gen, args.seed,
+                    only_idx=None, seed_offset=0)
+                all_results = run_eval(pool, all_args)
+                if interrupted:
                     break
-                except mp.TimeoutError:
-                    if interrupted:
-                        break
-                    continue
-                except (mp.context.BrokenProcessPool, OSError, ValueError):
-                    if interrupted:
-                        break
-                    raise
+                print()  # newline after eval dots
+                scores = np.array([r["score"] if isinstance(r, dict) else r
+                                   for r in all_results], dtype=np.float32)
+                fitness = np.mean(scores.reshape(args.pop_size, args.games), axis=1)
+                eval_time = time.time() - eval_start
+            else:
+                # Phase 1: evaluate all individuals, no data saving
+                all_args_1 = build_eval_args(
+                    params_list, opp_params_list, args.pop_size, args.games,
+                    args.num_heads, None, gen, args.seed,
+                    only_idx=None, seed_offset=0)
+                all_results_1 = run_eval(pool, all_args_1)
+                if interrupted:
+                    break
+                print()  # newline after eval dots
+                scores_1 = np.array([r["score"] if isinstance(r, dict) else r
+                                     for r in all_results_1], dtype=np.float32)
+                fitness = np.mean(scores_1.reshape(args.pop_size, args.games), axis=1)
+                eval_time = time.time() - eval_start
 
-            if interrupted:
-                break
+                # Select top-K
+                top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:args.k]
 
-            # 5. Parse fitness
-            print()  # newline after eval dots
-            scores = np.array([r["score"] if isinstance(r, dict) else r
-                               for r in all_results], dtype=np.float32)
-            fitness = np.mean(scores.reshape(args.pop_size, args.games), axis=1)
-            eval_time = time.time() - eval_start
+                # Phase 2: top-K individuals play extra games with data saving
+                all_args_2 = build_eval_args(
+                    params_list, opp_params_list, args.pop_size, args.data_games,
+                    args.num_heads, str(bc_dir), gen, args.seed,
+                    only_idx=top_k_idx, seed_offset=10000)
+                run_eval(pool, all_args_2)
+                if interrupted:
+                    break
+                print()
 
             # 6. Select top-K and train
             top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:args.k]
