@@ -37,6 +37,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from my_ai.network import create_model, AntWarNetwork
 from my_ai.agent import NeuralAgent
+from my_ai.leaderboard import Leaderboard
 from utils.logger import get_logger
 
 
@@ -166,7 +167,7 @@ class SSDataset(Dataset):
 
     HOLD_CLASS = 23
 
-    def __init__(self, npz_paths, p_hold=0.1, p_mutate=0.1, temperature=3.0, pos_noise_std=0.1):
+    def __init__(self, npz_paths, p_hold=1.0, p_mutate=0.1, temperature=3.0, pos_noise_std=0.1):
         boards, statss, classes, maps, logits = [], [], [], [], []
         for p in npz_paths:
             data = np.load(p)
@@ -216,16 +217,15 @@ class SSDataset(Dataset):
         rng_item = torch.Generator()
         rng_item.manual_seed(int(torch.randint(0, 2**31, (1,)).item()))
 
-        # Class mutation: temperature-softmax sampling, EXCLUDING HOLD (class 23)
-        if torch.rand(1).item() < self.p_mutate:
-            logits_row = self.head_logits[idx]  # (N_heads, 24) — numpy
-            for hi in range(logits_row.shape[0]):
-                logits_t = torch.from_numpy(logits_row[hi])  # (24,)
-                logits_t = torch.clamp(logits_t, -50.0, 50.0)  # 安全兜底防 inf/nan
-                # Mask out HOLD class so mutation always explores non-HOLD actions
-                logits_t[self.HOLD_CLASS] = float("-inf")
-                probs = F.softmax(logits_t / self.temperature, dim=0)
-                cls_label[hi] = torch.multinomial(probs, 1).item()
+        # Class mutation: per-head independent trigger
+        logits_row = self.head_logits[idx]  # (N_heads, 24) — numpy
+        for hi in range(logits_row.shape[0]):
+            if torch.rand(1).item() >= self.p_mutate:
+                continue
+            logits_t = torch.from_numpy(logits_row[hi])  # (24,)
+            logits_t = torch.clamp(logits_t, -50.0, 50.0)
+            probs = F.softmax(logits_t / self.temperature, dim=0)
+            cls_label[hi] = torch.multinomial(probs, 1).item()
 
         # Position mutation: add Gaussian noise to action_map
         if torch.rand(1).item() < self.p_mutate:
@@ -363,16 +363,21 @@ def cleanup_gen_npz(bc_dir, gen):
 # ════════════════════════════════════════════════
 
 
-def save_checkpoint(path, mean, model, generation, config=None):
+def save_checkpoint(path, mean, model, generation, config=None, leaderboard=None):
     """Save training state to checkpoint file."""
     data = {
         "mean": torch.from_numpy(mean),
         "model_state": model.state_dict(),
         "generation": generation,
         "num_heads": model.num_heads,
+        # Compat shim: es_train tools expect top2_params
+        "top2_params": [torch.from_numpy(mean.copy())],
+        "top2_scores": [1.0],
     }
     if config is not None:
         data["config"] = config
+    if leaderboard is not None:
+        data["leaderboard"] = leaderboard.state_dict()
     torch.save(data, path)
 
 
@@ -408,8 +413,8 @@ def reload_config(config_path: str, args) -> bool:
                 if "=" in line:
                     k, v = line.split("=", 1)
                     kv[k.strip()] = v.strip()
-        float_keys = {"sigma", "lr"}
-        int_keys = {"generations", "pop_size", "games", "workers", "k", "p_mutate", "temperature"}
+        float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std"}
+        int_keys = {"generations", "pop_size", "games", "workers", "k", "p_hold"}
         changed = False
         for key in float_keys:
             if key in kv:
@@ -446,8 +451,10 @@ def main():
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--p-mutate", type=float, default=0.1)
     parser.add_argument("--temperature", type=float, default=3.0)
-    parser.add_argument("--p-hold", type=float, default=0.1)
+    parser.add_argument("--p-hold", type=float, default=1.0)
     parser.add_argument("--pos-noise-std", type=float, default=0.1)
+    parser.add_argument("--no-lb", action="store_true",
+                        help="disable Leaderboard opponent selection (use random from population)")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--out-dir", type=str, default=None,
                         help="output directory (default: auto timestamp)")
@@ -483,10 +490,20 @@ def main():
     # Elite retention
     elite_params: list[np.ndarray] = []
 
+    # ── Leaderboard ──────────────────────────────────────────────
+    if not args.no_lb:
+        leaderboard = Leaderboard(max_size=20, param_count=param_count)
+        log.print(key="leaderboard", value=f"enabled (max_size=20)")
+    else:
+        leaderboard = None
+        log.print(key="leaderboard", value="disabled (random opponents)")
+
     if args.checkpoint:
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
         model.load_state_dict(ckpt["model_state"])
         start_gen = ckpt.get("generation", 0)
+        if leaderboard is not None and "leaderboard" in ckpt:
+            leaderboard.load_state_dict(ckpt["leaderboard"])
         log.print(key="resume", value=f"from generation {start_gen} @ {args.checkpoint}")
     else:
         start_gen = 0
@@ -530,6 +547,7 @@ def main():
     log.print(key="temperature", value=args.temperature)
     log.print(key="p_hold", value=args.p_hold)
     log.print(key="pos_noise_std", value=args.pos_noise_std)
+    log.print(key="leaderboard", value="enabled (max_size=20)" if not args.no_lb else "disabled")
     log.separator("-")
 
     log.print_table(gen="gen", best="best_fit", avg="avg_fit",
@@ -566,7 +584,10 @@ def main():
             if reload_config(str(out_dir / "config.txt"), args):
                 log.print(key="config_reload",
                           value=f"sigma={args.sigma} lr={args.lr} "
-                                f"pop={args.pop_size} games={args.games} workers={args.workers}")
+                                f"pop={args.pop_size} games={args.games} "
+                                f"k={args.k} p_mutate={args.p_mutate} "
+                                f"temperature={args.temperature} "
+                                f"p_hold={args.p_hold} pos_noise_std={args.pos_noise_std}")
 
             t0 = time.time()
 
@@ -586,9 +607,13 @@ def main():
                     params_list[-(i + 1)] = elite_params[i].copy()
 
             # 2. Select opponents
-            opp_indices = select_opponents(args.pop_size, args.games, rng)
             k_per_ind = args.games // 2
-            opp_params_list = [params_list[i] for i in opp_indices]
+            if leaderboard is not None:
+                opp_list = leaderboard.get_opponents(k=k_per_ind)
+                opp_params_list = [entry["params"] for entry in opp_list]
+            else:
+                opp_indices = select_opponents(args.pop_size, args.games, rng)
+                opp_params_list = [params_list[i] for i in opp_indices]
 
             # 3. Build all evaluation tasks
             eval_start = time.time()
@@ -659,6 +684,31 @@ def main():
                     log.print(key="ss", value="all-HOLD filtered, no valid samples")
             else:
                 log.print(key="ss", value="no data files for top-K")
+
+            # Update Leaderboard: candidate must beat the strongest
+            if leaderboard is not None:
+                strongest = leaderboard.get_strongest()
+                if strongest is not None:
+                    # Play 4 games vs strongest (2 first + 2 second)
+                    lb_games = 4
+                    lb_args = []
+                    for s in range(lb_games):
+                        lb_seed = args.seed + 999999 + gen * 100 + s
+                        lb_args.append((
+                            mean, strongest["params"], lb_seed,
+                            args.num_heads, None,  # synthetic_target=None
+                            None, gen, -1,  # bc_dir=None, gen, ind=-1 (no data collection)
+                        ))
+                    lb_results = pool.starmap(_eval_worker, lb_args)
+                    lb_scores = np.mean([r["score"] if isinstance(r, dict) else r
+                                         for r in lb_results])
+                    leaderboard.add_candidate(gen, mean.copy(), lb_scores)
+                    log.print(key="lb",
+                              value=f"vs strongest: {lb_scores:.3f} "
+                                    f"({'added' if lb_scores > leaderboard.threshold else 'rejected'})")
+                else:
+                    # First gen: pool empty, always add
+                    leaderboard.add_candidate(gen, mean.copy(), 1.0)
 
             total_time = time.time() - t0
 
@@ -732,7 +782,7 @@ def main():
                     "p_hold": args.p_hold,
                     "pos_noise_std": args.pos_noise_std,
                 }
-                save_checkpoint(ckpt_path, mean, model, gen + 1, config=config_dict)
+                save_checkpoint(ckpt_path, mean, model, gen + 1, config=config_dict, leaderboard=leaderboard)
                 log.print(key="checkpoint", value=ckpt_path)
 
             # 10. Cleanup .npz files
@@ -756,10 +806,12 @@ def main():
     if interrupted:
         ckpt_path = out_dir / f"interrupt_gen_{gen + 1:04d}.pt" if 'gen' in dir() else out_dir / "interrupt.pt"
         save_checkpoint(ckpt_path, mean, model,
-                        gen + 1 if 'gen' in dir() else start_gen)
+                        gen + 1 if 'gen' in dir() else start_gen,
+                        leaderboard=leaderboard)
         log.print(key="interrupt_checkpoint", value=ckpt_path)
     else:
-        save_checkpoint(out_dir / "final.pt", mean, model, args.generations)
+        save_checkpoint(out_dir / "final.pt", mean, model, args.generations,
+                        leaderboard=leaderboard)
         log.print(key="final_checkpoint", value=out_dir / "final.pt")
 
     log.separator("=")
