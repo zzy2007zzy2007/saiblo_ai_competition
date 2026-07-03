@@ -539,14 +539,10 @@ def select_opponents(population_size, games_per_individual, rng):
 def build_eval_args(params_list, opp_params_list, pop_size, games, num_heads, bc_dir, gen, seed, only_idx=None, seed_offset=0):
     """Build argument tuples for _eval_worker.
     
-    Args:
-        only_idx: list of indices to run (None = all).
-        seed_offset: added to all seeds (for Phase 2 non-overlap).
-    
-    Returns:
-        list of (params, opp_params, seed, num_heads, bc_dir, gen, idx)
+    k_per_ind is derived from len(opp_params_list) so that Phase 2
+    always uses valid indices regardless of games vs data_games.
     """
-    k_per_ind = games // 2
+    k_per_ind = len(opp_params_list)
     all_args = []
     indices = only_idx if only_idx is not None else range(pop_size)
     for idx in indices:
