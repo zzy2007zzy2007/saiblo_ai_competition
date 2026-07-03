@@ -86,6 +86,26 @@ class Logger:
         self.close()
 
 
+class _TeeStream:
+    """Duplicates writes to both stderr and a file."""
+    def __init__(self, file):
+        self.file = file
+
+    def write(self, text):
+        sys.__stderr__.write(text)
+        self.file.write(text)
+        self.file.flush()
+
+    def flush(self):
+        sys.__stderr__.flush()
+        self.file.flush()
+
+
+def redirect_stderr_to_log(logger: Logger):
+    """Redirect Python stderr (tracebacks, warnings) to also write to log file."""
+    sys.stderr = _TeeStream(logger._file)
+
+
 # ── Global registry ─────────────────────────────────────────────────────
 
 _loggers: dict[str, Logger] = {}

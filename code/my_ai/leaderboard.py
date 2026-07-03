@@ -28,13 +28,15 @@ class Leaderboard:
     """
 
     def __init__(self, max_size: int = 20, param_count: int = 0,
-                 threshold: float = 0.5):
+                 threshold: float = 0.6, max_challenges: int = 2):
         self.max_size = max_size
         self.threshold = threshold
+        self.max_challenges = max_challenges
         self.entries: list[LeaderboardEntry] = []  # sorted strongest → weakest
 
-        # ExampleAI placeholder used for cold-start opponent sampling
-        self.example_ai = (np.zeros(param_count, dtype=np.float32), 0.0)
+        # Zero-vector placeholder used for cold-start opponent sampling
+        # before any real entries exist in the pool.
+        self._placeholder = (np.zeros(param_count, dtype=np.float32), 0.0)
 
     # ── public API ───────────────────────────────────────────────────
 
@@ -61,8 +63,8 @@ class Leaderboard:
             True if inserted, False if rejected.
         """
         if match_fn is not None and self.entries:
-            # ── Challenge ladder: strongest → weakest ──
-            for rank, entry in enumerate(self.entries):
+            # ── Challenge ladder: strongest → up to max_challenges ──
+            for rank, entry in enumerate(self.entries[:self.max_challenges]):
                 s = match_fn(params, entry.params)
                 if s > self.threshold:
                     # Beats this opponent → insert above it
@@ -71,12 +73,7 @@ class Leaderboard:
                     if len(self.entries) > self.max_size:
                         self.entries.pop()
                     return True
-            # Couldn't beat anyone → append to tail (if room)
-            if len(self.entries) < self.max_size:
-                s = match_fn(params, self.entries[-1].params)
-                self.entries.append(LeaderboardEntry(
-                    gen=gen, params=params.copy(), score=s))
-                return True
+            # Couldn't beat anyone in the top-k → rejected
             return False
 
         # ── Direct score insertion ──
@@ -126,12 +123,9 @@ class Leaderboard:
     def get_opponents(self, k: int = 5) -> list[dict[str, Any]]:
         """Rank-weighted sampling of k opponents from the pool.
 
-        The returned list has no 'score' field, matching the WinGraph
-        interface for ``select_opponents``.
-
-        If the pool is empty, all k opponents are ExampleAI placeholders.
-        If the pool has fewer than k entries, available entries are
-        sampled and the remainder are filled with ExampleAI.
+        Sampling is always with replacement when k > pool size, so that
+        all k opponents are real strategies (no placeholders). Stronger
+        entries are sampled more frequently (exponential decay weights).
 
         Returns:
             [{"gen": int, "params": np.ndarray}, ...]
@@ -140,37 +134,18 @@ class Leaderboard:
         n = len(ranked)
 
         if n == 0:
-            # Cold start — all ExampleAI
-            return [
-                {"gen": -1, "params": self.example_ai[0].copy()}
-                for _ in range(k)
-            ]
+            # Cold start — empty pool, caller handles fallback
+            return []
 
-        # Compute normalised weights
         weights = self._compute_weights(n)
-
-        # Sample without replacement, as many as possible
-        sample_size = min(k, n)
         rng = np.random.default_rng()
-        indices = rng.choice(n, size=sample_size, replace=False, p=weights)
+        indices = rng.choice(n, size=k, replace=True, p=weights)
+
         sampled = [ranked[i] for i in indices]
-
-        # Sort sampled entries by rank (strongest first)
-        sampled.sort(key=lambda d: d["rank"])
-
-        result = [
+        return [
             {"gen": d["gen"], "params": d["params"]}
             for d in sampled
         ]
-
-        # Fill remaining slots with ExampleAI
-        while len(result) < k:
-            result.append({
-                "gen": -1,
-                "params": self.example_ai[0].copy(),
-            })
-
-        return result
 
     def prune(self, max_size: int) -> list[int]:
         """Remove excess weakest entries so that size ≤ max_size.
@@ -189,7 +164,7 @@ class Leaderboard:
         """Return a serializable representation of the leaderboard."""
         return {
             "max_size": self.max_size,
-            "param_count": len(self.example_ai[0]),
+            "param_count": len(self._placeholder[0]),
             "entries": [
                 {
                     "gen": e.gen,
@@ -204,7 +179,7 @@ class Leaderboard:
         """Restore the leaderboard from a state_dict."""
         self.max_size = d["max_size"]
         param_count = d.get("param_count", 0)
-        self.example_ai = (np.zeros(param_count, dtype=np.float32), 0.0)
+        self._placeholder = (np.zeros(param_count, dtype=np.float32), 0.0)
 
         self.entries = []
         for ed in d["entries"]:
@@ -228,30 +203,13 @@ class Leaderboard:
 
     @staticmethod
     def _compute_weights(n: int) -> list[float]:
-        """Compute rank-based sampling weights for *n* entries.
+        """Compute rank-based sampling weights using exponential decay.
 
-        Rank 0 → 0.30, rank 1 → 0.20, rank 2 → 0.15,
-        remaining ranks share the leftover weight uniformly.
+        Weight = 0.5^{rank}, then normalized.
+        Rank 0 gets ~50%, rank 1 ~25%, rank 2 ~12.5%, etc.
         """
         if n <= 0:
             return []
-
-        fixed = {0: 0.30, 1: 0.20, 2: 0.15}
-        weights = []
-
-        if n <= 3:
-            # Only use the first n entries from fixed weights
-            for rank in range(n):
-                weights.append(fixed[rank])
-        else:
-            remaining = 1.0 - 0.30 - 0.20 - 0.15
-            per_rest = remaining / (n - 3)
-            for rank in range(n):
-                if rank in fixed:
-                    weights.append(fixed[rank])
-                else:
-                    weights.append(per_rest)
-
-        # Normalise (handles floating point drift and n < 3 cases)
-        total = sum(weights)
-        return [w / total for w in weights]
+        raw = [0.5 ** rank for rank in range(n)]
+        total = sum(raw)
+        return [w / total for w in raw]

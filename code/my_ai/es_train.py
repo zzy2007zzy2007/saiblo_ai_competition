@@ -323,6 +323,7 @@ class ESTrainer:
                 raise
 
         # Parse results
+        print()  # newline after eval dots
         # Supports both dict return (score, our_player) and float return (backward compat)
         game_info = []
         for r in all_results:
@@ -527,6 +528,8 @@ def main():
 
     # ── Logger ────────────────────────────────────────────────────
     log = get_logger(out_dir / "train.log")
+    from utils.logger import redirect_stderr_to_log
+    redirect_stderr_to_log(log)
     csv_path = out_dir / "history.csv"
 
     # Save config

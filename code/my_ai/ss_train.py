@@ -122,7 +122,6 @@ def _eval_worker(
         map_arr = np.stack(bc_action_maps, axis=0)      # (T, NUM_CLASSES, 19, 19)
         logits_arr = np.stack(bc_head_logits, axis=0)   # (T, num_heads, 24)
 
-        from my_ai.ss_train import write_npz
         write_npz(
             _Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
             boards_arr, stats_arr, class_arr, map_arr, logits_arr,
@@ -167,7 +166,7 @@ class SSDataset(Dataset):
 
     HOLD_CLASS = 23
 
-    def __init__(self, npz_paths, p_hold=1.0, p_mutate=0.1, temperature=3.0, pos_noise_std=0.1):
+    def __init__(self, npz_paths, p_hold=1.0):
         boards, statss, classes, maps, logits = [], [], [], [], []
         for p in npz_paths:
             data = np.load(p)
@@ -201,10 +200,6 @@ class SSDataset(Dataset):
             print(f"  [SS] HOLD downsampled: {n_before} -> {n_after} "
                   f"({100 * (n_before - n_after) // n_before}% removed)")
 
-        self.p_mutate = p_mutate
-        self.temperature = temperature
-        self.pos_noise_std = pos_noise_std
-
     def __len__(self):
         return len(self.board)
 
@@ -214,34 +209,17 @@ class SSDataset(Dataset):
         cls_label = torch.from_numpy(self.class_label[idx].copy())  # (N_heads,)
         action_map = torch.from_numpy(self.action_map[idx].copy()).float()  # (NUM_CLASSES, 19, 19)
 
-        rng_item = torch.Generator()
-        rng_item.manual_seed(int(torch.randint(0, 2**31, (1,)).item()))
-
-        # Class mutation: per-head independent trigger
-        logits_row = self.head_logits[idx]  # (N_heads, 24) — numpy
-        for hi in range(logits_row.shape[0]):
-            if torch.rand(1).item() >= self.p_mutate:
-                continue
-            logits_t = torch.from_numpy(logits_row[hi])  # (24,)
-            logits_t = torch.clamp(logits_t, -50.0, 50.0)
-            probs = F.softmax(logits_t / self.temperature, dim=0)
-            cls_label[hi] = torch.multinomial(probs, 1).item()
-
-        # Position mutation: add Gaussian noise to action_map
-        if torch.rand(1).item() < self.p_mutate:
-            noise = torch.randn_like(action_map) * self.pos_noise_std
-            action_map = action_map + noise
-
         return {
             "board": board,
             "stats": stats,
             "class_label": cls_label,
             "action_map": action_map,
+            "head_logits": torch.from_numpy(self.head_logits[idx]).float(),  # (N_heads, 24)
         }
 
 
 def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=64,
-                         lambda_class=1.0, lambda_map=1.0):
+                         lambda_class=1.0, lambda_map=1.0, log=None):
     """Train model on SSDataset with classification + action-map distillation loss.
 
     Args:
@@ -270,7 +248,11 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
     total = 0.0
     n_batches = 0
 
-    for _ in range(epochs):
+    for epoch in range(epochs):
+        epoch_cls = 0.0
+        epoch_map = 0.0
+        epoch_tot = 0.0
+        epoch_n = 0
         for batch in loader:
             board = batch["board"].to(device)                     # (B, 28, 19, 19)
             stats = batch["stats"].to(device)                     # (B, 42)
@@ -311,6 +293,16 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
             total += loss.item()
             n_batches += 1
 
+            epoch_cls += cls_loss.item()
+            epoch_map += map_loss.item()
+            epoch_tot += loss.item()
+            epoch_n += 1
+
+        if log and epoch_n > 0:
+            log.print(key="epoch",
+                      value=f"{epoch+1}/{epochs} cls={epoch_cls/epoch_n:.4f} "
+                            f"map={epoch_map/epoch_n:.4f} tot={epoch_tot/epoch_n:.4f}")
+
     model.cpu()
     model.eval()
     return {
@@ -319,6 +311,120 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
         "total_loss": total / n_batches,
         "samples": len(dataset),
     }
+
+
+def bc_mutate_population(mean_model, dataset, device, n_individuals,
+                          p_mutate=0.1, temperature=3.0, pos_noise_std=0.1,
+                          lr=1e-3, sigma=0.0002, lambda_map=1.0, log=None):
+    """Generate N individuals via behavior-space mutation.
+
+    Each individual is a 1-batch fine-tune of policy_heads + action_map_conv
+    on elite data with a different mutation seed → different label masks
+    → different gradient directions → different weights.
+
+    Args:
+        mean_model: base model to mutate from.
+        dataset: SSDataset with elite data (requires head_logits field).
+        device: torch device.
+        n_individuals: population size to generate.
+        p_mutate: per-label mutation probability.
+        temperature: softmax sampling temperature.
+        pos_noise_std: Gaussian noise std for position mutation.
+        lr: learning rate for policy_heads.
+        sigma: tiny parameter noise added after mutation.
+        lambda_map: weight for map loss.
+        log: optional Logger instance.
+
+    Returns:
+        list of np.ndarray parameter vectors (len=n_individuals).
+    """
+    if len(dataset) == 0:
+        return []
+
+    model_template = create_model(num_heads=mean_model.num_heads)
+    N = mean_model.num_heads
+
+    # One batch for all individuals (same data, different mutation seeds)
+    loader = DataLoader(dataset, batch_size=64, shuffle=True)
+    batch = next(iter(loader))
+    board = batch["board"].to(device)
+    stats = batch["stats"].to(device)
+    cls_label_ref = batch["class_label"].to(device)
+    target_map = batch["action_map"].to(device)
+    head_logits = batch["head_logits"].to(device)
+
+    params_list = []
+    for i in range(n_individuals):
+        model_template.load_state_dict(mean_model.state_dict())
+        model_template.train()
+        model_template.to(device)
+
+        # Freeze: only train policy_heads + action_map_conv
+        for name, param in model_template.named_parameters():
+            param.requires_grad = name.startswith("policy_heads") or "action_map_conv" in name
+
+        optimizer = torch.optim.Adam([
+            {"params": model_template.policy_heads.parameters(), "lr": lr},
+            {"params": model_template.action_map_conv.parameters(), "lr": lr * 0.3},
+        ])
+
+        # ── Class mutation (temperature sampling, per-head) ──
+        cls_label = cls_label_ref.clone()
+        torch.manual_seed(i)
+        B, NH = cls_label.shape
+        for hi in range(NH):
+            mask = torch.rand(B) < p_mutate
+            if not mask.any():
+                continue
+            logits_i = head_logits[mask, hi, :]
+            logits_i = torch.clamp(logits_i, -50.0, 50.0)
+            probs = F.softmax(logits_i / temperature, dim=-1)
+            sampled = torch.multinomial(probs, 1).squeeze(-1)
+            cls_label[mask, hi] = sampled
+
+        # ── Position mutation (Gaussian noise on action_map) ──
+        action_map = target_map.clone()
+        if torch.rand(1).item() < p_mutate:
+            noise = torch.randn_like(action_map) * pos_noise_std
+            action_map = action_map + noise
+
+        # ── Forward + loss ──
+        optimizer.zero_grad()
+        output = model_template(board, stats)
+
+        cls_loss = 0.0
+        for hi in range(NH):
+            cls_loss += F.cross_entropy(output[f"head{hi+1}_logits"], cls_label[:, hi])
+        cls_loss /= NH
+
+        B_, C_, H_, W_ = target_map.shape
+        pred_flat = output["action_map"].view(B_, C_, -1).permute(0, 2, 1).contiguous()
+        target_flat = action_map.view(B_, C_, -1).permute(0, 2, 1).contiguous()
+        map_loss = F.kl_div(
+            F.log_softmax(pred_flat, dim=-1),
+            F.softmax(target_flat.detach(), dim=-1),
+            reduction="batchmean",
+        )
+        loss = cls_loss + lambda_map * map_loss
+        loss.backward()
+        optimizer.step()
+
+        model_template.cpu()
+
+        # ── Collect params + tiny parameter noise ──
+        params = model_template.get_parameters_as_vector()
+        noise_vec = np.random.randn(*params.shape).astype(np.float32) * sigma
+        params_list.append(params + noise_vec)
+
+        # ── Log every ~5 of population (adaptive) ──
+        log_step = max(1, n_individuals // 5)
+        if log and (i + 1) % log_step == 0:
+            log.print(key="bc_mut",
+                      value=f"{i+1}/{n_individuals} seed={i} "
+                            f"cls={cls_loss.item():.4f} map={map_loss.item():.4f}")
+
+    model_template.eval()
+    return params_list
 
 
 # ════════════════════════════════════════════════
@@ -437,7 +543,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Strategy Space Evolution training")
     parser.add_argument("--pop-size", type=int, default=64)
-    parser.add_argument("--sigma", type=float, default=0.2)
+    parser.add_argument("--sigma", type=float, default=0.0002)
     parser.add_argument("--games", type=int, default=18,
                         help="games per individual per generation")
     parser.add_argument("--workers", type=int, default=24)
@@ -475,6 +581,8 @@ def main():
 
     # ── Logger & CSV ──────────────────────────────────────────────
     log = get_logger(out_dir / "train.log")
+    from utils.logger import redirect_stderr_to_log
+    redirect_stderr_to_log(log)
     csv_path = out_dir / "history.csv"
 
     # Save config
@@ -486,9 +594,6 @@ def main():
     # ── Model ─────────────────────────────────────────────────────
     model = create_model(num_heads=args.num_heads)
     param_count = model.count_parameters()
-
-    # Elite retention
-    elite_params: list[np.ndarray] = []
 
     # ── Leaderboard ──────────────────────────────────────────────
     if not args.no_lb:
@@ -572,6 +677,7 @@ def main():
     latest_result = None
 
     try:
+        bc_dataset = None
         for gen in range(start_gen, args.generations):
             if interrupted:
                 break
@@ -591,26 +697,31 @@ def main():
 
             t0 = time.time()
 
-            # 1. Mirrored sampling (with elite retention injection)
-            assert args.pop_size % 2 == 0, "pop_size must be even (mirrored sampling)"
-            n_noise = args.pop_size // 2
-            noise = rng.randn(n_noise, param_count).astype(np.float32)
-            params_list = []
-            for n in noise:
-                params_list.append(mean + args.sigma * n)
-                params_list.append(mean - args.sigma * n)
-
-            # Elite retention: replace bottom individuals with stored elites
-            if elite_params:
-                n_elite = max(1, int(args.pop_size ** 0.25))
-                for i in range(min(n_elite, len(elite_params))):
-                    params_list[-(i + 1)] = elite_params[i].copy()
+            # 1. Generate population (BC mutation or fallback)
+            assert args.pop_size > 0
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if bc_dataset is not None and len(bc_dataset) > 0:
+                params_list = bc_mutate_population(
+                    model, bc_dataset, device, args.pop_size,
+                    p_mutate=args.p_mutate, temperature=args.temperature,
+                    pos_noise_std=args.pos_noise_std,
+                    lr=args.lr, sigma=args.sigma, log=log,
+                )
+            else:
+                # Fallback (gen=0 only): tiny parameter noise
+                noise = rng.randn(args.pop_size, param_count).astype(np.float32)
+                params_list = [mean + args.sigma * n for n in noise]
 
             # 2. Select opponents
             k_per_ind = args.games // 2
             if leaderboard is not None:
                 opp_list = leaderboard.get_opponents(k=k_per_ind)
-                opp_params_list = [entry["params"] for entry in opp_list]
+                if opp_list:
+                    opp_params_list = [entry["params"] for entry in opp_list]
+                else:
+                    # Cold start: pool empty → random from population
+                    opp_indices = select_opponents(args.pop_size, args.games, rng)
+                    opp_params_list = [params_list[i] for i in opp_indices]
             else:
                 opp_indices = select_opponents(args.pop_size, args.games, rng)
                 opp_params_list = [params_list[i] for i in opp_indices]
@@ -653,6 +764,7 @@ def main():
                 break
 
             # 5. Parse fitness
+            print()  # newline after eval dots
             scores = np.array([r["score"] if isinstance(r, dict) else r
                                for r in all_results], dtype=np.float32)
             fitness = np.mean(scores.reshape(args.pop_size, args.games), axis=1)
@@ -667,9 +779,6 @@ def main():
                 ds = SSDataset(
                     npz_paths,
                     p_hold=args.p_hold,
-                    p_mutate=args.p_mutate,
-                    temperature=args.temperature,
-                    pos_noise_std=args.pos_noise_std,
                 )
                 if len(ds) > 0:
                     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -678,8 +787,10 @@ def main():
                         epochs=args.epochs,
                         lr=args.lr,
                         batch_size=args.batch_size,
+                        log=log,
                     )
                     mean = model.get_parameters_as_vector()
+                    bc_dataset = ds
                 else:
                     log.print(key="ss", value="all-HOLD filtered, no valid samples")
             else:
@@ -687,12 +798,14 @@ def main():
 
             # Update Leaderboard
             if leaderboard is not None:
+                log.print(key="lb", value=f"challenging (pool={len(leaderboard.entries)})")
+
                 def _vs_strongest(me, opponent):
-                    args = [(me, opponent, args.seed + 999999 + gen * 100 + s,
-                             args.num_heads, None, None, gen, -1)
-                            for s in range(4)]
+                    match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
+                                    args.num_heads, None, gen, -1)
+                                   for s in range(args.games)]
                     scores = [r["score"] if isinstance(r, dict) else r
-                              for r in pool.starmap(_eval_worker, args)]
+                              for r in pool.starmap(_eval_worker, match_tasks)]
                     return float(np.mean(scores))
                 added = leaderboard.add_candidate(gen, mean.copy(),
                                                    match_fn=_vs_strongest)
@@ -724,18 +837,6 @@ def main():
             hist_str = " ".join(f"{k}:{v}" for k, v in non_empty.items())
             best_i = int(fitness.argmax())
             log.print_table(**{"ind_dist": hist_str, "best": f"#{best_i} {fitness[best_i]:.3f}"})
-
-            # Update elite retention pool with top performers
-            n_elite = max(1, int(args.pop_size ** 0.25))
-            top_k_idx_full = np.argsort(fitness)[-n_elite:]
-            new_elites = [params_list[i].copy() for i in reversed(top_k_idx_full)]
-            combined = []
-            for i in range(max(len(new_elites), len(elite_params))):
-                if i < len(new_elites):
-                    combined.append(new_elites[i])
-                if i < len(elite_params):
-                    combined.append(elite_params[i])
-            elite_params = combined[:n_elite]
 
             # 8. CSV
             row = [
