@@ -39,17 +39,37 @@ class Leaderboard:
     # ── public API ───────────────────────────────────────────────────
 
     def add_candidate(self, gen: int, params: np.ndarray,
-                      score: float) -> bool:
+                      score: float | None = None,
+                      match_fn=None) -> bool:
         """Try to insert a new candidate, keeping the pool sorted.
 
-        If the pool already has entries, the candidate's score must
-        exceed ``threshold`` (relative to the strongest) to be added.
-        This prevents weak entries from accumulating.
+        Two modes:
+        1. ``score`` is provided → used directly (caller already computed it).
+        2. ``match_fn`` is provided and pool is non-empty → calls
+           ``match_fn(candidate_params, strongest_params)`` to compute
+           the score, then enforces the threshold.
 
-        Returns True if the candidate was inserted and kept, False if
-        rejected (pool is full and candidate is weaker than the weakest
-        entry, or score is below the threshold).
+        If the pool already has entries, the candidate's score must
+        exceed ``threshold`` to be added. This prevents weak entries
+        from accumulating.
+
+        Args:
+            gen: generation number.
+            params: candidate parameter vector.
+            score: pre-computed win rate (optional if match_fn given).
+            match_fn: callable ``(params_a, params_b) -> win_rate``.
+                      Used to evaluate candidate vs strongest.
+
+        Returns:
+            True if inserted, False if rejected.
         """
+        # Determine score via match_fn if needed
+        if score is None and match_fn is not None and self.entries:
+            strongest = self.entries[0]
+            score = match_fn(params, strongest.params)
+        elif score is None:
+            score = 1.0  # First entry when no opponent to compare
+
         # Threshold check: candidate must beat strongest to enter
         if self.entries and score <= self.threshold:
             return False

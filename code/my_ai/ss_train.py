@@ -685,30 +685,18 @@ def main():
             else:
                 log.print(key="ss", value="no data files for top-K")
 
-            # Update Leaderboard: candidate must beat the strongest
+            # Update Leaderboard
             if leaderboard is not None:
-                strongest = leaderboard.get_strongest()
-                if strongest is not None:
-                    # Play 4 games vs strongest (2 first + 2 second)
-                    lb_games = 4
-                    lb_args = []
-                    for s in range(lb_games):
-                        lb_seed = args.seed + 999999 + gen * 100 + s
-                        lb_args.append((
-                            mean, strongest["params"], lb_seed,
-                            args.num_heads, None,  # synthetic_target=None
-                            None, gen, -1,  # bc_dir=None, gen, ind=-1 (no data collection)
-                        ))
-                    lb_results = pool.starmap(_eval_worker, lb_args)
-                    lb_scores = np.mean([r["score"] if isinstance(r, dict) else r
-                                         for r in lb_results])
-                    leaderboard.add_candidate(gen, mean.copy(), lb_scores)
-                    log.print(key="lb",
-                              value=f"vs strongest: {lb_scores:.3f} "
-                                    f"({'added' if lb_scores > leaderboard.threshold else 'rejected'})")
-                else:
-                    # First gen: pool empty, always add
-                    leaderboard.add_candidate(gen, mean.copy(), 1.0)
+                def _vs_strongest(me, opponent):
+                    args = [(me, opponent, args.seed + 999999 + gen * 100 + s,
+                             args.num_heads, None, None, gen, -1)
+                            for s in range(4)]
+                    scores = [r["score"] if isinstance(r, dict) else r
+                              for r in pool.starmap(_eval_worker, args)]
+                    return float(np.mean(scores))
+                added = leaderboard.add_candidate(gen, mean.copy(),
+                                                   match_fn=_vs_strongest)
+                log.print(key="lb", value=f"{'added' if added else 'rejected'}")
 
             total_time = time.time() - t0
 
