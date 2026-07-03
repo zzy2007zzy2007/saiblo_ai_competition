@@ -631,7 +631,7 @@ def main():
     parser.add_argument("--pos-noise-std", type=float, default=0.1)
     parser.add_argument("--mutation-step", type=float, default=50.0,
                         help="gradient-guided mutation step size (per-head normalized)")
-    parser.add_argument("--n-grad-dirs", type=int, default=20,
+    parser.add_argument("--n-grad-dirs", type=int, default=100,
                         help="number of gradient basis directions for mutation")
     parser.add_argument("--no-lb", action="store_true",
                         help="disable Leaderboard opponent selection (use random from population)")
@@ -845,9 +845,23 @@ def main():
                 # Select top-K
                 top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:args.k]
 
-                # Phase 2: top-K individuals play extra games with data saving
+                # Phase 2: select opponents (same weighted sampling as Phase 1)
+                n_opp_phase2 = args.data_games // 2
+                if leaderboard is not None:
+                    opp_list_2 = leaderboard.get_opponents(k=n_opp_phase2)
+                    if opp_list_2:
+                        opp_params_phase2 = [entry["params"] for entry in opp_list_2]
+                    else:
+                        opp_indices = select_opponents(args.pop_size, args.data_games, rng)
+                        opp_params_phase2 = [params_list[i] for i in opp_indices]
+                else:
+                    opp_indices = select_opponents(args.pop_size, args.data_games, rng)
+                    opp_params_phase2 = [params_list[i] for i in opp_indices]
+                n_games_phase2 = len(top_k_idx) * len(opp_params_phase2) * 2
+                log.print(key="collect_data",
+                          value=f"k={len(top_k_idx)} × {len(opp_params_phase2)} opponents × 2 = {n_games_phase2} games")
                 all_args_2 = build_eval_args(
-                    params_list, opp_params_list, args.pop_size, args.data_games,
+                    params_list, opp_params_phase2, args.pop_size, args.data_games,
                     args.num_heads, str(bc_dir), gen, args.seed,
                     only_idx=top_k_idx, seed_offset=10000)
                 run_eval(pool, all_args_2)

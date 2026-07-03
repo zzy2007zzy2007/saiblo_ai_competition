@@ -97,7 +97,7 @@ def get_gradients_as_vector(self) -> np.ndarray:
 两阶段设计。Phase 1 预计算 N_DIRS 个梯度基方向（expensive），Phase 2 组合出种群（cheap）：
 
 ```
-Phase 1：预计算梯度基方向（20 × FWD/BWD, ~0.4s）
+Phase 1：预计算梯度基方向（100 × FWD/BWD, ~2.5s）
   for j in range(N_DIRS):
     random batch → mutate_labels(seed=j) → FWD → BWD
     grad_basis[j] = normalize(grad)
@@ -225,7 +225,7 @@ def _extract_grad_vector(model):
 | 参数 | 变化 | 理由 |
 |:---|:----|:-----|
 | `--mutation-step` | **新增**，默认 0.01 | 梯度方向上的步长 |
-| `--n-grad-dirs` | **新增**，默认 20 | 预计算的梯度基方向数 |
+| `--n-grad-dirs` | **新增**，默认 100 | 预计算的梯度基方向数 |
 | `--sigma` | 不变，0.0002 | 叠加的随机噪声 |
 | `--p-mutate` | 不变 | 控制变异 mask |
 | `--temperature` | 不变 | 温度采样 |
