@@ -130,10 +130,13 @@ def test_challenge_ladder():
     assert scores == [3.0, 2.5, 2.0, 1.0], f"unexpected ladder order: {scores}"
     print(f"  [PASS] challenge_ladder: {scores}")
 
-    # Weak candidate (strength 0.5) should be rejected
-    added = lb.add_candidate(0, np.full(10, 0.5, dtype=np.float32), match_fn=match)
-    assert not added, "weak candidate should be rejected"
-    print("  [PASS] challenge_ladder rejection")
+    # Fill pool to max_size (5)
+    for val in [0.5, 1.0, 2.0, 3.0]:
+        lb.add_candidate(0, np.full(10, val, dtype=np.float32), match_fn=match)
+    # Pool full (5/5), weak candidate should be rejected
+    added = lb.add_candidate(0, np.full(10, 0.1, dtype=np.float32), match_fn=match)
+    assert not added, "weak candidate should be rejected when pool full"
+    print("  [PASS] challenge_ladder rejection (full pool)")
 
 
 # ═══════════════════════════════════════════════════════════════

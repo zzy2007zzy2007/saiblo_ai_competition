@@ -73,7 +73,11 @@ class Leaderboard:
                     if len(self.entries) > self.max_size:
                         self.entries.pop()
                     return True
-            # Couldn't beat anyone in the top-k → rejected
+            # Couldn't beat anyone in the top-k → append to tail if room
+            if len(self.entries) < self.max_size:
+                self.entries.append(LeaderboardEntry(
+                    gen=gen, params=params.copy(), score=0.0))
+                return True
             return False
 
         # ── Direct score insertion ──

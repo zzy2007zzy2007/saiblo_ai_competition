@@ -314,26 +314,14 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
 
 
 def bc_mutate_population(mean_model, dataset, device, n_individuals,
-                          p_mutate=0.1, temperature=3.0, pos_noise_std=0.1,
-                          lr=1e-3, sigma=0.0002, lambda_map=1.0, log=None):
-    """Generate N individuals via behavior-space mutation.
+                          p_mutate=0.1, temperature=3.0,
+                          mutation_step=0.01, sigma=0.0002,
+                          n_dirs=20, log=None):
+    """Generate N individuals via linear combination of gradient directions.
 
-    Each individual is a 1-batch fine-tune of policy_heads + action_map_conv
-    on elite data with a different mutation seed → different label masks
-    → different gradient directions → different weights.
-
-    Args:
-        mean_model: base model to mutate from.
-        dataset: SSDataset with elite data (requires head_logits field).
-        device: torch device.
-        n_individuals: population size to generate.
-        p_mutate: per-label mutation probability.
-        temperature: softmax sampling temperature.
-        pos_noise_std: Gaussian noise std for position mutation.
-        lr: learning rate for policy_heads.
-        sigma: tiny parameter noise added after mutation.
-        lambda_map: weight for map loss.
-        log: optional Logger instance.
+    Phase 1: Pre-compute ``n_dirs`` gradient basis directions (each from a
+    different batch × mutation seed). Phase 2: For each individual, sample
+    random weights and linearly combine basis directions as the perturbation.
 
     Returns:
         list of np.ndarray parameter vectors (len=n_individuals).
@@ -341,36 +329,29 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
     if len(dataset) == 0:
         return []
 
-    model_template = create_model(num_heads=mean_model.num_heads)
     N = mean_model.num_heads
+    mean_params = mean_model.get_parameters_as_vector()
+    model_template = create_model(num_heads=N)
 
-    # One batch for all individuals (same data, different mutation seeds)
+    # Phase 1: Pre-compute gradient basis
     loader = DataLoader(dataset, batch_size=64, shuffle=True)
-    batch = next(iter(loader))
-    board = batch["board"].to(device)
-    stats = batch["stats"].to(device)
-    cls_label_ref = batch["class_label"].to(device)
-    target_map = batch["action_map"].to(device)
-    head_logits = batch["head_logits"].to(device)
+    all_batches = list(loader)
+    grad_basis = []
 
-    params_list = []
-    for i in range(n_individuals):
+    for j in range(min(n_dirs, len(all_batches))):
+        batch = all_batches[j % len(all_batches)]
+        board = batch["board"].to(device)
+        stats = batch["stats"].to(device)
+        cls_label_ref = batch["class_label"].to(device)
+        head_logits = batch["head_logits"].to(device)
+
         model_template.load_state_dict(mean_model.state_dict())
         model_template.train()
         model_template.to(device)
 
-        # Freeze: only train policy_heads + action_map_conv
-        for name, param in model_template.named_parameters():
-            param.requires_grad = name.startswith("policy_heads") or "action_map_conv" in name
-
-        optimizer = torch.optim.Adam([
-            {"params": model_template.policy_heads.parameters(), "lr": lr},
-            {"params": model_template.action_map_conv.parameters(), "lr": lr * 0.3},
-        ])
-
-        # ── Class mutation (temperature sampling, per-head) ──
+        # Mutate labels
         cls_label = cls_label_ref.clone()
-        torch.manual_seed(i)
+        torch.manual_seed(j)
         B, NH = cls_label.shape
         for hi in range(NH):
             mask = torch.rand(B) < p_mutate
@@ -382,49 +363,57 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
             sampled = torch.multinomial(probs, 1).squeeze(-1)
             cls_label[mask, hi] = sampled
 
-        # ── Position mutation (Gaussian noise on action_map) ──
-        action_map = target_map.clone()
-        if torch.rand(1).item() < p_mutate:
-            noise = torch.randn_like(action_map) * pos_noise_std
-            action_map = action_map + noise
-
-        # ── Forward + loss ──
-        optimizer.zero_grad()
+        # Forward + backward
+        model_template.zero_grad()
         output = model_template(board, stats)
-
         cls_loss = 0.0
         for hi in range(NH):
             cls_loss += F.cross_entropy(output[f"head{hi+1}_logits"], cls_label[:, hi])
         cls_loss /= NH
+        cls_loss.backward()
 
-        B_, C_, H_, W_ = target_map.shape
-        pred_flat = output["action_map"].view(B_, C_, -1).permute(0, 2, 1).contiguous()
-        target_flat = action_map.view(B_, C_, -1).permute(0, 2, 1).contiguous()
-        map_loss = F.kl_div(
-            F.log_softmax(pred_flat, dim=-1),
-            F.softmax(target_flat.detach(), dim=-1),
-            reduction="batchmean",
-        )
-        loss = cls_loss + lambda_map * map_loss
-        loss.backward()
-        optimizer.step()
+        # Extract + normalize gradient direction
+        grad = _extract_grad_vector(model_template)
+        grad_norm = np.linalg.norm(grad) + 1e-8
+        grad_basis.append(grad / grad_norm)
 
-        model_template.cpu()
+        model_template.zero_grad()
 
-        # ── Collect params + tiny parameter noise ──
-        params = model_template.get_parameters_as_vector()
-        noise_vec = np.random.randn(*params.shape).astype(np.float32) * sigma
-        params_list.append(params + noise_vec)
+    n_dirs_actual = len(grad_basis)
+    if n_dirs_actual == 0:
+        return []
 
-        # ── Log every ~5 of population (adaptive) ──
-        log_step = max(1, n_individuals // 5)
-        if log and (i + 1) % log_step == 0:
-            log.print(key="bc_mut",
-                      value=f"{i+1}/{n_individuals} seed={i} "
-                            f"cls={cls_loss.item():.4f} map={map_loss.item():.4f}")
+    # Phase 2: Generate individuals as linear combinations
+    params_list = []
+    rng = np.random.RandomState()
+    rng.seed(42)
 
-    model_template.eval()
+    for i in range(n_individuals):
+        w = rng.randn(n_dirs_actual).astype(np.float32) / np.sqrt(n_dirs_actual)
+
+        delta = np.zeros_like(mean_params, dtype=np.float32)
+        for j in range(n_dirs_actual):
+            delta += w[j] * grad_basis[j]
+
+        noise = rng.randn(*mean_params.shape).astype(np.float32) * sigma
+        params_list.append(mean_params + mutation_step * delta + noise)
+
+        if log and (i + 1) % max(1, n_individuals // 5) == 0:
+            log.print(key="gmut", value=f"{i+1}/{n_individuals}")
+
+    model_template.cpu()
     return params_list
+
+
+def _extract_grad_vector(model):
+    """Flatten all parameter gradients into a single vector."""
+    grads = []
+    for p in model.parameters():
+        if p.grad is not None:
+            grads.append(p.grad.detach().view(-1).cpu().numpy().astype(np.float32))
+        else:
+            grads.append(np.zeros(p.numel(), dtype=np.float32))
+    return np.concatenate(grads)
 
 
 # ════════════════════════════════════════════════
@@ -519,8 +508,8 @@ def reload_config(config_path: str, args) -> bool:
                 if "=" in line:
                     k, v = line.split("=", 1)
                     kv[k.strip()] = v.strip()
-        float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std"}
-        int_keys = {"generations", "pop_size", "games", "workers", "k", "p_hold"}
+        float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std", "p_hold"}
+        int_keys = {"generations", "pop_size", "games", "workers", "k"}
         changed = False
         for key in float_keys:
             if key in kv:
@@ -559,6 +548,10 @@ def main():
     parser.add_argument("--temperature", type=float, default=3.0)
     parser.add_argument("--p-hold", type=float, default=1.0)
     parser.add_argument("--pos-noise-std", type=float, default=0.1)
+    parser.add_argument("--mutation-step", type=float, default=0.01,
+                        help="gradient-guided mutation step size")
+    parser.add_argument("--n-grad-dirs", type=int, default=20,
+                        help="number of gradient basis directions for mutation")
     parser.add_argument("--no-lb", action="store_true",
                         help="disable Leaderboard opponent selection (use random from population)")
     parser.add_argument("--seed", type=int, default=42)
@@ -678,6 +671,7 @@ def main():
 
     try:
         bc_dataset = None
+        elite_saved: list[np.ndarray] = []  # cross-generation elite params
         for gen in range(start_gen, args.generations):
             if interrupted:
                 break
@@ -704,13 +698,18 @@ def main():
                 params_list = bc_mutate_population(
                     model, bc_dataset, device, args.pop_size,
                     p_mutate=args.p_mutate, temperature=args.temperature,
-                    pos_noise_std=args.pos_noise_std,
-                    lr=args.lr, sigma=args.sigma, log=log,
+                    mutation_step=args.mutation_step, sigma=args.sigma,
+                    n_dirs=args.n_grad_dirs, log=log,
                 )
             else:
                 # Fallback (gen=0 only): tiny parameter noise
                 noise = rng.randn(args.pop_size, param_count).astype(np.float32)
                 params_list = [mean + args.sigma * n for n in noise]
+
+            # Elite retention: inject top past elites, replace weakest positions
+            n_elite = max(1, int(args.pop_size ** 0.25))
+            for i in range(min(n_elite, len(elite_saved))):
+                params_list[-(i + 1)] = elite_saved[i].copy()
 
             # 2. Select opponents
             k_per_ind = args.games // 2
@@ -774,6 +773,18 @@ def main():
             top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:args.k]
             npz_paths = collect_npz(bc_dir, top_k_idx, gen)
 
+            # Update elite_saved: merge top-N with saved, preserve old if still strong
+            n_elite = max(1, int(args.pop_size ** 0.25))
+            top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:n_elite]
+            new_elites = [params_list[i].copy() for i in reversed(top_k_idx)]
+            combined = []
+            for i in range(max(len(new_elites), len(elite_saved))):
+                if i < len(new_elites):
+                    combined.append(new_elites[i])
+                if i < len(elite_saved):
+                    combined.append(elite_saved[i])
+            elite_saved = combined[:n_elite]
+
             ss_ret = {"samples": 0, "class_loss": 0.0, "map_loss": 0.0, "total_loss": 0.0}
             if npz_paths:
                 ds = SSDataset(
@@ -798,6 +809,7 @@ def main():
 
             # Update Leaderboard
             if leaderboard is not None:
+                print("")
                 log.print(key="lb", value=f"challenging (pool={len(leaderboard.entries)})")
 
                 def _vs_strongest(me, opponent):
@@ -806,7 +818,9 @@ def main():
                                    for s in range(args.games)]
                     scores = [r["score"] if isinstance(r, dict) else r
                               for r in pool.starmap(_eval_worker, match_tasks)]
-                    return float(np.mean(scores))
+                    wr = float(np.mean(scores))
+                    log.print(key="lb_wr", value=f"{wr:.3f} (threshold={leaderboard.threshold})")
+                    return wr
                 added = leaderboard.add_candidate(gen, mean.copy(),
                                                    match_fn=_vs_strongest)
                 log.print(key="lb", value=f"{'added' if added else 'rejected'}")
