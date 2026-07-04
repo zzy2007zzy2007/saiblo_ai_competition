@@ -802,14 +802,16 @@ def main():
                 time.sleep(2)
             if interrupted:
                 break
-            if reload_config(str(out_dir / "config.txt"), args):
+            if reload_config(str(out_dir / "config.txt"), args) and log:
+                float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std", "p_hold", "swap_p"}
+                int_keys = {"generations", "pop_size", "games", "workers", "k", "data_games", "lb_inject"}
+                changed_keys = []
+                for key in sorted(float_keys | int_keys):
+                    val = getattr(args, key.replace("-", "_"), None)
+                    if val is not None:
+                        changed_keys.append(f"{key}={val}")
                 log.print(key="config_reload",
-                          value=f"sigma={args.sigma} lr={args.lr} "
-                                f"pop={args.pop_size} games={args.games} "
-                                f"k={args.k} p_mutate={args.p_mutate} "
-                                f"temperature={args.temperature} "
-                                f"p_hold={args.p_hold} pos_noise_std={args.pos_noise_std} "
-                                f"swap_p={args.swap_p}")
+                          value=" ".join(changed_keys))
 
             t0 = time.time()
 
@@ -877,6 +879,9 @@ def main():
                 if log and n_lb > 0:
                     log.print(key="lb_inject",
                               value=f"{n_lb} entries from leaderboard injected")
+
+            # Mean injection: ensure the mean policy is always in the population
+            params_list[-1] = mean.copy().astype(np.float32)
 
             # 2. Select opponents
             k_per_ind = args.games // 2
