@@ -54,16 +54,7 @@ def _eval_worker(
     import os
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
-    import sys as _sys
-    from pathlib import Path as _Path
-    _RP = _Path(__file__).resolve().parents[2] / "Ant-Game"
-    _CODE = _Path(__file__).resolve().parents[1]
-    for _p in (_RP, _CODE):
-        if str(_p) not in _sys.path:
-            _sys.path.insert(0, str(_p))
-
-    import torch as _torch
-    _torch.set_num_threads(1)
+    torch.set_num_threads(1)
 
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
@@ -123,7 +114,7 @@ def _eval_worker(
         logits_arr = np.stack(bc_head_logits, axis=0)   # (T, num_heads, 24)
 
         write_npz(
-            _Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
+            Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
             boards_arr, stats_arr, class_arr, map_arr, logits_arr,
         )
 
@@ -166,8 +157,10 @@ class SSDataset(Dataset):
 
     HOLD_CLASS = 23
 
-    def __init__(self, npz_paths, p_hold=1.0):
+    def __init__(self, npz_paths, p_hold=1.0, seed=42):
         boards, statss, classes, maps, logits = [], [], [], [], []
+        scores_list = []
+        has_scores = True
         for p in npz_paths:
             data = np.load(p)
             boards.append(data["board"])
@@ -175,6 +168,10 @@ class SSDataset(Dataset):
             classes.append(data["class_"])
             maps.append(data["action_map"])
             logits.append(data["head_logits"])
+            if has_scores and "class_scores" in data:
+                scores_list.append(data["class_scores"])
+            elif has_scores:
+                has_scores = False
 
         self.board = np.concatenate(boards, axis=0)        # (T_total, 28, 19, 19)
         self.stats = np.concatenate(statss, axis=0)        # (T_total, 42)
@@ -182,9 +179,13 @@ class SSDataset(Dataset):
         self.action_map = np.concatenate(maps, axis=0)     # (T_total, NUM_CLASSES, 19, 19)
         self.head_logits = np.concatenate(logits, axis=0)  # (T_total, N_heads, 24)
 
+        self.class_scores = None
+        if has_scores and scores_list:
+            self.class_scores = np.concatenate(scores_list, axis=0)  # (T_total, 24)
+
         # HOLD downsampling: rounds where all heads == HOLD_CLASS, kept at p_hold
         all_hold = (self.class_label == self.HOLD_CLASS).all(axis=1)
-        rng_hold = np.random.default_rng()
+        rng_hold = np.random.default_rng(seed)
         keep_hold = rng_hold.random(len(self.class_label)) < p_hold
         valid = (~all_hold) | (all_hold & keep_hold)
 
@@ -194,6 +195,8 @@ class SSDataset(Dataset):
         self.class_label = self.class_label[valid]
         self.action_map = self.action_map[valid]
         self.head_logits = self.head_logits[valid]
+        if self.class_scores is not None:
+            self.class_scores = self.class_scores[valid]
         n_after = len(self.board)
 
         if n_before > 0 and n_after < n_before:
@@ -209,17 +212,52 @@ class SSDataset(Dataset):
         cls_label = torch.from_numpy(self.class_label[idx].copy())  # (N_heads,)
         action_map = torch.from_numpy(self.action_map[idx].copy()).float()  # (NUM_CLASSES, 19, 19)
 
-        return {
+        result = {
             "board": board,
             "stats": stats,
             "class_label": cls_label,
             "action_map": action_map,
             "head_logits": torch.from_numpy(self.head_logits[idx]).float(),  # (N_heads, 24)
         }
+        if self.class_scores is not None:
+            result["class_scores"] = torch.from_numpy(self.class_scores[idx]).float()  # (24,)
+        return result
+
+
+def _ce_with_label_smoothing(logits, labels, smoothing=0.0, weight=None):
+    """Cross-entropy with optional label smoothing and class weights.
+
+    Args:
+        logits: (B, C) raw logits.
+        labels: (B,) integer class indices.
+        smoothing: label smoothing factor (0 = standard CE).
+        weight: (C,) class weights or None.
+
+    Returns: scalar loss.
+    """
+    if smoothing <= 0.0 and weight is None:
+        return F.cross_entropy(logits, labels)
+
+    n_classes = logits.size(-1)
+    log_probs = F.log_softmax(logits, dim=-1)
+    with torch.no_grad():
+        smooth_target = torch.full_like(log_probs, smoothing / (n_classes - 1))
+        smooth_target.scatter_(1, labels.unsqueeze(1), 1.0 - smoothing)
+
+    if weight is not None:
+        # weight per sample
+        sample_weight = weight[labels].unsqueeze(1)  # (B, 1)
+        loss = -(smooth_target * log_probs * sample_weight).sum(dim=-1).mean()
+    else:
+        loss = -(smooth_target * log_probs).sum(dim=-1).mean()
+    return loss
 
 
 def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=64,
-                         lambda_class=1.0, lambda_map=1.0, log=None):
+                         lambda_class=1.0, lambda_map=1.0, lambda_div=0.0,
+                         lambda_soft=0.0, soft_temperature=1.0,
+                         label_smoothing=0.0, weight_decay=0.0, bias_decay=0.0,
+                         class_weights=None, log=None):
     """Train model on SSDataset with classification + action-map distillation loss.
 
     Args:
@@ -231,6 +269,14 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
         batch_size: DataLoader batch size.
         lambda_class: weight for class cross-entropy loss.
         lambda_map: weight for action-map KL divergence loss.
+        lambda_div: weight for head-diversity regularisation (0 = disabled).
+        lambda_soft: weight for soft-target KL loss (0 = disabled).
+        soft_temperature: temperature for soft-target softmax.
+        label_smoothing: label smoothing factor (0 = standard CE).
+        weight_decay: AdamW weight decay (0 = Adam, >0 = AdamW).
+        bias_decay: extra L2 penalty on policy head biases (0 = disabled).
+        class_weights: (C,) tensor of class weights or None.
+        log: optional logger.
 
     Returns:
         dict with keys: class_loss, map_loss, total_loss, samples.
@@ -241,16 +287,31 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
     model.train()
     model.to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    if weight_decay > 0.0:
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    if class_weights is not None:
+        cw = class_weights.to(device)
+    else:
+        cw = None
 
     total_cls = 0.0
     total_map = 0.0
+    total_div = 0.0
+    total_soft = 0.0
+    total_bias = 0.0
     total = 0.0
     n_batches = 0
+    device_ref = device
 
     for epoch in range(epochs):
         epoch_cls = 0.0
         epoch_map = 0.0
+        epoch_div = 0.0
+        epoch_soft = 0.0
         epoch_tot = 0.0
         epoch_n = 0
         for batch in loader:
@@ -265,43 +326,90 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
             # Class loss: average CE over all policy heads
             cls_loss = 0.0
             for i in range(model.num_heads):
-                cls_loss += F.cross_entropy(
-                    output[f"head{i+1}_logits"], cls_label[:, i])
+                cls_loss += _ce_with_label_smoothing(
+                    output[f"head{i+1}_logits"], cls_label[:, i],
+                    smoothing=label_smoothing, weight=cw)
             cls_loss /= model.num_heads
 
             # Map loss: KL(softmax(pred) || softmax(target).detach())
-            # Flatten spatial dims: (B, NUM_CLASSES, 19, 19) -> (B, NUM_CLASSES, 361)
             B, C, H, W = target_map.shape
             pred_flat = output["action_map"].view(B, C, -1)      # (B, C, 361)
             target_flat = target_map.view(B, C, -1)              # (B, C, 361)
-            # Permute to (B, 361, C) for softmax over class dim
             pred_flat = pred_flat.permute(0, 2, 1).contiguous()  # (B, 361, C)
-            target_flat = target_flat.permute(0, 2, 1).contiguous()  # same
-            # KL: pred_log_softmax vs target_softmax
+            target_flat = target_flat.permute(0, 2, 1).contiguous()
             map_loss = F.kl_div(
                 F.log_softmax(pred_flat, dim=-1),
                 F.softmax(target_flat.detach(), dim=-1),
                 reduction="batchmean",
             )
 
-            loss = lambda_class * cls_loss + lambda_map * map_loss
+            # Soft-target loss: KL(head_logits || ActionCatalog scores)
+            soft_loss = torch.tensor(0.0, device=device_ref)
+            if lambda_soft > 0.0 and "class_scores" in batch:
+                soft_target = batch["class_scores"].to(device)    # (B, 24)
+                # Normalise soft_target with temperature
+                soft_dist = F.softmax(soft_target / soft_temperature, dim=-1).detach()
+                for i in range(model.num_heads):
+                    soft_loss += F.kl_div(
+                        F.log_softmax(output[f"head{i+1}_logits"] / soft_temperature, dim=-1),
+                        soft_dist,
+                        reduction="batchmean",
+                    )
+                soft_loss /= model.num_heads
+
+            # Diversity loss: encourage heads to have different distributions
+            div_loss = torch.tensor(0.0, device=device_ref)
+            if lambda_div > 0.0 and model.num_heads > 1:
+                head_probs = []
+                for i in range(model.num_heads):
+                    head_probs.append(F.softmax(output[f"head{i+1}_logits"], dim=-1))
+                n_pairs = 0
+                for i in range(model.num_heads):
+                    for j in range(i + 1, model.num_heads):
+                        p_i, p_j = head_probs[i], head_probs[j]
+                        # Symmetric KL
+                        kl_ij = (p_i * (p_i + 1e-8).log() - p_i * (p_j + 1e-8).log()).sum(dim=-1).mean()
+                        kl_ji = (p_j * (p_j + 1e-8).log() - p_j * (p_i + 1e-8).log()).sum(dim=-1).mean()
+                        div_loss -= (kl_ij + kl_ji) / 2
+                        n_pairs += 1
+                if n_pairs > 0:
+                    div_loss = div_loss / n_pairs
+
+            # Bias decay: penalise large head biases (prevents shortcut learning)
+            bias_reg = torch.tensor(0.0, device=device_ref)
+            if bias_decay > 0.0:
+                for i in range(model.num_heads):
+                    bias_reg += model.policy_heads[i].bias.pow(2).sum()
+
+            loss = (lambda_class * cls_loss + lambda_map * map_loss
+                    + lambda_div * div_loss + lambda_soft * soft_loss
+                    + bias_decay * bias_reg)
             loss.backward()
             optimizer.step()
 
             total_cls += cls_loss.item()
             total_map += map_loss.item()
+            total_div += div_loss.item()
+            total_soft += soft_loss.item()
+            total_bias += bias_reg.item()
             total += loss.item()
             n_batches += 1
 
             epoch_cls += cls_loss.item()
             epoch_map += map_loss.item()
+            epoch_div += div_loss.item()
+            epoch_soft += soft_loss.item()
             epoch_tot += loss.item()
             epoch_n += 1
 
         if log and epoch_n > 0:
-            log.print(key="epoch",
-                      value=f"{epoch+1}/{epochs} cls={epoch_cls/epoch_n:.4f} "
-                            f"map={epoch_map/epoch_n:.4f} tot={epoch_tot/epoch_n:.4f}")
+            parts = [f"{epoch+1}/{epochs} cls={epoch_cls/epoch_n:.4f} "
+                     f"map={epoch_map/epoch_n:.4f} tot={epoch_tot/epoch_n:.4f}"]
+            if lambda_div > 0:
+                parts.append(f"div={epoch_div/epoch_n:.4f}")
+            if lambda_soft > 0:
+                parts.append(f"soft={epoch_soft/epoch_n:.4f}")
+            log.print(key="epoch", value="  ".join(parts))
 
     model.cpu()
     model.eval()
@@ -316,7 +424,7 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
 def bc_mutate_population(mean_model, dataset, device, n_individuals,
                           p_mutate=0.1, temperature=3.0,
                           mutation_step=0.01, sigma=0.0002,
-                          n_dirs=20, log=None):
+                          n_dirs=20, log=None, gen=0):
     """Generate N individuals via linear combination of gradient directions.
 
     Phase 1: Pre-compute ``n_dirs`` gradient basis directions (each from a
@@ -406,7 +514,7 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
     # mutation_step ~ 100.0 gives per-weight change ≈ 0.9 (enough to flip argmax)
     params_list = []
     rng = np.random.RandomState()
-    rng.seed(42)
+    rng.seed(42 + gen)
 
     for i in range(n_individuals):
         w = rng.randn(n_dirs_actual).astype(np.float32) / np.sqrt(n_dirs_actual)
@@ -558,7 +666,7 @@ def select_opponents(population_size, games_per_individual, rng):
     Each opponent is played twice (first player / second player parity).
     """
     n_pairs = games_per_individual // 2
-    return [rng.randint(0, population_size - 1) for _ in range(n_pairs)]
+    return [rng.randint(0, population_size) for _ in range(n_pairs)]
 
 
 # ════════════════════════════════════════════════
@@ -603,7 +711,7 @@ def run_eval(pool, all_args):
         except mp.TimeoutError:
             # Check for interrupt (handled via global)
             continue
-        except (mp.context.BrokenProcessPool, OSError, ValueError):
+        except (mp.pool.BrokenProcessPool, OSError, ValueError):
             raise
 
 
@@ -791,6 +899,7 @@ def main():
     latest_result = None
 
     try:
+        gen = start_gen - 1  # sentinel: tracks if loop ever ran
         bc_dataset = None
         elite_saved: list[np.ndarray] = []  # cross-generation elite params
         for gen in range(start_gen, args.generations):
@@ -824,6 +933,7 @@ def main():
                     p_mutate=args.p_mutate, temperature=args.temperature,
                     mutation_step=args.mutation_step, sigma=args.sigma,
                     n_dirs=args.n_grad_dirs, log=log,
+                    gen=gen,
                 )
             else:
                 # Fallback (gen=0 only): tiny parameter noise
@@ -964,19 +1074,14 @@ def main():
             n_elite = max(1, int(args.pop_size ** 0.25))
             top_k_idx = sorted(range(len(fitness)), key=lambda i: -fitness[i])[:n_elite]
             new_elites = [params_list[i].copy() for i in reversed(top_k_idx)]
-            combined = []
-            for i in range(max(len(new_elites), len(elite_saved))):
-                if i < len(new_elites):
-                    combined.append(new_elites[i])
-                if i < len(elite_saved):
-                    combined.append(elite_saved[i])
-            elite_saved = combined[:n_elite]
+            elite_saved = (new_elites + elite_saved)[:n_elite]
 
             ss_ret = {"samples": 0, "class_loss": 0.0, "map_loss": 0.0, "total_loss": 0.0}
             if npz_paths:
                 ds = SSDataset(
                     npz_paths,
                     p_hold=args.p_hold,
+                    seed=args.seed + gen,
                 )
                 if len(ds) > 0:
                     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1094,9 +1199,12 @@ def main():
 
     # ── Final ─────────────────────────────────────────────────────
     if interrupted:
-        ckpt_path = out_dir / f"interrupt_gen_{gen + 1:04d}.pt" if 'gen' in dir() else out_dir / "interrupt.pt"
+        if gen >= start_gen:
+            ckpt_path = out_dir / f"interrupt_gen_{gen + 1:04d}.pt"
+        else:
+            ckpt_path = out_dir / "interrupt.pt"
         save_checkpoint(ckpt_path, mean, model,
-                        gen + 1 if 'gen' in dir() else start_gen,
+                        gen + 1 if gen >= start_gen else start_gen,
                         leaderboard=leaderboard)
         log.print(key="interrupt_checkpoint", value=ckpt_path)
     else:

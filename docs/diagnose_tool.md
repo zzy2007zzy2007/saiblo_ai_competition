@@ -69,15 +69,93 @@ python code/test_match/diagnose_model.py <checkpoint.pt> --games 5
 
 ---
 
-# Checkpoint 对比工具
+### Checkpoint 对比工具
 
 `code/test_match/compare_checkpoints.py` — 让两个 checkpoint 的 top1 个体直接对战，用于分析代际间的相对强弱关系。
 
-## 用法
+## 头行为诊断工具
+
+`code/test_match/diagnose_heads.py` — 用 NeuralAgent 完整跑一局游戏，逐回合调用 decoder 解析每个头的意图，展示每个头实际想做什么操作。
+
+### 用法
 
 ```bash
-python code/test_match/compare_checkpoints.py <ckpt_a.pt> <ckpt_b.pt> --games 10 --workers 4
+python code/test_match/diagnose_heads.py <checkpoint.pt> [--seed N]
 ```
+
+### 输出示例
+
+```
+Checkpoint: training_history/ss_20260702_170653/gen_0010.pt
+num_heads=3, params=553,313
+Seed=0, turns=256, result=WIN (25 vs 5)
+Bundle: 26 ops, 230 holds across 256 turns
+
+  Head   Ops   Rej   Top-3 classes (what head wants to do)
+  H1:    11/12  91%   ↓(9) B(1) S(1)
+  H2:     5/8   62%   ↓(5) B(2) I(1)
+  H3:     7/8   87%   ↓(6) B(1) M(1)
+
+  Total head-decode attempts: 28 = 0.11/turn
+```
+
+### 各字段含义
+
+| 字段 | 说明 |
+|:----|:-----|
+| Ops | 该头的被 decoder 接受（合法）的操作数 |
+| Rej | 被 decoder 驳回（非法）的操作数 |
+| Top-3 classes | 该头最频繁选择的 3 个动作类及次数 |
+| ↓ | DOWNGRADE/拆除 |
+| B | BUILD Basic 塔 |
+| S/M/I | SNIPER / MORTAR / ICE |
+
+`Ops/(Ops+Rej)` = 该头在合法范围内的命中率。如果某个头一直在输出非法操作（Rej 很高），可能说明它的位置图输出和 class 输出不协调。
+
+### 动作类型对照表
+
+`diagnose_heads.py` 和 `diagnose_model.py` 中使用的简写符号与动作类的对应关系，以及对应的游戏协议操作码和塔类型 ID：
+
+| 简写 | Class ID | 动作类 | 协议操作 | 对应塔类型ID | 说明 |
+|:----:|:--------:|--------|:--------:|:-----------:|------|
+| **B** | 0 | Basic 塔 | `11` 建造 | **0** | 空地→建 Basic；已有 Basic→pass |
+| **H** | 1 | Heavy 塔 | `12` 升级 | **1** | Heavy 分支入口 |
+| **H+** | 2 | Heavy+ 塔 | `12` 升级 | **11** | Heavy → Heavy+ |
+| **I** | 3 | Ice 塔 | `12` 升级 | **12** | Heavy → Ice（冰冻塔） |
+| **W** | 4 | Bewitch 塔 | `12` 升级 | **13** | Heavy → Bewitch（蛊惑塔） |
+| **Q** | 5 | Quick 塔 | `12` 升级 | **2** | Quick 分支入口 |
+| **Q+** | 6 | Quick+ 塔 | `12` 升级 | **21** | Quick → Quick+ |
+| **D** | 7 | Double 塔 | `12` 升级 | **22** | Quick → Double |
+| **S** | 8 | Sniper 塔 | `12` 升级 | **23** | Quick → Sniper（狙击塔） |
+| **M** | 9 | Mortar 塔 | `12` 升级 | **3** | Mortar 分支入口（迫击炮） |
+| **M+** | 10 | Mortar+ 塔 | `12` 升级 | **31** | Mortar → Mortar+ |
+| **P** | 11 | Pulse 塔 | `12` 升级 | **32** | Mortar → Pulse（脉冲塔） |
+| **R** | 12 | Missile 塔 | `12` 升级 | **33** | Mortar → Missile（导弹塔） |
+| **P+** | 13 | Producer+ 塔 | `12` 升级 | **41** | Producer → Producer+（增产） |
+| **G** | 14 | **Siege 塔** | `12` 升级 | **42** | Producer → Siege（攻城塔） |
+| **E** | 15 | Medic 塔 | `12` 升级 | **43** | Producer → Medic（医疗塔） |
+| **↓** | 16 | 降级/拆除 | `13` 降级 | — | 降一级；Basic→拆除 |
+| **⚡** | 17 | 闪电风暴 | `21` (x,y) | — | 超级武器，冷却35回合 |
+| **EMP** | 18 | EMP 轰炸 | `22` (x,y) | — | 超级武器，冷却45回合 |
+| **Grv** | 19 | 引力护盾 | `23` (x,y) | — | 超级武器，冷却25回合 |
+| **Evs** | 20 | 紧急回避 | `24` (x,y) | — | 超级武器，冷却25回合 |
+| **♂↑** | 21 | 升基地出兵速度 | `31` | — | 基地升级，200→250金 |
+| **♥↑** | 22 | 升基地兵种血量 | `32` | — | 基地升级，200→250金 |
+| **∅** | 23 | HOLD | — | — | 该头不做事（pass） |
+
+> **协议操作码说明**（定义见 README 第 4 节）：
+> - `11 x y` — 建造防御塔
+> - `12 towerId towerTypeId` — 升级防御塔到目标类型
+> - `13 towerId` — 降级/拆除防御塔
+> - `21/22/23/24 x y` — 部署超级武器
+> - `31` — 升级基地出兵速度
+> - `32` — 升级基地兵种血量
+>
+> 塔类型 ID 直接对应 README「防御塔数据列表」中的类型 ID（`0 / 1 / 2 / 3 / 4 / 11 / 12 / 13 / 21 / 22 / 23 / 31 / 32 / 33 / 41 / 42 / 43`）。
+
+### 对比工具
+
+`code/test_match/compare_checkpoints.py` — 让两个 checkpoint 的 top1 个体直接对战，用于分析代际间的相对强弱关系。
 
 ## 选项
 

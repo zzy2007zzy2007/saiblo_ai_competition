@@ -58,10 +58,11 @@ class AntWarNetwork(nn.Module):
     BOARD_CHANNELS = 28
     BOARD_SIZE = 19
     STATS_DIM = 42
-    LATENT_DIM = 64
 
-    def __init__(self, num_resblocks: int = 6, num_heads: int = 3):
+    def __init__(self, num_resblocks: int = 6, num_heads: int = 3,
+                 latent_dim: int = 64):
         super().__init__()
+        self.LATENT_DIM = latent_dim
         self.num_resblocks = num_resblocks
         self.num_heads = num_heads
 
@@ -82,10 +83,15 @@ class AntWarNetwork(nn.Module):
             nn.ReLU(),
         )
 
+        # Board embedding is passed through as-is (no LayerNorm).
+        # LayerNorm was removed because it destroyed inter-sample variance
+        # (encoder output variance is primarily in magnitude, not direction).
+
         # Policy head - spatial
         self.action_map_conv = nn.Conv2d(self.LATENT_DIM, self.NUM_CLASSES, kernel_size=1)
 
         # Policy head - class
+        self.policy_dropout = nn.Dropout(p=0.5)
         self.policy_base = nn.Sequential(
             nn.Linear(self.LATENT_DIM, self.LATENT_DIM),
             nn.ReLU(),
@@ -122,6 +128,8 @@ class AntWarNetwork(nn.Module):
         # Global average pooling → board embedding
         board_emb = spatial_feat.mean(dim=[2, 3])  # (B, 64)
 
+        # No LayerNorm — board_emb retains its natural variance
+
         # Stats encoder
         stats_emb = self.stats_mlp(stats)  # (B, 64)
 
@@ -132,14 +140,17 @@ class AntWarNetwork(nn.Module):
         # Spatial: action map (shared)
         action_map = self.action_map_conv(spatial_feat)  # (B, 23, 19, 19)
 
-        # Class heads
+        # Class heads (with per-head dropout to prevent shortcut learning)
         policy_base = self.policy_base(board_emb)  # (B, 64)
         result: dict[str, torch.Tensor] = {
             "action_map": action_map,
             "value": self.value_head(state_emb),  # (B, 1)
         }
         for i in range(self.num_heads):
-            result[f"head{i+1}_logits"] = self.policy_heads[i](policy_base)  # (B, 23)
+            # Per-head dropout: each head sees a different dropout mask
+            # This prevents all heads from converging to the same shortcut
+            head_input = self.policy_dropout(policy_base)  # (B, 64)
+            result[f"head{i+1}_logits"] = self.policy_heads[i](head_input)  # (B, 23)
         return result
 
     def get_parameters_as_vector(self) -> np.ndarray:
@@ -161,9 +172,23 @@ class AntWarNetwork(nn.Module):
         return sum(p.numel() for p in self.parameters())
 
 
-def create_model(num_resblocks: int = 6, num_heads: int = 3) -> AntWarNetwork:
-    """Create a model and initialize all weights to very small random values."""
-    model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads)
+def create_model(num_resblocks: int = 6, num_heads: int = 3,
+                 latent_dim: int = 64, small: bool = False) -> AntWarNetwork:
+    """Create a model.
+
+    Args:
+        num_resblocks: Number of residual blocks.
+        num_heads: Number of policy heads.
+        latent_dim: Latent dimension (ignored if small=True).
+        small: If True, creates a smaller model (latent_dim=32,
+               num_resblocks=2, 1 head) suitable for limited data.
+    """
+    if small:
+        latent_dim = 32
+        num_resblocks = 2
+        num_heads = 1
+    model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads,
+                          latent_dim=latent_dim)
     return model
 
 

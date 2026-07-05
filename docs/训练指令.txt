@@ -1,3 +1,10 @@
-python code/my_ai/es_train.py --pop-size 54 --workers 24 --games 6 --generations 500 --save-every 3 --single-head --single-head
+python code/my_ai/es_train.py --pop-size 54 --workers 24 --games 6 --generations 500 --save-every 3 --single-head --single-head --wg-edge-games 16 
 python code/my_ai/es_train.py --pop-size 54 --workers 16 --games 8 --generations 500 --save-every 1 --single-head --checkpoint training_history/20260630_182516/gen_0011_with_pool.pt
 python code/my_ai/es_train.py --pop-size 100 --workers 21 --games 12 --generations 500 --save-every 1 --single-head --checkpoint training_history/20260630_182516/gen_0011_with_pool.pt
+python code/my_ai/es_train.py --pop-size 100 --workers 22 --games 30 --generations 500 --save-every 1 --single-head --wg-edge-games 16  --checkpoint training_history\20260701_004058\gen_0044.pt
+python code/my_ai/es_train.py --pop-size 100 --workers 24 --games 30 --generations 500 --save-every 1 --wg-edge-games 16 
+conda run -n pytorch-gpu 
+python code/my_ai/ss_train.py --pop-size 64 --sigma 0.2 --games 18 --workers 24 --generations 500 --save-every 10 --num-heads 3 --k 5 --epochs 3 --lr 1e-3 --batch-size 64 --p-mutate 0.1 --temperature 3.0 --p-hold 0.1 --pos-noise-std 0.1
+python code/my_ai/ss_train.py --pop-size 100 --sigma 0.2 --games 18 --workers 24 --generations 500 --save-every 1 --num-heads 8 --k 5 --epochs 3 --lr 1e-3 --batch-size 64 --p-mutate 0.2 --temperature 5.0 --p-hold 0.3 --pos-noise-std 0.1
+python code/my_ai/ss_train.py --pop-size 48 --games 18 --workers 18 --generations 500 --save-every 1 --num-heads 8 --k 5 --epochs 3 --lr 1e-4 --batch-size 64 --p-mutate 0.2 --temperature 5.0 --p-hold 1 --pos-noise-std 0.1
+python code/my_ai/ss_train.py --pop-size 24 --games 18 --workers 18 --generations 500 --save-every 1 --num-heads 8 --k 3 --data-games 30 --epochs 3 --lr 3e-5 --batch-size 64 --p-mutate 0.5 --temperature 5.0 --p-hold 1 --pos-noise-std 0.2 --sigma 0.02
