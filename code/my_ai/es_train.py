@@ -87,6 +87,7 @@ def _eval_worker(
     import os
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""  # workers use CPU only (small model, avoid CUDA DLL memory)
     import sys
     from pathlib import Path
     _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
