@@ -87,18 +87,20 @@ class MixedStrategyOpponent:
         source = self.rng.choice(3, p=self.probs)
 
         if source == self.STRATEGY_RANDOM:
-            bundles = state.list_bundles(player)
-            bundle = self._get_random().choose_bundle(state, player, bundles)
+            agent = self._get_random()
+            bundles = agent.list_bundles(state, player)
+            bundle = agent.choose_bundle(state, player, bundles)
             return list(bundle.operations)
 
         elif source == self.STRATEGY_EXAMPLE:
-            bundles = state.list_bundles(player)
-            bundle = self._get_example().choose_bundle(state, player, bundles)
+            agent = self._get_example()
+            bundles = agent.list_bundles(state, player)
+            bundle = agent.choose_bundle(state, player, bundles)
             return list(bundle.operations)
 
         else:  # STRATEGY_RULE_V4
             rule = _get_rule_v4()
-            bundles = state.list_bundles(player)
+            bundles = rule.list_bundles(state, player)
             bundle = rule.choose_bundle(state, player, bundles)
             return list(bundle.operations)
 
