@@ -1,8 +1,16 @@
-"""Minimal Evolution Strategies trainer for Ant-Game AI (self-play).
+"""Evolution Strategies trainer for Ant-Game AI.
+
+Two modes:
+  Standard (self-play): individuals play against opponent models from
+    leaderboard / elite pool / current population.
+
+  Multi-Expert (mixed opponent): individuals play against a MixedStrategyOpponent
+    that samples actions from (RandomAgent / ExampleAgent / rule_v4) per turn.
+    The (a, b, c) probabilities are dynamically adjusted to keep win rate ~55%.
 
 Core algorithm (OpenAI-ES style):
   1. Sample noise -> create perturbed models: theta +/- sigma*eps
-  2. Self-play: each individual plays against selected opponents
+  2. Evaluate: each individual plays games (self-play or mixed opponent)
   3. Fitness = win rate, shaped via rank-based normalization
   4. Gradient estimate: g = 1/(N*sigma) * sum(f_i * eps_i)
   5. Update: theta <- theta + lr * g
@@ -26,6 +34,7 @@ import sys
 import time
 import multiprocessing as mp
 from datetime import datetime
+from functools import partial
 
 import numpy as np
 import torch
@@ -33,6 +42,8 @@ import torch
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
 from my_ai.elite_bc import TopKSelector, BCDataset, supervised_update, write_bc_npz, collect_bc_data, cleanup_gen_npz, BCConfig
+from my_ai.leaderboard import Leaderboard
+from my_ai.mixed_opponent import MixedStrategyOpponent, adjust_probs
 from utils.logger import get_logger
 
 
@@ -54,13 +65,21 @@ def select_opponents(
 
 def _eval_worker(
     params_flat: np.ndarray,
-    opp_params_flat: np.ndarray,
+    opp_spec,  # np.ndarray (model params) for standard, tuple (probs) for mixed, or None
     seed: int,
     num_heads: int = 3,
+    small: bool = False,
     synthetic_target: np.ndarray | None = None,
     bc_dir=None, gen=0, ind=0,
+    *,
+    allowed_classes: list[int] | None = None,
 ) -> dict:
-    """Run one match: params vs opponent params.
+    """Run one match: params vs opponent.
+
+    ``opp_spec`` determines opponent type:
+      - np.ndarray: load NeuralAgent from model params (standard self-play)
+      - tuple/list: create MixedStrategyOpponent with those (a, b, c) probs
+      - None: synthetic test (no game needed)
 
     If synthetic_target is provided, fitness = distance to target (no game).
     Otherwise, runs a full Ant-Game match.
@@ -91,13 +110,18 @@ def _eval_worker(
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    model = create_model(num_heads=num_heads)
+    model = create_model(small=small, num_heads=num_heads)
     model.set_parameters_from_vector(params_flat)
-    agent = NeuralAgent(model=model)
+    agent = NeuralAgent(model=model, allowed_classes=allowed_classes)
 
-    opp_model = create_model(num_heads=num_heads)
-    opp_model.set_parameters_from_vector(opp_params_flat)
-    opponent = NeuralAgent(model=opp_model)
+    if isinstance(opp_spec, np.ndarray):
+        opp_model = create_model(small=small, num_heads=num_heads)
+        opp_model.set_parameters_from_vector(opp_spec)
+        opponent = NeuralAgent(model=opp_model)
+    elif isinstance(opp_spec, (tuple, list)):
+        opponent = MixedStrategyOpponent(probs=tuple(opp_spec))
+    else:
+        opponent = None  # synthetic test only
 
     our_player = seed % 2
     opp_player = 1 - our_player
@@ -170,6 +194,7 @@ class ESTrainer:
         num_heads: int = 3,
         log=None,
         bc_config: BCConfig | None = None,
+        small: bool = False,
     ):
         self.population_size = population_size
         self.sigma = sigma
@@ -183,8 +208,11 @@ class ESTrainer:
         self.bc_config = bc_config or BCConfig()
         self.bc_dir: Path | None = None
         self.rng = np.random.RandomState(seed)
+        self.small = small
+        self.allowed_classes: list[int] | None = None  # multi-expert: restrict action classes
+        self.mixed_probs: tuple[float, float, float] = (0.33, 0.33, 0.34)  # mixed opponent probs (a,b,c)
 
-        self.model = create_model(num_heads=num_heads)
+        self.model = create_model(small=small, num_heads=num_heads)
         self.param_count = self.model.count_parameters()
         self.mean = self.model.get_parameters_as_vector()
         self.synthetic_target: np.ndarray | None = None
@@ -196,7 +224,8 @@ class ESTrainer:
         self.elite_params: list[np.ndarray] = []
         self.step_count = 0
         self.out_dir: str | None = None  # set by main() for config hot-reload
-        self.win_graph = None  # WinGraph instance (optional, set by main())
+        self.win_graph = None  # WinGraph instance (optional, kept for backward compat)
+        self.leaderboard = None  # Leaderboard instance (optional, set by main())
 
     def reload_config(self, config_path: str) -> bool:
         """Hot-reload training parameters from config.txt at generation boundary.
@@ -259,17 +288,20 @@ class ESTrainer:
 
         eval_start = time.time()
 
-        # Select opponent pairs — use WinGraph if available, else elite pool, else current population
         k_per_ind = self.games_per_individual // 2
-        if self.win_graph is not None and len(self.win_graph.nodes) >= k_per_ind:
-            # Depth-weighted sampling: weight = 0.85^depth, so strongest (depth=0) most likely
-            depth_nodes = self.win_graph.get_node_depths()
-            weights = np.array([0.85 ** nd["depth"] for nd in depth_nodes], dtype=np.float64)
-            weights /= weights.sum()
-            selected = self.rng.choice(len(depth_nodes), size=k_per_ind, p=weights, replace=True)
-            opp_params_list = [depth_nodes[i]["params"] for i in selected]
+
+        # Determine opponent specification per match
+        if self.allowed_classes is not None:
+            # Multi-Expert mode: all individuals face the same MixedStrategyOpponent
+            opp_spec = self.mixed_probs  # tuple (a, b, c)
+        elif self.leaderboard is not None:
+            opp_list = self.leaderboard.get_opponents(k=k_per_ind)
+            if opp_list:
+                opp_params_list = [entry["params"] for entry in opp_list]
+            else:
+                opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
+                opp_params_list = [params_list[i] for i in opp_indices]
         elif self.elite_pool:
-            # Build flat opponent pool from elite pool
             opp_pool: list[np.ndarray] = []
             for entry in reversed(self.elite_pool):
                 opp_pool.append(entry[0])  # mean
@@ -281,32 +313,38 @@ class ESTrainer:
             selected_opps = self.rng.choice(n_pool, size=k_per_ind, p=gen_weights, replace=replace)
             opp_params_list = [opp_pool[i] for i in selected_opps]
         else:
-            # First generation: select K opponents from current population once
             opp_indices = select_opponents(self.population_size, self.games_per_individual, self.rng)
             opp_params_list = [params_list[i] for i in opp_indices]
+
+        # Build unified opp_spec_list: one entry per opponent pair
+        if self.allowed_classes is not None:
+            opp_spec_list: list = [self.mixed_probs] * k_per_ind
+        else:
+            opp_spec_list = opp_params_list  # type: ignore
 
         all_args = []
         for idx in range(self.population_size):
             for k in range(k_per_ind):
-                opp_params = opp_params_list[k]
+                opp_spec = opp_spec_list[k]
                 base_seed = self.seed + generation * self.population_size * self.games_per_individual + (idx * self.games_per_individual + k * 2)
                 all_args.append((
-                    params_list[idx], opp_params, base_seed,
-                    self.num_heads, self.synthetic_target,
-                    str(self.bc_dir) if self.bc_config.enabled else None,  # bc_dir
+                    params_list[idx], opp_spec, base_seed,
+                    self.num_heads, self.small, self.synthetic_target,
+                    str(self.bc_dir) if self.bc_config.enabled else None,
                     generation,  # gen
                     idx,         # ind
                 ))
                 all_args.append((
-                    params_list[idx], opp_params, base_seed + 1,
-                    self.num_heads, self.synthetic_target,
-                    str(self.bc_dir) if self.bc_config.enabled else None,  # bc_dir
+                    params_list[idx], opp_spec, base_seed + 1,
+                    self.num_heads, self.small, self.synthetic_target,
+                    str(self.bc_dir) if self.bc_config.enabled else None,
                     generation,  # gen
                     idx,         # ind
                 ))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
-        async_result = pool.starmap_async(_eval_worker, all_args)
+        worker_fn = partial(_eval_worker, allowed_classes=self.allowed_classes)
+        async_result = pool.starmap_async(worker_fn, all_args)
         while True:
             try:
                 all_results = async_result.get(timeout=2)
@@ -316,7 +354,7 @@ class ESTrainer:
                     return {"generation": generation, "best_fitness": 0.0, "avg_fitness": 0.0,
                             "eval_time": 0.0, "total_time": 0.0}
                 continue
-            except (mp.context.BrokenProcessPool, OSError, ValueError):
+            except (OSError, ValueError):
                 if getattr(pool, '_interrupted', False):
                     return {"generation": generation, "best_fitness": 0.0, "avg_fitness": 0.0,
                             "eval_time": 0.0, "total_time": 0.0}
@@ -404,6 +442,7 @@ class ESTrainer:
         # Hot-reload config if config.txt was modified during training
         if self.out_dir is not None:
             self.reload_config(str(Path(self.out_dir) / "config.txt"))
+
         return result
 
     def save_checkpoint(self, path: str | Path, top2_params: list[np.ndarray] | None = None,
@@ -430,11 +469,16 @@ class ESTrainer:
             data["elite_params"] = [torch.from_numpy(p) for p in self.elite_params]
         if self.win_graph is not None:
             data["win_graph"] = self.win_graph.state_dict()
+        if self.leaderboard is not None:
+            data["leaderboard"] = self.leaderboard.state_dict()
         if self.bc_config.enabled:
             data["bc_config"] = {"k": self.bc_config.k, "epochs": self.bc_config.epochs,
                                  "lr": self.bc_config.lr, "batch_size": self.bc_config.batch_size,
                                  "lambda_map": self.bc_config.lambda_map,
                                  "lambda_class": self.bc_config.lambda_class}
+        if self.allowed_classes is not None:
+            data["allowed_classes"] = self.allowed_classes
+            data["mixed_probs"] = self.mixed_probs
         torch.save(data, path)
 
     def load_checkpoint(self, path: str | Path) -> None:
@@ -447,6 +491,8 @@ class ESTrainer:
             self.elite_pool = [(m.numpy(), t.numpy()) for m, t in ckpt["elite_pool"]]
         if self.win_graph is not None and "win_graph" in ckpt:
             self.win_graph.load_state_dict(ckpt["win_graph"])
+        if self.leaderboard is not None and "leaderboard" in ckpt:
+            self.leaderboard.load_state_dict(ckpt["leaderboard"])
         # Backward compat: old single_head checkpoint → remap state_dict keys
         sd = ckpt.get("model_state", {})
         if "policy_head1.weight" in sd:
@@ -479,6 +525,10 @@ class ESTrainer:
         if "bc_config" in ckpt and self.bc_config.enabled:
             for k, v in ckpt["bc_config"].items():
                 setattr(self.bc_config, k, v)
+        if "allowed_classes" in ckpt:
+            self.allowed_classes = ckpt["allowed_classes"]
+        if "mixed_probs" in ckpt:
+            self.mixed_probs = tuple(ckpt["mixed_probs"])
 
 
 def main():
@@ -492,19 +542,17 @@ def main():
     parser.add_argument("--generations", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-heads", type=int, default=3,
-                        help="number of policy heads (default: 3)")
+                        help="number of policy heads (default: 3; ignored when --small)")
+    parser.add_argument("--small", action="store_true",
+                        help="use small model (87K params, 1 head)")
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from ES checkpoint")
     parser.add_argument("--load-bc", type=str, default=None,
                         help="load BC checkpoint as initialization (for cold start)")
     parser.add_argument("--save-every", type=int, default=10)
+    parser.add_argument("--no-lb", action="store_true",
+                        help="disable Leaderboard opponent selection (fall back to elite pool)")
     parser.add_argument("--no-wg", action="store_true",
-                        help="disable WinGraph opponent selection (fall back to elite pool)")
-    parser.add_argument("--wg-n-max", type=int, default=30,
-                        help="WinGraph max nodes (default: 30)")
-    parser.add_argument("--wg-edge-games", type=int, default=10,
-                        help="WinGraph games per edge (default: 10)")
-    parser.add_argument("--wg-threshold", type=float, default=0.55,
-                        help="WinGraph win threshold for directed edge (default: 0.55)")
+                        help=argparse.SUPPRESS)  # kept for backward compat, no-op
     parser.add_argument("--synthetic-test", action="store_true",
                         help="synthetic fitness: converge toward random target (test ES correctness)")
     parser.add_argument("--out-dir", type=str, default=None,
@@ -517,6 +565,11 @@ def main():
     parser.add_argument("--bc-lambda-map", type=float, default=1.0)
     parser.add_argument("--bc-lambda-class", type=float, default=1.0)
     parser.add_argument("--bc-device", type=str, default="cuda")
+    parser.add_argument("--allowed-classes", type=int, nargs="+", default=None,
+                        help="restrict agent to specific action classes (multi-expert training)")
+    parser.add_argument("--opp-probs", type=float, nargs=3, default=[0.33, 0.33, 0.34],
+                        metavar=("A", "B", "C"),
+                        help="mixed opponent probs: random, example, rule_v4")
     args = parser.parse_args()
 
     # ── Prepare output directory ──────────────────────────────────
@@ -547,12 +600,15 @@ def main():
         num_workers=args.workers,
         games_per_individual=args.games,
         seed=args.seed,
-        num_heads=args.num_heads,
+        num_heads=1 if args.small else args.num_heads,
         log=log,
         bc_config=BCConfig.from_args(args) if args.bc else None,
+        small=args.small,
     )
     trainer.out_dir = str(out_dir)
     trainer.generations = args.generations  # allows hot-reload from config
+    trainer.allowed_classes = args.allowed_classes
+    trainer.mixed_probs = tuple(args.opp_probs)
 
     # ── BC data directory ─────────────────────────────────────────
     if args.bc:
@@ -560,13 +616,15 @@ def main():
         bc_dir.mkdir(parents=True, exist_ok=True)
         trainer.bc_dir = bc_dir
 
-    # ── WinGraph (enabled by default, DAG-based opponent selection) ──
-    if not args.no_wg:
-        from my_ai.win_graph import WinGraph
-        trainer.win_graph = WinGraph(n_max=args.wg_n_max, edge_games=args.wg_edge_games,
-                                       win_threshold=args.wg_threshold, workers=args.workers,
-                                       num_heads=args.num_heads)
-        log.print(key="win_graph", value=f"enabled (n_max={args.wg_n_max}, edge={args.wg_edge_games}, threshold={args.wg_threshold})")
+    # ── Leaderboard (rank-weighted opponent pool) ──
+    if args.allowed_classes is not None:
+        # Multi-expert mode: no model-vs-model leaderboard needed
+        log.print(key="leaderboard", value="auto-disabled (multi-expert mode)")
+    elif not args.no_lb:
+        trainer.leaderboard = Leaderboard(max_size=20, param_count=trainer.param_count, threshold=0.4)
+        log.print(key="leaderboard", value=f"enabled (max_size=20)")
+    else:
+        log.print(key="leaderboard", value="disabled (fallback to elite pool)")
 
     if args.checkpoint:
         trainer.load_checkpoint(args.checkpoint)
@@ -602,12 +660,24 @@ def main():
     log.print(key="workers", value=args.workers)
     log.print(key="games_per_ind", value=args.games)
     log.print(key="generations", value=args.generations)
-    log.print(key="num_heads", value=args.num_heads)
-    log.print(key="opponents", value="WinGraph (DAG top-k)" if not args.no_wg else "random from population (self-play)")
+    log.print(key="num_heads", value=trainer.num_heads)
+    log.print(key="small", value=args.small)
+    if args.allowed_classes is not None:
+        log.print(key="allowed_classes", value=args.allowed_classes)
+        log.print(key="opp_probs", value=f"a={args.opp_probs[0]:.2f} b={args.opp_probs[1]:.2f} c={args.opp_probs[2]:.2f}")
+        log.print(key="opponents", value="MixedStrategyOpponent (dynamic)")
+    else:
+        log.print(key="opponents", value="Leaderboard (rank-weighted)" if not args.no_lb else "elite pool (self-play)")
     log.separator("-")
 
     # ── Print mode info ──────────────────────────────────────────
-    log.print(key="mode", value="synthetic test" if args.synthetic_test else "real game (self-play)")
+    if args.synthetic_test:
+        mode_str = "synthetic test"
+    elif args.allowed_classes is not None:
+        mode_str = f"multi-expert (classes={args.allowed_classes})"
+    else:
+        mode_str = "real game (self-play)"
+    log.print(key="mode", value=mode_str)
     if args.synthetic_test:
         log.print(key="init_dist_to_target", value=f"{init_dist:.4f}")
 
@@ -694,6 +764,32 @@ def main():
                         log.print(key="bc", value="no data files for top-K")
                 cleanup_gen_npz(trainer.bc_dir, gen)
 
+            # Leaderboard challenge: mean vs strongest entry (skipped in multi-expert mode)
+            if trainer.leaderboard is not None:
+                strongest = trainer.leaderboard.get_strongest()
+                if strongest is not None:
+                    opp = strongest["params"]
+                    match_tasks = [
+                        (trainer.mean, opp, trainer.seed + 999999 + gen * 100 + s,
+                         trainer.num_heads, trainer.small, None, None, gen, -1)
+                        for s in range(trainer.games_per_individual)
+                    ]
+                    lb_scores = pool.starmap(_eval_worker, match_tasks)
+                    wr = float(np.mean([r["score"] if isinstance(r, dict) else r for r in lb_scores]))
+                    trainer.leaderboard.add_candidate(gen, trainer.mean.copy(), score=wr)
+                else:
+                    # First generation: leaderboard empty, always add
+                    trainer.leaderboard.add_candidate(gen, trainer.mean.copy(), score=1.0)
+
+            # Adjust mixed opponent probs based on this generation's win rate
+            if trainer.allowed_classes is not None and result is not None:
+                avg_win_rate = result["avg_fitness"]
+                trainer.mixed_probs = adjust_probs(trainer.mixed_probs, avg_win_rate, target_rate=0.55)
+                log.print(key="mixed_probs",
+                          value=f"a={trainer.mixed_probs[0]:.3f} "
+                                f"b={trainer.mixed_probs[1]:.3f} "
+                                f"c={trainer.mixed_probs[2]:.3f}")
+
             trainer.step_count = gen + 1
 
             # Update elite pool with this generation's mean and top1
@@ -704,12 +800,6 @@ def main():
                 max_gens = 20
                 if len(trainer.elite_pool) > max_gens:
                     trainer.elite_pool.pop(0)
-
-            # Update WinGraph with mean and top1 (triggers edge recomputation)
-            g = trainer.step_count
-            if trainer.win_graph is not None:
-                trainer.win_graph.add_node(g * 2, trainer.mean.copy(), pool=pool)
-                trainer.win_graph.add_node(g * 2 + 1, top2[0].copy(), pool=pool)
 
             log.print_table(
                 gen=result["generation"],
@@ -744,13 +834,11 @@ def main():
                        "best": f"#{best_i} {b['score']:.3f} "
                                f"[1st:{b['p0_w']}/{b['p0_n']} 2nd:{b['p1_w']}/{b['p1_n']}]"},
                 )
-                if trainer.win_graph is not None:
-                    gi = trainer.win_graph.get_graph_info()
-                    if gi["n_scc"] > 1:
-                        top_scc_sizes = [len(r) for r in gi["topo_ranks"]]
-                        log.print(key="wg",
-                                  value=f"nodes={gi['n_nodes']} scc={gi['n_scc']} "
-                                        f"top_scc={top_scc_sizes[-1] if top_scc_sizes else 0}")
+                if trainer.leaderboard is not None:
+                    lb_info = trainer.leaderboard.get_info()
+                    log.print(key="lb",
+                              value=f"entries={lb_info.get('size', 0)} "
+                                    f"strongest={lb_info.get('strongest_score', 0):.3f}")
 
             # Append to CSV
             row = [

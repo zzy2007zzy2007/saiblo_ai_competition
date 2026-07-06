@@ -116,6 +116,7 @@ class AntWarNetwork(nn.Module):
         Returns:
             dict with keys:
               - action_map: (B, 23, 19, 19)
+              - state_emb: (B, 128) — board_emb + stats_emb
               - head1_logits, ..., headN_logits: (B, 23) — one per head, N = self.num_heads
               - value: (B, 1)
         """
@@ -144,6 +145,7 @@ class AntWarNetwork(nn.Module):
         policy_base = self.policy_base(board_emb)  # (B, 64)
         result: dict[str, torch.Tensor] = {
             "action_map": action_map,
+            "state_emb": state_emb,  # (B, 128) — used by gating network
             "value": self.value_head(state_emb),  # (B, 1)
         }
         for i in range(self.num_heads):
@@ -237,6 +239,7 @@ if __name__ == "__main__":
     out = model(board, stats)
     print(f"Model parameters: {model.count_parameters():,}")
     print(f"action_map:  {out['action_map'].shape}")
+    print(f"state_emb:   {out['state_emb'].shape}")
     print(f"head1_logits: {out['head1_logits'].shape}")
     print(f"head2_logits: {out['head2_logits'].shape}")
     print(f"head3_logits: {out['head3_logits'].shape}")

@@ -205,6 +205,8 @@ def decode_head(
     position_mask: np.ndarray,      # (23, 19, 19)
     state: BackendState,
     player: int,
+    *,
+    allowed_classes: list[int] | None = None,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -215,6 +217,15 @@ def decode_head(
     automatically decaying into wasteful fallback actions (e.g. DOWNGRADE)
     when their preferred action is temporarily unavailable.
     """
+    # Step 0: Filter by allowed_classes if set
+    if allowed_classes is not None:
+        restricted = np.ones(len(class_mask), dtype=bool)
+        restricted[allowed_classes] = True
+        class_mask = class_mask & restricted
+        for ch in range(len(position_mask)):
+            if ch not in allowed_classes:
+                position_mask[ch] = False
+
     # Step 1: Raw argmax — what the head truly wants
     class_id = int(np.argmax(head_logits))
 
@@ -301,6 +312,8 @@ def decode_network_output(
     network_output: dict[str, torch.Tensor | np.ndarray],
     state: BackendState,
     player: int,
+    *,
+    allowed_classes: list[int] | None = None,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -332,7 +345,8 @@ def decode_network_output(
     # Decode each head (up to 3 operations)
     operations: list[Operation] = []
     for head_idx, head_logits in enumerate(head_logits_list):
-        op = decode_head(head_logits, action_map, class_mask, position_mask, state, player)
+        op = decode_head(head_logits, action_map, class_mask, position_mask, state, player,
+                         allowed_classes=allowed_classes)
         if op is not None:
             # Check if operation is legal (given already selected operations)
             if state.can_apply_operation(player, op, operations):
