@@ -7,6 +7,10 @@ Tests:
   4. Compare with pure parameter noise baseline
 """
 from __future__ import annotations
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 import sys
 from pathlib import Path
 

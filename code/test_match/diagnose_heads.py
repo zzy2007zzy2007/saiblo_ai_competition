@@ -1,5 +1,9 @@
 """Show what each head wants to do. Uses NeuralAgent for gameplay, vs ExampleAI."""
 from __future__ import annotations
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 import sys
 from pathlib import Path
 
@@ -17,30 +21,37 @@ from SDK.utils.constants import MAX_ROUND
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
 from my_ai.decoder import decode_head, make_class_mask, make_position_masks
+from utils.logger import get_logger
 
 CLASS_SHORT = {
     0: "B", 1: "H", 2: "H+", 3: "I", 4: "W", 5: "Q", 6: "Q+", 7: "D",
     8: "S", 9: "M", 10: "M+", 11: "P", 12: "R", 13: "P+", 14: "G", 15: "E",
-    16: "\u2193", 17: "\u26a1", 18: "EMP", 19: "Grv", 20: "Evs",
-    21: "\u2642\u2191", 22: "\u2665\u2191", 23: "\u2205"
+    16: "Dn", 17: "TH", 18: "EMP", 19: "Grv", 20: "Evs",
+    21: "Atk", 22: "Hp", 23: "--"
 }
 
 
-def diagnose_heads(ckpt_path: str, seed: int = 0):
-    if not torch.cuda.is_available():
-        torch.set_num_threads(1)
+def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False):
+    _print = print
+    _empty = lambda: _print()
+    if log is not None:
+        _print = lambda *a, **kw: log.print(*a, timestamp=False, **kw)
+        _empty = lambda: log.print(timestamp=False)
+
+    torch.set_num_threads(1)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
 
-    if "num_heads" in ckpt:
-        num_heads = ckpt["num_heads"]
-    elif "config" in ckpt:
-        num_heads = ckpt["config"].get("num_heads", 3)
-    else:
-        import re
-        hk = [k for k in ckpt.get("model_state", ckpt) if re.match(r"policy_heads\.\d+\.weight", k)]
-        num_heads = max(len(hk), 1) if hk else 3
+    if num_heads is None:
+        if "num_heads" in ckpt:
+            num_heads = ckpt["num_heads"]
+        elif "config" in ckpt:
+            num_heads = ckpt["config"].get("num_heads", 3)
+        else:
+            import re
+            hk = [k for k in ckpt.get("model_state", ckpt) if re.match(r"policy_heads\.\d+\.weight", k)]
+            num_heads = max(len(hk), 1) if hk else 3
 
     if "top2_params" in ckpt and len(ckpt["top2_params"]) > 0:
         t = ckpt["top2_params"][0]
@@ -50,9 +61,9 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
     else:
         raise ValueError("No params found")
 
-    model = create_model(num_heads=num_heads)
+    model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(params)
-    print(f"num_heads={num_heads}, params={len(params):,} device={device}")
+    _print(f"num_heads={num_heads}, params={len(params):,} device={device}")
     agent = NeuralAgent(model=model)
     opponent = ExampleAI(seed=seed)
 
@@ -106,27 +117,27 @@ def diagnose_heads(ckpt_path: str, seed: int = 0):
             total_holds += 1
 
     # Print results
-    print(f"Checkpoint: {ckpt_path}")
-    print(f"num_heads={num_heads}, params={len(params):,}")
+    _print(f"Checkpoint: {ckpt_path}")
+    _print(f"num_heads={num_heads}, params={len(params):,}")
     r = "WIN" if state.bases[0].hp > state.bases[1].hp else "LOSS"
-    print(f"Seed={seed}, turns={turn+1}, result={r} ({state.bases[0].hp} vs {state.bases[1].hp})")
-    print(f"Bundle: {total_ops} ops, {total_holds} holds across {turn+1} turns")
-    print()
-    print(f"{'Head':>6} {'Ops':>6} {'Rej':>6}  Top-8 classes (what head wants to do)")
-    print("-" * 55)
+    _print(f"Seed={seed}, turns={turn+1}, result={r} ({state.bases[0].hp} vs {state.bases[1].hp})")
+    _print(f"Bundle: {total_ops} ops, {total_holds} holds across {turn+1} turns")
+    _empty()
+    _print(f"{'Head':>6} {'Ops':>6} {'Rej':>6}  Top-8 classes (what head wants to do)")
+    _print("-" * 55)
     for h in range(num_heads):
         s = stats[h]
         total = s["ops"] + s["rejected"]
         if total == 0:
-            print(f"  H{h+1}:  (inactive)")
+            _print(f"  H{h+1}:  (inactive)")
             continue
         top3 = sorted(set(s["classes"]), key=lambda c: s["classes"].count(c), reverse=True)[:8]
         t3 = ", ".join(f"{CLASS_SHORT.get(c,'?')}({s['classes'].count(c)})" for c in top3)
         acc = s["ops"] / total * 100
-        print(f"  H{h+1}: {s['ops']:>4d}/{total:<3d}  {acc:3.0f}%  {t3}")
+        _print(f"  H{h+1}: {s['ops']:>4d}/{total:<3d}  {acc:3.0f}%  {t3}")
 
     total_tries = sum(s["ops"] + s["rejected"] for s in stats.values())
-    print(f"\n  Total head-decode attempts: {total_tries} = {total_tries/(turn+1):.2f}/turn")
+    _print(f"\n  Total head-decode attempts: {total_tries} = {total_tries/(turn+1):.2f}/turn")
 
 
 if __name__ == "__main__":
@@ -134,5 +145,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("ckpt", type=str)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--small", action="store_true", help="use small model (87K params, 1 head)")
+    parser.add_argument("--log-dir", type=str, default=None,
+                        help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
-    diagnose_heads(args.ckpt, args.seed)
+    log = None
+    if args.log_dir:
+        log = get_logger(Path(args.log_dir) / "diagnose_heads.log", mode="a")
+    diagnose_heads(args.ckpt, args.seed, log=log, small=args.small)

@@ -8,6 +8,10 @@ Runs:
     2. diagnose_heads (1 game) — what each head wants to do
 """
 from __future__ import annotations
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 import sys
 from pathlib import Path
 
@@ -18,6 +22,7 @@ for p in (_REPO, _CODE):
         sys.path.insert(0, str(p))
 
 import torch
+from utils.logger import get_logger
 from diagnose_model import diagnose
 from diagnose_heads import diagnose_heads
 
@@ -25,15 +30,15 @@ from diagnose_heads import diagnose_heads
 def main():
     import argparse
 
-    # Set CPU threads to 1 if no GPU (avoids thread contention)
+    torch.set_num_threads(1)
     device = "GPU (CUDA)" if torch.cuda.is_available() else "CPU"
-    if not torch.cuda.is_available():
-        torch.set_num_threads(1)
     print(f"Device: {device}")
 
     parser = argparse.ArgumentParser(description="Combined diagnosis: behavior + head analysis")
     parser.add_argument("ckpt", type=str, help="checkpoint path")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
+    parser.add_argument("--log-dir", type=str, default=None,
+                        help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
 
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
@@ -48,22 +53,27 @@ def main():
         hk = [k for k in ckpt.get("model_state", ckpt) if re.match(r"policy_heads\.\d+\.weight", k)]
         num_heads = max(len(hk), 1) if hk else 3
 
-    print("=" * 60)
-    print(f"DIAGNOSE: {args.ckpt}")
-    print(f"num_heads={num_heads}")
-    print("=" * 60)
+    log = None
+    if args.log_dir:
+        log = get_logger(Path(args.log_dir) / "diagnose.log", mode="a")
+
+    p = (lambda *a, **kw: log.print(*a, **kw)) if log else print
+    p("=" * 60)
+    p(f"DIAGNOSE: {args.ckpt}")
+    p(f"num_heads={num_heads}")
+    p("=" * 60)
 
     # 1. Behavior diagnosis (1 game verbose)
-    print("\n" + "-" * 60)
-    print("BEHAVIOR vs ExampleAI")
-    print("-" * 60)
-    diagnose(args.ckpt, n_games=1, seed_offset=args.seed, verbose=True, num_heads=num_heads)
+    p("\n" + "-" * 60)
+    p("BEHAVIOR vs ExampleAI")
+    p("-" * 60)
+    diagnose(args.ckpt, n_games=1, seed_offset=args.seed, verbose=True, num_heads=num_heads, log=log)
 
     # 2. Head diagnosis (1 game)
-    print("\n" + "-" * 60)
-    print("HEAD ANALYSIS vs ExampleAI")
-    print("-" * 60)
-    diagnose_heads(args.ckpt, seed=args.seed)
+    p("\n" + "-" * 60)
+    p("HEAD ANALYSIS vs ExampleAI")
+    p("-" * 60)
+    diagnose_heads(args.ckpt, seed=args.seed, num_heads=num_heads, log=log)
 
 
 if __name__ == "__main__":

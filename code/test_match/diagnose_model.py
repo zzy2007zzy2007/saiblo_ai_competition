@@ -1,11 +1,14 @@
 """Diagnose a model's behavior: what actions does it take vs ExampleAI?"""
 from __future__ import annotations
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
 import sys, time
 from pathlib import Path
 
 import torch
-if not torch.cuda.is_available():
-    torch.set_num_threads(1)
+torch.set_num_threads(1)
 
 _REPO = Path(__file__).resolve().parents[2] / "Ant-Game"
 _CODE = Path(__file__).resolve().parents[1]
@@ -21,6 +24,7 @@ from SDK.utils.constants import MAX_ROUND, TowerType, OperationType, SUPER_WEAPO
 from AI.ai_example import AI as ExampleAI
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
+from utils.logger import get_logger
 
 NUM_CLASSES = 24
 
@@ -55,14 +59,20 @@ CLASS_NAMES = {
 }
 
 
-def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3):
+def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None):
+    _print = print
+    _empty = lambda: _print()
+    if log is not None:
+        _print = lambda *a, **kw: log.print(*a, timestamp=False, **kw)
+        _empty = lambda: log.print(timestamp=False)
+
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
-    print(f"num_heads={num_heads}, params={len(param_vec):,}")
+    _print(f"num_heads={num_heads}, params={len(param_vec):,}")
 
     # Aggregated stats
     total_turns = 0
@@ -83,7 +93,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         ops_this_game = 0
         hold_this_game = 0
 
-        print(f"\n--- Game {g+1}: seed={seed}, we are {side} ---")
+        _print(f"\n--- Game {g+1}: seed={seed}, we are {side} ---")
 
         for _ in range(MAX_ROUND):
             if state.terminal:
@@ -95,7 +105,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
                 hold_this_game += 1
                 total_hold += 1
                 if verbose:
-                     print(f"  turn={turns_played:3d}  HOLD")
+                     _print(f"  turn={turns_played:3d}  HOLD")
             else:
                 ops_this_game += len(ops)
                 total_ops += len(ops)
@@ -103,7 +113,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
                     op_type_counts[op.op_type] = op_type_counts.get(op.op_type, 0) + 1
                 if verbose:
                      descs = [op_desc(op) for op in ops]
-                     print(f"  turn={turns_played:3d}  {' | '.join(descs)}")
+                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}")
 
             opp_ops = opp.choose_operations(state, opp_player)
 
@@ -127,24 +137,24 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
                              "turns": turns_played, "ops": ops_this_game, "holds": hold_this_game})
         total_turns += turns_played
 
-        print(f"  Game {g+1}/{n_games}: seed={seed}  {result}  us={int(hp_us):2d}  opp={int(hp_opp):2d}  "
+        _print(f"  Game {g+1}/{n_games}: seed={seed}  {result}  us={int(hp_us):2d}  opp={int(hp_opp):2d}  "
               f"turns={turns_played:3d}  ops={ops_this_game}  holds={hold_this_game}")
 
     # ─── Summary ─────────────────────────────────────────────────────
     wins = sum(1 for r in game_results if r["result"] == "WIN")
     losses = sum(1 for r in game_results if r["result"] == "LOSS")
 
-    print(f"\n{'='*60}")
-    print(f"DIAGNOSE: {ckpt_path}")
-    print(f"Games: {n_games}")
-    print(f"Win rate: {wins}/{n_games} ({100*wins/n_games:.1f}%)")
-    print(f"Avg turns per game: {total_turns/n_games:.1f}")
-    print(f"Avg ops per turn:   {total_ops/total_turns:.3f}")
-    print(f"Hold rate:          {total_hold}/{total_turns} ({100*total_hold/total_turns:.1f}% of turns)")
-    print()
+    _print(f"\n{'='*60}")
+    _print(f"DIAGNOSE: {ckpt_path}")
+    _print(f"Games: {n_games}")
+    _print(f"Win rate: {wins}/{n_games} ({100*wins/n_games:.1f}%)")
+    _print(f"Avg turns per game: {total_turns/n_games:.1f}")
+    _print(f"Avg ops per turn:   {total_ops/total_turns:.3f}")
+    _print(f"Hold rate:          {total_hold}/{total_turns} ({100*total_hold/total_turns:.1f}% of turns)")
+    _empty()
 
     # Op type breakdown
-    print(f"Operation type distribution (total {total_ops} operations):")
+    _print(f"Operation type distribution (total {total_ops} operations):")
     op_name_map = {
         OperationType.BUILD_TOWER: "BUILD", OperationType.UPGRADE_TOWER: "UPGRADE",
         OperationType.DOWNGRADE_TOWER: "DOWNGRADE",
@@ -154,13 +164,13 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     }
     for opt, cnt in sorted(op_type_counts.items(), key=lambda x: -x[1]):
         name = op_name_map.get(opt, f"OP_{opt}")
-        print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_ops:5.1f}%)")
-    print()
+        _print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_ops:5.1f}%)")
+    _empty()
 
     # Game-by-game
-    print("Per-game detail:")
+    _print("Per-game detail:")
     for r in game_results:
-        print(f"  seed={r['seed']:3d}  {r['result']:4s}  HP {r['hp_us']:2d}/{r['hp_opp']:2d}  "
+        _print(f"  seed={r['seed']:3d}  {r['result']:4s}  HP {r['hp_us']:2d}/{r['hp_opp']:2d}  "
               f"turns={r['turns']:3d}  ops={r['ops']:2d}  holds={r['holds']:2d}")
 
 
@@ -171,6 +181,8 @@ if __name__ == "__main__":
     parser.add_argument("--games", type=int, default=10)
     parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     parser.add_argument("--verbose", "-v", action="store_true", help="print per-turn actions")
+    parser.add_argument("--log-dir", type=str, default=None,
+                        help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
 
     if args.num_heads == 3:
@@ -186,4 +198,7 @@ if __name__ == "__main__":
         elif "policy_head2.weight" in ckpt.get("model_state", {}):
             args.num_heads = 3
 
-    diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads)
+    log = None
+    if args.log_dir:
+        log = get_logger(Path(args.log_dir) / "diagnose_model.log", mode="a")
+    diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads, log=log)
