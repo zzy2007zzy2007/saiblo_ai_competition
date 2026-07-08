@@ -1,18 +1,25 @@
 # 模型行为诊断工具
 
-`code/test_match/diagnose_model.py` — 分析模型在与 ExampleAI 对战时实际选择了哪些动作，用于诊断模型退化或行为异常。
+`code/test_match/diagnose.py` — 综合诊断，同时跑行为分析 + 头部分析（推荐入口）
+
+`code/test_match/diagnose_model.py` — 只做行为分析：模型实际选择了哪些动作
+
+`code/test_match/diagnose_heads.py` — 只做头部分析：每个头想选什么动作
 
 ## 用法
 
 ```bash
-# 默认：10 局，只输出每局汇总
+# 推荐：综合诊断（1 局行为 + 1 局头部，含详细回合输出）
+python code/test_match/diagnose.py <checkpoint.pt>
+
+# 行为诊断：10 局汇总
 python code/test_match/diagnose_model.py <checkpoint.pt>
 
-# 1 局 + 逐回合输出每个动作
+# 行为诊断：1 局 + 逐回合输出
 python code/test_match/diagnose_model.py <checkpoint.pt> --games 1 --verbose
 
-# 分析种群均值（非 top1）
-python code/test_match/diagnose_model.py <checkpoint.pt> --games 5
+# 模拟训练时的 action dropout（测试模型鲁棒性）
+python code/test_match/diagnose.py <checkpoint.pt> --action-dropout 0.1
 ```
 
 ## 选项
@@ -22,6 +29,17 @@ python code/test_match/diagnose_model.py <checkpoint.pt> --games 5
 | `ckpt` | 必填 | checkpoint 路径 |
 | `--games` | 10 | 对局数 |
 | `--verbose, -v` | 否 | 逐回合打印模型选择的动作 |
+| `--action-dropout` | 0.0 | 以指定概率用随机合法动作覆盖模型决策，模拟训练时的 dropout 条件 |
+| `--seed` | 0 | 随机种子（影响先手/后手） |
+| `--log-dir` | — | 日志目录，同时输出到终端和文件 |
+
+### action_dropout 的用途
+
+训练时 action dropout 以概率 p 用随机合法动作覆盖模型决策，让模型接触到"非自然"局面（如建塔消耗金币后无法放闪电），学会从不利局面恢复。诊断时加 `--action-dropout` 可以验证模型是否具备了这种鲁棒性。
+
+例如 gen_0014 的测试对比：
+- `--action-dropout 0.0` → WIN 9-0，纯闪电策略
+- `--action-dropout 0.1` → LOSS 0-13，建塔消耗金币后无法放闪电，模型无恢复能力
 
 ## 输出说明
 
