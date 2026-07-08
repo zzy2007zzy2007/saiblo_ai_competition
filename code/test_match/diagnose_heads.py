@@ -24,10 +24,12 @@ from my_ai.decoder import decode_head, make_class_mask, make_position_masks
 from utils.logger import get_logger
 
 CLASS_SHORT = {
-    0: "B", 1: "H", 2: "H+", 3: "I", 4: "W", 5: "Q", 6: "Q+", 7: "D",
-    8: "S", 9: "M", 10: "M+", 11: "P", 12: "R", 13: "P+", 14: "G", 15: "E",
-    16: "Dn", 17: "TH", 18: "EMP", 19: "Grv", 20: "Evs",
-    21: "Atk", 22: "Hp", 23: "--"
+    0: "0Basic", 1: "1Heavy", 2: "11Heavy+", 3: "12Ice", 4: "13Bewitch",
+    5: "2Quick", 6: "21Quick+", 7: "22Double", 8: "23Sniper",
+    9: "3Mortar", 10: "31Mortar+", 11: "32Pulse", 12: "33Missile",
+    13: "41Producer+", 14: "42Siege", 15: "43Medic",
+    16: "13Downgrade", 17: "21Lightning", 18: "22EMP", 19: "23Deflector", 20: "24Evasion",
+    21: "31Speed", 22: "32Hp", 23: "HOLD"
 }
 
 

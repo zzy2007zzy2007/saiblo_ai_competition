@@ -29,30 +29,30 @@ CLASS_NAMES = [
 ]
 
 CLASS_SHORT = [
-    "B",    # 0  Build_Basic
-    "H",    # 1  Heavy
-    "H+",   # 2  Heavy+
-    "I",    # 3  Ice
-    "W",    # 4  Bewitch
-    "Q",    # 5  Quick
-    "Q+",   # 6  Quick+
-    "D",    # 7  Double
-    "S",    # 8  Sniper
-    "M",    # 9  Mortar
-    "M+",   # 10 Mortar+
-    "P",    # 11 Pulse
-    "R",    # 12 Missile (R for Rocket)
-    "PF",   # 13 Producer_Fast
-    "PS",   # 14 Producer_Siege
-    "PM",   # 15 Producer_Medic
-    "Dn",   # 16 Downgrade
-    "L",    # 17 Lightning
-    "E",    # 18 EMP
-    "Df",   # 19 Deflector
-    "Ev",   # 20 Evasion
-    "Sp",   # 21 SpeedUp
-    "An",   # 22 AntUp
-    "--",    # 23 HOLD
+    "0Basic",        # 0  Build_Basic
+    "1Heavy",        # 1  Heavy
+    "11Heavy+",      # 2  Heavy+
+    "12Ice",         # 3  Ice
+    "13Bewitch",     # 4  Bewitch
+    "2Quick",        # 5  Quick
+    "21Quick+",      # 6  Quick+
+    "22Double",      # 7  Double
+    "23Sniper",      # 8  Sniper
+    "3Mortar",       # 9  Mortar
+    "31Mortar+",     # 10 Mortar+
+    "32Pulse",       # 11 Pulse
+    "33Missile",     # 12 Missile
+    "41Producer+",   # 13 Producer+
+    "42Siege",       # 14 Siege
+    "43Medic",       # 15 Medic
+    "13Downgrade",   # 16 Downgrade
+    "21Lightning",   # 17 Lightning
+    "22EMP",         # 18 EMP
+    "23Deflector",   # 19 Deflector
+    "24Evasion",     # 20 Evasion
+    "31Speed",       # 21 SpeedUp
+    "32Hp",          # 22 HpUp
+    "HOLD",          # 23 HOLD
 ]
 
 

@@ -118,30 +118,30 @@ Bundle: 26 ops, 230 holds across 256 turns
 
 | 简写 | Class ID | 动作类 | 协议操作 | 对应塔类型ID | 说明 |
 |:----:|:--------:|--------|:--------:|:-----------:|------|
-| **B** | 0 | Basic 塔 | `11` 建造 | **0** | 空地→建 Basic；已有 Basic→pass |
-| **H** | 1 | Heavy 塔 | `12` 升级 | **1** | Heavy 分支入口 |
-| **H+** | 2 | Heavy+ 塔 | `12` 升级 | **11** | Heavy → Heavy+ |
-| **I** | 3 | Ice 塔 | `12` 升级 | **12** | Heavy → Ice（冰冻塔） |
-| **W** | 4 | Bewitch 塔 | `12` 升级 | **13** | Heavy → Bewitch（蛊惑塔） |
-| **Q** | 5 | Quick 塔 | `12` 升级 | **2** | Quick 分支入口 |
-| **Q+** | 6 | Quick+ 塔 | `12` 升级 | **21** | Quick → Quick+ |
-| **D** | 7 | Double 塔 | `12` 升级 | **22** | Quick → Double |
-| **S** | 8 | Sniper 塔 | `12` 升级 | **23** | Quick → Sniper（狙击塔） |
-| **M** | 9 | Mortar 塔 | `12` 升级 | **3** | Mortar 分支入口（迫击炮） |
-| **M+** | 10 | Mortar+ 塔 | `12` 升级 | **31** | Mortar → Mortar+ |
-| **P** | 11 | Pulse 塔 | `12` 升级 | **32** | Mortar → Pulse（脉冲塔） |
-| **R** | 12 | Missile 塔 | `12` 升级 | **33** | Mortar → Missile（导弹塔） |
-| **P+** | 13 | Producer+ 塔 | `12` 升级 | **41** | Producer → Producer+（增产） |
-| **G** | 14 | **Siege 塔** | `12` 升级 | **42** | Producer → Siege（攻城塔） |
-| **E** | 15 | Medic 塔 | `12` 升级 | **43** | Producer → Medic（医疗塔） |
-| **Dn** | 16 | 降级/拆除 | `13` 降级 | — | 降一级；Basic→拆除 |
-| **TH** | 17 | 闪电风暴 | `21` (x,y) | — | 超级武器，冷却35回合 |
-| **EMP** | 18 | EMP 轰炸 | `22` (x,y) | — | 超级武器，冷却45回合 |
-| **Grv** | 19 | 引力护盾 | `23` (x,y) | — | 超级武器，冷却25回合 |
-| **Evs** | 20 | 紧急回避 | `24` (x,y) | — | 超级武器，冷却25回合 |
-| **Atk** | 21 | 升基地出兵速度 | `31` | — | 基地升级，200→250金 |
-| **Hp** | 22 | 升基地兵种血量 | `32` | — | 基地升级，200→250金 |
-| **--** | 23 | HOLD | — | — | 该头不做事（pass） |
+| **0Basic** | 0 | Basic 塔 | `11` 建造 | **0** | 空地→建 Basic；已有 Basic→pass |
+| **1Heavy** | 1 | Heavy 塔 | `12` 升级 | **1** | Heavy 分支入口 |
+| **11Heavy+** | 2 | Heavy+ 塔 | `12` 升级 | **11** | Heavy → Heavy+ |
+| **12Ice** | 3 | Ice 塔 | `12` 升级 | **12** | Heavy → Ice（冰冻塔） |
+| **13Bewitch** | 4 | Bewitch 塔 | `12` 升级 | **13** | Heavy → Bewitch（蛊惑塔） |
+| **2Quick** | 5 | Quick 塔 | `12` 升级 | **2** | Quick 分支入口 |
+| **21Quick+** | 6 | Quick+ 塔 | `12` 升级 | **21** | Quick → Quick+ |
+| **22Double** | 7 | Double 塔 | `12` 升级 | **22** | Quick → Double |
+| **23Sniper** | 8 | Sniper 塔 | `12` 升级 | **23** | Quick → Sniper（狙击塔） |
+| **3Mortar** | 9 | Mortar 塔 | `12` 升级 | **3** | Mortar 分支入口（迫击炮） |
+| **31Mortar+** | 10 | Mortar+ 塔 | `12` 升级 | **31** | Mortar → Mortar+ |
+| **32Pulse** | 11 | Pulse 塔 | `12` 升级 | **32** | Mortar → Pulse（脉冲塔） |
+| **33Missile** | 12 | Missile 塔 | `12` 升级 | **33** | Mortar → Missile（导弹塔） |
+| **41Producer+** | 13 | Producer+ 塔 | `12` 升级 | **41** | Producer → Producer+（增产） |
+| **42Siege** | 14 | **Siege 塔** | `12` 升级 | **42** | Producer → Siege（攻城塔） |
+| **43Medic** | 15 | Medic 塔 | `12` 升级 | **43** | Producer → Medic（医疗塔） |
+| **13Downgrade** | 16 | 降级/拆除 | `13` 降级 | — | 降一级；Basic→拆除 |
+| **21Lightning** | 17 | 闪电风暴 | `21` (x,y) | — | 超级武器，冷却35回合 |
+| **22EMP** | 18 | EMP 轰炸 | `22` (x,y) | — | 超级武器，冷却45回合 |
+| **23Deflector** | 19 | 引力护盾 | `23` (x,y) | — | 超级武器，冷却25回合 |
+| **24Evasion** | 20 | 紧急回避 | `24` (x,y) | — | 超级武器，冷却25回合 |
+| **31Speed** | 21 | 升基地出兵速度 | `31` | — | 基地升级，200→250金 |
+| **32Hp** | 22 | 升基地兵种血量 | `32` | — | 基地升级，200→250金 |
+| **HOLD** | 23 | HOLD | — | — | 该头不做事（pass） |
 
 > **协议操作码说明**（定义见 README 第 4 节）：
 > - `11 x y` — 建造防御塔
