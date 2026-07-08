@@ -12,22 +12,10 @@ for p in (_REPO, _CODE):
 import numpy as np
 import torch
 
-TOP1 = True  # default: use top2_params[0] (top1)
-NUM_HEADS = 3  # default number of policy heads
-
-
-def _worker(ckpt_path: str, seed: int) -> dict:
+def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, opponent: str = "example", small: bool = False) -> dict:
     import os
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
-    import sys
-    from pathlib import Path
-    _RP = Path(__file__).resolve().parents[2] / "Ant-Game"
-    _CODE = Path(__file__).resolve().parents[1]
-    for p in (_RP, _CODE):
-        if str(p) not in sys.path:
-            sys.path.insert(0, str(p))
-    import torch
     torch.set_num_threads(1)
 
     from SDK.backend.engine import GameState
@@ -39,22 +27,30 @@ def _worker(ckpt_path: str, seed: int) -> dict:
     # Load checkpoint
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     if "top2_params" in ckpt:
-        param_vec = ckpt["top2_params"][0].numpy() if TOP1 else ckpt["mean"].numpy()
+        param_vec = ckpt["top2_params"][0].numpy() if top1 else ckpt["mean"].numpy()
     elif "mean" in ckpt:
         param_vec = ckpt["mean"].numpy()
     elif "model_state" in ckpt:
         # ss_train.py checkpoint: has model_state but might not have mean
-        model_local = create_model(num_heads=NUM_HEADS)
+        model_local = create_model(num_heads=num_heads, small=small)
         model_local.load_state_dict(ckpt["model_state"])
         param_vec = model_local.get_parameters_as_vector()
     else:
         raise KeyError(f"Checkpoint keys: {list(ckpt.keys())}")
-    model = create_model(num_heads=NUM_HEADS)
+    model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model)
 
     # Opponent
-    opp = ExampleAI(seed=seed)
+    if opponent == "rule_v4":
+        _rv4_root = Path(__file__).resolve().parents[2] / "其他版本ai" / "rule_v4"
+        import sys as _sys
+        if str(_rv4_root) not in _sys.path:
+            _sys.path.insert(0, str(_rv4_root))
+        from ai import AI as RuleV4AI
+        opp = RuleV4AI(seed=seed)
+    else:
+        opp = ExampleAI(seed=seed)
 
     our_player = seed % 2
     opp_player = 1 - our_player
@@ -94,35 +90,39 @@ def main():
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--mean", action="store_true", help="use mean instead of top2_params[0]")
     parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
+    parser.add_argument("--small", action="store_true", help="use small model (87K params, 1 head)")
+    parser.add_argument("--opponent", type=str, default="example", choices=["example", "rule_v4"],
+                        help="opponent AI to evaluate against (default: example)")
     args = parser.parse_args()
 
-    global TOP1, NUM_HEADS
-    TOP1 = not args.mean
+    top1 = not args.mean
 
-    if args.num_heads != 3:
-        NUM_HEADS = args.num_heads
+    if args.small:
+        num_heads = 1
+    elif args.num_heads != 3:
+        num_heads = args.num_heads
     else:
         # Auto-detect num_heads from checkpoint metadata
         ckpt_meta = torch.load(str(Path(args.ckpt).resolve()), map_location="cpu", weights_only=True)
         if "num_heads" in ckpt_meta:
-            NUM_HEADS = ckpt_meta["num_heads"]
+            num_heads = ckpt_meta["num_heads"]
         elif "config" in ckpt_meta and "num_heads" in ckpt_meta["config"]:
-            NUM_HEADS = ckpt_meta["config"]["num_heads"]
+            num_heads = ckpt_meta["config"]["num_heads"]
         elif "model_state" in ckpt_meta:
             import re
             keys = list(ckpt_meta["model_state"].keys())
             heads = [k for k in keys if re.match(r"policy_heads\.\d+\.weight", k)]
-            NUM_HEADS = max(len(heads), 1)
+            num_heads = max(len(heads), 1)
         elif "policy_head2.weight" in ckpt_meta.get("model_state", {}):
-            NUM_HEADS = 3
+            num_heads = 3
         else:
-            NUM_HEADS = 3  # old single_head=True or unknown
+            num_heads = 3  # old single_head=True or unknown
 
     ckpt_path = str(Path(args.ckpt).resolve())
 
     t0 = time.perf_counter()
     with mp.Pool(args.workers) as pool:
-        results = pool.starmap(_worker, [(ckpt_path, s) for s in range(args.games)])
+        results = pool.starmap(_worker, [(ckpt_path, s, top1, num_heads, args.opponent, args.small) for s in range(args.games)])
     dt = time.perf_counter() - t0
 
     scores = [r["score"] for r in results]
@@ -134,8 +134,10 @@ def main():
     hp_us_all = [r["hp_us"] for r in results]
     hp_opp_all = [r["hp_opp"] for r in results]
 
-    label = " (TOP1)" if TOP1 else " (mean)"
+    label = " (TOP1)" if top1 else " (mean)"
+    opp_label = "RuleV4" if args.opponent == "rule_v4" else "ExampleAI"
     print(f"\nCheckpoint: {ckpt_path}{label}")
+    print(f"Opponent:   {opp_label}")
     print(f"Games: {args.games} ({args.workers} workers, {dt:.1f}s)")
     print(f"  Win rate:  {wins / args.games:.3f} ({wins}/{args.games})")
     print(f"  Draw rate: {draws / args.games:.3f} ({draws}/{args.games})")
