@@ -49,9 +49,12 @@ def _eval_worker(
     bc_dir=None,
     gen=0,
     ind=0,
+    action_dropout: float = 0.0,
+    small: bool = False,
 ) -> dict:
     """Run one match: params vs opponent params, collect game data to .npz."""
     import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""  # workers use CPU only (avoid CUDA DLL memory crash)
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
     torch.set_num_threads(1)
@@ -59,11 +62,11 @@ def _eval_worker(
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    model = create_model(num_heads=num_heads)
+    model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(params_flat)
-    agent = NeuralAgent(model=model)
+    agent = NeuralAgent(model=model, action_dropout=action_dropout)
 
-    opp_model = create_model(num_heads=num_heads)
+    opp_model = create_model(num_heads=num_heads, small=small)
     opp_model.set_parameters_from_vector(opp_params_flat)
     opponent = NeuralAgent(model=opp_model)
 
@@ -79,13 +82,13 @@ def _eval_worker(
         if state.terminal:
             break
         ops_us = agent._choose_operations(state, our_player)
-        if bc_dir:
+        if bc_dir and not agent.dropout_this_turn:  # skip dropout-corrupted turns
             feat = agent.feature_extractor.encode_observation(
                 state, our_player, np.zeros(agent.max_actions))
             bc_boards.append(feat["board"].copy())
             bc_stats.append(feat["stats"].copy())
 
-            # class labels: argmax of each head's logits
+            # class labels: argmax of each head's logits (clean model output)
             cls_labels = []
             head_logits_list = []
             for hi in range(num_heads):
@@ -140,6 +143,36 @@ def _eval_worker(
     return result
 
 
+def _compute_dup_rates(class_label, alpha=0.5, max_dup=20):
+    """Compute per-frame duplication factor via f^(-α) oversampling.
+
+    Each head's class frequencies are computed independently.  For each
+    sample, the duplication factor is the *maximum* across all heads
+    (so a sample gets duplicated if *any* head chose a rare class).
+
+    A +1 Laplace smooth avoids divide-by-zero and prevents any class
+    reaching extreme duplication rates.
+
+    Args:
+        class_label: (T, N_heads) int64 array of class ids.
+        alpha:       power-law exponent (0=no change, 1=fully equalised).
+        max_dup:     maximum duplication factor cap.
+
+    Returns:
+        (T,) float32 array of duplication factors (≥1.0).
+    """
+    T, NH = class_label.shape
+    rates = np.ones(T, dtype=np.float32)
+    for hi in range(NH):
+        classes = class_label[:, hi]
+        counts = np.bincount(classes, minlength=24).astype(np.float64) + 1.0  # +1 smooth
+        freqs = counts / counts.sum()
+        head_rates = freqs[classes] ** (-alpha)
+        head_rates = np.clip(head_rates, 1.0, max_dup)
+        rates = np.maximum(rates, head_rates.astype(np.float32))
+    return rates
+
+
 class SSDataset(Dataset):
     """Dataset from top-K game .npz files with HOLD filtering + stochastic mutations.
 
@@ -150,14 +183,15 @@ class SSDataset(Dataset):
       - action_map:   (T, NUM_CLASSES, 19, 19) float16
       - head_logits:  (T, N_heads, 24) float16
 
-    During __getitem__, random mutations are applied:
-      - class mutation: replace argmax with softmax-sampled class (p=p_mutate)
-      - position mutation: add Gaussian noise to action_map (p=p_mutate)
+    After HOLD downsampling, f^(-α) oversampling is applied: frames
+    where any head picks a rare class are duplicated so that rare
+    classes contribute meaningful gradient signal during BC training.
     """
 
     HOLD_CLASS = 23
 
-    def __init__(self, npz_paths, p_hold=1.0, seed=42):
+    def __init__(self, npz_paths, p_hold=1.0, seed=42,
+                 oversample_alpha=0.0, oversample_max_dup=20):
         boards, statss, classes, maps, logits = [], [], [], [], []
         scores_list = []
         has_scores = True
@@ -202,6 +236,36 @@ class SSDataset(Dataset):
         if n_before > 0 and n_after < n_before:
             print(f"  [SS] HOLD downsampled: {n_before} -> {n_after} "
                   f"({100 * (n_before - n_after) // n_before}% removed)")
+
+        # ── f^(-α) oversampling: duplicate frames with rare classes ──
+        if oversample_alpha > 0 and len(self.class_label) > 0:
+            dup = _compute_dup_rates(self.class_label, alpha=oversample_alpha,
+                                     max_dup=oversample_max_dup)
+            to_dup = np.where(dup > 1.0)[0]
+            extra_indices = []
+            for idx in to_dup:
+                n = int(dup[idx])
+                extra_indices.extend([idx] * (n - 1))  # -1 because original is already there
+
+            if extra_indices:
+                self.board = np.concatenate(
+                    [self.board, self.board[extra_indices]], axis=0)
+                self.stats = np.concatenate(
+                    [self.stats, self.stats[extra_indices]], axis=0)
+                self.class_label = np.concatenate(
+                    [self.class_label, self.class_label[extra_indices]], axis=0)
+                self.action_map = np.concatenate(
+                    [self.action_map, self.action_map[extra_indices]], axis=0)
+                self.head_logits = np.concatenate(
+                    [self.head_logits, self.head_logits[extra_indices]], axis=0)
+                if self.class_scores is not None:
+                    self.class_scores = np.concatenate(
+                        [self.class_scores, self.class_scores[extra_indices]], axis=0)
+
+                n_orig = n_after
+                n_now = len(self.board)
+                print(f"  [SS] f^(-α) oversample: alpha={oversample_alpha} "
+                      f"{n_orig} -> {n_now} (+{n_now - n_orig})")
 
     def __len__(self):
         return len(self.board)
@@ -424,7 +488,8 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
 def bc_mutate_population(mean_model, dataset, device, n_individuals,
                           p_mutate=0.1, temperature=3.0,
                           mutation_step=0.01, sigma=0.0002,
-                          n_dirs=20, log=None, gen=0):
+                          n_dirs=20, log=None, gen=0,
+                          small=False):
     """Generate N individuals via linear combination of gradient directions.
 
     Phase 1: Pre-compute ``n_dirs`` gradient basis directions (each from a
@@ -439,7 +504,7 @@ def bc_mutate_population(mean_model, dataset, device, n_individuals,
 
     N = mean_model.num_heads
     mean_params = mean_model.get_parameters_as_vector()
-    model_template = create_model(num_heads=N)
+    model_template = create_model(num_heads=N, small=small)
 
     # Phase 1: Pre-compute gradient basis
     loader = DataLoader(dataset, batch_size=64, shuffle=True)
@@ -674,9 +739,10 @@ def select_opponents(population_size, games_per_individual, rng):
 # ════════════════════════════════════════════════
 
 
-def build_eval_args(params_list, opp_params_list, pop_size, games, num_heads, bc_dir, gen, seed, only_idx=None, seed_offset=0):
+def build_eval_args(params_list, opp_params_list, pop_size, games, num_heads, bc_dir, gen, seed, only_idx=None, seed_offset=0,
+                    action_dropout=0.0, small=False):
     """Build argument tuples for _eval_worker.
-    
+
     k_per_ind is derived from len(opp_params_list) so that Phase 2
     always uses valid indices regardless of games vs data_games.
     """
@@ -691,11 +757,13 @@ def build_eval_args(params_list, opp_params_list, pop_size, games, num_heads, bc
                 params_list[idx], opp_params_list[k_idx], base_seed,
                 num_heads,
                 bc_dir, gen, idx,
+                action_dropout, small,
             ))
             all_args.append((
                 params_list[idx], opp_params_list[k_idx], base_seed + 1,
                 num_heads,
                 bc_dir, gen, idx,
+                action_dropout, small,
             ))
     return all_args
 
@@ -788,6 +856,14 @@ def main():
                         help="output directory (default: auto timestamp)")
     parser.add_argument("--checkpoint", type=str, default=None,
                         help="resume from checkpoint")
+    parser.add_argument("--small", action="store_true",
+                        help="use small model (87K params, 1 head)")
+    parser.add_argument("--action-dropout", type=float, default=0.0,
+                        help="probability of replacing model action with random legal action")
+    parser.add_argument("--oversample-alpha", type=float, default=0.0,
+                        help="f^(-α) oversampling exponent (0=off, 0.5=sqrt, 1.0=equalise)")
+    parser.add_argument("--oversample-max-dup", type=int, default=20,
+                        help="maximum duplication factor for oversampling")
 
     args = parser.parse_args()
 
@@ -814,7 +890,7 @@ def main():
         f.write(f"timestamp={ts}\n")
 
     # ── Model ─────────────────────────────────────────────────────
-    model = create_model(num_heads=args.num_heads)
+    model = create_model(num_heads=args.num_heads, small=args.small)
     param_count = model.count_parameters()
 
     # ── Leaderboard ──────────────────────────────────────────────
@@ -874,6 +950,8 @@ def main():
     log.print(key="temperature", value=args.temperature)
     log.print(key="p_hold", value=args.p_hold)
     log.print(key="pos_noise_std", value=args.pos_noise_std)
+    log.print(key="small", value=args.small)
+    log.print(key="action_dropout", value=args.action_dropout)
     log.print(key="leaderboard", value="enabled (max_size=20)" if not args.no_lb else "disabled")
     log.separator("-")
 
@@ -933,7 +1011,7 @@ def main():
                     p_mutate=args.p_mutate, temperature=args.temperature,
                     mutation_step=args.mutation_step, sigma=args.sigma,
                     n_dirs=args.n_grad_dirs, log=log,
-                    gen=gen,
+                    gen=gen, small=args.small,
                 )
             else:
                 # Fallback (gen=0 only): tiny parameter noise
@@ -1015,7 +1093,8 @@ def main():
                 all_args = build_eval_args(
                     params_list, opp_params_list, args.pop_size, args.games,
                     args.num_heads, str(bc_dir), gen, args.seed,
-                    only_idx=None, seed_offset=0)
+                    only_idx=None, seed_offset=0,
+                    action_dropout=args.action_dropout, small=args.small)
                 all_results = run_eval(pool, all_args)
                 if interrupted:
                     break
@@ -1029,7 +1108,8 @@ def main():
                 all_args_1 = build_eval_args(
                     params_list, opp_params_list, args.pop_size, args.games,
                     args.num_heads, None, gen, args.seed,
-                    only_idx=None, seed_offset=0)
+                    only_idx=None, seed_offset=0,
+                    action_dropout=args.action_dropout, small=args.small)
                 all_results_1 = run_eval(pool, all_args_1)
                 if interrupted:
                     break
@@ -1060,7 +1140,8 @@ def main():
                 all_args_2 = build_eval_args(
                     params_list, opp_params_phase2, args.pop_size, args.data_games,
                     args.num_heads, str(bc_dir), gen, args.seed,
-                    only_idx=top_k_idx, seed_offset=10000)
+                    only_idx=top_k_idx, seed_offset=10000,
+                    action_dropout=args.action_dropout, small=args.small)
                 run_eval(pool, all_args_2)
                 if interrupted:
                     break
@@ -1082,6 +1163,8 @@ def main():
                     npz_paths,
                     p_hold=args.p_hold,
                     seed=args.seed + gen,
+                    oversample_alpha=args.oversample_alpha,
+                    oversample_max_dup=args.oversample_max_dup,
                 )
                 if len(ds) > 0:
                     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -1106,7 +1189,8 @@ def main():
 
                 def _vs_strongest(me, opponent):
                     match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
-                                    args.num_heads, None, gen, -1)
+                                    args.num_heads, None, gen, -1,
+                                    0.0, args.small)
                                    for s in range(args.games)]
                     scores = [r["score"] if isinstance(r, dict) else r
                               for r in pool.starmap(_eval_worker, match_tasks)]
@@ -1180,8 +1264,9 @@ def main():
                 save_checkpoint(ckpt_path, mean, model, gen + 1, config=config_dict, leaderboard=leaderboard)
                 log.print(key="checkpoint", value=ckpt_path)
 
-            # 10. Cleanup .npz files
-            cleanup_gen_npz(bc_dir, gen)
+            # 10. Cleanup .npz files (disabled to preserve BC data for analysis)
+            # cleanup_gen_npz(bc_dir, gen)
+            pass
 
             latest_result = {
                 "generation": gen,
