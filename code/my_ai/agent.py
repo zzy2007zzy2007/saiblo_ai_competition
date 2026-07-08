@@ -16,6 +16,8 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_CODE_ROOT) not in sys.path:
     sys.path.insert(0, str(_CODE_ROOT))
 
+import random
+
 import torch
 import numpy as np
 
@@ -39,6 +41,7 @@ class NeuralAgent(BaseAgent):
         max_actions: int = 96,
         *,
         allowed_classes: list[int] | None = None,
+        action_dropout: float = 0.0,
     ):
         super().__init__(seed=seed, max_actions=max_actions)
         self.max_actions = max_actions
@@ -47,6 +50,8 @@ class NeuralAgent(BaseAgent):
         self.feature_extractor = FeatureExtractor(max_actions=max_actions)
         self.last_output = None
         self.allowed_classes = allowed_classes
+        self.action_dropout = action_dropout
+        self.dropout_this_turn = False
 
     def set_model(self, model: AntWarNetwork) -> None:
         """Replace the model (used by ES to update weights)."""
@@ -96,6 +101,18 @@ class NeuralAgent(BaseAgent):
         # Decode (with optional class restriction)
         operations = decode_network_output(output, state, player,
                                            allowed_classes=self.allowed_classes)
+
+        # ── Action Dropout: randomly override with legal action ──
+        self.dropout_this_turn = False
+        if self.action_dropout > 0 and random.random() < self.action_dropout:
+            from SDK.utils.actions import ActionCatalog
+            catalog = ActionCatalog()
+            bundles = catalog.build(state, player)
+            if bundles:
+                chosen = random.choice(bundles)
+                operations = list(chosen.operations)
+                self.dropout_this_turn = True
+
         return operations
 
 
