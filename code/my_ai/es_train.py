@@ -73,6 +73,7 @@ def _eval_worker(
     bc_dir=None, gen=0, ind=0,
     *,
     allowed_classes: list[int] | None = None,
+    action_dropout: float = 0.0,
 ) -> dict:
     """Run one match: params vs opponent.
 
@@ -95,6 +96,8 @@ def _eval_worker(
     for p in (_RP, _CODE):
         if str(p) not in sys.path:
             sys.path.insert(0, str(p))
+
+    import random
 
     import torch
     torch.set_num_threads(1)
@@ -144,6 +147,14 @@ def _eval_worker(
             cls_labels = [agent.last_output[f"head{hi+1}_logits"].argmax().item() for hi in range(num_heads)]
             bc_class_labels.append(cls_labels)
             bc_map_labels.append([map_arg] * num_heads)
+        # ── Action Dropout: override agent's choice with random legal action ──
+        if action_dropout > 0 and random.random() < action_dropout:
+            from SDK.utils.actions import ActionCatalog
+            catalog = ActionCatalog()
+            bundles = catalog.build(state, our_player)
+            if bundles:
+                chosen = random.choice(bundles)
+                ops_us = list(chosen.operations)
         ops_opp = opponent._choose_operations(state, opp_player)
         if our_player == 0:
             state.resolve_turn(ops_us, ops_opp)
@@ -211,6 +222,7 @@ class ESTrainer:
         self.rng = np.random.RandomState(seed)
         self.small = small
         self.allowed_classes: list[int] | None = None  # multi-expert: restrict action classes
+        self.action_dropout: float = 0.0  # probability of replacing agent's action with random legal action
         self.mixed_probs: tuple[float, float, float] = (0.33, 0.33, 0.34)  # mixed opponent probs (a,b,c)
 
         self.model = create_model(small=small, num_heads=num_heads)
@@ -344,7 +356,7 @@ class ESTrainer:
                 ))
 
         # Submit all tasks and wait with timeout polling (so Ctrl+C works on Windows)
-        worker_fn = partial(_eval_worker, allowed_classes=self.allowed_classes)
+        worker_fn = partial(_eval_worker, allowed_classes=self.allowed_classes, action_dropout=self.action_dropout)
         async_result = pool.starmap_async(worker_fn, all_args)
         while True:
             try:
@@ -476,7 +488,8 @@ class ESTrainer:
             data["bc_config"] = {"k": self.bc_config.k, "epochs": self.bc_config.epochs,
                                  "lr": self.bc_config.lr, "batch_size": self.bc_config.batch_size,
                                  "lambda_map": self.bc_config.lambda_map,
-                                 "lambda_class": self.bc_config.lambda_class}
+                                 "lambda_class": self.bc_config.lambda_class,
+                                 "weight_decay": self.bc_config.weight_decay}
         if self.allowed_classes is not None:
             data["allowed_classes"] = self.allowed_classes
             data["mixed_probs"] = self.mixed_probs
@@ -549,7 +562,7 @@ def main():
     parser.add_argument("--checkpoint", type=str, default=None, help="resume from ES checkpoint")
     parser.add_argument("--load-bc", type=str, default=None,
                         help="load BC checkpoint as initialization (for cold start)")
-    parser.add_argument("--save-every", type=int, default=10)
+    parser.add_argument("--save-every", type=int, default=3)
     parser.add_argument("--no-lb", action="store_true",
                         help="disable Leaderboard opponent selection (fall back to elite pool)")
     parser.add_argument("--no-wg", action="store_true",
@@ -566,11 +579,15 @@ def main():
     parser.add_argument("--bc-lambda-map", type=float, default=1.0)
     parser.add_argument("--bc-lambda-class", type=float, default=1.0)
     parser.add_argument("--bc-device", type=str, default="cuda")
+    parser.add_argument("--bc-weight-decay", type=float, default=1e-4,
+                        help="weight decay for BC optimizer (AdamW), prevents policy head explosion")
     parser.add_argument("--allowed-classes", type=int, nargs="+", default=None,
                         help="restrict agent to specific action classes (multi-expert training)")
     parser.add_argument("--opp-probs", type=float, nargs=3, default=[0.33, 0.33, 0.34],
                         metavar=("A", "B", "C"),
                         help="mixed opponent probs: random, example, rule_v4")
+    parser.add_argument("--action-dropout", type=float, default=0.0,
+                        help="probability of replacing agent's action with a random legal action per turn (default: 0.0)")
     args = parser.parse_args()
 
     # ── Prepare output directory ──────────────────────────────────
@@ -609,6 +626,7 @@ def main():
     trainer.out_dir = str(out_dir)
     trainer.generations = args.generations  # allows hot-reload from config
     trainer.allowed_classes = args.allowed_classes
+    trainer.action_dropout = args.action_dropout
     trainer.mixed_probs = tuple(args.opp_probs)
 
     # ── BC data directory ─────────────────────────────────────────
@@ -663,6 +681,8 @@ def main():
     log.print(key="generations", value=args.generations)
     log.print(key="num_heads", value=trainer.num_heads)
     log.print(key="small", value=args.small)
+    if args.action_dropout > 0:
+        log.print(key="action_dropout", value=f"{args.action_dropout:.2f}")
     if args.allowed_classes is not None:
         log.print(key="allowed_classes", value=args.allowed_classes)
         log.print(key="opp_probs", value=f"a={args.opp_probs[0]:.2f} b={args.opp_probs[1]:.2f} c={args.opp_probs[2]:.2f}")
@@ -753,7 +773,8 @@ def main():
                                 lr=trainer.bc_config.lr,
                                 batch_size=trainer.bc_config.batch_size,
                                 lambda_map=trainer.bc_config.lambda_map,
-                                lambda_class=trainer.bc_config.lambda_class)
+                                lambda_class=trainer.bc_config.lambda_class,
+                                weight_decay=trainer.bc_config.weight_decay)
                             trainer.mean = trainer.model.get_parameters_as_vector()
                             log.print(key="bc",
                                 value=f"top{selected} samples={bc_ret['samples']} "

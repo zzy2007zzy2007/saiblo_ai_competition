@@ -110,6 +110,7 @@ def supervised_update(
     batch_size: int = 64,
     lambda_map: float = 1.0,
     lambda_class: float = 1.0,
+    weight_decay: float = 0.0,
 ) -> dict[str, float | int]:
     """用 elite 数据监督训练 mean 模型。BC 完全替代 ES 梯度。
 
@@ -124,7 +125,7 @@ def supervised_update(
     model.train()
     model.to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     total_cls = 0.0
     total_map = 0.0
     total = 0.0
@@ -226,6 +227,7 @@ class BCConfig:
         batch_size: int = 64,
         lambda_map: float = 1.0,
         lambda_class: float = 1.0,
+        weight_decay: float = 0.0,
         device: str = "cuda",
     ) -> None:
         self.enabled = enabled
@@ -235,6 +237,7 @@ class BCConfig:
         self.batch_size = batch_size
         self.lambda_map = lambda_map
         self.lambda_class = lambda_class
+        self.weight_decay = weight_decay
         # 设备自动回退：如果参数为 "cuda" 但 CUDA 不可用，则使用 CPU
         if device == "cuda" and not torch.cuda.is_available():
             self.device = torch.device("cpu")
@@ -252,5 +255,6 @@ class BCConfig:
             batch_size=args.bc_batch_size,
             lambda_map=args.bc_lambda_map,
             lambda_class=args.bc_lambda_class,
+            weight_decay=args.bc_weight_decay,
             device=args.bc_device,
         )
