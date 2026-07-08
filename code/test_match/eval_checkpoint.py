@@ -18,6 +18,9 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
     os.environ["MKL_NUM_THREADS"] = "1"
     torch.set_num_threads(1)
 
+    import random
+    random.seed(seed)  # deterministic dropout behavior per game seed
+
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
     from AI.ai_example import AI as ExampleAI
