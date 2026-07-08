@@ -12,7 +12,7 @@ for p in (_REPO, _CODE):
 import numpy as np
 import torch
 
-def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, opponent: str = "example", small: bool = False) -> dict:
+def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, opponent: str = "example", small: bool = False, action_dropout: float = 0.0) -> dict:
     import os
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
@@ -39,7 +39,7 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
         raise KeyError(f"Checkpoint keys: {list(ckpt.keys())}")
     model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(param_vec)
-    agent = NeuralAgent(model=model)
+    agent = NeuralAgent(model=model, action_dropout=action_dropout)
 
     # Opponent
     if opponent == "rule_v4":
@@ -93,6 +93,8 @@ def main():
     parser.add_argument("--small", action="store_true", help="use small model (87K params, 1 head)")
     parser.add_argument("--opponent", type=str, default="example", choices=["example", "rule_v4"],
                         help="opponent AI to evaluate against (default: example)")
+    parser.add_argument("--action-dropout", type=float, default=0.0,
+                        help="probability of replacing agent's action with random legal action per turn")
     args = parser.parse_args()
 
     top1 = not args.mean
@@ -122,7 +124,7 @@ def main():
 
     t0 = time.perf_counter()
     with mp.Pool(args.workers) as pool:
-        results = pool.starmap(_worker, [(ckpt_path, s, top1, num_heads, args.opponent, args.small) for s in range(args.games)])
+        results = pool.starmap(_worker, [(ckpt_path, s, top1, num_heads, args.opponent, args.small, args.action_dropout) for s in range(args.games)])
     dt = time.perf_counter() - t0
 
     scores = [r["score"] for r in results]
@@ -138,6 +140,8 @@ def main():
     opp_label = "RuleV4" if args.opponent == "rule_v4" else "ExampleAI"
     print(f"\nCheckpoint: {ckpt_path}{label}")
     print(f"Opponent:   {opp_label}")
+    if args.action_dropout > 0:
+        print(f"Dropout:    {args.action_dropout:.2f}")
     print(f"Games: {args.games} ({args.workers} workers, {dt:.1f}s)")
     print(f"  Win rate:  {wins / args.games:.3f} ({wins}/{args.games})")
     print(f"  Draw rate: {draws / args.games:.3f} ({draws}/{args.games})")
