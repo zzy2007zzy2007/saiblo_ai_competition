@@ -1082,16 +1082,19 @@ def main():
                               value=f"swapped {n_swap} individuals, "
                                     f"pop={len(params_list)} p={args.swap_ratio:.2f}")
 
-            # Elite retention: inject top past elites, replace weakest positions
+            # Mean injection: put mean at a fixed position first
+            params_list[-1] = mean.copy().astype(np.float32)
+
+            # Elite retention: inject top past elites (after mean, so mean stays at -1)
             n_elite = max(1, int(args.pop_size ** 0.25))
             for i in range(min(n_elite, len(elite_saved))):
-                params_list[-(i + 1)] = elite_saved[i].copy()
+                params_list[-(i + 2)] = elite_saved[i].copy()
 
             # LB inject: pull strongest entries from leaderboard into population
             if leaderboard is not None and args.lb_inject > 0:
                 lb_entries = leaderboard.get_ranked_entries()
                 n_lb = min(args.lb_inject, len(lb_entries))
-                offset = n_elite  # inject after elite retention
+                offset = n_elite + 1  # after mean + elite retention
                 for i in range(n_lb):
                     pos = -(i + 1 + offset)
                     if abs(pos) <= len(params_list):
@@ -1099,9 +1102,6 @@ def main():
                 if log and n_lb > 0:
                     log.print(key="lb_inject",
                               value=f"{n_lb} entries from leaderboard injected")
-
-            # Mean injection: ensure the mean policy is always in the population
-            params_list[-1] = mean.copy().astype(np.float32)
 
             # 2. Select opponents
             k_per_ind = args.games // 2
