@@ -109,6 +109,9 @@ def _eval_worker(
         else:
             state.resolve_turn(ops_opp, ops_us)
 
+    hp_us = state.bases[our_player].hp
+    hp_opp = state.bases[opp_player].hp
+
     if bc_dir and bc_boards:
         boards_arr = np.stack(bc_boards, axis=0)       # (T, 28, 19, 19)
         stats_arr = np.stack(bc_stats, axis=0)          # (T, 42)
@@ -116,13 +119,23 @@ def _eval_worker(
         map_arr = np.stack(bc_action_maps, axis=0)      # (T, NUM_CLASSES, 19, 19)
         logits_arr = np.stack(bc_head_logits, axis=0)   # (T, num_heads, 24)
 
+        # Value label: final game outcome broadcast to every frame
+        if hp_us <= 0 and hp_opp <= 0:
+            outcome = 0.5
+        elif hp_us > hp_opp:
+            outcome = 1.0
+        elif hp_opp > hp_us:
+            outcome = 0.0
+        else:
+            outcome = 0.5
+        value_labels = np.full(len(bc_boards), outcome, dtype=np.float32)
+
         write_npz(
             Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
             boards_arr, stats_arr, class_arr, map_arr, logits_arr,
+            value=value_labels,
         )
 
-    hp_us = state.bases[our_player].hp
-    hp_opp = state.bases[opp_player].hp
     if hp_us <= 0 and hp_opp <= 0:
         result = {"score": 0.5, "our_player": our_player}
     elif hp_us > hp_opp:
@@ -194,7 +207,9 @@ class SSDataset(Dataset):
                  oversample_alpha=0.0, oversample_max_dup=20):
         boards, statss, classes, maps, logits = [], [], [], [], []
         scores_list = []
+        value_list = []
         has_scores = True
+        has_value = True
         for p in npz_paths:
             data = np.load(p)
             boards.append(data["board"])
@@ -206,6 +221,10 @@ class SSDataset(Dataset):
                 scores_list.append(data["class_scores"])
             elif has_scores:
                 has_scores = False
+            if has_value and "value" in data:
+                value_list.append(data["value"])
+            elif has_value:
+                has_value = False
 
         self.board = np.concatenate(boards, axis=0)        # (T_total, 28, 19, 19)
         self.stats = np.concatenate(statss, axis=0)        # (T_total, 42)
@@ -216,6 +235,10 @@ class SSDataset(Dataset):
         self.class_scores = None
         if has_scores and scores_list:
             self.class_scores = np.concatenate(scores_list, axis=0)  # (T_total, 24)
+
+        self.value = None
+        if has_value and value_list:
+            self.value = np.concatenate(value_list, axis=0).astype(np.float32)
 
         # HOLD downsampling: rounds where all heads == HOLD_CLASS, kept at p_hold
         all_hold = (self.class_label == self.HOLD_CLASS).all(axis=1)
@@ -231,6 +254,8 @@ class SSDataset(Dataset):
         self.head_logits = self.head_logits[valid]
         if self.class_scores is not None:
             self.class_scores = self.class_scores[valid]
+        if self.value is not None:
+            self.value = self.value[valid]
         n_after = len(self.board)
 
         if n_before > 0 and n_after < n_before:
@@ -261,6 +286,9 @@ class SSDataset(Dataset):
                 if self.class_scores is not None:
                     self.class_scores = np.concatenate(
                         [self.class_scores, self.class_scores[extra_indices]], axis=0)
+                if self.value is not None:
+                    self.value = np.concatenate(
+                        [self.value, self.value[extra_indices]], axis=0)
 
                 n_orig = n_after
                 n_now = len(self.board)
@@ -285,6 +313,8 @@ class SSDataset(Dataset):
         }
         if self.class_scores is not None:
             result["class_scores"] = torch.from_numpy(self.class_scores[idx]).float()  # (24,)
+        if self.value is not None:
+            result["value"] = torch.tensor(self.value[idx], dtype=torch.float32)  # scalar
         return result
 
 
@@ -664,22 +694,24 @@ def _extract_grad_per_head(model, num_heads):
 # ════════════════════════════════════════════════
 
 
-def write_npz(path, board, stats, class_, action_map, head_logits):
+def write_npz(path, board, stats, class_, action_map, head_logits, value=None):
     """Save game timestep data as compressed .npz.
 
     board/action_map/head_logits/stats saved as float16 (with clip to safe range),
-    class_ saved as int64.
+    class_ saved as int64. If value is provided, it's saved as float32.
     """
     F16_MAX = 65504.0
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        path,
+    kw = dict(
         board=board.astype(np.float16),
         stats=stats.astype(np.float16),
         class_=class_,
         action_map=np.clip(action_map, -F16_MAX, F16_MAX).astype(np.float16),
         head_logits=np.clip(head_logits, -F16_MAX, F16_MAX).astype(np.float16),
     )
+    if value is not None:
+        kw["value"] = np.asarray(value, dtype=np.float32)
+    np.savez_compressed(path, **kw)
 
 
 def collect_npz(bc_dir, selected_indices, gen):
