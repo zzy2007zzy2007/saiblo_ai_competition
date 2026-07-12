@@ -15,8 +15,10 @@ import torch
 from SDK.utils.constants import (
     HIGHLAND_CELLS,
     MAP_SIZE,
+    MAP_PROPERTY,
     PLAYER_BASES,
     TOWER_UPGRADE_TREE,
+    Terrain,
     TowerType,
     OperationType,
     SUPER_WEAPON_STATS,
@@ -185,10 +187,11 @@ def make_position_masks(state: BackendState, player: int) -> np.ndarray:
     for t in state.towers_of(player):
         mask[16, t.x, t.y] = True
 
-    # Super weapons (17-20): can place at any position (if cooldown/coins allow)
+    # Super weapons (17-20): can place at any valid (non-VOID) position
+    valid_cells = np.array(MAP_PROPERTY, dtype=np.int32) != Terrain.VOID  # (19,19) bool
     for ch in range(17, 21):
         if _check_super_weapon_valid(state, player, ch):
-            mask[ch, :, :] = True
+            mask[ch] = valid_cells
 
     # Base upgrades (21-22): no position, all False
 

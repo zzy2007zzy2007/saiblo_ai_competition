@@ -28,7 +28,7 @@ class Leaderboard:
     """
 
     def __init__(self, max_size: int = 20, param_count: int = 0,
-                 threshold: float = 0.6, max_challenges: int = 2):
+                 threshold: float = 0.6, max_challenges: int = 1):
         self.max_size = max_size
         self.threshold = threshold
         self.max_challenges = max_challenges

@@ -33,7 +33,7 @@ CLASS_SHORT = {
 }
 
 
-def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0):
+def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -65,8 +65,8 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
 
     model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(params)
-    _print(f"num_heads={num_heads}, params={len(params):,} device={device} action_dropout={action_dropout}")
-    agent = NeuralAgent(model=model, action_dropout=action_dropout)
+    _print(f"num_heads={num_heads}, params={len(params):,} device={device}")
+    agent = NeuralAgent(model=model)
     opponent = ExampleAI(seed=seed)
 
     stats = {i: {"ops": 0, "rejected": 0, "classes": []} for i in range(num_heads)}
@@ -148,11 +148,10 @@ if __name__ == "__main__":
     parser.add_argument("ckpt", type=str)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--small", action="store_true", help="use small model (87K params, 1 head)")
-    parser.add_argument("--action-dropout", type=float, default=0.0, help="action dropout rate")
     parser.add_argument("--log-dir", type=str, default=None,
                         help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
     log = None
     if args.log_dir:
         log = get_logger(Path(args.log_dir) / "diagnose_heads.log", mode="a")
-    diagnose_heads(args.ckpt, args.seed, log=log, small=args.small, action_dropout=args.action_dropout)
+    diagnose_heads(args.ckpt, args.seed, log=log, small=args.small)

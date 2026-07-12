@@ -24,7 +24,6 @@ from SDK.utils.constants import MAX_ROUND, TowerType, OperationType, SUPER_WEAPO
 from AI.ai_example import AI as ExampleAI
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
-from my_ai.decoder import decode_network_output
 from utils.logger import get_logger
 
 NUM_CLASSES = 24
@@ -60,7 +59,7 @@ CLASS_NAMES = {
 }
 
 
-def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None, action_dropout: float = 0.0):
+def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -72,17 +71,14 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
-    agent = NeuralAgent(model=model, action_dropout=action_dropout)
-    _print(f"num_heads={num_heads}, params={len(param_vec):,} action_dropout={action_dropout}")
+    agent = NeuralAgent(model=model)
+    _print(f"num_heads={num_heads}, params={len(param_vec):,}")
 
     # Aggregated stats
     total_turns = 0
     total_ops = 0  # total operations executed
     total_hold = 0  # turns where model took no actions
-    op_type_counts: dict[int, int] = {}          # executed (after dropout override)
-    model_op_counts: dict[int, int] = {}          # model's true intent (before dropout)
-    dropout_op_counts: dict[int, int] = {}        # forced by dropout only
-    model_hold_turns = 0                          # turns where model wanted to do nothing
+    op_type_counts: dict[int, int] = {}
     game_results = []
 
     for g in range(n_games):
@@ -105,31 +101,11 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
 
             ops = agent._choose_operations(state, our_player)
 
-            # Decode model's true intent (before dropout override)
-            is_dropout = agent.action_dropout > 0 and agent.dropout_this_turn
-            if agent.last_output is not None and is_dropout:
-                model_ops = decode_network_output(agent.last_output, state, our_player)
-            else:
-                model_ops = ops  # no dropout, executed = intended
-
-            # Count model's intended ops
-            if len(model_ops) == 0:
-                model_hold_turns += 1
-            else:
-                for op in model_ops:
-                    model_op_counts[op.op_type] = model_op_counts.get(op.op_type, 0) + 1
-
-            # Count dropout-forced ops separately
-            if is_dropout:
-                for op in ops:
-                    dropout_op_counts[op.op_type] = dropout_op_counts.get(op.op_type, 0) + 1
-
             if len(ops) == 0:
                 hold_this_game += 1
                 total_hold += 1
                 if verbose:
-                     tag = " [dropout→HOLD]" if is_dropout else ""
-                     _print(f"  turn={turns_played:3d}  HOLD{tag}")
+                     _print(f"  turn={turns_played:3d}  HOLD")
             else:
                 ops_this_game += len(ops)
                 total_ops += len(ops)
@@ -137,8 +113,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
                     op_type_counts[op.op_type] = op_type_counts.get(op.op_type, 0) + 1
                 if verbose:
                      descs = [op_desc(op) for op in ops]
-                     tag = " [dropout]" if is_dropout else ""
-                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}{tag}")
+                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}")
 
             opp_ops = opp.choose_operations(state, opp_player)
 
@@ -179,6 +154,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     _empty()
 
     # Op type breakdown
+    _print(f"Operation type distribution (total {total_ops} operations):")
     op_name_map = {
         OperationType.BUILD_TOWER: "BUILD", OperationType.UPGRADE_TOWER: "UPGRADE",
         OperationType.DOWNGRADE_TOWER: "DOWNGRADE",
@@ -186,26 +162,10 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         OperationType.USE_DEFLECTOR: "DEFLECTOR", OperationType.USE_EMERGENCY_EVASION: "EVASION",
         OperationType.UPGRADE_GENERATION_SPEED: "UP_SPEED", OperationType.UPGRADE_GENERATED_ANT: "UP_ANT_HP",
     }
-    _print(f"Executed operations (total {total_ops} ops, {total_hold} holds):")
     for opt, cnt in sorted(op_type_counts.items(), key=lambda x: -x[1]):
         name = op_name_map.get(opt, f"OP_{opt}")
         _print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_ops:5.1f}%)")
     _empty()
-
-    if action_dropout > 0:
-        total_model_ops = sum(model_op_counts.values())
-        total_dropout_ops = sum(dropout_op_counts.values())
-        _print(f"Model-intended actions (without dropout, {total_model_ops} ops, {model_hold_turns} holds):")
-        for opt, cnt in sorted(model_op_counts.items(), key=lambda x: -x[1]):
-            name = op_name_map.get(opt, f"OP_{opt}")
-            _print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_model_ops:5.1f}%)" if total_model_ops > 0 else f"  {name:15s}: {cnt:4d}")
-        _empty()
-        if total_dropout_ops > 0:
-            _print(f"Dropout-forced actions (random, {total_dropout_ops} ops):")
-            for opt, cnt in sorted(dropout_op_counts.items(), key=lambda x: -x[1]):
-                name = op_name_map.get(opt, f"OP_{opt}")
-                _print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_dropout_ops:5.1f}%)" if total_dropout_ops > 0 else f"  {name:15s}: {cnt:4d}")
-            _empty()
 
     # Game-by-game
     _print("Per-game detail:")
@@ -221,7 +181,6 @@ if __name__ == "__main__":
     parser.add_argument("--games", type=int, default=10)
     parser.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     parser.add_argument("--verbose", "-v", action="store_true", help="print per-turn actions")
-    parser.add_argument("--action-dropout", type=float, default=0.0, help="action dropout rate")
     parser.add_argument("--log-dir", type=str, default=None,
                         help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
@@ -242,4 +201,4 @@ if __name__ == "__main__":
     log = None
     if args.log_dir:
         log = get_logger(Path(args.log_dir) / "diagnose_model.log", mode="a")
-    diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads, log=log, action_dropout=args.action_dropout)
+    diagnose(args.ckpt, args.games, verbose=args.verbose, num_heads=args.num_heads, log=log)

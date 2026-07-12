@@ -77,6 +77,7 @@ def _eval_worker(
 
     bc_boards, bc_stats = [], []
     bc_class_labels, bc_action_maps, bc_head_logits = [], [], []
+    hp_traj = []
 
     for _ in range(MAX_ROUND):
         if state.terminal:
@@ -87,6 +88,10 @@ def _eval_worker(
                 state, our_player, np.zeros(agent.max_actions))
             bc_boards.append(feat["board"].copy())
             bc_stats.append(feat["stats"].copy())
+
+            # Per-frame HP trajectory (for value network training)
+            hp_traj.append((state.bases[our_player].hp,
+                            state.bases[opp_player].hp))
 
             # class labels: argmax of each head's logits (clean model output)
             cls_labels = []
@@ -119,16 +124,8 @@ def _eval_worker(
         map_arr = np.stack(bc_action_maps, axis=0)      # (T, NUM_CLASSES, 19, 19)
         logits_arr = np.stack(bc_head_logits, axis=0)   # (T, num_heads, 24)
 
-        # Value label: final game outcome broadcast to every frame
-        if hp_us <= 0 and hp_opp <= 0:
-            outcome = 0.5
-        elif hp_us > hp_opp:
-            outcome = 1.0
-        elif hp_opp > hp_us:
-            outcome = 0.0
-        else:
-            outcome = 0.5
-        value_labels = np.full(len(bc_boards), outcome, dtype=np.float32)
+        # Value label: per-frame HP trajectory
+        value_labels = np.array(hp_traj, dtype=np.float32)  # (T, 2)
 
         write_npz(
             Path(bc_dir) / f"gen_{gen:04d}_ind{ind:03d}_seed{seed}.npz",
@@ -314,7 +311,7 @@ class SSDataset(Dataset):
         if self.class_scores is not None:
             result["class_scores"] = torch.from_numpy(self.class_scores[idx]).float()  # (24,)
         if self.value is not None:
-            result["value"] = torch.tensor(self.value[idx], dtype=torch.float32)  # scalar
+            result["value"] = torch.tensor(self.value[idx], dtype=torch.float32)  # (2,) = (hp_us, hp_opp)
         return result
 
 

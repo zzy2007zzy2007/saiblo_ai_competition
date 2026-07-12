@@ -1,112 +1,123 @@
-# Action Dropout：为什么在 ES 训练中引入随机动作覆盖
+# 动作 Dropout 训练方案
 
-## 问题
+## 1. 动机
 
-ES 训练出来的模型策略极其单调：**90%+ 回合 HOLD，仅有几个动作全是闪电**。行为诊断证实，gen_0014 到 gen_0018 的所有模型都坍缩到"纯闪电"策略。虽然 gen_0014 一度出现了头部分化（H1=Lightning, H2=EMP, H3=Speed），但 gen_0015 就全部坍缩回去了。
+当前 BC + ES 训练中，模型快速收敛到"只放 Thunder"的单一策略。我们的分析认为：这不是 Thunder 本身太强，而是 Thunder 消耗 90 金币，任何其他行为（建塔、升级等）都会占用金币预算，降低 Thunder 频率，从而导致胜率下降。
 
-纯闪电策略的核心缺陷是**没有恢复能力**：
+要想学会"建塔→拆塔回收金币→Thunder"这样的多步策略，模型必须先经历"建了塔但不会拆 → 没钱放 Thunder → 胜率低"的中间态。但在 ES 训练中，这个中间态的 fitness 太低，模型根本走不过去。
 
-- 闪电需要 35 回合冷却，但冷却期间模型仍然选择 HOLD
-- 如果因为任何原因金币不够（比如建塔花掉了，或者用了 EMP），模型就卡住不会做替代动作
-- 被建塔消耗金币后，模型整局瘫痪——它**没有任何"补救"的策略**
+## 2. 核心思路：动作 Dropout
 
-## 原因：精英池导致的反馈回路
+在 ES 评估（打局）时，以概率 p 将当前动作替换为随机合法动作。这样：
 
-标准的 ES + BC 训练流程是：
-
-```
-1. 种群自对弈 → 选 top-K 精英
-2. 精英打 BC 数据 → 训练均值模型
-3. 均值模型作为下一代的起点
-```
-
-精英池中的个体本来就是纯闪电策略，它们产生的 BC 数据 99% 是闪电帧。均值模型训练出来后又是纯闪电。**下一代种群从纯闪电起点开始变异，变异个体打不过精英池的纯闪电对手，进不了 top-K。于是没有任何梯度信号能把模型拉出"纯闪电"这个局部最优。**
-
-gen_0016~gen_0018 虽然通过了 ES 选择，但诊断发现它们的"意图"仍然是纯闪电——只是偶尔运气好赢了几局。这不是真正的进步。
-
-## 方案：Action Dropout
-
-### 核心思路
-
-每回合以概率 p 用**随机合法动作**覆盖模型的决策。这样：
-
-1. **制造非自然局面** — 模型想放闪电，但被随机覆盖成"建 Basic 塔"。金币被消耗、地图上多了个塔。下回合模型（没有被覆盖时）面对的是它从未见过的局面。
-2. **迫使模型适应多样化局面** — BC 数据里开始出现"金币不足时的决策""有塔遮挡时的决策"等稀有帧。
-3. **产生多样化的精英** — 被 dropout 干扰后，原本只会闪电的个体可能因为运气好（随机动作碰巧有用）而赢下对局，进入 top-K。这些个体的 BC 数据里包含非闪电操作，打破纯闪电的反馈回路。
-
-### 和 epsilon-greedy 的区别
-
-| | ϵ-greedy | Action Dropout |
-|---|---|---|
-| 目的 | 探索更好的动作 | 制造不利局面，训练恢复能力 |
-| 应用层 | 策略输出层 | 最终决定层（动作已合法化之后） |
-| 数据采集 | 保留探索数据 | **跳过被 dropout 污染的帧** |
-| 典型场景 | DQN 选动作 | 鲁棒性训练 |
-
-Action dropout **不是**探索机制——被覆盖的动作是**完全随机**的，不是模型认为"可能更好"的动作。它的唯一目的是把模型拖出舒适区，让 BC 数据能覆盖更广泛的局面。
+- **只会 Thunder 的模型**：10-20% 的回合被随机动作干扰（建塔消耗金币），Thunder 频率下降 → 没钱放 Thunder → 胜率暴跌
+- **学会恢复的模型**：被随机建塔后，能主动拆塔回收金币，再继续放 Thunder → 胜率回升
+- **终极目标**：模型被迫学会"不管资源被怎么折腾，都能恢复并赢下比赛"的鲁棒策略
 
 ### 类比
 
 这类似于神经网络的 Dropout——随机丢弃神经元防止过拟合。这里是在**动作层面做 dropout**，随机覆盖模型的部分决策，迫使策略不依赖"所有操作都在自己控制下"的假设。
 
-### 实现要点
+## 3. 实现方案
 
-- **Agent 层实现** — `NeuralAgent._choose_operations()` 里，在 decoder 输出合法操作之后、返回之前，以概率 p 替换为随机 `ActionBundle`
-- **保留 `last_output`** — `self.last_output` 存 decoder 前的模型输出（不受 dropout 影响），用于模型意图解码和诊断
-- **跳过被污染的 BC 帧** — `agent.dropout_this_turn` 为 True 时，该帧不收入 BC 训练集。因为 state 是由模型自己的动作产生的，但 action 是随机的，state-action 对不一致，强行训练会教给模型错误的东西
-- **两阶段都启用** — ES 的排序阶段和数据采集阶段都启用 dropout，防止两个阶段的分布不一致
-- **只有本方 dropout** — 对手保持正常策略
+### 3.1 改动范围
 
-### 和过采样（f^(-α)）的关系
+只需修改 `es_train.py` 中的 `_eval_worker` 函数（+ 新增一个 CLI 参数），约 30 行代码。
 
-Action dropout **必须和稀有动作过采样配合使用**。原因：
+### 3.2 随机动作生成
 
-- Dropout 产生的数据中，随机动作大量集中在 BUILD（因为建塔是最高频的合法动作）
-- 如果不过采样，BC 数据中仍然是闪电占绝对多数，"从不顺局面恢复"的样例太少
-- 过采样确保稀有动作的梯度信号不会被闪电淹没
+在合法动作中完全均匀随机选一个：
 
-两者是互补关系：**dropout 制造多样化局面，过采样确保多样化局面被学到**。
+```python
+def random_legal_action(state: BackendState, player: int) -> ActionBundle:
+    """从所有合法bundle中均匀随机选一个"""
+    from SDK.utils.actions import ActionCatalog
+    catalog = ActionCatalog(state, player)
+    bundles = catalog.list_bundles()
+    if not bundles:
+        return ActionBundle(name="hold", score=0.0, tags=("noop",))
+    return random.choice(bundles)
+```
 
-## 诊断方法
+### 3.3 评估过程改动
 
-用 `diagnose_model.py` 的 `--action-dropout` 模式可以分离观测模型意图 vs. dropout 强制操作：
+```python
+def _eval_worker(params, opp_params, seed, ...):
+    ...
+    for turn in range(max_turns):
+        if random.random() < action_dropout_p:  # ← 新增
+            my_bundle = random_legal_action(state, player)
+        else:
+            my_bundle = agent.choose_bundle(state, player)  # 正常决策
+        ...
+```
+
+### 3.4 CLI 参数
 
 ```bash
-python code/test_match/diagnose_model.py checkpoint.pt --games 1 --verbose --action-dropout 0.1
+python code/my_ai/es_train.py ... --action-dropout 0.15
 ```
 
-输出三部分统计：
-- **Executed operations** — 实际执行的操作（dropout 覆盖后的）
-- **Model-intended actions** — 模型自己想做的（dropout 前的，从 `last_output` 解码）
-- **Dropout-forced actions** — 被 dropout 强制产生的随机操作
+- `--action-dropout`：随机替换概率，默认 0.0（不启用）
+- 可选范围 0.05-0.30，建议初始用 0.10
 
-## 实验记录
+### 3.5 关键细节
 
-### gen_0018 诊断（ss_20260708_155510, dropout=0.15）
+| 问题 | 方案 |
+|------|------|
+| 对手也要 dropout 吗？ | **不**，只有本方 dropout。对手保持正常策略 |
+| 随机后仍合法吗？ | 是的，`ActionCatalog.list_bundles()` 只返回合法 bundle |
+| 随机动作会选 HOLD 吗？ | 有可能，但如果 HOLD 在 bundle 中占比大，随机到 HOLD 概率也大 |
+| 训练完成后推理时？ | **关闭** dropout（p=0），用模型正常决策 |
 
-```text
-Model-intended actions (3 ops, 255 holds):
-  LIGHTNING: 3 (100.0%)
+## 4. 预期效果
 
-Dropout-forced actions (20 ops):
-  BUILD:      18 (90.0%)
-  UPGRADE:    1  (5.0%)
-  DOWNGRADE:  1  (5.0%)
+### 理想学习路径
+
+1. **阶段 0**（纯 Thunder 模型 + dropout=0.15）：15% 回合被随机建塔消耗金币 → Thunder 频率降 ~15% → 胜率下降 → fitness 低
+2. **阶段 1**：ES 压力下，模型逐渐学会"偶尔拆塔"来回收被随机消耗的金币 → 胜率部分恢复
+3. **阶段 2**：模型学会主动"建塔建设 → 拆塔回收 → Thunder"的策略组合 → 资源分配更智能 → 胜率超过纯 Thunder
+
+### 预期 fitness 曲线
+
+```
+胜率
+ ↑
+0.5 ┤         ┌─── 阶段2: 学会恢复 + 主动多策略
+0.4 ┤    ┌────╯
+0.3 ┼────┤    ← 纯Thunder基线（~30% vs rule_v4?）
+0.2 ┤    │  ← 阶段0-1: dropout干扰导致胜率下降
+0.1 ┤    └──────── 模型挣扎期
+0.0 └─────────────────────────────→ 世代
 ```
 
-模型意图仍然是纯闪电（255/258 回合 HOLD，仅有的 3 个动作全是闪电）。Dropout 强制产生的 20 个操作中有 18 个 BUILD——因为随机合法动作中建塔是最高频的操作。
+## 5. 风险与缓解
 
-gen_0018 完全没有恢复能力，被 dropout 干扰后策略崩盘。这说明没有用 oversampling 配合时，dropout 本身不足以打破纯闪电的反馈回路。
+| 风险 | 缓解 |
+|------|------|
+| dropout 太大，永远学不会 | 从 0.10 起步，观察 fitness 是否回升 |
+| dropout 太小，没效果 | 0.05 是最低有效值，调大即可 |
+| 模型学会"对抗随机"而非"更好策略" | 如果模型只能适应随机，但对正常对手反而变弱，就说明这个方向有问题 |
+| 随机动作中 HOLD 占比高，实际干扰小 | 如果发现随机到 HOLD 概率超过 30%，可以考虑随机时排除 HOLD |
 
-## 参数
+## 6. 在多专家方案中的定位
 
-- `--action-dropout 0.1` — 默认值，每回合 10% 概率被覆盖（与 dropout layer rate 一致）
-- 诊断时可用更高的值（如 0.15~0.3）加速测试
+注意：这个方案**不是替代**多专家方案，而是和它**互补**的关系：
 
-## 预期学习路径
+- **多专家方案**：架构解法——分而治之，消除金币竞争
+- **动作 Dropout**：训练技巧——迫使模型学会鲁棒性
 
-1. **阶段 0**（纯闪电模型 + dropout=0.15）：15% 回合被随机建塔消耗金币 → 闪电频率下降 → 胜率下降 → fitness 低
-2. **阶段 1**：模型逐渐学会"偶尔拆塔"来回收被随机消耗的金币 → 胜率部分恢复
-3. **阶段 2**：模型学会主动"建塔建设 → 拆塔回收 → 闪电"的策略组合 → 资源分配更智能 → 胜率超过纯闪电
+两者可以独立使用，也可以结合：
+- 先用动作 dropout 在普通 ES 上试试，看能否突破全 Thunder 陷阱
+- 如果有效，多专家的每个专家训练时也可以加上 dropout
+- 最终门控网络组合各专家时，每个专家本身就更鲁棒
 
-当前（gen_0018）仍处于阶段 0。
+## 7. 实现步骤
+
+1. 在 `es_train.py` 的 `EvalConfig` 中加 `action_dropout: float = 0.0`
+2. 实现 `random_legal_action()` 辅助函数
+3. 在 `_eval_worker` 中插入 dropout 逻辑
+4. 在 `_eval_worker_for_pop` 的 config 传参 pipeline 中透传
+5. 添加 `--action-dropout` CLI 参数
+6. 先测试 p=0（不改变现有行为）
+7. 再用 p=0.10 跑短训练（10-20 代）观察效果
