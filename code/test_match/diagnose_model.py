@@ -24,6 +24,7 @@ from SDK.utils.constants import MAX_ROUND, TowerType, OperationType, SUPER_WEAPO
 from AI.ai_example import AI as ExampleAI
 from my_ai.network import create_model
 from my_ai.agent import NeuralAgent
+from my_ai.decoder import decode_network_output
 from utils.logger import get_logger
 
 NUM_CLASSES = 24
@@ -83,7 +84,10 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     total_turns = 0
     total_ops = 0  # total operations executed
     total_hold = 0  # turns where model took no actions
-    op_type_counts: dict[int, int] = {}
+    op_type_counts: dict[int, int] = {}          # executed (after dropout override)
+    model_op_counts: dict[int, int] = {}          # model's true intent (before dropout)
+    dropout_op_counts: dict[int, int] = {}        # forced by dropout only
+    model_hold_turns = 0                          # turns where model wanted to do nothing
     game_results = []
 
     for g in range(n_games):
@@ -106,20 +110,40 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
 
             ops = agent._choose_operations(state, our_player)
 
+            # Decode model's true intent (before dropout override)
+            is_dropout = action_dropout > 0 and agent.dropout_this_turn
+            if agent.last_output is not None and is_dropout:
+                model_ops = decode_network_output(agent.last_output, state, our_player)
+            else:
+                model_ops = ops  # no dropout, executed = intended
+
+            # Count model's intended ops
+            if len(model_ops) == 0:
+                model_hold_turns += 1
+            else:
+                for op in model_ops:
+                    model_op_counts[op.op_type] = model_op_counts.get(op.op_type, 0) + 1
+
+            # Count dropout-forced ops separately
+            if is_dropout:
+                for op in ops:
+                    dropout_op_counts[op.op_type] = dropout_op_counts.get(op.op_type, 0) + 1
+
             if len(ops) == 0:
                 hold_this_game += 1
                 total_hold += 1
                 if verbose:
-                     _print(f"  turn={turns_played:3d}  HOLD")
+                     tag = " [dropout→HOLD]" if is_dropout else ""
+                     _print(f"  turn={turns_played:3d}  HOLD{tag}")
             else:
                 ops_this_game += len(ops)
                 total_ops += len(ops)
                 for op in ops:
                     op_type_counts[op.op_type] = op_type_counts.get(op.op_type, 0) + 1
                 if verbose:
-                     dropout_tag = " [DROPOUT]" if agent.dropout_this_turn else ""
+                     tag = " [dropout]" if is_dropout else ""
                      descs = [op_desc(op) for op in ops]
-                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}{dropout_tag}")
+                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}{tag}")
 
             opp_ops = opp.choose_operations(state, opp_player)
 
@@ -175,6 +199,25 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         name = op_name_map.get(opt, f"OP_{opt}")
         _print(f"  {name:15s}: {cnt:4d} ({100*cnt/total_ops:5.1f}%)")
     _empty()
+
+    if action_dropout > 0 and total_turns > 0:
+        # Model's true intent breakdown
+        total_model_ops = sum(model_op_counts.values())
+        _print("Model-intended actions (before dropout):")
+        for opt, cnt in sorted(model_op_counts.items(), key=lambda x: -x[1]):
+            name = op_name_map.get(opt, f"OP_{opt}")
+            _print(f"  {name:15s}: {cnt:4d}")
+        if model_hold_turns > 0:
+            _print(f"  {'HOLD':15s}: {model_hold_turns:4d}")
+        _empty()
+
+        # Dropout-forced breakdown
+        total_dropout_ops = sum(dropout_op_counts.values())
+        _print(f"Dropout-forced actions (total {total_dropout_ops}):")
+        for opt, cnt in sorted(dropout_op_counts.items(), key=lambda x: -x[1]):
+            name = op_name_map.get(opt, f"OP_{opt}")
+            _print(f"  {name:15s}: {cnt:4d}")
+        _empty()
 
     # Game-by-game
     _print("Per-game detail:")
