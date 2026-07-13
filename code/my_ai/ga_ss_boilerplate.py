@@ -99,11 +99,15 @@ def mutate_class_labels(
             continue
 
         logits_i = head_logits[mask, hi, :]          # (n_mutate, 24)
-        logits_i = torch.clamp(logits_i, -50.0, 50.0)  # prevent extreme logit collapse
-        logits_i = logits_i + torch.log(w) * temperature  # category rebalancing
-
-        probs = F.softmax(logits_i / temperature, dim=-1)
-        sampled = torch.multinomial(probs, 1, generator=rng).squeeze(-1)
+        if temperature <= 0:
+            # Uniform random: sharp mutation, any action can replace any other
+            sampled = torch.randint(0, 24, (logits_i.size(0),),
+                                    generator=rng, device=head_logits.device)
+        else:
+            logits_i = torch.clamp(logits_i, -50.0, 50.0)
+            logits_i = logits_i + torch.log(w) * temperature  # category rebalancing
+            probs = F.softmax(logits_i / temperature, dim=-1)
+            sampled = torch.multinomial(probs, 1, generator=rng).squeeze(-1)
         mutated[mask, hi] = sampled
 
     return mutated

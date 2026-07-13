@@ -60,7 +60,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--p-cross", type=float, default=0.5, help="crossover probability")
     p.add_argument("--p-mutate", type=float, default=0.1, help="mutation probability")
     p.add_argument("--temperature", type=float, default=3.0,
-                    help="sampling temperature for label mutation (higher = more uniform)")
+                    help="sampling temperature for label mutation (0 = uniform random)")
+    p.add_argument("--amp", type=float, default=1.0,
+                    help="mutation amplitude: multiply BC parameter shift (1=normal)")
     p.add_argument("--opp-inject", type=int, default=3,
                     help="number of opponent params to inject into population")
 
@@ -78,14 +80,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--epochs", type=int, default=3, help="BC training epochs")
     p.add_argument("--lr", type=float, default=1e-3, help="BC learning rate")
     p.add_argument("--batch-size", type=int, default=64, help="BC batch size")
-    p.add_argument("--weight-decay", type=float, default=0.0,
+    p.add_argument("--weight-decay", type=float, default=1e-5,
                     help="AdamW weight decay (0 = Adam, >0 = AdamW)")
     p.add_argument("--label-smoothing", type=float, default=0.0,
                     help="label smoothing for CE loss")
     p.add_argument("--lambda-class", type=float, default=1.0, help="class CE loss weight")
     p.add_argument("--lambda-map", type=float, default=1.0, help="action-map KL loss weight")
     p.add_argument("--lambda-div", type=float, default=0.0, help="head diversity loss weight")
-    p.add_argument("--lambda-soft", type=float, default=0.0, help="soft-target KL loss weight")
+    p.add_argument("--lambda-soft", type=float, default=0.1, help="soft-target KL loss weight")
     p.add_argument("--bias-decay", type=float, default=0.0,
                     help="extra L2 penalty on policy head biases")
     p.add_argument("--oversample-alpha", type=float, default=0.0,
@@ -206,8 +208,8 @@ def mutation(
     dataset = datasets[0]
     for i in range(1, len(datasets)):
         dataset = merge_datasets(dataset, datasets[i])
-    dataset1 = subsample_dataset(dataset, 512, rng)
-    dataset2 = subsample_dataset(dataset, 512, rng)
+    dataset1 = subsample_dataset(dataset, 64, rng)
+    dataset2 = subsample_dataset(dataset, 192, rng)
     dataset2 = mutate_dataset(dataset2, rng, gen, args)
     dataset = merge_datasets(dataset1, dataset2)
     bc_res = bc_train(
@@ -215,7 +217,7 @@ def mutation(
         model_template=model,      # 需要传进来        
         dataset=dataset,
         device=device,             # 需要传进来        
-        epochs=1,
+        epochs=4,
         lr=args.lr,
         batch_size=args.batch_size,
         weight_decay=args.weight_decay,
@@ -227,6 +229,8 @@ def mutation(
         bias_decay=args.bias_decay,
         log=log,
     )
+    if args.amp != 1.0:
+        bc_res = ind + (bc_res - ind) * args.amp
     return bc_res
 
 
@@ -337,8 +341,8 @@ def main():
     if args.checkpoint:
         log.print(key="resume", value=f"loading checkpoint: {args.checkpoint}")
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-        model.set_parameters_from_vector(ckpt["mean"])
         mean = ckpt["mean"].cpu().numpy().copy()
+        model.set_parameters_from_vector(mean)
         ga_pop = ckpt.get("ga_pop", [])
         start_gen = ckpt.get("generation", 0)
         if leaderboard is not None and "leaderboard" in ckpt:
