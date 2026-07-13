@@ -38,6 +38,7 @@ from my_ai.ga_ss_boilerplate import (
     get_device,
     setup_signal_handler,
     mutate_class_labels,
+    mutate_class_labels_soft,
     mutate_action_map,
     subsample_dataset,
 )
@@ -169,13 +170,13 @@ def mutate_dataset(dataset: SSDataset, rng: np.random.Generator, gen: int, args)
     cls_tensor = torch.from_numpy(dataset.class_label)
     logits_tensor = torch.from_numpy(dataset.head_logits) 
 
-    mutated_labels = mutate_class_labels(
+    mutated_labels, mutated_logits = mutate_class_labels_soft(
         cls_tensor,
         logits_tensor,
         p_mutate=args.p_mutate,
         temperature=args.temperature,
         seed=int(rng.integers(2**31))
-    )                                           
+    )
     map_tensor = torch.from_numpy(dataset.action_map)  
     # (T, 24, 19, 19)
     mutated_map = mutate_action_map(
@@ -189,8 +190,8 @@ def mutate_dataset(dataset: SSDataset, rng: np.random.Generator, gen: int, args)
     result.stats = dataset.stats
     result.class_label = mutated_labels.numpy()
     result.action_map = mutated_map.numpy()
-    result.head_logits = dataset.head_logits
-    result.class_scores = dataset.class_scores     
+    result.head_logits = mutated_logits.numpy()
+    result.class_scores = dataset.class_scores
     result.value = dataset.value
     return result
 

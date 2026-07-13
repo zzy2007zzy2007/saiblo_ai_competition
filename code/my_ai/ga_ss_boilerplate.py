@@ -113,6 +113,71 @@ def mutate_class_labels(
     return mutated
 
 
+def mutate_class_labels_soft(
+    cls_labels: torch.Tensor,
+    head_logits: torch.Tensor,
+    p_mutate: float = 0.1,
+    temperature: float = 3.0,
+    seed: int = 0,
+    category_weights: list[float] | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Mutate both hard labels AND head_logits consistently.
+
+    For mutated frames, the logit value of the old top class is swapped
+    with the logit value of the newly sampled class, so the soft target
+    distribution shifts toward the new action while preserving the
+    relative structure of the original distribution.
+
+    Returns:
+        (mutated_labels, mutated_head_logits) — each (B, N_heads) or (B, N_heads, 24).
+    """
+    import torch
+    import torch.nn.functional as F
+
+    if category_weights is None:
+        w = torch.ones(24, dtype=head_logits.dtype, device=head_logits.device)
+        w[16] = 2.5
+        w[17:21] = 2.5
+        w[21:23] = 2.5
+        w[23] = 2.5
+    else:
+        w = torch.tensor(category_weights, dtype=head_logits.dtype, device=head_logits.device)
+
+    B, NH = cls_labels.shape
+    mutated_labels = cls_labels.clone()
+    mutated_logits = head_logits.clone()
+    rng = torch.Generator(device=head_logits.device)
+    rng.manual_seed(seed)
+
+    for hi in range(NH):
+        mask = torch.rand(B, generator=rng, device=head_logits.device) < p_mutate
+        if not mask.any():
+            continue
+
+        logits_i = head_logits[mask, hi, :]
+        if temperature <= 0:
+            sampled = torch.randint(0, 24, (logits_i.size(0),),
+                                    generator=rng, device=head_logits.device)
+        else:
+            logits_i = torch.clamp(logits_i, -50.0, 50.0)
+            logits_i = logits_i + torch.log(w) * temperature
+            probs = F.softmax(logits_i / temperature, dim=-1)
+            sampled = torch.multinomial(probs, 1, generator=rng).squeeze(-1)
+
+        # Swap logits between old top class and new class
+        old_top = cls_labels[mask, hi]  # original top class per frame
+        for row in range(sampled.size(0)):
+            old_c, new_c = int(old_top[row]), int(sampled[row])
+            if old_c != new_c:
+                tmp = mutated_logits[mask, hi, :][row, old_c].clone()
+                mutated_logits[mask, hi, :][row, old_c] = mutated_logits[mask, hi, :][row, new_c]
+                mutated_logits[mask, hi, :][row, new_c] = tmp
+
+        mutated_labels[mask, hi] = sampled
+
+    return mutated_labels, mutated_logits
+
+
 # ═══════════════════════════════════════════════════════════════
 # 1.5 Action-map mutation
 # ═══════════════════════════════════════════════════════════════
