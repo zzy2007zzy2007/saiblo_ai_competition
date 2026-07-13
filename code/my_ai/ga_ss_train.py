@@ -223,10 +223,10 @@ def mutation(
         batch_size=args.batch_size,
         weight_decay=args.weight_decay,
         label_smoothing=args.label_smoothing,
-        lambda_class=args.lambda_class,
+        lambda_class=1.0,
         lambda_map=args.lambda_map,
         lambda_div=args.lambda_div,
-        lambda_soft=args.lambda_soft,
+        lambda_soft=0.0,
         bias_decay=args.bias_decay,
         log=log,
     )
