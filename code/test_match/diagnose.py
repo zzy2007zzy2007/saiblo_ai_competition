@@ -38,6 +38,8 @@ def main():
     parser.add_argument("ckpt", type=str, help="checkpoint path")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--action-dropout", type=float, default=0.0, help="action dropout rate (simulate training condition)")
+    parser.add_argument("--ind", type=int, default=None,
+                        help="population index to diagnose (default: TOP1/mean)")
     parser.add_argument("--log-dir", type=str, default=None,
                         help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
@@ -68,13 +70,13 @@ def main():
     p("\n" + "-" * 60)
     p("BEHAVIOR vs ExampleAI")
     p("-" * 60)
-    diagnose(args.ckpt, n_games=1, seed_offset=args.seed, verbose=True, num_heads=num_heads, log=log, action_dropout=args.action_dropout)
+    diagnose(args.ckpt, n_games=1, seed_offset=args.seed, verbose=True, num_heads=num_heads, log=log, action_dropout=args.action_dropout, ind=args.ind)
 
     # 2. Head diagnosis (1 game)
     p("\n" + "-" * 60)
     p("HEAD ANALYSIS vs ExampleAI")
     p("-" * 60)
-    diagnose_heads(args.ckpt, seed=args.seed, num_heads=num_heads, log=log, action_dropout=args.action_dropout)
+    diagnose_heads(args.ckpt, seed=args.seed, num_heads=num_heads, log=log, action_dropout=args.action_dropout, ind=args.ind)
 
 
 if __name__ == "__main__":

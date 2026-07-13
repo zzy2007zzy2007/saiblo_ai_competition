@@ -33,7 +33,7 @@ CLASS_SHORT = {
 }
 
 
-def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0):
+def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0, ind: int | None = None):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -55,7 +55,10 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
             hk = [k for k in ckpt.get("model_state", ckpt) if re.match(r"policy_heads\.\d+\.weight", k)]
             num_heads = max(len(hk), 1) if hk else 3
 
-    if "top2_params" in ckpt and len(ckpt["top2_params"]) > 0:
+    if ind is not None and "ga_pop" in ckpt and ind < len(ckpt["ga_pop"]):
+        params = ckpt["ga_pop"][ind]
+        _print(f"[ga_pop[{ind}]]")
+    elif "top2_params" in ckpt and len(ckpt["top2_params"]) > 0:
         t = ckpt["top2_params"][0]
         params = t.numpy() if isinstance(t, torch.Tensor) else t
     elif "mean" in ckpt:

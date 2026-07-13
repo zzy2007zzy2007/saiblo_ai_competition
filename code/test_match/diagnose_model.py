@@ -59,7 +59,7 @@ CLASS_NAMES = {
 }
 
 
-def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None, action_dropout: float = 0.0):
+def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None, action_dropout: float = 0.0, ind: int | None = None):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -67,12 +67,17 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         _empty = lambda: log.print(timestamp=False)
 
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
+    if ind is not None and "ga_pop" in ckpt and ind < len(ckpt["ga_pop"]):
+        param_vec = ckpt["ga_pop"][ind]
+        label = f"ga_pop[{ind}]"
+    else:
+        param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
+        label = "TOP1"
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
-    _print(f"num_heads={num_heads}, params={len(param_vec):,}")
+    _print(f"num_heads={num_heads}, params={len(param_vec):,}  [{label}]")
 
     # Aggregated stats
     total_turns = 0
@@ -112,8 +117,9 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
                 for op in ops:
                     op_type_counts[op.op_type] = op_type_counts.get(op.op_type, 0) + 1
                 if verbose:
+                     dropout_tag = " [DROPOUT]" if agent.dropout_this_turn else ""
                      descs = [op_desc(op) for op in ops]
-                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}")
+                     _print(f"  turn={turns_played:3d}  {' | '.join(descs)}{dropout_tag}")
 
             opp_ops = opp.choose_operations(state, opp_player)
 
@@ -143,6 +149,9 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     # ─── Summary ─────────────────────────────────────────────────────
     wins = sum(1 for r in game_results if r["result"] == "WIN")
     losses = sum(1 for r in game_results if r["result"] == "LOSS")
+
+    if action_dropout > 0:
+        _print(f"Action dropout: {action_dropout:.2f}")
 
     _print(f"\n{'='*60}")
     _print(f"DIAGNOSE: {ckpt_path}")
