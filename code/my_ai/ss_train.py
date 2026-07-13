@@ -434,13 +434,13 @@ def ss_supervised_update(model, dataset, device, epochs=3, lr=1e-3, batch_size=6
                 reduction="batchmean",
             )
 
-            # Soft-target loss: KL(head_logits || ActionCatalog scores)
+            # Soft-target loss: KL(model logits || stored head_logits)
             soft_loss = torch.tensor(0.0, device=device_ref)
-            if lambda_soft > 0.0 and "class_scores" in batch:
-                soft_target = batch["class_scores"].to(device)    # (B, 24)
-                # Normalise soft_target with temperature
-                soft_dist = F.softmax(soft_target / soft_temperature, dim=-1).detach()
+            if lambda_soft > 0.0:
+                # head_logits: (B, N_heads, 24) — raw logits from the data-generating model
+                soft_target = batch["head_logits"].to(device)
                 for i in range(model.num_heads):
+                    soft_dist = F.softmax(soft_target[:, i, :] / soft_temperature, dim=-1).detach()
                     soft_loss += F.kl_div(
                         F.log_softmax(output[f"head{i+1}_logits"] / soft_temperature, dim=-1),
                         soft_dist,
