@@ -33,7 +33,7 @@ CLASS_SHORT = {
 }
 
 
-def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False):
+def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -43,7 +43,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
     torch.set_num_threads(1)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
 
     if num_heads is None:
         if "num_heads" in ckpt:
@@ -66,7 +66,7 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
     model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(params)
     _print(f"num_heads={num_heads}, params={len(params):,} device={device}")
-    agent = NeuralAgent(model=model)
+    agent = NeuralAgent(model=model, action_dropout=action_dropout)
     opponent = ExampleAI(seed=seed)
 
     stats = {i: {"ops": 0, "rejected": 0, "classes": []} for i in range(num_heads)}
