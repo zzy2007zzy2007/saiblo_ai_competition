@@ -64,6 +64,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="sampling temperature for label mutation (0 = uniform random)")
     p.add_argument("--amp", type=float, default=1.0,
                     help="mutation amplitude: multiply BC parameter shift (1=normal)")
+    p.add_argument("--sigma-mutate", type=float, default=0.005,
+                    help="gradient-combination mutation step size")
+    p.add_argument("--n-grads", type=int, default=32,
+                    help="number of gradient directions for mutation")
     p.add_argument("--opp-inject", type=int, default=3,
                     help="number of opponent params to inject into population")
 
@@ -195,44 +199,52 @@ def mutate_dataset(dataset: SSDataset, rng: np.random.Generator, gen: int, args)
     result.value = dataset.value
     return result
 
+def compute_grad_dirs(
+    base_params: np.ndarray, dataset: SSDataset, rng: np.random.Generator,
+    args, model, device, gen: int,
+) -> list[np.ndarray]:
+    """Pre-compute N unit gradient directions from base_params (shared across all individuals).
+
+    Each direction: BC train on a small mutated batch starting from base_params.
+    Returns list of unit vectors (each same shape as base_params).
+    """
+    grads = []
+    batch_size = 64
+    for i in range(args.n_grads):
+        ds1 = subsample_dataset(dataset, batch_size // 2, rng)
+        ds2 = subsample_dataset(dataset, batch_size // 2, rng)
+        ds2 = mutate_dataset(ds2, rng, gen, args)
+        ds3 = merge_datasets(ds1, ds2)
+        trained = bc_train(
+            init_params=base_params.copy(),
+            model_template=model, dataset=ds3, device=device,
+            epochs=1, lr=args.lr, batch_size=args.batch_size,
+            weight_decay=args.weight_decay, label_smoothing=args.label_smoothing,
+            lambda_class=1.0, lambda_map=args.lambda_map,
+            lambda_div=args.lambda_div, lambda_soft=1.0,
+            bias_decay=args.bias_decay, log=None,
+        )
+        grad = trained - base_params
+        norm = np.linalg.norm(grad)
+        if norm > 0:
+            grad /= norm
+        grads.append(grad)
+    return grads
+
+
 def mutation(
     ind: np.ndarray,
     rng: np.random.Generator,
     args,
-    datasets: list[SSDataset],
-    model,
-    device,
-    gen: int,
-    log=None,
+    grad_dirs: list[np.ndarray],
 ) -> np.ndarray:
-    """Mutation function for GA population."""
-    dataset = datasets[0]
-    for i in range(1, len(datasets)):
-        dataset = merge_datasets(dataset, datasets[i])
-    dataset1 = subsample_dataset(dataset, 64, rng)
-    dataset2 = subsample_dataset(dataset, 192, rng)
-    dataset2 = mutate_dataset(dataset2, rng, gen, args)
-    dataset = merge_datasets(dataset1, dataset2)
-    bc_res = bc_train(
-        init_params=ind,
-        model_template=model,      # 需要传进来        
-        dataset=dataset,
-        device=device,             # 需要传进来        
-        epochs=4,
-        lr=args.lr,
-        batch_size=args.batch_size,
-        weight_decay=args.weight_decay,
-        label_smoothing=args.label_smoothing,
-        lambda_class=1.0,
-        lambda_map=args.lambda_map,
-        lambda_div=args.lambda_div,
-        lambda_soft=0.0,
-        bias_decay=args.bias_decay,
-        log=log,
-    )
+    """Apply gradient-direction mutation to an individual."""
+    weights = rng.normal(0, args.sigma_mutate / (args.n_grads ** 0.5), size=args.n_grads)
+    perturbation = np.sum([w * g for w, g in zip(weights, grad_dirs)], axis=0)
+    result = ind + perturbation
     if args.amp != 1.0:
-        bc_res = ind + (bc_res - ind) * args.amp
-    return bc_res
+        result = ind + (result - ind) * args.amp
+    return result
 
 
 def _select_opponents(
@@ -475,19 +487,18 @@ def main():
                 log,
             ))
         log.print(key="mutation", value=f"new_pop_size={new_pop_size}")
-        for i in range(new_pop_size):
-            # print(f"mutation:ind={i}")
-            # log.print(key="mutation", value=f"ind={i}")
-            new_ga_pop[i] = mutation(
-                new_ga_pop[i],
-                rng,
-                args,
-                datasets,
-                model,
-                device,
-                gen,
-                log,
+        if new_pop_size > 0 and args.n_grads > 0:
+            # Pre-compute gradient directions (shared across all individuals)
+            grad_dataset = datasets[0]
+            for d in datasets[1:]:
+                grad_dataset = merge_datasets(grad_dataset, d)
+            grad_dirs = compute_grad_dirs(
+                best_params, grad_dataset, rng, args, model, device, gen,
             )
+            for i in range(new_pop_size):
+                new_ga_pop[i] = mutation(
+                    new_ga_pop[i], rng, args, grad_dirs,
+                )
 
         ga_pop = top_k_pop + lb_pop + new_ga_pop
 
