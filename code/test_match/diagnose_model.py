@@ -59,19 +59,19 @@ CLASS_NAMES = {
 }
 
 
-def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None):
+def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: bool = False, num_heads: int = 3, log=None, action_dropout: float = 0.0):
     _print = print
     _empty = lambda: _print()
     if log is not None:
         _print = lambda *a, **kw: log.print(*a, timestamp=False, **kw)
         _empty = lambda: log.print(timestamp=False)
 
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
 
     model = create_model(num_heads=num_heads)
     model.set_parameters_from_vector(param_vec)
-    agent = NeuralAgent(model=model)
+    agent = NeuralAgent(model=model, action_dropout=action_dropout)
     _print(f"num_heads={num_heads}, params={len(param_vec):,}")
 
     # Aggregated stats
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     if args.num_heads == 3:
         # Auto-detect num_heads from checkpoint
-        ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
+        ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
         if "num_heads" in ckpt:
             args.num_heads = ckpt["num_heads"]
         elif "config" in ckpt and "num_heads" in ckpt["config"]:

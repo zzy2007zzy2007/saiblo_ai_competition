@@ -42,7 +42,7 @@ def main():
                         help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
 
-    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
+    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
 
     # Auto-detect num_heads
     if "num_heads" in ckpt:

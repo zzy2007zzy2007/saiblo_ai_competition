@@ -22,13 +22,11 @@ for p in (_REPO_ROOT, _CODE_ROOT):
 import argparse
 import time
 import multiprocessing as mp
-from datetime import datetime
 
 import numpy as np
-import torch
 
-from my_ai.network import create_model, AntWarNetwork
 from my_ai.leaderboard import Leaderboard
+from my_ai._eval_worker import _eval_worker
 
 # ── Import boilerplate (written by AI) ────────────────────────────
 from my_ai.ga_ss_boilerplate import (
@@ -42,19 +40,6 @@ from my_ai.ga_ss_boilerplate import (
     mutate_class_labels,
     mutate_action_map,
     subsample_dataset,
-)
-
-# ── Import eval / data functions from ss_train (reused as-is) ────
-from my_ai.ss_train import (
-    _eval_worker,
-    build_eval_args,
-    run_eval,
-    SSDataset,
-    collect_npz,
-    # save_checkpoint,
-    reload_config,
-    cleanup_gen_npz,
-    select_opponents,
 )
 
 
@@ -112,8 +97,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     # Leaderboard
     p.add_argument("--no-lb", action="store_true", help="disable Leaderboard")
-    p.add_argument("--lb-inject", type=int, default=3,
-                    help="number of LB entries to inject each generation")
 
     # Checkpoint / resume
     p.add_argument("--save-every", type=int, default=10,
@@ -122,14 +105,6 @@ def build_parser() -> argparse.ArgumentParser:
                     help="resume from checkpoint path")
     p.add_argument("--out-dir", type=str, default=None,
                     help="output directory (default: auto timestamp)")
-
-    # Elite retention
-    p.add_argument("--elite-cap", type=int, default=5,
-                    help="max historical elites to retain")
-
-    # Mean injection
-    p.add_argument("--mean-inject", type=int, default=1,
-                    help="number of mean copies to inject into population")
 
     return p
 
@@ -185,7 +160,10 @@ def mutate_dataset(dataset: SSDataset, rng: np.random.Generator, gen: int, args)
     Returns:
         New SSDataset with mutated class labels and action maps.
     """
-    # 把 SSDataset 里的标签转成 tensor 传入变异      
+    import torch
+    from my_ai.ss_train import SSDataset
+
+    # 把 SSDataset 里的标签转成 tensor 传入变异
     cls_tensor = torch.from_numpy(dataset.class_label)
     logits_tensor = torch.from_numpy(dataset.head_logits) 
 
@@ -250,118 +228,6 @@ def mutation(
         log=log,
     )
     return bc_res
-    
-    
-    
-    
-    
-# def generate_population(
-#     mean: np.ndarray,
-#     elite_params: list[np.ndarray],
-#     rng: np.random.Generator,
-#     args,
-#     log=None,
-# ) -> list[np.ndarray]:
-#     """Generate population via selection, crossover, mutation.
-
-#     Args:
-#         mean: current mean parameter vector (shape [N,]).
-#         elite_params: list of elite parameter vectors from prior generations.
-#         rng: numpy random generator (seeded for reproducibility).
-#         args: parsed CLI args (provides pop_size, etc.).
-#         log: optional logger.
-
-#     Returns:
-#         List of args.pop_size parameter vectors (np.ndarray).
-
-#     Note:
-#         The returned list should contain pop_size entries. Mean injection,
-#         elite retention, and LB injection are handled by _assemble_population()
-#         *after* this function returns. So generate_population() only needs to
-#         produce (pop_size - mean_inject - elite_cap - lb_inject) individuals,
-#         but it's OK to produce exactly pop_size — _assemble_population will
-#         trim/replace as needed.
-#     """
-#     # ── TODO [GA] Your GA core here ───────────────────────────────
-#     # Ideas:
-#     #   1. Selection: pick parents from mean + elites (tournament / rank-weighted / uniform)
-#     #   2. Crossover: e.g. BC-on-pooled-data (your Function-Space Crossover idea)
-#     #   3. Mutation: add noise, or use mutate_class_labels on data
-#     #   4. Return list of param vectors
-#     #
-#     # Example (random perturbation as placeholder):
-#     #   pop = []
-#     #   for i in range(args.pop_size):
-#     #       noise = rng.normal(0, 0.01, size=mean.shape).astype(np.float32)
-#     #       pop.append(mean + noise)
-#     #   return pop
-#     raise NotImplementedError(
-#         "GA core not yet implemented. "
-#         "Write generate_population() with your selection/crossover/mutation logic."
-#     )
-
-
-# ═══════════════════════════════════════════════════════════════════
-# Population assembly helpers
-# ═══════════════════════════════════════════════════════════════════
-
-# def _assemble_population(
-#     ga_pop: list[np.ndarray],
-#     mean: np.ndarray,
-#     elite_saved: list[np.ndarray],
-#     lb_entries: list,
-#     args,
-#     log=None,
-# ) -> list[np.ndarray]:
-#     """Assemble the final population by injecting mean, elites, and LB entries.
-
-#     The composition order: [GA_pop] + [mean copies] + [elites] + [LB entries].
-#     Trimmed to pop_size.
-
-#     Args:
-#         ga_pop: population from generate_population().
-#         mean: current mean parameter vector.
-#         elite_saved: list of historical elite parameter vectors.
-#         lb_entries: list of Leaderboard entries (each has .params).
-#         args: parsed CLI args.
-#         log: optional logger.
-
-#     Returns:
-#         list of np.ndarray, length = pop_size.
-#     """
-#     pop = list(ga_pop)
-
-#     # Mean injection
-#     for _ in range(args.mean_inject):
-#         pop.append(mean.copy())
-
-#     # Elite retention
-#     for e in elite_saved[:args.elite_cap]:
-#         pop.append(e.copy())
-
-#     # LB injection
-#     if not args.no_lb and lb_entries is not None:
-#         for e in lb_entries[:args.lb_inject]:
-#             if hasattr(e, "params"):
-#                 pop.append(e.params.copy())
-#             else:
-#                 pop.append(e.copy())
-
-#     # Trim to pop_size
-#     if len(pop) > args.pop_size:
-#         if log:
-#             log.print(key="trim_pop",
-#                       value=f"trimming {len(pop)} → {args.pop_size}")
-#         pop = pop[:args.pop_size]
-#     elif len(pop) < args.pop_size:
-#         # Pad with mean copies
-#         n_pad = args.pop_size - len(pop)
-#         if log:
-#             log.print(key="pad_pop", value=f"padding with {n_pad} mean copies")
-#         for _ in range(n_pad):
-#             pop.append(mean.copy())
-
-#     return pop
 
 
 def _select_opponents(
@@ -381,43 +247,18 @@ def _select_opponents(
         list of opponent parameter vectors (np.ndarray).
     """
     if leaderboard is not None and len(leaderboard.entries) > 0:
-        opps = leaderboard.get_opponents(k=3)
-        if log:
-            names = [f"#{e.gen}" for e in opps]
+        k = max(1, games // 2)
+        opps = leaderboard.get_opponents(k=k)
+        if log and opps:
+            names = [f"#{e['gen']}" for e in opps]
             log.print(key="lb_opponents", value=f"Leaderboard opponents: {names}")
-        return [e.params for e in opps]
+        return [e["params"] for e in opps]
     else:
         # Self-play: use mean as opponent
         if log:
             log.print(key="self_play", value="no Leaderboard, using self-play")
         return [mean.copy()]
 
-
-def _update_elite_saved(
-    elite_saved: list[tuple[np.ndarray, float]],
-    params_list: list[np.ndarray],
-    fitness: np.ndarray,
-    elite_cap: int,
-    log=None,
-) -> list[tuple[np.ndarray, float]]:
-    """Merge current generation's individuals into elite storage.
-
-    Keeps the top elite_cap individuals across all generations (by fitness).
-
-    Args:
-        elite_saved: existing elite list of [(params, fitness), ...].
-        params_list: current generation's parameter vectors.
-        fitness: fitness array of shape (pop_size,).
-        elite_cap: max elites to retain.
-        log: optional logger.
-
-    Returns:
-        Updated elite list of [(params, fitness), ...] with length ≤ elite_cap.
-    """
-    candidates = [(p.copy(), f) for p, f in zip(params_list, fitness)]
-    combined = elite_saved + candidates
-    combined.sort(key=lambda x: x[1], reverse=True)
-    return combined[:elite_cap]
 
 
 # ════════════════════════════════════════════════
@@ -427,6 +268,7 @@ def _update_elite_saved(
 
 def save_checkpoint(path, mean, model, generation, ga_pop=None, config=None, leaderboard=None):
     """Save training state to checkpoint file."""
+    import torch
     data = {
         "mean": torch.from_numpy(mean),
         "model_state": model.state_dict(),
@@ -450,6 +292,16 @@ def save_checkpoint(path, mean, model, generation, ga_pop=None, config=None, lea
 # ═══════════════════════════════════════════════════════════════════
 
 def main():
+    import torch
+    from my_ai.network import create_model
+    from my_ai.ss_train import (
+        build_eval_args,
+        run_eval,
+        SSDataset,
+        collect_npz,
+        reload_config,
+    )
+
     # ── Parse args ─────────────────────────────────────────────────
     parser = build_parser()
     args = parser.parse_args()
@@ -509,6 +361,10 @@ def main():
     pool = mp.Pool(args.workers)
     log.print(key="pool", value=f"started {args.workers} workers")
 
+    # ── PAUSE file (write "pause" to pause, "resume" to continue) ──
+    pause_file = out_dir / "PAUSE"
+    pause_file.write_text("resume", encoding="utf-8")
+
     # ── Main loop ──────────────────────────────────────────────────
     latest_result = None
 
@@ -517,54 +373,34 @@ def main():
             log.print(key="interrupt", value=f"stopping at generation {gen}")
             break
 
+        # PAUSE check
+        while pause_file.read_text(encoding="utf-8").strip().lower() == "pause" and not interrupted[0]:
+            time.sleep(2)
+        if interrupted[0]:
+            break
+
         log.separator("-")
         log.print(key="gen", value=f"{gen + 1}/{args.generations}")
         t0 = time.time()
 
         if not ga_pop:
             for i in range(args.pop_size):
-                noise = rng.normal(0, 1, size=mean.shape).astype(np.float32)
+                noise = rng.normal(0, 0.01, size=mean.shape).astype(np.float32)
                 ga_pop.append(noise)
-            # log.print(key="pop_size", value=f"{len(ga_pop)}")
-            
 
-        # # ── (1) Generate GA population ────────────────────────────
-        # try:
-        #     ga_pop = generate_population(
-        #         mean,
-        #         [e[0] for e in elite_saved],
-        #         rng,
-        #         args,
-        #         log=log,
-        #     )
-        # except NotImplementedError as e:
-        #     log.print(key="GA_ERROR",
-        #               value=f"generate_population() not implemented: {e}")
-        #     log.print(key="GA_ERROR",
-        #               value="Using mean-only fallback for now.")
-        #     ga_pop = [mean.copy() for _ in range(args.pop_size)]
-
-        # ── (2) Assemble final population ─────────────────────────
-        # lb_entries = leaderboard.get_ranked_entries() if leaderboard else []
-        # params_list = _assemble_population(
-        #     ga_pop, mean, [e[0] for e in elite_saved],
-        #     lb_entries, args, log=log,
-        # )
-        # log.print(key="pop_size", value=f"{len(params_list)}")
-
-        # # ── (3) Select opponents ──────────────────────────────────
+        # ── (1) Select opponents ──────────────────────────────────
         opp_params_list = _select_opponents(
             leaderboard, args.pop_size, args.games, rng, mean, log=log,
         )
         n_opp = len(opp_params_list)
         log.print(key="opponents", value=f"{n_opp} opponent(s)")
 
-        # ── (4) Phase 1: evaluate ALL individuals ─────────────────
+        # ── (2) Evaluate all individuals (Phase 1) ────────────────
 
         params_list = ga_pop
         log.print(key="pop_size", value=f"{len(params_list)}")
 
-        log.print(key="eval", value="Phase 1: evaluating all individuals...")
+        log.print(key="eval", value="evaluating all individuals...")
         all_args = build_eval_args(
             params_list, opp_params_list,
             pop_size=len(params_list), games=args.games,
@@ -575,63 +411,54 @@ def main():
         )
         results = run_eval(pool, all_args)
 
-        # Aggregate scores
-        scores_per_ind = np.zeros(len(params_list), dtype=np.float64)
-        games_per_ind = np.zeros(len(params_list), dtype=np.int32)
-        for r in results:
-            scores_per_ind[r["our_player"]] += r["score"]
-            games_per_ind[r["our_player"]] += 1
-        fitness = scores_per_ind / np.maximum(games_per_ind, 1)
+        # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
+        n_games_per_ind = n_opp * 2  # 2 games per opponent (P0 + P1)
+        scores_ind = np.array([r["score"] for r in results], dtype=np.float64)
+        scores_ind = scores_ind.reshape(len(params_list), n_games_per_ind)
+        fitness = scores_ind.mean(axis=1)
 
         best_idx = int(np.argmax(fitness))
         best_fit = float(fitness[best_idx])
         best_params = ga_pop[best_idx].copy()  # save before ga_pop is reassigned
+        mean = best_params.copy()              # update mean for checkpoint / eval tools
         avg_fit = float(fitness.mean())
         min_fit = float(fitness.min())
+        print("")
         log.print(key="fitness",
                   value=f"best={best_fit:.4f}  avg={avg_fit:.4f}  min={min_fit:.4f}")
+        # Fitness distribution
+        unique, counts = np.unique(np.round(fitness, 4), return_counts=True)
+        dist_str = ", ".join(f"{u:.4f}:{c}" for u, c in zip(unique, counts))
+        log.print(key="fitness_dist", value=dist_str)
 
-        # ── (5) Select top-K for BC training ─────────────────────
+        # ── (3) Select top-K, load BC data ────────────────────────
         top_k_idx = np.argsort(fitness)[-args.k:][::-1].tolist()
         log.print(key="top_k", value=f"indices={top_k_idx}")
-
-        # ── (6) Phase 2: re-evaluate top-K with BC data saving ───
-        # log.print(key="eval", value="Phase 2: top-K eval with BC data...")
-        # bc_args = build_eval_args(
-        #     params_list, opp_params_list,
-        #     pop_size=len(params_list), games=args.games,
-        #     num_heads=args.num_heads, bc_dir=str(bc_dir),
-        #     gen=gen, seed=args.seed + gen + 9999,
-        #     only_idx=top_k_idx, seed_offset=10000,
-        #     action_dropout=args.action_dropout, small=args.small,
-        # )
-        # bc_results = run_eval(pool, bc_args)
-
-        # (Collect some stats from Phase 2 for logging)
-
-        # # ── (7) Collect BC data and train ─────────────────────────
 
         npz_paths = [collect_npz(bc_dir, [top_k_idx[i]], gen) for i in range(args.k)]
         datasets = [
             SSDataset(
-                npz_paths[i], 
-                p_hold=args.p_hold, 
-                seed=args.seed + gen, 
+                npz_paths[i],
+                p_hold=args.p_hold,
+                seed=args.seed + gen,
                 oversample_alpha=args.oversample_alpha
             ) for i in range(args.k)
         ]
 
+        # ── (4) Generate new population: elite + LB + crossover + mutation ──
         top_k_pop = [ga_pop[top_k_idx[i]] for i in range(args.k)]
         lb_pop = []
         for i in range(min(args.opp_inject, len(opp_params_list))):
-            lb_pop.append(opp_params_list[i].copy()) 
-        
+            lb_pop.append(opp_params_list[i].copy())
+
         new_ga_pop = []
         parents_idx = []
         new_pop_size = max(0, args.pop_size - len(top_k_pop) - len(lb_pop))
         for i in range(new_pop_size):
             parents_idx.append([rng.integers(len(top_k_pop)), rng.integers(len(top_k_pop))])
+        log.print(key="crossover", value=f"new_pop_size={new_pop_size}")
         for i in range(new_pop_size):
+            # log.print(key="crossover", value=f"parents={parents_idx[i]}")
             new_ga_pop.append(crossover(
                 top_k_pop,
                 parents_idx[i],
@@ -642,7 +469,10 @@ def main():
                 device,
                 log,
             ))
+        log.print(key="mutation", value=f"new_pop_size={new_pop_size}")
         for i in range(new_pop_size):
+            # print(f"mutation:ind={i}")
+            # log.print(key="mutation", value=f"ind={i}")
             new_ga_pop[i] = mutation(
                 new_ga_pop[i],
                 rng,
@@ -653,63 +483,10 @@ def main():
                 gen,
                 log,
             )
-        
+
         ga_pop = top_k_pop + lb_pop + new_ga_pop
 
-        
-
-        
-            # new_ga_pop.append(elite_pop[rng.integers(len(elite_pop))].copy())
-        
-
-
-
-        # bc_samples = 0
-        # # Cleanup old npz for this gen (in case we re-run)
-        # cleanup_gen_npz(bc_dir, gen)
-
-        # npz_paths = collect_npz(bc_dir, top_k_idx, gen)
-        # log.print(key="npz_files", value=f"{len(npz_paths)} files collected")
-
-        # if len(npz_paths) > 0:
-        #     dataset = SSDataset(
-        #         npz_paths,
-        #         p_hold=args.p_hold,
-        #         seed=args.seed + gen,
-        #         oversample_alpha=args.oversample_alpha,
-        #     )
-        #     bc_samples = len(dataset)
-        #     log.print(key="dataset", value=f"{bc_samples} samples (after filtering)")
-
-        #     # BC training: update mean
-        #     mean = bc_train(
-        #         init_params=mean,
-        #         model_template=model,
-        #         dataset=dataset,
-        #         device=device,
-        #         epochs=args.epochs,
-        #         lr=args.lr,
-        #         batch_size=args.batch_size,
-        #         weight_decay=args.weight_decay,
-        #         label_smoothing=args.label_smoothing,
-        #         lambda_class=args.lambda_class,
-        #         lambda_map=args.lambda_map,
-        #         lambda_div=args.lambda_div,
-        #         lambda_soft=args.lambda_soft,
-        #         bias_decay=args.bias_decay,
-        #         log=log,
-        #     )
-        #     log.print(key="bc_done", value="mean updated via BC")
-        # else:
-        #     log.print(key="dataset", value="WARNING: no BC data collected, skipping training")
-
-        # ── (8) Update elites ─────────────────────────────────────
-        # elite_saved = _update_elite_saved(
-        #     elite_saved, params_list, fitness, args.elite_cap, log=log,
-        # )
-        # elite_top = elite_saved[0][1] if elite_saved else 0.0
-
-        # ── (9) Leaderboard challenge ─────────────────────────────
+        # ── (5) Leaderboard challenge ─────────────────────────────
         if leaderboard is not None:
             log.print(key="lb", value=f"challenging (pool={len(leaderboard.entries)})")
 
@@ -731,7 +508,7 @@ def main():
         else:
             lb_size = 0
 
-        # ── (10) CSV logging ──────────────────────────────────────
+        # ── (6) CSV logging ──────────────────────────────────────
         elapsed = time.time() - t0
         write_csv_row(csv_path, [
             gen + 1,
@@ -743,7 +520,7 @@ def main():
         log.print(key="time", value=f"{elapsed:.1f}s")
         log.print(key="csv", value=str(csv_path))
 
-        # ── (11) Save checkpoint ──────────────────────────────────
+        # ── (7) Save checkpoint ──────────────────────────────────
         if (gen + 1) % args.save_every == 0:
             ckpt_path = out_dir / f"gen_{gen + 1:04d}.pt"
             save_checkpoint(
@@ -755,7 +532,7 @@ def main():
             )
             log.print(key="checkpoint", value=str(ckpt_path))
 
-        # ── (12) Hot-reload config ────────────────────────────────
+        # ── (8) Hot-reload config ────────────────────────────────
         config_path = str(out_dir / "config.txt")
         changed = reload_config(config_path, args)
         if changed:

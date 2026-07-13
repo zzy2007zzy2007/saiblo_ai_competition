@@ -32,11 +32,7 @@ import csv
 from datetime import datetime
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 
-from my_ai.network import AntWarNetwork
-from my_ai.ss_train import ss_supervised_update, SSDataset
 from utils.logger import get_logger
 
 
@@ -78,6 +74,9 @@ def mutate_class_labels(
     Returns:
         (B, N_heads) mutated class labels (same dtype/device as input).
     """
+    import torch
+    import torch.nn.functional as F
+
     if category_weights is None:
         w = torch.ones(24, dtype=head_logits.dtype, device=head_logits.device)
         w[16] = 2.5      # demolish (1 class)
@@ -134,6 +133,8 @@ def mutate_action_map(
     Returns:
         (B, NUM_CLASSES, 19, 19) mutated action maps.
     """
+    import torch
+
     B, C, H, W = action_map.shape
     mutated = action_map.clone()
     rng = torch.Generator(device=action_map.device)
@@ -144,7 +145,8 @@ def mutate_action_map(
         return mutated
 
     noise = torch.randn((mask.sum().item(), C, H, W),
-                        generator=rng, device=action_map.device) * noise_std
+                        generator=rng, device=action_map.device,
+                        dtype=action_map.dtype) * noise_std
     mutated[mask] = mutated[mask] + noise
     mutated[mask] = torch.clamp(mutated[mask], min=0.0)
 
@@ -207,6 +209,9 @@ def bc_train(
     Returns:
         Trained parameter vector (flat np.ndarray, same shape as init_params).
     """
+    from my_ai.network import AntWarNetwork
+    from my_ai.ss_train import ss_supervised_update
+
     # Clone architecture from template (handles small/large/custom)
     model = AntWarNetwork(
         num_resblocks=model_template.num_resblocks,
@@ -278,8 +283,9 @@ def write_csv_row(csv_path: Path, row: list):
         w.writerow(row)
 
 
-def get_device() -> torch.device:
+def get_device():
     """Return cuda if available, else cpu."""
+    import torch
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -334,6 +340,8 @@ def merge_datasets(ds1: SSDataset, ds2: SSDataset) -> SSDataset:
     Returns:
         New SSDataset with data from both inputs concatenated.
     """
+    from my_ai.ss_train import SSDataset
+
     merged = SSDataset.__new__(SSDataset)
     merged.board = np.concatenate([ds1.board, ds2.board], axis=0)
     merged.stats = np.concatenate([ds1.stats, ds2.stats], axis=0)
@@ -373,6 +381,8 @@ def subsample_dataset(ds: SSDataset, n: int, rng: np.random.Generator) -> SSData
     Returns:
         New SSDataset with n frames (or fewer if ds has fewer than n frames).
     """
+    from my_ai.ss_train import SSDataset
+
     n = min(n, len(ds))
     idx = rng.choice(len(ds), size=n, replace=False)
     idx.sort()

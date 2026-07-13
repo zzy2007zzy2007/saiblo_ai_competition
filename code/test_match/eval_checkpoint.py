@@ -49,7 +49,7 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
     from my_ai.agent import NeuralAgent
 
     # Load checkpoint
-    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if "top2_params" in ckpt:
         param_vec = ckpt["top2_params"][0].numpy() if top1 else ckpt["mean"].numpy()
     elif "mean" in ckpt:
