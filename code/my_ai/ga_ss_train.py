@@ -433,6 +433,10 @@ def main():
             only_idx=None, seed_offset=0,
             action_dropout=args.action_dropout, small=args.small,
         )
+        # Attach frozen BN stats to each eval task
+        bn_stats = {k: v.cpu().numpy() for k, v in model.state_dict().items()
+                     if "running_mean" in k or "running_var" in k}
+        all_args = [list(t) + [bn_stats] for t in all_args]
         results = run_eval(pool, all_args)
 
         # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
@@ -516,7 +520,7 @@ def main():
             def _vs_lb(me, opponent):
                 match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
                                 args.num_heads, None, gen, -1,
-                                0.0, args.small)
+                                0.0, args.small, bn_stats)
                                for s in range(args.games)]
                 scores = [r["score"] if isinstance(r, dict) else r
                           for r in pool.starmap(_eval_worker, match_tasks)]

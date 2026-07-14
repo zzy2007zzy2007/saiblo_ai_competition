@@ -20,6 +20,7 @@ def _eval_worker(
     ind=0,
     action_dropout: float = 0.0,
     small: bool = False,
+    bn_stats: dict | None = None,
 ) -> dict:
     """Run one match: params vs opponent params, collect game data to .npz."""
     import os
@@ -37,10 +38,18 @@ def _eval_worker(
 
     model = create_model(num_heads=num_heads, small=small)
     model.set_parameters_from_vector(params_flat)
+    if bn_stats:
+        for name, buf in model.state_dict().items():
+            if "running_mean" in name or "running_var" in name:
+                buf.copy_(torch.from_numpy(bn_stats[name]))
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
 
     opp_model = create_model(num_heads=num_heads, small=small)
     opp_model.set_parameters_from_vector(opp_params_flat)
+    if bn_stats:
+        for name, buf in opp_model.state_dict().items():
+            if "running_mean" in name or "running_var" in name:
+                buf.copy_(torch.from_numpy(bn_stats[name]))
     opponent = NeuralAgent(model=opp_model)
 
     our_player = seed % 2
