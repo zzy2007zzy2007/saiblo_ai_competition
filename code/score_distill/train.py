@@ -33,7 +33,7 @@ class ScoreDataset(Dataset):
     """Dataset for score regression: board + stats → class_scores + score_map."""
 
     def __init__(self, data_dir: str, max_files: int | None = None):
-        paths = sorted(glob.glob(str(Path(data_dir) / "seed*.npz")))
+        paths = sorted(glob.glob(str(Path(data_dir) / "chunk_*.npz")))
         if max_files:
             paths = paths[:max_files]
 
@@ -45,26 +45,29 @@ class ScoreDataset(Dataset):
             scores.append(d["class_scores"])
             maps.append(d["score_map"])
 
-        self.board = np.concatenate(boards, axis=0).astype(np.float32)     # (T, 28, 19, 19)
-        self.stats = np.concatenate(statss, axis=0).astype(np.float32)     # (T, 42)
-        self.class_scores = np.concatenate(scores, axis=0).astype(np.float32)  # (T, 24)
-        self.score_map = np.concatenate(maps, axis=0).astype(np.float32)   # (T, 24, 19, 19)
+        # Keep as float16 in RAM, convert to float32 in __getitem__ (saves ~50% memory)
+        self.board = np.concatenate(boards, axis=0)        # (T, 28, 19, 19) float16
+        self.stats = np.concatenate(statss, axis=0)        # (T, 42) float16
+        self.class_scores = np.concatenate(scores, axis=0)  # (T, 24) float32
+        self.score_map = np.concatenate(maps, axis=0)      # (T, 24, 19, 19) float16
 
     def __len__(self):
         return len(self.board)
 
     def __getitem__(self, idx):
         return {
-            "board": torch.from_numpy(self.board[idx]),
-            "stats": torch.from_numpy(self.stats[idx]),
+            "board": torch.from_numpy(self.board[idx].astype(np.float32)),
+            "stats": torch.from_numpy(self.stats[idx].astype(np.float32)),
             "class_scores": torch.from_numpy(self.class_scores[idx]),
-            "score_map": torch.from_numpy(self.score_map[idx]),
+            "score_map": torch.from_numpy(self.score_map[idx].astype(np.float32)),
         }
 
 
 def train():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", type=str, default="score_data")
+    parser.add_argument("--data-dir", type=str, default="data/score_data")
+    parser.add_argument("--max-files", type=int, default=None,
+                        help="limit number of npz files to load")
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -78,7 +81,7 @@ def train():
     print(f"Device: {device}")
 
     # Load dataset
-    dataset = ScoreDataset(args.data_dir)
+    dataset = ScoreDataset(args.data_dir, max_files=args.max_files)
     print(f"Loaded {len(dataset)} frames from {args.data_dir}")
 
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True,
