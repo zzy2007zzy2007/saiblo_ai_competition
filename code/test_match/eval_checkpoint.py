@@ -55,13 +55,13 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
     elif "mean" in ckpt:
         param_vec = ckpt["mean"].numpy()
     elif "model_state" in ckpt:
-        # ss_train.py checkpoint: has model_state but might not have mean
-        model_local = create_model(num_heads=num_heads, small=small)
+        no_bn = ckpt.get("no_bn", False)
+        model_local = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
         model_local.load_state_dict(ckpt["model_state"])
         param_vec = model_local.get_parameters_as_vector()
     else:
         raise KeyError(f"Checkpoint keys: {list(ckpt.keys())}")
-    model = create_model(num_heads=num_heads, small=small)
+    model = create_model(num_heads=num_heads, small=small, no_bn=ckpt.get("no_bn", False))
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
 

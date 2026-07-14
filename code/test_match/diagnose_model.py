@@ -75,7 +75,7 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
         label = "TOP1"
 
-    model = create_model(num_heads=num_heads)
+    model = create_model(num_heads=num_heads, no_bn=ckpt.get("no_bn", False))
     model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
     _print(f"num_heads={num_heads}, params={len(param_vec):,}  [{label}]")

@@ -293,6 +293,7 @@ def save_checkpoint(path, mean, model, generation, ga_pop=None, config=None, lea
         "model_state": model.state_dict(),
         "generation": generation,
         "num_heads": model.num_heads,
+        "no_bn": getattr(model, "no_bn", False),
         # Compat shim: es_train tools expect top2_params
         "top2_params": [torch.from_numpy(mean.copy())],
         "top2_scores": [1.0],
@@ -372,10 +373,13 @@ def main():
                 from my_ai.network import AntWarNetwork
                 sd = AntWarNetwork.fold_bn_into_state_dict(sd)
             model.load_state_dict(sd, strict=not args.no_bn)
-        raw = ckpt["mean"]
-        mean = raw.cpu().numpy().copy() if hasattr(raw, "cpu") else raw.copy()
-        if "model_state" not in ckpt:
-            model.set_parameters_from_vector(mean)
+            # Update mean to match no-BN parameter count
+            mean = model.get_parameters_as_vector().copy()
+        else:
+            raw = ckpt["mean"]
+            mean = raw.cpu().numpy().copy() if hasattr(raw, "cpu") else raw.copy()
+            if "model_state" not in ckpt:
+                model.set_parameters_from_vector(mean)
         ga_pop = ckpt.get("ga_pop", [])
         start_gen = ckpt.get("generation", 0)
         if leaderboard is not None and "leaderboard" in ckpt:
