@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="sampling temperature for label mutation (0 = uniform random)")
     p.add_argument("--amp", type=float, default=1.0,
                     help="mutation amplitude: multiply BC parameter shift (1=normal)")
+    p.add_argument("--pos-weights", action="store_true",
+                    help="use positive-only weights for gradient combination")
     p.add_argument("--sigma-mutate", type=float, default=0.005,
                     help="gradient-combination mutation step size")
     p.add_argument("--n-grads", type=int, default=32,
@@ -239,6 +241,8 @@ def mutation(
 ) -> np.ndarray:
     """Apply gradient-direction mutation to an individual."""
     weights = rng.normal(0, args.sigma_mutate / (args.n_grads ** 0.5), size=args.n_grads)
+    if args.pos_weights:
+        weights = np.abs(weights)
     perturbation = np.sum([w * g for w, g in zip(weights, grad_dirs)], axis=0)
     result = ind + perturbation
     return result
@@ -335,8 +339,6 @@ def main():
     model = create_model(num_heads=args.num_heads, small=args.small)
     param_count = model.get_parameters_as_vector().shape[0]
     # Everything after backbone (policy heads + value head) should not be perturbed
-    head_start = param_count - sum(p.numel() for p in model.policy_heads.parameters())
-    head_start -= sum(p.numel() for p in model.value_head.parameters())
     log.print(key="param_count", value=f"{param_count:,}")
     mean = model.get_parameters_as_vector().copy()
 
@@ -403,7 +405,7 @@ def main():
         if not ga_pop:
             for i in range(args.pop_size):
                 noise = rng.normal(0, 0.01, size=mean.shape).astype(np.float32)
-                ga_pop.append(noise)
+                ga_pop.append(mean + noise)
 
         # ── (1) Select opponents ──────────────────────────────────
         opp_params_list = _select_opponents(
@@ -493,7 +495,7 @@ def main():
             for d in datasets[1:]:
                 grad_dataset = merge_datasets(grad_dataset, d)
             grad_dirs = compute_grad_dirs(
-                best_params, grad_dataset, rng, args, model, device, gen, head_start,
+                best_params, grad_dataset, rng, args, model, device, gen,
             )
             for i in range(new_pop_size):
                 new_ga_pop[i] = mutation(
