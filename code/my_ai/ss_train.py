@@ -824,8 +824,8 @@ def reload_config(config_path: str, args) -> bool:
                 if "=" in line:
                     k, v = line.split("=", 1)
                     kv[k.strip()] = v.strip()
-        float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std", "p_hold", "swap_p", "oversample_alpha"}
-        int_keys = {"generations", "pop_size", "games", "workers", "k", "data_games", "lb_inject"}
+        float_keys = {"sigma", "lr", "p_mutate", "temperature", "pos_noise_std", "p_hold", "swap_p", "oversample_alpha", "lambda_soft"}
+        int_keys = {"generations", "pop_size", "games", "workers", "k", "data_games", "lb_inject", "epochs"}
         changed = False
         for key in float_keys:
             if key in kv:
