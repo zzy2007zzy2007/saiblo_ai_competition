@@ -177,6 +177,52 @@ class AntWarNetwork(nn.Module):
             p.data.copy_(torch.from_numpy(vec[idx: idx + size]).view(p.shape))
             idx += size
 
+    @staticmethod
+    def fold_bn_into_state_dict(sd: dict[str, torch.Tensor], eps: float = 1e-5) -> dict[str, torch.Tensor]:
+        """Fold BatchNorm parameters into preceding Conv2d layers.
+
+        Returns a state_dict compatible with ``no_bn=True`` models.
+        BN weight/bias/running_mean/running_var keys are removed.
+        Conv bias keys are added where BN existed.
+        """
+        import re, copy
+        sd = copy.copy(sd)
+
+        # Pattern: for each Conv2d that has a matching BN immediately after
+        conv_bn_pairs = [
+            ("initial_conv.0", "initial_conv.1"),
+        ]
+        for i in range(6):
+            conv_bn_pairs.append((f"resblocks.{i}.conv1", f"resblocks.{i}.bn1"))
+            conv_bn_pairs.append((f"resblocks.{i}.conv2", f"resblocks.{i}.bn2"))
+
+        for conv_prefix, bn_prefix in conv_bn_pairs:
+            w_key = f"{conv_prefix}.weight"
+            if w_key not in sd:
+                continue  # no_bn already, skip
+
+            w = sd[w_key]  # Conv weight
+            gamma = sd[f"{bn_prefix}.weight"]  # BN gamma
+            beta = sd[f"{bn_prefix}.bias"]      # BN beta
+            rm = sd[f"{bn_prefix}.running_mean"]
+            rv = sd[f"{bn_prefix}.running_var"]
+
+            # Fold: W' = gamma * W / sqrt(var + eps)
+            scale = gamma / torch.sqrt(rv + eps)
+            folded_w = w * scale.reshape(-1, 1, 1, 1)
+            sd[w_key] = folded_w
+
+            # Fold: b' = beta - gamma * mean / sqrt(var + eps)
+            folded_b = beta - scale * rm
+            sd[f"{conv_prefix}.bias"] = folded_b
+
+            # Remove BN keys
+            for k in list(sd.keys()):
+                if k.startswith(bn_prefix):
+                    del sd[k]
+
+        return sd
+
     def count_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())
 

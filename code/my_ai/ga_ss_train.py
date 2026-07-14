@@ -357,9 +357,12 @@ def main():
     if args.checkpoint:
         log.print(key="resume", value=f"loading checkpoint: {args.checkpoint}")
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-        # Restore model_state first (preserves BN running stats)
         if "model_state" in ckpt:
-            model.load_state_dict(ckpt["model_state"])
+            sd = ckpt["model_state"]
+            if args.no_bn:
+                from my_ai.network import AntWarNetwork
+                sd = AntWarNetwork.fold_bn_into_state_dict(sd)
+            model.load_state_dict(sd, strict=not args.no_bn)
         raw = ckpt["mean"]
         mean = raw.cpu().numpy().copy() if hasattr(raw, "cpu") else raw.copy()
         if "model_state" not in ckpt:
