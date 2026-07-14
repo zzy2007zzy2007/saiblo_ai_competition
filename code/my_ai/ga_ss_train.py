@@ -315,11 +315,20 @@ def main():
     from my_ai.network import create_model
     from my_ai.ss_train import (
         build_eval_args,
-        run_eval,
         SSDataset,
         collect_npz,
         reload_config,
     )
+    # Local run_eval using our _eval_worker (supports no_bn + bn_stats)
+    def run_eval(pool, all_args):
+        if not all_args:
+            return []
+        async_result = pool.starmap_async(_eval_worker, all_args)
+        while True:
+            try:
+                return async_result.get(timeout=2)
+            except mp.TimeoutError:
+                continue
 
     # ── Parse args ─────────────────────────────────────────────────
     parser = build_parser()
