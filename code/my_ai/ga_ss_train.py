@@ -93,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lambda-map", type=float, default=1.0, help="action-map KL loss weight")
     p.add_argument("--lambda-div", type=float, default=0.0, help="head diversity loss weight")
     p.add_argument("--lambda-soft", type=float, default=0.1, help="soft-target KL loss weight")
-    p.add_argument("--bias-decay", type=float, default=0.0,
+    p.add_argument("--bias-decay", type=float, default=0.1,
                     help="extra L2 penalty on policy head biases")
     p.add_argument("--oversample-alpha", type=float, default=0.0,
                     help="rare-class oversampling alpha (0 = disabled)")
@@ -205,7 +205,6 @@ def compute_grad_dirs(
 ) -> list[np.ndarray]:
     """Pre-compute N unit gradient directions from base_params (shared across all individuals).
 
-    Each direction: BC train on a small mutated batch starting from base_params.
     Returns list of unit vectors (each same shape as base_params).
     """
     grads = []
@@ -242,8 +241,6 @@ def mutation(
     weights = rng.normal(0, args.sigma_mutate / (args.n_grads ** 0.5), size=args.n_grads)
     perturbation = np.sum([w * g for w, g in zip(weights, grad_dirs)], axis=0)
     result = ind + perturbation
-    if args.amp != 1.0:
-        result = ind + (result - ind) * args.amp
     return result
 
 
@@ -337,6 +334,9 @@ def main():
     # ── Model + initial parameters ─────────────────────────────────
     model = create_model(num_heads=args.num_heads, small=args.small)
     param_count = model.get_parameters_as_vector().shape[0]
+    # Everything after backbone (policy heads + value head) should not be perturbed
+    head_start = param_count - sum(p.numel() for p in model.policy_heads.parameters())
+    head_start -= sum(p.numel() for p in model.value_head.parameters())
     log.print(key="param_count", value=f"{param_count:,}")
     mean = model.get_parameters_as_vector().copy()
 
@@ -493,7 +493,7 @@ def main():
             for d in datasets[1:]:
                 grad_dataset = merge_datasets(grad_dataset, d)
             grad_dirs = compute_grad_dirs(
-                best_params, grad_dataset, rng, args, model, device, gen,
+                best_params, grad_dataset, rng, args, model, device, gen, head_start,
             )
             for i in range(new_pop_size):
                 new_ga_pop[i] = mutation(
