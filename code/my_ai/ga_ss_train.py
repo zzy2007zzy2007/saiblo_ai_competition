@@ -103,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Architecture
     p.add_argument("--num-heads", type=int, default=3, help="number of policy heads")
     p.add_argument("--small", action="store_true", help="use small model variant")
+    p.add_argument("--no-bn", action="store_true", help="remove BatchNorm layers")
 
     # Leaderboard
     p.add_argument("--no-lb", action="store_true", help="disable Leaderboard")
@@ -336,7 +337,7 @@ def main():
     log.print(key="device", value=str(device))
 
     # ── Model + initial parameters ─────────────────────────────────
-    model = create_model(num_heads=args.num_heads, small=args.small)
+    model = create_model(num_heads=args.num_heads, small=args.small, no_bn=args.no_bn)
     param_count = model.get_parameters_as_vector().shape[0]
     # Everything after backbone (policy heads + value head) should not be perturbed
     log.print(key="param_count", value=f"{param_count:,}")
@@ -433,10 +434,11 @@ def main():
             only_idx=None, seed_offset=0,
             action_dropout=args.action_dropout, small=args.small,
         )
-        # Attach frozen BN stats to each eval task
-        bn_stats = {k: v.cpu().numpy() for k, v in model.state_dict().items()
+        # Attach no_bn flag and frozen BN stats to each eval task
+        bn_stats = ({k: v.cpu().numpy() for k, v in model.state_dict().items()
                      if "running_mean" in k or "running_var" in k}
-        all_args = [list(t) + [bn_stats] for t in all_args]
+                    if not args.no_bn else None)
+        all_args = [list(t) + [args.no_bn, bn_stats] for t in all_args]
         results = run_eval(pool, all_args)
 
         # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
@@ -520,7 +522,7 @@ def main():
             def _vs_lb(me, opponent):
                 match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
                                 args.num_heads, None, gen, -1,
-                                0.0, args.small, bn_stats)
+                                0.0, args.small, args.no_bn, bn_stats)
                                for s in range(args.games)]
                 scores = [r["score"] if isinstance(r, dict) else r
                           for r in pool.starmap(_eval_worker, match_tasks)]

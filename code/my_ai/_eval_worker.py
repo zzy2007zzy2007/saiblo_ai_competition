@@ -20,6 +20,7 @@ def _eval_worker(
     ind=0,
     action_dropout: float = 0.0,
     small: bool = False,
+    no_bn: bool = False,
     bn_stats: dict | None = None,
 ) -> dict:
     """Run one match: params vs opponent params, collect game data to .npz."""
@@ -36,7 +37,7 @@ def _eval_worker(
     from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
 
-    model = create_model(num_heads=num_heads, small=small)
+    model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
     model.set_parameters_from_vector(params_flat)
     if bn_stats:
         for name, buf in model.state_dict().items():
@@ -44,7 +45,7 @@ def _eval_worker(
                 buf.copy_(torch.from_numpy(bn_stats[name]))
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
 
-    opp_model = create_model(num_heads=num_heads, small=small)
+    opp_model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
     opp_model.set_parameters_from_vector(opp_params_flat)
     if bn_stats:
         for name, buf in opp_model.state_dict().items():

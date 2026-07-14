@@ -21,12 +21,12 @@ import numpy as np
 class ResBlock(nn.Module):
     """Residual block with two Conv3×3 layers."""
 
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, no_bn: bool = False):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels)
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(channels)
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=no_bn)
+        self.bn1 = nn.Identity() if no_bn else nn.BatchNorm2d(channels)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=no_bn)
+        self.bn2 = nn.Identity() if no_bn else nn.BatchNorm2d(channels)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
@@ -60,21 +60,28 @@ class AntWarNetwork(nn.Module):
     STATS_DIM = 42
 
     def __init__(self, num_resblocks: int = 6, num_heads: int = 3,
-                 latent_dim: int = 64):
+                 latent_dim: int = 64, no_bn: bool = False):
         super().__init__()
         self.LATENT_DIM = latent_dim
         self.num_resblocks = num_resblocks
         self.num_heads = num_heads
+        self.no_bn = no_bn
 
         # Board encoder
-        self.initial_conv = nn.Sequential(
-            nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3, bias=False),
-            nn.BatchNorm2d(self.LATENT_DIM),
-            nn.ReLU(),
-        )
+        if no_bn:
+            self.initial_conv = nn.Sequential(
+                nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3, bias=True),
+                nn.ReLU(),
+            )
+        else:
+            self.initial_conv = nn.Sequential(
+                nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3, bias=False),
+                nn.BatchNorm2d(self.LATENT_DIM),
+                nn.ReLU(),
+            )
 
         self.resblocks = nn.ModuleList([
-            ResBlock(self.LATENT_DIM) for _ in range(num_resblocks)
+            ResBlock(self.LATENT_DIM, no_bn=no_bn) for _ in range(num_resblocks)
         ])
 
         # Stats encoder
@@ -175,7 +182,8 @@ class AntWarNetwork(nn.Module):
 
 
 def create_model(num_resblocks: int = 6, num_heads: int = 3,
-                 latent_dim: int = 64, small: bool = False) -> AntWarNetwork:
+                 latent_dim: int = 64, small: bool = False,
+                 no_bn: bool = False) -> AntWarNetwork:
     """Create a model.
 
     Args:
@@ -190,7 +198,7 @@ def create_model(num_resblocks: int = 6, num_heads: int = 3,
         num_resblocks = 2
         num_heads = 1
     model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads,
-                          latent_dim=latent_dim)
+                          latent_dim=latent_dim, no_bn=no_bn)
     return model
 
 

@@ -282,10 +282,12 @@ def bc_train(
     from my_ai.ss_train import ss_supervised_update
 
     # Clone architecture from template (handles small/large/custom)
+    no_bn = getattr(model_template, "no_bn", False)
     model = AntWarNetwork(
         num_resblocks=model_template.num_resblocks,
         num_heads=model_template.num_heads,
         latent_dim=model_template.LATENT_DIM,
+        no_bn=no_bn,
     )
     model.set_parameters_from_vector(init_params)
 
