@@ -356,8 +356,13 @@ def main():
     if args.checkpoint:
         log.print(key="resume", value=f"loading checkpoint: {args.checkpoint}")
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-        mean = ckpt["mean"].cpu().numpy().copy()
-        model.set_parameters_from_vector(mean)
+        # Restore model_state first (preserves BN running stats)
+        if "model_state" in ckpt:
+            model.load_state_dict(ckpt["model_state"])
+        raw = ckpt["mean"]
+        mean = raw.cpu().numpy().copy() if hasattr(raw, "cpu") else raw.copy()
+        if "model_state" not in ckpt:
+            model.set_parameters_from_vector(mean)
         ga_pop = ckpt.get("ga_pop", [])
         start_gen = ckpt.get("generation", 0)
         if leaderboard is not None and "leaderboard" in ckpt:
