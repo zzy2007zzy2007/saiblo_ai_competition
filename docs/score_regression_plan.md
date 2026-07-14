@@ -67,37 +67,64 @@ loss = λ_score * MSE(softmax(head_logits), softmax(class_scores))
      + λ_pos   * MSE(action_map, score_map)
 ```
 
-## 数据收集实现（改 `_eval_worker`）
+## 数据收集实现（独立程序）
+
+不复用 `_eval_worker`，单独写一个数据收集脚本 `code/my_ai/collect_scores.py`。
+
+**原因：**
+1. 每步计算 24×19×19 个格子的 ActionCatalog 评分计算量大，不适合在 GA 评估循环中做
+2. 可以用更强的 AI（如 ExampleAI）而不是当前种群来生成数据
+3. 数据收集是一次性批处理任务，和 GA 训练解耦
+
+**流程：**
 
 ```python
+# collect_scores.py：用 ExampleAI 对弈，每步存 action_map + score_map
+import numpy as np
+from SDK.backend.engine import GameState
 from SDK.utils.actions import ActionCatalog, ActionBundle
-from code.my_ai.decoder import make_position_masks
+from AI.ai_example import AI as ExampleAI
+from code.my_ai.decoder import make_position_masks, decode_single_cell
+from SDK.utils.constants import MAX_ROUND
 
+NUM_CLASSES = 24
+MAP_SIZE = 19
 catalog = ActionCatalog()
-position_mask = make_position_masks(state, our_player)
 
-score_map = np.zeros((NUM_CLASSES, 19, 19), dtype=np.float32)
+for seed in range(n_games):
+    state = GameState.initial(seed=seed, ...)
+    # 每步收集
+    boards, statss, score_maps, action_maps = [], [], [], []
+    for _ in range(MAX_ROUND):
+        if state.terminal: break
+        # 用 ExampleAI 走棋（产生数据）
+        example_ops = example_ai.choose_operations(state, player)
+        # 记录棋盘
+        feat = feature_extractor.encode_observation(state, player, ...)
+        boards.append(feat["board"])
+        statss.append(feat["stats"])
+        # 用 ExampleAI 的 action_map 作为模型输出（或留空让训练时算）
+        action_maps.append(expert_action_map)
 
-for class_id in range(NUM_CLASSES):
-    for x in range(19):
-        for y in range(19):
-            if not position_mask[class_id, x, y]:
-                continue
-            # decode → 具体动作
-            op = decode_cell(class_id, x, y, state, our_player)
-            if op is None:
-                score_map[class_id, x, y] = 0.0
-            else:
-                # 用 ActionCatalog 给这个动作打分
-                bundle = ActionBundle(operations=(op,))
-                score = catalog._score_bundle(bundle, state, our_player)
-                score_map[class_id, x, y] = score
+        # 计算 score_map
+        pos_mask = make_position_masks(state, player)
+        score_map = np.zeros((NUM_CLASSES, MAP_SIZE, MAP_SIZE))
+        for class_id in range(NUM_CLASSES):
+            for x in range(MAP_SIZE):
+                for y in range(MAP_SIZE):
+                    if not pos_mask[class_id, x, y]:
+                        continue
+                    op = decode_single_cell(class_id, x, y, state, player)
+                    if op is not None:
+                        score_map[class_id, x, y] = catalog.score_operation(...)
+        score_maps.append(score_map)
 
-# 类分 = 位置分取 max
-class_scores = score_map.reshape(NUM_CLASSES, -1).max(axis=1)
+        state.resolve_turn(example_ops, opp_ops)
+
+    # 存 npz
+    class_scores = np.array(score_maps).reshape(-1, NUM_CLASSES, MAP_SIZE**2).max(axis=-1)
+    np.savez_compressed(path, board=..., stats=..., score_map=..., class_scores=...)
 ```
-
-其中 `_score_bundle` 是根据 ActionCatalog 中各评分方法聚合出的单动作评分函数。
 
 ## 训练实现
 
@@ -130,9 +157,10 @@ if lambda_pos > 0 and "score_map" in batch:
 
 ## 实现步骤
 
-1. `decoder.py` 添加 `decode_cell(class_id, x, y, state, player) → Operation | None`
+1. `decoder.py` 添加 `decode_single_cell(class_id, x, y, state, player) → Operation | None`
 2. `ActionCatalog` 添加 `score_operation(op, state, player) → float`
-3. `_eval_worker` 收集 `score_map` + `class_scores` 存入 npz
-4. `SSDataset` 加载新字段
+3. 独立程序 `code/my_ai/collect_scores.py` 收集 `score_map` + `class_scores` 存入 npz
+4. `SSDataset` 加载新字段 `score_map`, `class_scores`
 5. `ss_supervised_update` 新增 score loss + position loss
-6. CLI 参数 `--lambda-score`, `--lambda-pos`
+6. ga_ss_train CLI 参数 `--lambda-score`, `--lambda-pos`
+7. 用收集的数据跑蒸馏训练，替代当前的 BC 训练
