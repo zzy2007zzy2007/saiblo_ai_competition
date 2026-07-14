@@ -289,6 +289,12 @@ def bc_train(
     )
     model.set_parameters_from_vector(init_params)
 
+    # Copy BN running stats from template (freeze pretrained stats)
+    tmpl_sd = model_template.state_dict()
+    for name, buf in model.state_dict().items():
+        if "running_mean" in name or "running_var" in name:
+            buf.copy_(tmpl_sd[name])
+
     ss_supervised_update(
         model, dataset, device=device,
         epochs=epochs, lr=lr, batch_size=batch_size,
@@ -297,6 +303,11 @@ def bc_train(
         lambda_div=lambda_div, lambda_soft=lambda_soft,
         bias_decay=bias_decay, log=log,
     )
+
+    # Restore BN stats (prevent BC from corrupting them)
+    for name, buf in model.state_dict().items():
+        if "running_mean" in name or "running_var" in name:
+            buf.copy_(tmpl_sd[name])
 
     return model.get_parameters_as_vector()
 
