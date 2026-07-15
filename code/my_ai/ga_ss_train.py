@@ -369,7 +369,7 @@ def main():
         ckpt = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
         if "model_state" in ckpt:
             sd = ckpt["model_state"]
-            if args.no_bn:
+            if args.no_bn and any("running_mean" in k for k in sd):
                 from my_ai.network import AntWarNetwork
                 sd = AntWarNetwork.fold_bn_into_state_dict(sd)
             model.load_state_dict(sd, strict=not args.no_bn)
