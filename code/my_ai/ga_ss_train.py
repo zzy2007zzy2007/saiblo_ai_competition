@@ -256,27 +256,30 @@ def _select_opponents(
     rng: np.random.Generator,
     mean: np.ndarray,
     log=None,
-) -> list[np.ndarray]:
+) -> list[tuple[np.ndarray, int | None]]:
     """Select opponent parameter vectors for evaluation.
 
-    If Leaderboard is available, use rank-weighted sampling from it.
+    If Leaderboard is available, use adaptive rank-λ sampling.
     Otherwise, use the mean as the sole opponent (self-play).
 
     Returns:
-        list of opponent parameter vectors (np.ndarray).
+        list of (params, gen) tuples. gen=None for self-play.
     """
     if leaderboard is not None and len(leaderboard.entries) > 0:
         k = max(1, games // 2)
-        opps = leaderboard.get_opponents(k=k)
+        if len(leaderboard.entries) >= 3:
+            opps = leaderboard.get_opponents_adaptive(k=k)
+        else:
+            opps = leaderboard.get_opponents(k=k)
         if log and opps:
             names = [f"#{e['gen']}" for e in opps]
             log.print(key="lb_opponents", value=f"Leaderboard opponents: {names}")
-        return [e["params"] for e in opps]
+        return [(e["params"], e["gen"]) for e in opps]
     else:
         # Self-play: use mean as opponent
         if log:
             log.print(key="self_play", value="no Leaderboard, using self-play")
-        return [mean.copy()]
+        return [(mean.copy(), None)]
 
 
 
@@ -430,9 +433,11 @@ def main():
                 ga_pop.append(mean + noise)
 
         # ── (1) Select opponents ──────────────────────────────────
-        opp_params_list = _select_opponents(
+        opp_list = _select_opponents(
             leaderboard, args.pop_size, args.games, rng, mean, log=log,
         )
+        opp_params_list = [p for p, _ in opp_list]
+        opp_gens = [g for _, g in opp_list]
         n_opp = len(opp_params_list)
         log.print(key="opponents", value=f"{n_opp} opponent(s)")
 
@@ -458,10 +463,19 @@ def main():
         results = run_eval(pool, all_args)
 
         # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
-        n_games_per_ind = n_opp * 2  # 2 games per opponent (P0 + P1)
+        n_games_per_ind = n_opp * 2
         scores_ind = np.array([r["score"] for r in results], dtype=np.float64)
         scores_ind = scores_ind.reshape(len(params_list), n_games_per_ind)
         fitness = scores_ind.mean(axis=1)
+
+        # Per-opponent win rates for adaptive LB sampling
+        if leaderboard is not None and n_opp > 0:
+            wr_by_gen = {}
+            for opp_idx, gen_id in enumerate(opp_gens):
+                if gen_id is not None:
+                    opp_scores = scores_ind[:, opp_idx * 2:(opp_idx + 1) * 2]
+                    wr_by_gen[gen_id] = float(opp_scores.mean())
+            leaderboard.update_lambdas(wr_by_gen)
 
         best_idx = int(np.argmax(fitness))
         best_fit = float(fitness[best_idx])

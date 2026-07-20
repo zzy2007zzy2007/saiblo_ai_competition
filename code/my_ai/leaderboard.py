@@ -18,6 +18,7 @@ class LeaderboardEntry:
     gen: int
     params: np.ndarray
     score: float
+    lbd: float = 1.0  # adaptive sampling weight
 
 
 class Leaderboard:
@@ -151,6 +152,51 @@ class Leaderboard:
             for d in sampled
         ]
 
+    def get_opponents_adaptive(
+        self, k: int = 5,
+        target_wr: float = 0.3,
+        sigma: float = 0.25,
+    ) -> list[dict[str, Any]]:
+        """Adaptive weighted sampling — rank × λ.
+
+        λ is updated per-entry based on observed win rates so that
+        individuals achieve ~target_wr win rate against the pool.
+        """
+        ranked = self.get_ranked_entries()
+        n = len(ranked)
+        if n == 0:
+            return []
+
+        # Weights = 0.5^{rank} × λ
+        raw_weights = [self.entries[i].lbd for i in range(n)]
+        rng = np.random.default_rng()
+        indices = rng.choice(n, size=k, replace=True, p=np.array(raw_weights) / sum(raw_weights))
+
+        sampled = [ranked[i] for i in indices]
+        return [{"gen": d["gen"], "params": d["params"]} for d in sampled]
+
+    def update_lambdas(
+        self,
+        wr_by_gen: dict[int, float],
+        target_wr: float = 0.3,
+        sigma: float = 0.25,
+        momentum: float = 0.9,
+    ):
+        """Update adaptive λ weights based on observed win rates.
+
+        Args:
+            wr_by_gen: {gen: win_rate} — individual win rate against that entry.
+            target_wr: desired individual win rate (default 0.3 → opponent ~0.7).
+            sigma: Gaussian kernel width for λ smoothing.
+            momentum: λ update momentum (0.9 = smooth, 0 = instant).
+        """
+        sigma2 = sigma * sigma
+        for entry in self.entries:
+            wr = wr_by_gen.get(entry.gen, None)
+            if wr is not None:
+                raw = np.exp(-abs(wr - target_wr) ** 2 / sigma2)
+                entry.lbd = momentum * entry.lbd + (1 - momentum) * raw
+
     def prune(self, max_size: int) -> list[int]:
         """Remove excess weakest entries so that size ≤ max_size.
 
@@ -174,6 +220,7 @@ class Leaderboard:
                     "gen": e.gen,
                     "params": e.params.tolist(),
                     "score": e.score,
+                    "lbd": e.lbd,
                 }
                 for e in self.entries
             ],
@@ -191,6 +238,7 @@ class Leaderboard:
                 gen=ed["gen"],
                 params=np.array(ed["params"], dtype=np.float32),
                 score=ed["score"],
+                lbd=ed.get("lbd", 1.0),
             ))
         # entries are assumed to already be sorted strongest → weakest
 
