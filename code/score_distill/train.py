@@ -51,6 +51,17 @@ class ScoreDataset(Dataset):
         self.class_scores = np.concatenate(scores, axis=0)  # (T, 24) float32
         self.score_map = np.concatenate(maps, axis=0)      # (T, 24, 19, 19) float16
 
+        # Per-class z-score normalization (each class mean=0, std=1 across frames)
+        for c in range(24):
+            sc = self.class_scores[:, c].astype(np.float64)
+            m, s = sc.mean(), sc.std()
+            if s > 1e-8:
+                self.class_scores[:, c] = ((sc - m) / s).astype(np.float32)
+            mp = self.score_map[:, c].astype(np.float64).reshape(len(self), -1)
+            m2, s2 = mp.mean(), mp.std()
+            if s2 > 1e-8:
+                self.score_map[:, c] = ((mp - m2) / s2).astype(np.float16).reshape(self.score_map[:, c].shape)
+
     def __len__(self):
         return len(self.board)
 
@@ -74,11 +85,23 @@ def train():
     parser.add_argument("--num-heads", type=int, default=3)
     parser.add_argument("--small", action="store_true")
     parser.add_argument("--out", type=str, default=None,
-                        help="output checkpoint path")
+                        help="output directory (default: training_history/score_distill_YYYYMMDD_HHMMSS)")
+    parser.add_argument("--save-every", type=int, default=10,
+                        help="save checkpoint every N epochs")
     args = parser.parse_args()
+
+    # Output directory
+    from datetime import datetime
+    if args.out:
+        out_dir = Path(args.out)
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = Path("training_history") / f"score_distill_{ts}"
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+    print(f"Output: {out_dir}")
 
     # Load dataset
     dataset = ScoreDataset(args.data_dir, max_files=args.max_files)
@@ -131,24 +154,36 @@ def train():
             total_map_loss += map_loss.item()
             n_batches += 1
 
-        if (epoch + 1) % 5 == 0 or epoch == 0:
-            print(f"epoch {epoch+1:3d}/{args.epochs}  "
-                  f"score_loss={total_score_loss/n_batches:.4f}  "
-                  f"map_loss={total_map_loss/n_batches:.4f}")
+        print(f"epoch {epoch+1:3d}/{args.epochs}  "
+              f"score_loss={total_score_loss/n_batches:.4f}  "
+              f"map_loss={total_map_loss/n_batches:.4f}")
 
-    # Save checkpoint
-    out_path = args.out or f"score_pretrained_{args.num_heads}head.pt"
+        # Save intermediate checkpoint
+        if (epoch + 1) % args.save_every == 0:
+            model.cpu()
+            ckpt_path = out_dir / f"epoch_{epoch+1:04d}.pt"
+            torch.save({
+                "model_state": model.state_dict(),
+                "mean": model.get_parameters_as_vector(),
+                "num_heads": model.num_heads,
+                "config": vars(args),
+            }, ckpt_path)
+            model.to(device)
+            print(f"  checkpoint -> {ckpt_path}")
+
+    # Save final checkpoint
     model.cpu()
+    final_path = out_dir / "final.pt"
     torch.save({
         "model_state": model.state_dict(),
         "mean": model.get_parameters_as_vector(),
         "num_heads": model.num_heads,
         "config": vars(args),
-    }, out_path)
-    print(f"\nSaved: {out_path}")
+    }, final_path)
+    print(f"\nFinal: {final_path}")
     print(f"Params: {model.count_parameters():,}")
-    print(f"You can now use this checkpoint with:")
-    print(f"  python code/my_ai/ga_ss_train.py --checkpoint {out_path}")
+    print(f"\nUse for GA training:")
+    print(f"  python code/my_ai/ga_ss_train.py --checkpoint {final_path}")
 
 
 if __name__ == "__main__":
