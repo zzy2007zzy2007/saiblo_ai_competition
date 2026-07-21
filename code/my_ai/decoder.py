@@ -210,6 +210,8 @@ def decode_head(
     player: int,
     *,
     allowed_classes: list[int] | None = None,
+    rng: np.random.Generator | None = None,
+    temperature: float = 0.0,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -219,6 +221,9 @@ def decode_head(
     back to the next-best legal action. This prevents heads from
     automatically decaying into wasteful fallback actions (e.g. DOWNGRADE)
     when their preferred action is temporarily unavailable.
+
+    When temperature > 0, uses z-score normalized temperature sampling
+    instead of argmax for smoother action selection.
     """
     # Step 0: Filter by allowed_classes if set
     if allowed_classes is not None:
@@ -229,8 +234,15 @@ def decode_head(
             if ch not in allowed_classes:
                 position_mask[ch] = False
 
-    # Step 1: Raw argmax — what the head truly wants
-    class_id = int(np.argmax(head_logits))
+    # Step 1: Choose class (argmax or temperature sampling)
+    if temperature > 0 and rng is not None:
+        # z-score normalize so temperature is scale-invariant
+        logits = (head_logits - head_logits.mean()) / (head_logits.std() + 1e-8)
+        probs = np.exp(logits / temperature)
+        probs /= probs.sum()
+        class_id = int(rng.choice(len(probs), p=probs))
+    else:
+        class_id = int(np.argmax(head_logits))
 
     if not class_mask[class_id]:
         return None  # Head's top choice is illegal → skip this head
@@ -317,6 +329,8 @@ def decode_network_output(
     player: int,
     *,
     allowed_classes: list[int] | None = None,
+    rng: np.random.Generator | None = None,
+    temperature: float = 0.0,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -349,7 +363,7 @@ def decode_network_output(
     operations: list[Operation] = []
     for head_idx, head_logits in enumerate(head_logits_list):
         op = decode_head(head_logits, action_map, class_mask, position_mask, state, player,
-                         allowed_classes=allowed_classes)
+                         allowed_classes=allowed_classes, rng=rng, temperature=temperature)
         if op is not None:
             # Check if operation is legal (given already selected operations)
             if state.can_apply_operation(player, op, operations):

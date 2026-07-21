@@ -77,6 +77,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--games", type=int, default=2,
                     help="games per individual per opponent (even number; 2 = 1 as P0 + 1 as P1)")
     p.add_argument("--workers", type=int, default=8, help="multiprocessing workers")
+    p.add_argument("--eval-temperature", type=float, default=0.3,
+                    help="temperature for action sampling (0=argmax, higher=smoother)")
     p.add_argument("--action-dropout", type=float, default=0.0,
                     help="action dropout rate during eval (data diversity)")
     p.add_argument("--p-hold", type=float, default=1.0,
@@ -459,7 +461,7 @@ def main():
         bn_stats = ({k: v.cpu().numpy() for k, v in model.state_dict().items()
                      if "running_mean" in k or "running_var" in k}
                     if not args.no_bn else None)
-        all_args = [list(t) + [args.no_bn, bn_stats] for t in all_args]
+        all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
         results = run_eval(pool, all_args)
 
         # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
@@ -552,7 +554,7 @@ def main():
             def _vs_lb(me, opponent):
                 match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
                                 args.num_heads, None, gen, -1,
-                                0.0, args.small, args.no_bn, bn_stats)
+                                0.0, args.small, args.no_bn, bn_stats, args.eval_temperature)
                                for s in range(args.games)]
                 scores = [r["score"] if isinstance(r, dict) else r
                           for r in pool.starmap(_eval_worker, match_tasks)]
