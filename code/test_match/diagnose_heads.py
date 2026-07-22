@@ -69,7 +69,11 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
 
     no_bn = ckpt.get("no_bn", False)
     model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
-    model.set_parameters_from_vector(params)
+    if "model_state" in ckpt:
+        model.load_state_dict(ckpt["model_state"])
+        model.set_parameters_from_vector(params)  # overwrite individual params, keep BN stats
+    else:
+        model.set_parameters_from_vector(params)
     _print(f"num_heads={num_heads}, params={len(params):,} device={device}")
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
     opponent = ExampleAI(seed=seed)

@@ -80,7 +80,13 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         label = "TOP1"
 
     model = create_model(num_heads=num_heads, no_bn=ckpt.get("no_bn", False))
-    model.set_parameters_from_vector(param_vec)
+    if "model_state" in ckpt:
+        model.load_state_dict(ckpt["model_state"])
+        if ind is not None:
+            # Overwrite with the specific individual's params (keep BN stats)
+            model.set_parameters_from_vector(param_vec)
+    else:
+        model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
     _print(f"num_heads={num_heads}, params={len(param_vec):,}  [{label}]")
 

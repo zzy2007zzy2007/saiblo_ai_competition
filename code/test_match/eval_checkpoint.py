@@ -64,7 +64,11 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
     else:
         raise KeyError(f"Checkpoint keys: {list(ckpt.keys())}")
     model = create_model(num_heads=num_heads, small=small, no_bn=ckpt.get("no_bn", False))
-    model.set_parameters_from_vector(param_vec)
+    if "model_state" in ckpt:
+        model.load_state_dict(ckpt["model_state"])
+        model.set_parameters_from_vector(param_vec)  # overwrite params, keep BN stats
+    else:
+        model.set_parameters_from_vector(param_vec)
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
 
     # Opponent
