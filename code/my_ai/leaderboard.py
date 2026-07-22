@@ -63,6 +63,7 @@ class Leaderboard:
         Returns:
             True if inserted, False if rejected.
         """
+        default_lbd = self.entries[0].lbd if self.entries else 1.0
         if match_fn is not None and self.entries:
             # ── Challenge ladder: strongest → up to max_challenges ──
             for rank, entry in enumerate(self.entries[:self.max_challenges]):
@@ -70,7 +71,7 @@ class Leaderboard:
                 if s > self.threshold:
                     # Beats this opponent → insert above it
                     self.entries.insert(rank, LeaderboardEntry(
-                        gen=gen, params=params.copy(), score=s))
+                        gen=gen, params=params.copy(), score=s, lbd=default_lbd))
                     if len(self.entries) > self.max_size:
                         self.entries.pop()
                     return True
@@ -90,7 +91,7 @@ class Leaderboard:
         if len(self.entries) >= self.max_size and score <= self.entries[-1].score:
             return False
 
-        entry = LeaderboardEntry(gen=gen, params=params.copy(), score=score)
+        entry = LeaderboardEntry(gen=gen, params=params.copy(), score=score, lbd=default_lbd)
         neg_scores = [-e.score for e in self.entries]
         pos = bisect.bisect_left(neg_scores, -score)
         self.entries.insert(pos, entry)
@@ -168,7 +169,7 @@ class Leaderboard:
             return []
 
         # Weights = 0.5^{rank} × λ
-        raw_weights = [self.entries[i].lbd for i in range(n)]
+        raw_weights = [(0.5 ** i) * self.entries[i].lbd for i in range(n)]
         rng = np.random.default_rng()
         indices = rng.choice(n, size=k, replace=True, p=np.array(raw_weights) / sum(raw_weights))
 
@@ -180,7 +181,7 @@ class Leaderboard:
         wr_by_gen: dict[int, float],
         target_wr: float = 0.3,
         sigma: float = 0.25,
-        momentum: float = 0.9,
+        momentum: float = 0.5,
     ):
         """Update adaptive λ weights based on observed win rates.
 
