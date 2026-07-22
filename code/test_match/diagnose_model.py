@@ -72,7 +72,11 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
         param_vec = ckpt["ga_pop"][ind]
         label = f"ga_pop[{ind}]"
     else:
-        param_vec = ckpt["top2_params"][0].numpy() if "top2_params" in ckpt else ckpt["mean"].numpy()
+        if "top2_params" in ckpt:
+            param_vec = ckpt["top2_params"][0].numpy()
+        else:
+            raw = ckpt["mean"]
+            param_vec = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
         label = "TOP1"
 
     model = create_model(num_heads=num_heads, no_bn=ckpt.get("no_bn", False))

@@ -50,10 +50,12 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
 
     # Load checkpoint
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    num_heads = ckpt.get("num_heads", num_heads)  # auto-detect from checkpoint
     if "top2_params" in ckpt:
         param_vec = ckpt["top2_params"][0].numpy() if top1 else ckpt["mean"].numpy()
     elif "mean" in ckpt:
-        param_vec = ckpt["mean"].numpy()
+        raw = ckpt["mean"]
+        param_vec = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
     elif "model_state" in ckpt:
         no_bn = ckpt.get("no_bn", False)
         model_local = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
@@ -157,8 +159,31 @@ def _mcts_worker(
     our_player = seed % 2
     opp_player = 1 - our_player
 
-    state = PythonBackendState.initial(seed=seed, cold_handle_rule_illegal=True)
+    from SDK.utils.constants import OperationType
+
+    _OP_NAME_MAP = {
+        OperationType.BUILD_TOWER: "BUILD", OperationType.UPGRADE_TOWER: "UPGRADE",
+        OperationType.DOWNGRADE_TOWER: "DOWNGRADE",
+        OperationType.USE_LIGHTNING_STORM: "LIGHTNING", OperationType.USE_EMP_BLASTER: "EMP",
+        OperationType.USE_DEFLECTOR: "DEFLECTOR", OperationType.USE_EMERGENCY_EVASION: "EVASION",
+        OperationType.UPGRADE_GENERATION_SPEED: "UP_SPEED", OperationType.UPGRADE_GENERATED_ANT: "UP_ANT_HP",
+    }
+
+    def _op_desc(op):
+        name = _OP_NAME_MAP.get(op.op_type, f"OP_{op.op_type}")
+        if op.op_type == OperationType.BUILD_TOWER:
+            return f"{name}({op.arg0},{op.arg1})"
+        elif op.op_type == OperationType.UPGRADE_TOWER:
+            return f"{name}(id={op.arg0}->type={op.arg1})"
+        elif op.op_type == OperationType.DOWNGRADE_TOWER:
+            return f"{name}(id={op.arg0})"
+        elif OperationType.USE_LIGHTNING_STORM <= op.op_type <= OperationType.USE_EMERGENCY_EVASION:
+            return f"{name}({op.arg0},{op.arg1})"
+        else:
+            return name
+
     expert_labels = ["A(Lightning)", "B(Towers)"]
+    state = PythonBackendState.initial(seed=seed, cold_handle_rule_illegal=True)
     for turn in range(MAX_ROUND):
         if state.terminal:
             break
@@ -169,8 +194,9 @@ def _mcts_worker(
 
         hp_us = state.bases[our_player].hp
         hp_opp = state.bases[opp_player].hp
-        us_action_str = ";".join(str(o) for o in ops_us[:3]) if ops_us else "(none)"
-        print(f"  [T{turn+1:3d}] HP:{hp_us:2d},{hp_opp:2d}  Expert:{expert_labels[expert]}  us={us_action_str}  opp={ops_opp[0] if ops_opp else '(none)'}", flush=True)
+        us_str = ";".join(_op_desc(o) for o in ops_us[:3]) if ops_us else "-"
+        opp_str = _op_desc(ops_opp[0]) if ops_opp else "-"
+        print(f"  [T{turn+1:3d}] HP:{hp_us:2d},{hp_opp:2d}  {expert_labels[expert]}  us={us_str}  opp={opp_str}", flush=True)
 
         if our_player == 0:
             state.resolve_turn(ops_us, ops_opp)

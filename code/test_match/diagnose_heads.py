@@ -33,7 +33,7 @@ CLASS_SHORT = {
 }
 
 
-def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0, ind: int | None = None):
+def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, log=None, small: bool = False, action_dropout: float = 0.0, ind: int | None = None, logit_detail_turns: list[int] | None = None):
     _print = print
     _empty = lambda: _print()
     if log is not None:
@@ -62,7 +62,8 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
         t = ckpt["top2_params"][0]
         params = t.numpy() if isinstance(t, torch.Tensor) else t
     elif "mean" in ckpt:
-        params = ckpt["mean"].numpy()
+        raw = ckpt["mean"]
+        params = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
     else:
         raise ValueError("No params found")
 
@@ -116,6 +117,19 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
                 stats[h]["rejected"] += 1
             if okay and op.op_type.name == "BUILD_TOWER":
                 pos_mask[:, op.arg0, op.arg1] = False
+
+        # Detailed logit output at sampled turns
+        if logit_detail_turns and turn in logit_detail_turns:
+            _print(f"  ── turn {turn} (head logits) ──")
+            for h in range(num_heads):
+                key = f"head{h+1}_logits"
+                if key not in output:
+                    continue
+                hl = _to_np(output[key])
+                order = np.argsort(hl)[::-1]
+                all_str = "  ".join(f"{order[c]:2d}={hl[order[c]]:+.3f}" for c in range(24))
+                _print(f"    H{h+1}: argmax={hl.argmax():2d} ({CLASS_SHORT.get(hl.argmax(),'?')})")
+                _print(f"           {all_str}")
 
         state.resolve_turn(u, opp)
         total_ops += len(u) if u else 0
