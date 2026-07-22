@@ -77,8 +77,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--games", type=int, default=2,
                     help="games per individual per opponent (even number; 2 = 1 as P0 + 1 as P1)")
     p.add_argument("--workers", type=int, default=8, help="multiprocessing workers")
-    p.add_argument("--eval-temperature", type=float, default=0.3,
+    p.add_argument("--eval-temperature", type=float, default=0.0,
                     help="temperature for action sampling (0=argmax, higher=smoother)")
+    p.add_argument("--multi-round", action="store_true",
+                    help="multi-round tournament evaluation for better precision")
+    p.add_argument("--keep-data", action="store_true",
+                    help="keep per-generation npz files (for value network training)")
     p.add_argument("--action-dropout", type=float, default=0.0,
                     help="action dropout rate during eval (data diversity)")
     p.add_argument("--p-hold", type=float, default=1.0,
@@ -323,6 +327,7 @@ def main():
         build_eval_args,
         SSDataset,
         collect_npz,
+        cleanup_gen_npz,
         reload_config,
     )
     # Local run_eval using our _eval_worker (supports no_bn + bn_stats)
@@ -434,7 +439,10 @@ def main():
                 noise = rng.normal(0, 0.01, size=mean.shape).astype(np.float32)
                 ga_pop.append(mean + noise)
 
-        # ── (1) Select opponents ──────────────────────────────────
+        # ── (1) Select opponents & evaluate ──────────────────────
+        bn_stats = ({k: v.cpu().numpy() for k, v in model.state_dict().items()
+                     if "running_mean" in k or "running_var" in k}
+                    if not args.no_bn else None)
         opp_list = _select_opponents(
             leaderboard, args.pop_size, args.games, rng, mean, log=log,
         )
@@ -442,40 +450,79 @@ def main():
         opp_gens = [g for _, g in opp_list]
         n_opp = len(opp_params_list)
         log.print(key="opponents", value=f"{n_opp} opponent(s)")
+        log.print(key="pop_size", value=f"{args.pop_size}")
 
-        # ── (2) Evaluate all individuals (Phase 1) ────────────────
+        if args.multi_round:
+            # Multi-round tournament evaluation
+            total_scores = np.zeros(args.pop_size)
+            total_games = np.zeros(args.pop_size, dtype=np.int32)
+            survivors = list(range(args.pop_size))
+            round_seed = args.seed + gen
 
-        params_list = ga_pop
-        log.print(key="pop_size", value=f"{len(params_list)}")
+            while len(survivors) > args.k:
+                n = len(survivors)
+                subset = [ga_pop[i] for i in survivors]
+                all_args = build_eval_args(
+                    subset, opp_params_list,
+                    pop_size=n, games=args.games,
+                    num_heads=args.num_heads, bc_dir=str(bc_dir),
+                    gen=gen, seed=round_seed,
+                    only_idx=None, seed_offset=0,
+                    action_dropout=args.action_dropout, small=args.small,
+                )
+                all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
+                results = run_eval(pool, all_args)
+                round_seed += 9999
 
-        log.print(key="eval", value="evaluating all individuals...")
-        all_args = build_eval_args(
-            params_list, opp_params_list,
-            pop_size=len(params_list), games=args.games,
-            num_heads=args.num_heads, bc_dir=str(bc_dir),
-            gen=gen, seed=args.seed + gen,
-            only_idx=None, seed_offset=0,
-            action_dropout=args.action_dropout, small=args.small,
-        )
-        # Attach no_bn flag and frozen BN stats to each eval task
-        bn_stats = ({k: v.cpu().numpy() for k, v in model.state_dict().items()
-                     if "running_mean" in k or "running_var" in k}
-                    if not args.no_bn else None)
-        all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
-        results = run_eval(pool, all_args)
+                n_games = n_opp * 2
+                scores = np.array([r["score"] for r in results], dtype=np.float64)
+                scores = scores.reshape(n, n_games)
+                round_fitness = scores.mean(axis=1)
 
-        # Aggregate scores (results come in order: all games for ind 0, then ind 1, ...)
-        n_games_per_ind = n_opp * 2
-        scores_ind = np.array([r["score"] for r in results], dtype=np.float64)
-        scores_ind = scores_ind.reshape(len(params_list), n_games_per_ind)
-        fitness = scores_ind.mean(axis=1)
+                # Accumulate
+                total_scores[survivors] += scores.sum(axis=1)
+                total_games[survivors] += n_games
+
+                # Eliminate bottom half (but keep at least K)
+                order = np.argsort(round_fitness)[::-1]
+                survivors = [survivors[i] for i in order[:max(args.k, n // 2)]]
+                log.print(key="multi_round", value=f"{len(survivors)} survivors after round")
+
+            top_k_idx = survivors[:args.k]
+            n_games_per_ind = int(total_games[top_k_idx[0]]) if len(top_k_idx) > 0 else n_opp * 2
+            params_list = [ga_pop[i] for i in range(args.pop_size)]
+            fitness = total_scores / np.maximum(total_games, 1).astype(np.float64)
+            # Reconstruct full-pop scores from last round for LB update
+            last_scores = np.zeros((args.pop_size, n_opp * 2))
+            for j, s_idx in enumerate(range(n)):
+                last_scores[survivors[j]] = scores[j] if j < len(scores) else 0
+        else:
+            # Original single-round evaluation
+            params_list = ga_pop
+            log.print(key="eval", value="evaluating all individuals...")
+            all_args = build_eval_args(
+                params_list, opp_params_list,
+                pop_size=len(params_list), games=args.games,
+                num_heads=args.num_heads, bc_dir=str(bc_dir),
+                gen=gen, seed=args.seed + gen,
+                only_idx=None, seed_offset=0,
+                action_dropout=args.action_dropout, small=args.small,
+            )
+            all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
+            results = run_eval(pool, all_args)
+
+            n_games_per_ind = n_opp * 2
+            scores_ind = np.array([r["score"] for r in results], dtype=np.float64)
+            scores_ind = scores_ind.reshape(len(params_list), n_games_per_ind)
+            fitness = scores_ind.mean(axis=1)
 
         # Per-opponent win rates for adaptive LB sampling
         if leaderboard is not None and n_opp > 0:
             wr_by_gen = {}
+            src = last_scores if args.multi_round else scores_ind
             for opp_idx, gen_id in enumerate(opp_gens):
                 if gen_id is not None:
-                    opp_scores = scores_ind[:, opp_idx * 2:(opp_idx + 1) * 2]
+                    opp_scores = src[:, opp_idx * 2:(opp_idx + 1) * 2]
                     wr_by_gen[gen_id] = float(opp_scores.mean())
             leaderboard.update_lambdas(wr_by_gen)
 
@@ -546,6 +593,10 @@ def main():
                 )
 
         ga_pop = top_k_pop + lb_pop + new_ga_pop
+
+        # Cleanup npz files unless --keep-data
+        if not args.keep_data:
+            cleanup_gen_npz(bc_dir, gen)
 
         # ── (5) Leaderboard challenge ─────────────────────────────
         if leaderboard is not None:
