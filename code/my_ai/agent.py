@@ -101,7 +101,6 @@ class NeuralAgent(BaseAgent):
         self.last_output = output
 
         # Decode (with optional class restriction)
-        import numpy as np
         rng_ = np.random.default_rng()
         operations = decode_network_output(output, state, player,
                                            allowed_classes=self.allowed_classes,
@@ -113,7 +112,7 @@ class NeuralAgent(BaseAgent):
         if self.action_dropout > 0 and random.random() < self.action_dropout:
             from SDK.utils.actions import ActionCatalog
             catalog = ActionCatalog()
-            bundles = catalog.build(state, player)
+            bundles = catalog.build(state, player, rerank=False)
             if bundles:
                 chosen = random.choice(bundles)
                 operations = list(chosen.operations)
