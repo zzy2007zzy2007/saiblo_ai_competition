@@ -113,8 +113,9 @@ class NeuralAgent(BaseAgent):
             from SDK.utils.actions import ActionCatalog
             catalog = ActionCatalog()
             bundles = catalog.build(state, player, rerank=False)
-            if bundles:
-                chosen = random.choice(bundles)
+            singles = [b for b in bundles if len(b.operations) == 1]
+            if singles:
+                chosen = random.choice(singles)
                 operations = list(chosen.operations)
                 self.dropout_this_turn = True
 
