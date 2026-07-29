@@ -16,6 +16,12 @@
 
 模型只需要学"什么时候武器好"，不需要学"怎么凑钱"。
 
+## 开关控制
+
+加 `--intent-decoding` 参数控制，默认关闭。关闭时行为与旧版完全一致，旧 checkpoint 不受影响。
+
+开启时：class_mask 不检查金币，decoder 在金币不足时自动拆塔。
+
 ## 改动点
 
 ### 1. `constants.py` — 超级武器成本
@@ -71,18 +77,23 @@ if 17 <= class_id <= 20:
     return Operation(op_type, int(x), int(y))
 ```
 
-### 4. `decoder.py` — 辅助函数
+### 4. 拆塔选择
+
+使用模型自己的 downgrade action_map（class 16）决定拆哪座塔，不依赖手写规则：
 
 ```python
-def _find_tower_to_downgrade(state, player):
-    """找最值得拆的塔：先拆低级、非关键位置的塔。"""
-    best, best_score = None, -1e9
-    for tower in state.towers_of(player):
-        score = -tower.level * 10 - state.slot_priority(player, tower.x, tower.y)
-        if score > best_score:
-            best_score, best = score, tower
-    return best
+downgrade_map = action_map[16]
+pos_mask16 = position_mask[16]
+if pos_mask16.any():
+    masked = np.where(pos_mask16, downgrade_map, -np.inf)
+    x, y = np.unravel_index(np.argmax(masked), masked.shape)
+    tower = state.tower_at(int(x), int(y))
+    if tower is not None and tower.player == player:
+        return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
+return None  # 没有可拆的塔 → HOLD
 ```
+
+这样拆塔策略完全由模型自身的 downgrade 判断决定，不需要辅助函数。
 
 ## 对现有系统的影响
 
