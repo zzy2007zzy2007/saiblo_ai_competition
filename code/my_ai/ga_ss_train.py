@@ -585,9 +585,10 @@ def main():
         log.print(key="mutation", value=f"new_pop_size={new_pop_size}")
         if new_pop_size > 0 and args.n_grads > 0:
             # Pre-compute gradient directions (shared across all individuals)
-            grad_dataset = datasets[0]
+            # Subsample each dataset for mutation to fit in RAM
+            grad_dataset = subsample_dataset(datasets[0], 100, rng)
             for d in datasets[1:]:
-                grad_dataset = merge_datasets(grad_dataset, d)
+                grad_dataset = merge_datasets(grad_dataset, subsample_dataset(d, 100, rng))
             grad_dirs = compute_grad_dirs(
                 best_params, grad_dataset, rng, args, model, device, gen,
             )
