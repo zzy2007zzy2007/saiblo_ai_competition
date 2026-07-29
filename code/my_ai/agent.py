@@ -43,9 +43,11 @@ class NeuralAgent(BaseAgent):
         allowed_classes: list[int] | None = None,
         action_dropout: float = 0.0,
         eval_temperature: float = 0.0,
+        intent_decoding: bool = True,
     ):
         super().__init__(seed=seed, max_actions=max_actions)
         self.eval_temperature = eval_temperature
+        self.intent_decoding = intent_decoding
         self.max_actions = max_actions
         self.model = model or create_zero_model()
         self.model.eval()  # inference mode
@@ -105,7 +107,8 @@ class NeuralAgent(BaseAgent):
         operations = decode_network_output(output, state, player,
                                            allowed_classes=self.allowed_classes,
                                            rng=rng_,
-                                           temperature=self.eval_temperature)
+                                           temperature=self.eval_temperature,
+                                           intent_decoding=self.intent_decoding)
 
         # ── Action Dropout: randomly override with legal action ──
         self.dropout_this_turn = False

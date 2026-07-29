@@ -1,5 +1,5 @@
 """
-GA + SS hybrid training.
+GA training in strategy space.
 
 GA core (generate_population) — TODO user writes this.
 Peripheral code (argparse, I/O, logging, eval loop, BC training, checkpoint) — handled here.
@@ -81,6 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="temperature for action sampling (0=argmax, higher=smoother)")
     p.add_argument("--multi-round", action="store_true",
                     help="multi-round tournament evaluation for better precision")
+    p.add_argument("--no-intent-decoding", action="store_true",
+                    help="disable auto-downgrade for super weapon gold shortage")
     p.add_argument("--keep-data", action="store_true",
                     help="keep per-generation npz files (for value network training)")
     p.add_argument("--action-dropout", type=float, default=0.0,
@@ -452,6 +454,8 @@ def main():
         log.print(key="opponents", value=f"{n_opp} opponent(s)")
         log.print(key="pop_size", value=f"{args.pop_size}")
 
+        intent_decoding = not args.no_intent_decoding
+
         if args.multi_round:
             # Multi-round tournament evaluation
             total_scores = np.zeros(args.pop_size)
@@ -470,7 +474,7 @@ def main():
                     only_idx=None, seed_offset=0,
                     action_dropout=args.action_dropout, small=args.small,
                 )
-                all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
+                all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature, intent_decoding] for t in all_args]
                 results = run_eval(pool, all_args)
                 round_seed += 9999
 
@@ -508,7 +512,7 @@ def main():
                 only_idx=None, seed_offset=0,
                 action_dropout=args.action_dropout, small=args.small,
             )
-            all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature] for t in all_args]
+            all_args = [list(t) + [args.no_bn, bn_stats, args.eval_temperature, intent_decoding] for t in all_args]
             results = run_eval(pool, all_args)
 
             n_games_per_ind = n_opp * 2
@@ -605,7 +609,7 @@ def main():
             def _vs_lb(me, opponent):
                 match_tasks = [(me, opponent, args.seed + 999999 + gen * 100 + s,
                                 args.num_heads, None, gen, -1,
-                                0.0, args.small, args.no_bn, bn_stats, args.eval_temperature)
+                                0.0, args.small, args.no_bn, bn_stats, args.eval_temperature, intent_decoding)
                                for s in range(args.games)]
                 scores = [r["score"] if isinstance(r, dict) else r
                           for r in pool.starmap(_eval_worker, match_tasks)]

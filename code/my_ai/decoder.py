@@ -100,14 +100,19 @@ def upgrade_step(current_type: TowerType, target_type: TowerType) -> TowerType |
 # ─── Per-class valid position checker ──────────────────────────────────────
 
 
-def _check_super_weapon_valid(state: BackendState, player: int, ch: int) -> bool:
-    """Check if a super weapon channel is valid."""
+def _check_super_weapon_valid(state: BackendState, player: int, ch: int,
+                              intent_decoding: bool = False) -> bool:
+    """Check if a super weapon channel is valid.
+
+    With intent_decoding: only check cooldown (decoder handles gold).
+    Without: check both cooldown and gold (original behavior).
+    """
     sw = CHANNEL_TO_SUPER_WEAPON[ch]
-    stats = SUPER_WEAPON_STATS[sw]
-    return (
-        state.weapon_cooldowns[player, sw] == 0
-        and state.coins[player] >= stats.cost
-    )
+    if state.weapon_cooldowns[player, sw] != 0:
+        return False
+    if not intent_decoding and state.coins[player] < SUPER_WEAPON_STATS[sw].cost:
+        return False
+    return True
 
 
 def make_class_mask(
@@ -115,6 +120,7 @@ def make_class_mask(
     player: int,
     *,
     position_mask: np.ndarray | None = None,
+    intent_decoding: bool = False,
 ) -> np.ndarray:
     """Return boolean mask of shape (23,) indicating which classes are valid.
 
@@ -122,9 +128,10 @@ def make_class_mask(
         state: game state
         player: current player
         position_mask: optional precomputed position mask (avoids recomputation)
+        intent_decoding: if True, super weapons not masked by gold cost.
     """
     if position_mask is None:
-        position_mask = make_position_masks(state, player)
+        position_mask = make_position_masks(state, player, intent_decoding=intent_decoding)
 
     mask = np.zeros(NUM_CLASSES, dtype=bool)
 
@@ -135,9 +142,9 @@ def make_class_mask(
     # Downgrade (16): valid if player has at least one tower
     mask[16] = position_mask[16].any()
 
-    # Super weapons (17-20): check cooldown and coins
+    # Super weapons (17-20): check cooldown (and coins if not intent_decoding)
     for ch in range(17, 21):
-        mask[ch] = _check_super_weapon_valid(state, player, ch)
+        mask[ch] = _check_super_weapon_valid(state, player, ch, intent_decoding=intent_decoding)
 
     # Base upgrades (21-22)
     mask[21] = (
@@ -155,7 +162,8 @@ def make_class_mask(
     return mask
 
 
-def make_position_masks(state: BackendState, player: int) -> np.ndarray:
+def make_position_masks(state: BackendState, player: int,
+                        intent_decoding: bool = False) -> np.ndarray:
     """Return boolean mask of shape (23, 19, 19) for each class at each position."""
     mask = np.zeros((NUM_CLASSES, MAP_SIZE, MAP_SIZE), dtype=bool)
 
@@ -190,7 +198,7 @@ def make_position_masks(state: BackendState, player: int) -> np.ndarray:
     # Super weapons (17-20): can place at any valid (non-VOID) position
     valid_cells = np.array(MAP_PROPERTY, dtype=np.int32) != Terrain.VOID  # (19,19) bool
     for ch in range(17, 21):
-        if _check_super_weapon_valid(state, player, ch):
+        if _check_super_weapon_valid(state, player, ch, intent_decoding=intent_decoding):
             mask[ch] = valid_cells
 
     # Base upgrades (21-22): no position, all False
@@ -212,6 +220,7 @@ def decode_head(
     allowed_classes: list[int] | None = None,
     rng: np.random.Generator | None = None,
     temperature: float = 0.0,
+    intent_decoding: bool = False,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -222,8 +231,12 @@ def decode_head(
     automatically decaying into wasteful fallback actions (e.g. DOWNGRADE)
     when their preferred action is temporarily unavailable.
 
-    When temperature > 0, uses z-score normalized temperature sampling
-    instead of argmax for smoother action selection.
+    When ``intent_decoding`` is True and a super weapon (17-20) is chosen
+    but gold is insufficient, the decoder auto-downgrades a tower using
+    class 16's action_map instead of returning None.
+
+    When temperature > 0, uses range-normalized temperature sampling
+    (scale to [-1, 1]) instead of argmax for smoother action selection.
     """
     # Step 0: Filter by allowed_classes if set
     if allowed_classes is not None:
@@ -236,8 +249,9 @@ def decode_head(
 
     # Step 1: Choose class (argmax or temperature sampling)
     if temperature > 0 and rng is not None:
-        # z-score normalize so temperature is scale-invariant
-        logits = (head_logits - head_logits.mean()) / (head_logits.std() + 1e-8)
+        # Scale to [-1, 1] so temperature is scale-invariant
+        lo, hi = head_logits.min(), head_logits.max()
+        logits = (head_logits - lo) / (hi - lo + 1e-8) * 2 - 1
         probs = np.exp(logits / temperature)
         probs /= probs.sum()
         class_id = int(rng.choice(len(probs), p=probs))
@@ -261,6 +275,20 @@ def decode_head(
     if 17 <= class_id <= 20:
         sw_type = CHANNEL_TO_SUPER_WEAPON[class_id]
         op_type = SUPER_WEAPON_TO_OP_TYPE[sw_type]
+        cost = SUPER_WEAPON_STATS[sw_type].cost
+
+        # Intent decoding: gold insufficient → downgrade tower
+        if intent_decoding and state.coins[player] < cost:
+            dg_map = action_map[16]
+            dg_mask = position_mask[16]
+            if dg_mask.any():
+                masked = np.where(dg_mask, dg_map, -np.inf)
+                x, y = np.unravel_index(np.argmax(masked), masked.shape)
+                tower = state.tower_at(int(x), int(y))
+                if tower is not None and tower.player == player:
+                    return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
+            return None
+
         pos_mask = position_mask[class_id]
         if not pos_mask.any():
             return None
@@ -331,6 +359,7 @@ def decode_network_output(
     allowed_classes: list[int] | None = None,
     rng: np.random.Generator | None = None,
     temperature: float = 0.0,
+    intent_decoding: bool = False,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -356,14 +385,15 @@ def decode_network_output(
     head_logits_list = [_to_np(network_output[k]) for k in head_keys]
 
     # Compute masks
-    position_mask = make_position_masks(state, player)
-    class_mask = make_class_mask(state, player, position_mask=position_mask)
+    position_mask = make_position_masks(state, player, intent_decoding=intent_decoding)
+    class_mask = make_class_mask(state, player, position_mask=position_mask, intent_decoding=intent_decoding)
 
     # Decode each head (up to 3 operations)
     operations: list[Operation] = []
     for head_idx, head_logits in enumerate(head_logits_list):
         op = decode_head(head_logits, action_map, class_mask, position_mask, state, player,
-                         allowed_classes=allowed_classes, rng=rng, temperature=temperature)
+                         allowed_classes=allowed_classes, rng=rng, temperature=temperature,
+                         intent_decoding=intent_decoding)
         if op is not None:
             # Check if operation is legal (given already selected operations)
             if state.can_apply_operation(player, op, operations):

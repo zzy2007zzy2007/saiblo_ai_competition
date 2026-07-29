@@ -23,6 +23,7 @@ def _eval_worker(
     no_bn: bool = False,
     bn_stats: dict | None = None,
     eval_temperature: float = 0.0,
+    intent_decoding: bool = True,
 ) -> dict:
     """Run one match: params vs opponent params, collect game data to .npz."""
     import os
@@ -44,7 +45,7 @@ def _eval_worker(
         for name, buf in model.state_dict().items():
             if "running_mean" in name or "running_var" in name:
                 buf.copy_(torch.from_numpy(bn_stats[name]))
-    agent = NeuralAgent(model=model, action_dropout=action_dropout, eval_temperature=eval_temperature)
+    agent = NeuralAgent(model=model, action_dropout=action_dropout, eval_temperature=eval_temperature, intent_decoding=intent_decoding)
 
     opp_model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
     opp_model.set_parameters_from_vector(opp_params_flat)
