@@ -1,77 +1,101 @@
-# 意图解码：闪电类自动拆塔凑金币
+# 意图解码：超级武器金币不足时自动拆塔
 
 ## 问题
 
-模型只放闪电不打其他策略，因为：
-1. 任何建塔→拆塔→闪电的尝试，在不够金币放闪电的过渡态中输掉
-2. 进化路径被低胜率中间态切断
-3. 模型被困在"放弃建塔、只放闪电"的局部最优
+当前 `class_mask` 在金币不足时把超级武器类掩码掉，模型不能选该类。结果：
+
+1. 模型为了始终保持有金币放闪电，不敢花钱建塔
+2. 任何建塔尝试都会降低放闪电概率 → 胜率下降 → 淘汰
+3. 进化路径被"建塔过渡期低胜率"切断，困在"只放闪电"的局部最优
 
 ## 思路
 
-把闪电类（class 17）从"放闪电"重新定义为"**想要放闪电**"。解码器负责：
-- 金币够 → 放闪电
-- 金币不够 → 自动拆塔回收金币，为放闪电创造条件
+把超级武器类从"放武器"重新定义为"**想要放武器**"。解码器负责：
+- 金币够 → 放武器
+- 金币不够 → 自动拆塔回收金币
 
-这样模型只需要学"什么时候闪电好"，不需要学"怎么凑到闪电的钱"。
+模型只需要学"什么时候武器好"，不需要学"怎么凑钱"。
 
 ## 改动点
 
-只改 `decoder.py` 的 `decode_head` 函数中超级武器分支：
+### 1. `constants.py` — 超级武器成本
+
+| 类 | 动作 | 成本 |
+|---|---|---|
+| 17 | 闪电 | 90 |
+| 18 | EMP | 135 |
+| 19 | Deflector | 60 |
+| 20 | Evasion | 60 |
+
+基地升级（21/22）成本过高（200/250），不纳入意图解码。
+
+### 2. `decoder.py` — class_mask 不再检查金币
+
+`make_class_mask` 中的超级武器检查只保留冷却，移除金币检查：
 
 ```python
-# 当前逻辑（class 17-20）
-if 17 <= class_id <= 20:
-    # 检查金币是否足够
-    if state.coins[player] < 武器.cost:
-        return None  # → HOLD（浪费一回合）
-    ...
+# 改前：检查冷却 AND 金币
+def _check_super_weapon_valid(state, player, ch):
+    sw = CHANNEL_TO_SUPER_WEAPON[ch]
+    stats = SUPER_WEAPON_STATS[sw]
+    return state.weapon_cooldowns[player, sw] == 0 and state.coins[player] >= stats.cost
 
-# 改后逻辑（只改 class 17 = Lightning）
-if class_id == 17:
-    cost = SUPER_WEAPON_STATS[SuperWeaponType.LIGHTNING_STORM].cost
-    if state.coins[player] < cost:
-        # 找一个己方 tower 拆掉凑金币
-        tower = _find_best_tower_to_downgrade(state, player)
-        if tower is not None:
-            return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
-        return None  # 没塔可拆 → HOLD
-    # 金币够，正常放闪电
-    ...
+# 改后：只检查冷却（金币不足时走意图解码）
+def _check_super_weapon_valid(state, player, ch):
+    sw = CHANNEL_TO_SUPER_WEAPON[ch]
+    return state.weapon_cooldowns[player, sw] == 0
 ```
 
-其他超级武器（EMP、Deflector、Evasion）不改，保持原逻辑。
-
-## 辅助函数
+### 3. `decoder.py` — `decode_head` 超级武器分支
 
 ```python
-def _find_best_tower_to_downgrade(state, player) -> Tower | None:
-    """找到最值得拆的塔：优先拆低级、非关键位置的塔。"""
-    best = None
-    best_score = -1e9
+if 17 <= class_id <= 20:
+    sw_type = CHANNEL_TO_SUPER_WEAPON[class_id]
+    op_type = SUPER_WEAPON_TO_OP_TYPE[sw_type]
+    cost = SUPER_WEAPON_STATS[sw_type].cost
+
+    if state.coins[player] < cost:
+        # 金币不足：尝试拆塔凑钱
+        tower = _find_tower_to_downgrade(state, player)
+        if tower is not None:
+            return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
+        return None  # 无塔可拆 → HOLD
+
+    # 金币够，正常放武器
+    pos_mask = position_mask[class_id]
+    if not pos_mask.any():
+        return None
+    channel_map = action_map[class_id]
+    masked_map = np.where(pos_mask, channel_map, -np.inf)
+    x, y = np.unravel_index(np.argmax(masked_map), masked_map.shape)
+    return Operation(op_type, int(x), int(y))
+```
+
+### 4. `decoder.py` — 辅助函数
+
+```python
+def _find_tower_to_downgrade(state, player):
+    """找最值得拆的塔：先拆低级、非关键位置的塔。"""
+    best, best_score = None, -1e9
     for tower in state.towers_of(player):
         score = -tower.level * 10 - state.slot_priority(player, tower.x, tower.y)
         if score > best_score:
-            best_score = score
-            best = tower
+            best_score, best = score, tower
     return best
 ```
 
-选择逻辑：优先拆等级低的、位置不重要的塔。避免拆关键防线。
+## 对现有系统的影响
 
-## 对训练的影响
-
-- 不需要重新收集数据
-- 不需要改模型结构
-- 改动只影响 decode，不产生新数据也不影响现有 checkpoint
-- 加载旧 checkpoint 后直接生效
+| 组件 | 影响 |
+|---|---|
+| 训练数据 | 不影响（不改数据收集） |
+| 模型 | 不影响（不改模型结构） |
+| 现有 checkpoint | 加载后自动生效（只改了解码器） |
+| 其他动作类 | 不受影响 |
+| 对抗测试 | 对手也能用这个逻辑（改的是 decoder，双方共享） |
 
 ## 局限性
 
-这是 Ant-Game 特定的修改，但背后的"意图解码"思想是通用的。
-
-## 实现顺序
-
-1. `decoder.py` 添加 `_find_best_tower_to_downgrade()`
-2. 修改 `decode_head` 的闪电分支
-3. 跑诊断验证：金币不足时是否自动拆塔而非 HOLD
+- Ant-Game 特定的修改
+- 21/22（基地升级）成本太高，不适合意图解码
+- 假设场上至少有一座可拆的塔
