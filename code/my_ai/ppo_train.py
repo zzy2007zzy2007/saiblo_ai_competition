@@ -704,15 +704,21 @@ def main():
                 return float(np.mean(scores)) if scores else 0.0
 
             if leaderboard is not None and leaderboard.entries:
-                # Log win rate vs the strongest challenger (rank 1)
+                # Challenge ladder: current model tries to enter the pool.
+                # Print the stage marker BEFORE the progress dots so the
+                # dots and the log line don't interleave.
+                log.print(key="stage",
+                          value=f"lb_challenge vs rank1 (gen {leaderboard.entries[0].gen}), "
+                                f"{args.lb_games} games")
                 top = leaderboard.entries[0]
                 top_wr = _vs_lb(params.copy(), top.params)
+                print()  # newline after challenge progress dots
                 log.print(key="lb_challenge",
                           value=f"vs rank1 (gen {top.gen}): {top_wr:.3f} "
                                 f"({args.lb_games} games)")
-                print()  # newline after challenge progress dots
 
                 lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
+                print()  # newline after ladder progress dots
                 log.print(key="lb_result",
                           value="added" if lb_added else "rejected")
 
