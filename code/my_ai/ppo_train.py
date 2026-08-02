@@ -531,6 +531,7 @@ def main():
         else:
             opp_list = [opp_params.copy()]  # fixed opponent / cold start
 
+        log.print(key="stage", value=f"rollout: {args.rollouts} games vs {len(opp_list)} opponent(s)")
         tasks = []
         for i in range(args.rollouts):
             seed = 42 + i + it * 10000
@@ -576,6 +577,8 @@ def main():
             traj["advantages"] = (traj["advantages"] - adv_mean) / adv_std
 
         # ── 7d. PPO update ──
+        log.print(key="stage",
+                  value=f"ppo_update: {total_steps} steps, {args.ppo_epochs} epochs")
         dataset = PPODataset(trajectories)
         loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -689,6 +692,8 @@ def main():
                 opps = leaderboard.get_opponents_adaptive(k=k)
                 eval_opps = [o["params"] for o in opps]
                 opp_gens = [o.get("gen") for o in opps]
+                log.print(key="stage",
+                          value=f"eval: {args.eval_games} games vs {len(eval_opps)} LB opponent(s)")
                 win_rate, per_opp_wr = evaluate_vs_pool(
                     params, eval_opps,
                     workers=min(args.workers, 8),
@@ -717,9 +722,13 @@ def main():
                     scores = [r["score"] if isinstance(r, dict) else r for r in res]
                     return float(np.mean(scores)) if scores else 0.0
 
+                log.print(key="stage",
+                          value=f"lb_challenge: up to {args.lb_max_size} opponents, "
+                                f"{args.lb_games} games each")
                 lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
             else:
                 # Fixed opponent evaluation
+                log.print(key="stage", value=f"eval (fixed opp): {args.eval_games} games")
                 win_rate = evaluate(
                     params, opp_params,
                     workers=min(args.workers, 8),
