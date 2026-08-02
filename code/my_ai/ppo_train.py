@@ -683,17 +683,12 @@ def main():
 
         update_time = time.time() - iter_start - rollout_time
 
-        # ── 7e. Leaderboard challenge + win-rate eval (on eval steps) ──
-        # Challenge ladder always runs on eval cadence (keeps pool evolving),
-        # even when --no-eval disables the win-rate evaluation.
+        # ── 7e. Leaderboard challenge (every iteration, like GA per-gen) ──
+        # Challenge ladder runs every iteration so the pool keeps evolving.
+        # _vs_lb logs the win rate itself (same pattern as ga_ss_train),
+        # so the x challenge games double as the reported WR — no extra games.
         lb_added = False
-        win_rate_str = "-"
-        if it % args.eval_every == 0 or it == args.generations - 1:
-            model.eval()
-
-            # Challenge ladder: current model tries to enter the pool.
-            # _vs_lb logs the win rate itself (same pattern as ga_ss_train),
-            # so the x challenge games double as the reported WR — no extra games.
+        if leaderboard is not None and leaderboard.entries:
             def _vs_lb(me, opponent):
                 tasks = [
                     (me, opponent, 42 + 999999 + it * 100 + s,
@@ -710,59 +705,59 @@ def main():
                                 f"{args.lb_games} games)")
                 return wr
 
-            if leaderboard is not None and leaderboard.entries:
-                log.print(key="stage",
-                          value=f"lb_challenge vs rank1 (gen {leaderboard.entries[0].gen}), "
-                                f"{args.lb_games} games")
-                lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
-                log.print(key="lb_result",
-                          value="added" if lb_added else "rejected")
+            log.print(key="stage",
+                      value=f"lb_challenge vs rank1 (gen {leaderboard.entries[0].gen}), "
+                            f"{args.lb_games} games")
+            lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
+            log.print(key="lb_result",
+                      value="added" if lb_added else "rejected")
 
-                # Win-rate evaluation (optional)
-                if not args.no_eval:
-                    k = min(args.lb_max_size, max(1, args.eval_games // 2))
-                    opps = leaderboard.get_opponents_adaptive(k=k)
-                    eval_opps = [o["params"] for o in opps]
-                    opp_gens = [o.get("gen") for o in opps]
-                    log.print(key="stage",
-                              value=f"eval: {args.eval_games} games vs {len(eval_opps)} LB opponent(s)")
-                    win_rate, per_opp_wr = evaluate_vs_pool(
-                        params, eval_opps,
-                        workers=min(args.workers, 8),
-                        num_heads=args.num_heads,
-                        no_bn=args.no_bn,
-                        games=args.eval_games,
-                        interrupted_ref=interrupted,
-                        bn_stats=bn_stats,
-                    )
-                    # Adaptive lambda update: keep each entry sampled ~50/50
-                    wr_by_gen = {}
-                    for g, wr in zip(opp_gens, per_opp_wr):
-                        if g is not None:
-                            wr_by_gen[g] = wr
-                    leaderboard.update_lambdas(wr_by_gen)
-                    print()  # newline after eval progress dots
-                    win_rate_str = f"{win_rate:.3f}"
-                    log.print_table(iter=it, win_rate=win_rate_str,
-                                    eval_games=args.eval_games, lb_added=lb_added)
+        # ── 7e2. Win-rate eval (on eval cadence, optional) ──
+        win_rate_str = "-"
+        if not args.no_eval and (it % args.eval_every == 0 or it == args.generations - 1):
+            model.eval()
+            if leaderboard is not None and leaderboard.entries:
+                # Evaluate vs sampled LB opponents (track gen for lambda updates)
+                k = min(args.lb_max_size, max(1, args.eval_games // 2))
+                opps = leaderboard.get_opponents_adaptive(k=k)
+                eval_opps = [o["params"] for o in opps]
+                opp_gens = [o.get("gen") for o in opps]
+                log.print(key="stage",
+                          value=f"eval: {args.eval_games} games vs {len(eval_opps)} LB opponent(s)")
+                win_rate, per_opp_wr = evaluate_vs_pool(
+                    params, eval_opps,
+                    workers=min(args.workers, 8),
+                    num_heads=args.num_heads,
+                    no_bn=args.no_bn,
+                    games=args.eval_games,
+                    interrupted_ref=interrupted,
+                    bn_stats=bn_stats,
+                )
+                # Adaptive lambda update: keep each entry sampled ~50/50
+                wr_by_gen = {}
+                for g, wr in zip(opp_gens, per_opp_wr):
+                    if g is not None:
+                        wr_by_gen[g] = wr
+                leaderboard.update_lambdas(wr_by_gen)
+                print()  # newline after eval progress dots
+                win_rate_str = f"{win_rate:.3f}"
             else:
                 # Fixed opponent evaluation (--no-lb mode)
-                if not args.no_eval:
-                    log.print(key="stage", value=f"eval (fixed opp): {args.eval_games} games")
-                    win_rate = evaluate(
-                        params, opp_params,
-                        workers=min(args.workers, 8),
-                        num_heads=args.num_heads,
-                        no_bn=args.no_bn,
-                        games=args.eval_games,
-                        interrupted_ref=interrupted,
-                        bn_stats=bn_stats,
-                    )
-                    print()  # newline after eval progress dots
-                    win_rate_str = f"{win_rate:.3f}"
-                    log.print_table(iter=it, win_rate=win_rate_str,
-                                    eval_games=args.eval_games, lb_added=lb_added)
+                log.print(key="stage", value=f"eval (fixed opp): {args.eval_games} games")
+                win_rate = evaluate(
+                    params, opp_params,
+                    workers=min(args.workers, 8),
+                    num_heads=args.num_heads,
+                    no_bn=args.no_bn,
+                    games=args.eval_games,
+                    interrupted_ref=interrupted,
+                    bn_stats=bn_stats,
+                )
+                print()  # newline after eval progress dots
+                win_rate_str = f"{win_rate:.3f}"
             model.train()
+            log.print_table(iter=it, win_rate=win_rate_str,
+                            eval_games=args.eval_games, lb_added=lb_added)
 
         # ── 7f. Log + CSV (single row; win_rate shows '-' when not evaluated) ──
         log.print_table(
