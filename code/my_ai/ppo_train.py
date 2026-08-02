@@ -692,6 +692,8 @@ def main():
             model.eval()
 
             # Challenge ladder: current model tries to enter the pool.
+            # _vs_lb logs the win rate itself (same pattern as ga_ss_train),
+            # so the x challenge games double as the reported WR — no extra games.
             def _vs_lb(me, opponent):
                 tasks = [
                     (me, opponent, 42 + 999999 + it * 100 + s,
@@ -701,24 +703,18 @@ def main():
                 ]
                 res = run_tasks(pool, _eval_worker, tasks, interrupted)
                 scores = [r["score"] if isinstance(r, dict) else r for r in res]
-                return float(np.mean(scores)) if scores else 0.0
+                wr = float(np.mean(scores)) if scores else 0.0
+                print()  # newline after challenge progress dots
+                log.print(key="lb_wr",
+                          value=f"{wr:.3f} (threshold={args.lb_threshold}, "
+                                f"{args.lb_games} games)")
+                return wr
 
             if leaderboard is not None and leaderboard.entries:
-                # Challenge ladder: current model tries to enter the pool.
-                # Print the stage marker BEFORE the progress dots so the
-                # dots and the log line don't interleave.
                 log.print(key="stage",
                           value=f"lb_challenge vs rank1 (gen {leaderboard.entries[0].gen}), "
                                 f"{args.lb_games} games")
-                top = leaderboard.entries[0]
-                top_wr = _vs_lb(params.copy(), top.params)
-                print()  # newline after challenge progress dots
-                log.print(key="lb_challenge",
-                          value=f"vs rank1 (gen {top.gen}): {top_wr:.3f} "
-                                f"({args.lb_games} games)")
-
                 lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
-                print()  # newline after ladder progress dots
                 log.print(key="lb_result",
                           value="added" if lb_added else "rejected")
 
