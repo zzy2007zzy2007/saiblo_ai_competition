@@ -108,7 +108,7 @@ def mutate_class_labels(
             logits_i = logits_i + torch.log(w) * temperature  # category rebalancing
             probs = F.softmax(logits_i / temperature, dim=-1)
             sampled = torch.multinomial(probs, 1, generator=rng).squeeze(-1)
-        mutated[mask, hi] = sampled
+        mutated[mask, hi] = sampled.to(mutated.dtype)
 
     return mutated
 
@@ -173,7 +173,7 @@ def mutate_class_labels_soft(
                 mutated_logits[mask, hi, :][row, old_c] = mutated_logits[mask, hi, :][row, new_c]
                 mutated_logits[mask, hi, :][row, new_c] = tmp
 
-        mutated_labels[mask, hi] = sampled
+        mutated_labels[mask, hi] = sampled.to(mutated_labels.dtype)
 
     return mutated_labels, mutated_logits
 

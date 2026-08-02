@@ -326,6 +326,7 @@ def _ce_with_label_smoothing(logits, labels, smoothing=0.0, weight=None):
 
     Returns: scalar loss.
     """
+    labels = labels.long()
     if smoothing <= 0.0 and weight is None:
         return F.cross_entropy(logits, labels)
 

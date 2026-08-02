@@ -155,7 +155,7 @@ class Leaderboard:
 
     def get_opponents_adaptive(
         self, k: int = 5,
-        target_wr: float = 0.3,
+        target_wr: float = 0.5,
         sigma: float = 0.25,
     ) -> list[dict[str, Any]]:
         """Adaptive weighted sampling — rank × λ.
@@ -179,15 +179,15 @@ class Leaderboard:
     def update_lambdas(
         self,
         wr_by_gen: dict[int, float],
-        target_wr: float = 0.3,
+        target_wr: float = 0.5,
         sigma: float = 0.25,
-        momentum: float = 0.5,
+        momentum: float = 0.3,
     ):
         """Update adaptive λ weights based on observed win rates.
 
         Args:
             wr_by_gen: {gen: win_rate} — individual win rate against that entry.
-            target_wr: desired individual win rate (default 0.3 → opponent ~0.7).
+            target_wr: desired individual win rate (default 0.5 → balanced).
             sigma: Gaussian kernel width for λ smoothing.
             momentum: λ update momentum (0.9 = smooth, 0 = instant).
         """

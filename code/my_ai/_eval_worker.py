@@ -96,9 +96,17 @@ def _ppo_rollout_and_save(
         action_classes.append(cls)
 
         action_maps.append(output["action_map"].squeeze(0).cpu().numpy())
+        # Store z-score normalized head logits (per-head mean/std) — the SAME
+        # distribution the decoder sampled from.  Storing the normalized form
+        # (not raw ±960 logits) keeps rollout/training distributions identical
+        # and float16-safe (normalized values are ~[-3, 3]).
         hsl = np.stack([output[f"head{hi+1}_logits"].squeeze(0).cpu().numpy()
                         for hi in range(num_heads)], axis=0)
-        head_logits_list.append(hsl)
+        norm_hsl = np.stack([
+            (hsl[hi] - hsl[hi].mean()) / (hsl[hi].std() + 1e-8)
+            for hi in range(num_heads)
+        ], axis=0)
+        head_logits_list.append(norm_hsl)
         values.append(float(output["value"].squeeze().cpu().numpy()))
 
         ops_opp = opponent._choose_operations(state, opp_player)

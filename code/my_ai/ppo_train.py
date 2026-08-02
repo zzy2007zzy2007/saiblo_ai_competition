@@ -143,15 +143,37 @@ def zscore_logits(logits: torch.Tensor, temperature: float) -> torch.Tensor:
     return out
 
 
+def normalized_log_probs(
+    normalized_logits: torch.Tensor,  # (B, N_heads, 24) already z-scored
+    action_classes: torch.Tensor,     # (B, N_heads)
+    temperature: float = 1.0,
+) -> torch.Tensor:                    # (B,) sum of logπ per head
+    """logπ for ALREADY normalized logits (rollout stored z-scored form).
+
+    The decoder sampled from ``softmax(z / T)``, so old logπ is simply
+    ``log_softmax(z / T)`` — no re-normalization (re-normalizing float16
+    quantized ±960 logits produced a different distribution than rollout).
+    """
+    log_probs_sum = 0.0
+    for hi in range(normalized_logits.shape[1]):
+        logits = normalized_logits[:, hi]  # (B, 24)
+        if temperature > 0:
+            logits = logits / temperature
+        log_probs = F.log_softmax(logits, dim=-1)  # (B, 24)
+        cls = action_classes[:, hi]  # (B,)
+        log_probs_sum += log_probs.gather(1, cls.unsqueeze(1)).squeeze(1)
+    return log_probs_sum
+
+
 def compute_action_log_probs(
-    head_logits: torch.Tensor,      # (B, N_heads, 24)
+    head_logits: torch.Tensor,      # (B, N_heads, 24) raw model logits
     action_classes: torch.Tensor,   # (B, N_heads)
     temperature: float = 1.0,
 ) -> torch.Tensor:                   # (B,) sum of logπ per head
-    """Compute log π(a|s) for sampled actions given head logits.
+    """Compute log π(a|s) for CURRENT policy's raw logits.
 
-    The behavioral policy samples classes from ``softmax(zscore(logits)/T)``
-    (same as decoder), so logπ must use the same normalized distribution.
+    The behavioral policy samples from ``softmax(zscore(logits)/T)``, so
+    the new policy's logπ uses the same z-scored distribution.
     """
     log_probs_sum = 0.0
     for hi in range(head_logits.shape[1]):
@@ -275,9 +297,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="GAE lambda")
     p.add_argument("--clip-epsilon", type=float, default=0.2,
                    help="PPO clip ratio")
-    p.add_argument("--lr", type=float, default=3e-4,
+    p.add_argument("--lr", type=float, default=1e-4,
                    help="learning rate")
-    p.add_argument("--ppo-epochs", type=int, default=4,
+    p.add_argument("--ppo-epochs", type=int, default=2,
                    help="number of PPO epochs per iteration")
     p.add_argument("--batch-size", type=int, default=64,
                    help="mini-batch size")
@@ -484,7 +506,7 @@ def main():
         old_log_probs_list = []
         with torch.no_grad():
             for batch in loader:
-                log_probs_old = compute_action_log_probs(
+                log_probs_old = normalized_log_probs(
                     batch["head_logits_old"].to(device),
                     batch["action_class"].to(device),
                     temperature=args.temperature)
