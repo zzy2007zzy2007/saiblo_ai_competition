@@ -21,6 +21,7 @@ def _ppo_rollout_and_save(
     no_bn: bool = False,
     bn_stats: dict | None = None,
     intent_decoding: bool = True,
+    pos_temperature: float = 0.0,
 ) -> dict:
     """Run one game, save trajectory for PPO training.
 
@@ -55,7 +56,8 @@ def _ppo_rollout_and_save(
             if "running_mean" in name or "running_var" in name:
                 buf.copy_(torch.from_numpy(bn_stats[name]))
     agent = NeuralAgent(model=model, eval_temperature=temperature,
-                        intent_decoding=intent_decoding)
+                        intent_decoding=intent_decoding,
+                        pos_temperature=pos_temperature)
 
     opp_model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
     opp_model.set_parameters_from_vector(opp_params_flat)
@@ -72,6 +74,7 @@ def _ppo_rollout_and_save(
 
     boards, stats_list = [], []
     action_classes, action_maps, head_logits_list = [], [], []
+    pos_record_list, pos_mask_list = [], []
     values, rewards = [], []
 
     hp_us_prev = state.bases[our_player].hp
@@ -94,6 +97,19 @@ def _ppo_rollout_and_save(
         # generated the reward — PPO log-probs must match it.
         cls = np.array(agent.last_sampled_classes, dtype=np.int64)
         action_classes.append(cls)
+
+        # Store sampled position + its log-prob + legal-cell mask per head
+        # (for on-policy position targets).  -1 = head did not select a
+        # position-bearing action (HOLD / base upgrade / illegal).
+        pos_xy = np.full((num_heads, 3), -1, dtype=np.float32)
+        pos_mask_arr = np.zeros((num_heads, 19, 19), dtype=np.float16)
+        for hi, (x, y, lp, mask) in enumerate(agent.last_sampled_positions[:num_heads]):
+            pos_xy[hi, 0] = x
+            pos_xy[hi, 1] = y
+            pos_xy[hi, 2] = lp
+            pos_mask_arr[hi] = mask.astype(np.float16)
+        pos_record_list.append(pos_xy)
+        pos_mask_list.append(pos_mask_arr)
 
         action_maps.append(output["action_map"].squeeze(0).cpu().numpy())
         # Store z-score normalized head logits (per-head mean/std) — the SAME
@@ -145,6 +161,8 @@ def _ppo_rollout_and_save(
         action_classes=np.stack(action_classes, axis=0),
         action_maps=np.stack(action_maps, axis=0).astype(np.float16),
         head_logits=np.stack(head_logits_list, axis=0).astype(np.float16),
+        pos_record=np.stack(pos_record_list, axis=0).astype(np.float32),
+        pos_mask=np.stack(pos_mask_list, axis=0).astype(np.float16),
         values=np.array(values, dtype=np.float32),
         rewards=np.array(rewards, dtype=np.float32),
     )

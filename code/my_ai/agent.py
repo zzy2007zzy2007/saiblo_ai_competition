@@ -44,10 +44,12 @@ class NeuralAgent(BaseAgent):
         action_dropout: float = 0.0,
         eval_temperature: float = 0.0,
         intent_decoding: bool = True,
+        pos_temperature: float = 0.0,
     ):
         super().__init__(seed=seed, max_actions=max_actions)
         self.eval_temperature = eval_temperature
         self.intent_decoding = intent_decoding
+        self.pos_temperature = pos_temperature
         self.max_actions = max_actions
         self.model = model or create_zero_model()
         self.model.eval()  # inference mode
@@ -57,6 +59,7 @@ class NeuralAgent(BaseAgent):
         self.action_dropout = action_dropout
         self.dropout_this_turn = False
         self.last_sampled_classes: list[int] | None = None
+        self.last_sampled_positions: list[tuple[int, int]] | None = None
 
     def set_model(self, model: AntWarNetwork) -> None:
         """Replace the model (used by ES to update weights)."""
@@ -106,12 +109,15 @@ class NeuralAgent(BaseAgent):
         # Decode (with optional class restriction)
         rng_ = np.random.default_rng()
         self.last_sampled_classes = []
+        self.last_sampled_positions = []
         operations = decode_network_output(output, state, player,
                                            allowed_classes=self.allowed_classes,
                                            rng=rng_,
                                            temperature=self.eval_temperature,
                                            intent_decoding=self.intent_decoding,
-                                           sampled_class_out=self.last_sampled_classes)
+                                           sampled_class_out=self.last_sampled_classes,
+                                           pos_temperature=self.pos_temperature,
+                                           sampled_pos_out=self.last_sampled_positions)
 
         # ── Action Dropout: randomly override with legal action ──
         self.dropout_this_turn = False

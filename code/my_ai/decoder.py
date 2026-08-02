@@ -206,6 +206,44 @@ def make_position_masks(state: BackendState, player: int,
     return mask
 
 
+def _sample_position(
+    channel_map: np.ndarray,     # (19, 19) action_map for a class
+    pos_mask: np.ndarray,        # (19, 19) legal cells
+    rng: np.random.Generator | None,
+    pos_temperature: float,
+) -> tuple[int, int, float] | None:
+    """Sample (x, y) from a masked raw-value + temperature softmax.
+
+    Distribution is over LEGAL cells only (masked), using raw action_map
+    values (no z-score).  The recorded logprob is on this same masked
+    base.  Training-time new-policy logπ MUST use the same mask (stored
+    in npz) and raw values to keep the PPO ratio consistent.
+
+    Returns (x, y, logprob) — logprob is log π_pos under the masked
+    distribution.  Returns None if no legal cells at all.
+    """
+    if not pos_mask.any():
+        return None
+    # Use raw action_map values (no z-score).  z-score made position logπ
+    # hypersensitive to mean/std drift (same issue as class heads), which
+    # destabilized the PPO ratio.  Temperature scales the raw values.
+    masked = np.where(pos_mask, channel_map, -np.inf)
+    if pos_temperature > 0 and rng is not None:
+        logits = masked / pos_temperature
+    else:
+        logits = masked
+    logits -= logits.max()  # numerical stability
+    exp_l = np.exp(logits)
+    probs = exp_l / exp_l.sum()           # masked distribution
+    if pos_temperature > 0 and rng is not None:
+        flat = rng.choice(probs.size, p=probs.ravel())
+        x, y = np.unravel_index(flat, probs.shape)
+    else:
+        x, y = np.unravel_index(np.argmax(masked), masked.shape)
+    logprob = float(np.log(probs[x, y] + 1e-12))
+    return int(x), int(y), logprob
+
+
 # ─── Decode one head ────────────────────────────────────────────────────────
 
 
@@ -222,6 +260,8 @@ def decode_head(
     temperature: float = 0.0,
     intent_decoding: bool = False,
     sampled_class_out: list[int] | None = None,
+    pos_temperature: float = 0.0,
+    sampled_pos_out: list[tuple[int, int, float, np.ndarray]] | None = None,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -239,10 +279,21 @@ def decode_head(
     When temperature > 0, uses z-score normalized temperature sampling
     (per-head mean/std) instead of argmax for smoother action selection.
 
+    When pos_temperature > 0, positions are sampled from a per-channel
+    z-scored + temperature-softmax distribution over legal cells instead
+    of argmax — this gives the position channel a gradient path in PPO.
+
     ``sampled_class_out`` (optional): a list that receives the sampled
     class id (the actual action this head chose), so callers can build
     on-policy log-prob targets.  Recorded for BOTH argmax and sampled
     paths, before the legality check.
+
+    ``sampled_pos_out`` (optional): a list that receives
+    (x, y, logprob, mask) for each head that selected a position-bearing
+    action (super weapon / tower / downgrade).  logprob is log π_pos under
+    the masked sampling distribution; mask is the legal-cell mask used for
+    sampling — both needed so training can reconstruct the same distribution.
+    Only appended when a position is sampled.
     """
     # Step 0: Filter by allowed_classes if set
     if allowed_classes is not None:
@@ -300,32 +351,35 @@ def decode_head(
             return None
 
         pos_mask = position_mask[class_id]
-        if not pos_mask.any():
+        pos = _sample_position(action_map[class_id], pos_mask, rng, pos_temperature)
+        if pos is None:
             return None
-        channel_map = action_map[class_id]
-        masked_map = np.where(pos_mask, channel_map, -np.inf)
-        x, y = np.unravel_index(np.argmax(masked_map), masked_map.shape)
-        return Operation(op_type, int(x), int(y))
+        x, y, logprob = pos
+        if sampled_pos_out is not None:
+            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+        return Operation(op_type, x, y)
 
     # Step 4: Tower actions (classes 0-15)
     if 0 <= class_id <= 15:
         pos_mask = position_mask[class_id]
-        if not pos_mask.any():
+        pos = _sample_position(action_map[class_id], pos_mask, rng, pos_temperature)
+        if pos is None:
             return None
-        channel_map = action_map[class_id]
-        masked_map = np.where(pos_mask, channel_map, -np.inf)
-        x, y = np.unravel_index(np.argmax(masked_map), masked_map.shape)
-        return _decode_tower_action(state, player, class_id, int(x), int(y))
+        x, y, logprob = pos
+        if sampled_pos_out is not None:
+            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+        return _decode_tower_action(state, player, class_id, x, y)
 
     # Step 5: Downgrade (class 16)
     if class_id == 16:
         pos_mask = position_mask[16]
-        if not pos_mask.any():
+        pos = _sample_position(action_map[16], pos_mask, rng, pos_temperature)
+        if pos is None:
             return None
-        channel_map = action_map[16]
-        masked_map = np.where(pos_mask, channel_map, -np.inf)
-        x, y = np.unravel_index(np.argmax(masked_map), masked_map.shape)
-        tower = state.tower_at(int(x), int(y))
+        x, y, logprob = pos
+        if sampled_pos_out is not None:
+            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+        tower = state.tower_at(x, y)
         if tower is not None and tower.player == player:
             return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
 
@@ -371,6 +425,8 @@ def decode_network_output(
     temperature: float = 0.0,
     intent_decoding: bool = False,
     sampled_class_out: list[int] | None = None,
+    pos_temperature: float = 0.0,
+    sampled_pos_out: list[tuple[int, int, float, np.ndarray]] | None = None,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -384,6 +440,10 @@ def decode_network_output(
         sampled_class_out: optional list — receives the sampled class id
             for each head (in head order), the ACTUAL action this head
             chose.  Same length as head_logits_list.
+        pos_temperature: temperature for position sampling (>0 samples,
+            else argmax).  Passed to decode_head.
+        sampled_pos_out: optional list — receives (x, y, logprob, mask)
+            for each head that sampled a position-bearing action.
 
     Returns:
         list of Operations (0-3 items, to be sent as the turn's bundle)
@@ -408,7 +468,9 @@ def decode_network_output(
         op = decode_head(head_logits, action_map, class_mask, position_mask, state, player,
                          allowed_classes=allowed_classes, rng=rng, temperature=temperature,
                          intent_decoding=intent_decoding,
-                         sampled_class_out=sampled_class_out)
+                         sampled_class_out=sampled_class_out,
+                         pos_temperature=pos_temperature,
+                         sampled_pos_out=sampled_pos_out)
         if op is not None:
             # Check if operation is legal (given already selected operations)
             if state.can_apply_operation(player, op, operations):
