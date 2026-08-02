@@ -544,6 +544,7 @@ def main():
             ))
 
         results = run_tasks(pool, _ppo_rollout_and_save, tasks, interrupted)
+        print()  # newline after progress dots
         rollout_time = time.time() - iter_start
         if interrupted[0]:
             log.print("Interrupted during rollout — stopping.")
@@ -729,6 +730,7 @@ def main():
                     bn_stats=bn_stats,
                 )
             model.train()
+            print()  # newline after evaluation progress dots
             win_rate_str = f"{win_rate:.3f}"
             log.print_table(iter=it, win_rate=win_rate_str,
                             eval_games=args.eval_games, lb_added=lb_added)
