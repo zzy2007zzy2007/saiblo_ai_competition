@@ -34,6 +34,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from my_ai.network import create_model, AntWarNetwork
 from my_ai._eval_worker import _ppo_rollout_and_save, _eval_worker
+from my_ai.leaderboard import Leaderboard, LeaderboardEntry
 from my_ai.ga_ss_boilerplate import (
     init_csv,
     write_csv_row,
@@ -310,6 +311,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-grad-norm", type=float, default=0.5,
                    help="gradient clipping norm")
 
+    # Leaderboard (adaptive opponent pool)
+    p.add_argument("--no-lb", action="store_true",
+                   help="disable Leaderboard (use fixed opponent)")
+    p.add_argument("--lb-max-size", type=int, default=20,
+                   help="leaderboard max entries")
+    p.add_argument("--lb-threshold", type=float, default=0.6,
+                   help="win rate threshold to insert into leaderboard")
+    p.add_argument("--lb-games", type=int, default=6,
+                   help="games per challenge match in add_candidate")
+
     # Logging / save
     p.add_argument("--save-every", type=int, default=20,
                    help="save checkpoint every N iterations")
@@ -353,7 +364,7 @@ def evaluate(params: np.ndarray, opp_params: np.ndarray,
              workers: int, num_heads: int, no_bn: bool,
              games: int = 20, interrupted_ref=None,
              bn_stats: dict | None = None) -> float:
-    """Evaluate params vs opponent with argmax (eval_temperature=0).
+    """Evaluate params vs ONE opponent with argmax (eval_temperature=0).
     Returns win rate.
     """
     pool = mp.Pool(workers)
@@ -369,6 +380,41 @@ def evaluate(params: np.ndarray, opp_params: np.ndarray,
         return 0.0
     scores = [r["score"] for r in results]
     return float(np.mean(scores))
+
+
+def evaluate_vs_pool(params: np.ndarray, opponents: list[np.ndarray],
+                     workers: int, num_heads: int, no_bn: bool,
+                     games: int = 20, interrupted_ref=None,
+                     bn_stats: dict | None = None) -> tuple[float, list[float]]:
+    """Evaluate params vs a list of opponents (from leaderboard).
+
+    Games are spread evenly across opponents.
+
+    Returns:
+        (overall win rate, per-opponent win rates)
+    """
+    pool = mp.Pool(workers)
+    tasks = []
+    n_opp = len(opponents)
+    per_opp = max(1, games // max(n_opp, 1))
+    for oi, opp_params in enumerate(opponents):
+        for j in range(per_opp):
+            seed = 42 + oi * 1000 + j
+            tasks.append((params, opp_params, seed, num_heads,
+                           None, 0, 0, 0.0, False, no_bn, bn_stats, 0.0, False))
+    results = run_tasks(pool, _eval_worker, tasks, interrupted_ref)
+    pool.close()
+    pool.join()
+    if not results:
+        return 0.0, []
+    scores = [r["score"] for r in results]
+    overall = float(np.mean(scores))
+    per_opp_wr = []
+    for oi in range(n_opp):
+        chunk = scores[oi * per_opp:(oi + 1) * per_opp]
+        if chunk:
+            per_opp_wr.append(float(np.mean(chunk)))
+    return overall, per_opp_wr
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -403,13 +449,36 @@ def main():
                               num_heads=args.num_heads, no_bn=args.no_bn)
     log.print(f"Model parameters: {model.count_parameters():,}")
 
-    # ── Opponent params (fixed throughout training) ──
-    opp_path = args.opp_checkpoint or args.checkpoint
-    log.print(f"Loading opponent: {opp_path}")
-    opp_model = load_model_params(opp_path, "cpu",
-                                  num_heads=args.num_heads, no_bn=args.no_bn)
-    opp_params = extract_params_vec(opp_model)
-    log.print(f"Opponent parameters: {len(opp_params):,}")
+    # ── Leaderboard (adaptive opponent pool) ──
+    if not args.no_lb:
+        leaderboard = Leaderboard(
+            max_size=args.lb_max_size,
+            param_count=model.count_parameters(),
+            threshold=args.lb_threshold,
+        )
+        # Cold start: seed the pool with the initial checkpoint, so early
+        # iterations have a real opponent to play against.
+        ckpt_mean = ckpt.get("mean")
+        if ckpt_mean is not None:
+            raw = ckpt_mean
+            seed_params = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
+            leaderboard.entries.append(
+                LeaderboardEntry(gen=-1, params=seed_params.astype(np.float32), score=0.5))
+            log.print("Leaderboard cold-started with initial checkpoint.")
+        # Resume: restore saved LB
+        if "leaderboard" in ckpt:
+            leaderboard.load_state_dict(ckpt["leaderboard"])
+            log.print(f"Leaderboard restored: {len(leaderboard.entries)} entries")
+        log.print(f"Leaderboard: max_size={args.lb_max_size} threshold={args.lb_threshold}")
+    else:
+        leaderboard = None
+        # Fixed opponent fallback
+        opp_path = args.opp_checkpoint or args.checkpoint
+        log.print(f"Loading fixed opponent: {opp_path}")
+        opp_model = load_model_params(opp_path, "cpu",
+                                      num_heads=args.num_heads, no_bn=args.no_bn)
+        opp_params = extract_params_vec(opp_model)
+        log.print(f"Opponent parameters: {len(opp_params):,}")
 
     # ── Training state ──
     params = extract_params_vec(model)
@@ -450,11 +519,22 @@ def main():
         # Extract BN stats (only relevant when model uses BatchNorm)
         bn_stats = None if args.no_bn else extract_bn_stats(model)
 
+        # Select opponents for this iteration's rollout
+        if leaderboard is not None and leaderboard.entries:
+            k = min(args.lb_max_size, max(1, args.rollouts // 2))
+            opps = leaderboard.get_opponents_adaptive(k=k)
+            opp_list = [o["params"] for o in opps]
+            if not opp_list:
+                opp_list = [params.copy()]  # self-play fallback
+        else:
+            opp_list = [opp_params.copy()]  # fixed opponent / cold start
+
         tasks = []
         for i in range(args.rollouts):
             seed = 42 + i + it * 10000
+            opp = opp_list[i % len(opp_list)]
             tasks.append((
-                params.copy(), opp_params.copy(), seed,
+                params.copy(), opp.copy(), seed,
                 str(rollout_dir), args.temperature,
                 args.num_heads, args.small, args.no_bn,
                 bn_stats,
@@ -595,21 +675,60 @@ def main():
 
         update_time = time.time() - iter_start - rollout_time
 
-        # ── 7e. Evaluate (on eval steps, run before CSV to include win_rate) ──
+        # ── 7e. Evaluate + Leaderboard challenge (on eval steps) ──
         win_rate = 0.0
+        lb_added = False
         if it % args.eval_every == 0 or it == args.generations - 1:
             model.eval()
-            win_rate = evaluate(
-                params, opp_params,
-                workers=min(args.workers, 8),
-                num_heads=args.num_heads,
-                no_bn=args.no_bn,
-                games=args.eval_games,
-                interrupted_ref=interrupted,
-                bn_stats=bn_stats,
-            )
+            if leaderboard is not None and leaderboard.entries:
+                # Evaluate vs sampled LB opponents (track gen for lambda updates)
+                k = min(args.lb_max_size, max(1, args.eval_games // 2))
+                opps = leaderboard.get_opponents_adaptive(k=k)
+                eval_opps = [o["params"] for o in opps]
+                opp_gens = [o.get("gen") for o in opps]
+                win_rate, per_opp_wr = evaluate_vs_pool(
+                    params, eval_opps,
+                    workers=min(args.workers, 8),
+                    num_heads=args.num_heads,
+                    no_bn=args.no_bn,
+                    games=args.eval_games,
+                    interrupted_ref=interrupted,
+                    bn_stats=bn_stats,
+                )
+                # Adaptive lambda update: keep each entry sampled ~50/50
+                wr_by_gen = {}
+                for g, wr in zip(opp_gens, per_opp_wr):
+                    if g is not None:
+                        wr_by_gen[g] = wr
+                leaderboard.update_lambdas(wr_by_gen)
+
+                # Challenge ladder: current model tries to enter the pool
+                def _vs_lb(me, opponent):
+                    tasks = [
+                        (me, opponent, 42 + 999999 + it * 100 + s,
+                         args.num_heads, None, 0, -1,
+                         0.0, args.small, args.no_bn, bn_stats, 0.0, False)
+                        for s in range(args.lb_games)
+                    ]
+                    res = run_tasks(pool, _eval_worker, tasks, interrupted)
+                    scores = [r["score"] if isinstance(r, dict) else r for r in res]
+                    return float(np.mean(scores)) if scores else 0.0
+
+                lb_added = leaderboard.add_candidate(it, params.copy(), match_fn=_vs_lb)
+            else:
+                # Fixed opponent evaluation
+                win_rate = evaluate(
+                    params, opp_params,
+                    workers=min(args.workers, 8),
+                    num_heads=args.num_heads,
+                    no_bn=args.no_bn,
+                    games=args.eval_games,
+                    interrupted_ref=interrupted,
+                    bn_stats=bn_stats,
+                )
             model.train()
-            log.print_table(iter=it, win_rate=f"{win_rate:.3f}", eval_games=args.eval_games)
+            log.print_table(iter=it, win_rate=f"{win_rate:.3f}",
+                            eval_games=args.eval_games, lb_added=lb_added)
 
         # ── 7f. Log + CSV (single row, always includes win_rate) ──
         log.print_table(
@@ -640,6 +759,7 @@ def main():
                 "num_heads": args.num_heads,
                 "no_bn": args.no_bn,
                 "config": vars(args),
+                "leaderboard": leaderboard.state_dict() if leaderboard else None,
             }, ckpt_path)
             model.to(device)
             log.print(f"Saved: {ckpt_path}")
@@ -654,6 +774,7 @@ def main():
                 "num_heads": args.num_heads,
                 "no_bn": args.no_bn,
                 "config": vars(args),
+                "leaderboard": leaderboard.state_dict() if leaderboard else None,
             }, ckpt_path)
             log.print(f"Interrupt checkpoint: {ckpt_path}")
             break
