@@ -709,6 +709,7 @@ def main():
                     if g is not None:
                         wr_by_gen[g] = wr
                 leaderboard.update_lambdas(wr_by_gen)
+                print()  # newline after eval progress dots
 
                 # Challenge ladder: current model tries to enter the pool
                 def _vs_lb(me, opponent):
