@@ -169,18 +169,20 @@ def normalized_log_probs(
 def compute_action_log_probs(
     head_logits: torch.Tensor,      # (B, N_heads, 24) raw model logits
     action_classes: torch.Tensor,   # (B, N_heads)
-    temperature: float = 1.0,
 ) -> torch.Tensor:                   # (B,) sum of logπ per head
-    """Compute log π(a|s) for CURRENT policy's raw logits.
+    """Compute log π(a|s) for the CURRENT (target) policy.
 
-    The behavioral policy samples from ``softmax(zscore(logits)/T)``, so
-    the new policy's logπ uses the same z-scored distribution.
+    Target policy = ``softmax(raw_logits)`` — the standard PPO policy
+    definition.  Do NOT z-score here: z-score drops logits absolute
+    confidence and makes the policy hypersensitive to mean/std drift,
+    which caused behavior to swing wildly between updates.  The
+    behavioral policy (rollout sampling + old logπ) still uses
+    z-score+T; the ratio handles the off-policy correction.
     """
     log_probs_sum = 0.0
     for hi in range(head_logits.shape[1]):
         logits = head_logits[:, hi]  # (B, 24)
-        norm = zscore_logits(logits, temperature)  # (B, 24)
-        log_probs = F.log_softmax(norm, dim=-1)  # (B, 24)
+        log_probs = F.log_softmax(logits, dim=-1)  # (B, 24)
         cls = action_classes[:, hi]  # (B,)
         log_probs_sum += log_probs.gather(1, cls.unsqueeze(1)).squeeze(1)
     return log_probs_sum
@@ -199,17 +201,16 @@ def ppo_policy_loss(
     return torch.mean(torch.max(pg_loss1, pg_loss2))
 
 
-def entropy_from_logits(logits: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
-    """Compute entropy of the policy distribution (z-scored, temperature-scaled).
+def entropy_from_logits(logits: torch.Tensor) -> torch.Tensor:
+    """Compute entropy of the TARGET policy (raw softmax).
 
     Args:
         logits: (B, 24) or (B, N_heads, 24)
     Returns:
         scalar entropy (averaged over batch)
     """
-    norm = zscore_logits(logits, temperature)
-    probs = F.softmax(norm, dim=-1)
-    log_probs = F.log_softmax(norm, dim=-1)
+    probs = F.softmax(logits, dim=-1)
+    log_probs = F.log_softmax(logits, dim=-1)
     ent = -(probs * log_probs).sum(dim=-1)  # (B,) or (B, N_heads)
     return ent.mean()
 
@@ -631,9 +632,9 @@ def main():
                 ], dim=1)  # (B, N_heads, 24)
                 new_value = output["value"].squeeze(-1)  # (B,)
 
-                # Log probs (z-score normalized + temperature, matching rollout)
+                # Target policy logπ (raw softmax)
                 log_probs_new = compute_action_log_probs(
-                    new_logits, sampled_class, temperature=args.temperature)
+                    new_logits, sampled_class)
 
                 # Policy loss (clipped)
                 pg_loss = ppo_policy_loss(log_probs_new, old_logp, adv,
@@ -642,8 +643,8 @@ def main():
                 # Value loss
                 vf_loss = F.mse_loss(new_value, ret)
 
-                # Entropy bonus
-                ent = entropy_from_logits(new_logits, temperature=args.temperature)
+                # Entropy bonus (target policy)
+                ent = entropy_from_logits(new_logits)
 
                 # Total
                 loss = pg_loss + args.c_v * vf_loss - args.c_e * ent
