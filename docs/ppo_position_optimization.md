@@ -80,6 +80,10 @@ rollout 存位置采样时，把**采样到的 (x, y)** 和**该 class 的合法
 
 **为什么不做进 ratio**：位置通道的 logp 天然离散跳变——模型微变 → 位置 argmax 换一个格 → logp 从 ~0 跳到 -17。实测 |diff| 大部分样本仅 0.28，但 1.6% 样本 diff > 5，这些极端样本主导 KL（policy_loss 到 1e33、KL 771）。class 通道能稳定是因为 24 类 softmax 平滑，位置 361 格做不到。
 
+**2026-07-31 二次验证**：用户提出归一化可能解决（固定缩放 ÷100 而非 z-score）。单样本实验确认固定缩放确实让模型间位置 logp 差异降到 0.002（raw 0.28 / z-score 0.54），但**完整训练中位置进 ratio 依然爆炸**（KL 到 184063，entropy 崩到 0.23，rollouts=40 也一样）。原因：PPO 优化位置这个离散目标时，梯度会主动把 361 格中某个位置概率推高/拉低，logp 剧变 → ratio 爆炸。**问题不是数值尺度，而是位置进 ratio 本身本质不稳，归一化解决不了。**
+
+**结论：位置进 ratio 不可行（raw / z-score / 固定缩放 / 各种 T 都试过）。辅助 loss 是唯一稳定方案。**
+
 **方案**：
 - `L_total = L_ppo(class) + λ_pos · L_pos_aux`
 - `L_pos_aux = -log softmax(masked(raw action_map[class])/T_pos)[x, y]`（BC 式，让采样位置概率变高）
