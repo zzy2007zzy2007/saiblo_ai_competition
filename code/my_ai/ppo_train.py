@@ -449,27 +449,31 @@ def main():
                               num_heads=args.num_heads, no_bn=args.no_bn)
     log.print(f"Model parameters: {model.count_parameters():,}")
 
+    # ── Training state (params = correctly folded param vector) ──
+    params = extract_params_vec(model)
+
     # ── Leaderboard (adaptive opponent pool) ──
     if not args.no_lb:
         leaderboard = Leaderboard(
             max_size=args.lb_max_size,
-            param_count=model.count_parameters(),
+            param_count=len(params),
             threshold=args.lb_threshold,
         )
-        # Cold start: seed the pool with the initial checkpoint, so early
-        # iterations have a real opponent to play against.
-        ckpt_mean = ckpt.get("mean")
-        if ckpt_mean is not None:
-            raw = ckpt_mean
-            seed_params = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
-            leaderboard.entries.append(
-                LeaderboardEntry(gen=-1, params=seed_params.astype(np.float32), score=0.5))
-            log.print("Leaderboard cold-started with initial checkpoint.")
-        # Resume: restore saved LB
-        if "leaderboard" in ckpt:
-            leaderboard.load_state_dict(ckpt["leaderboard"])
+        # Resume: restore saved LB if present (may be None from a --no-lb run)
+        lb_saved = ckpt.get("leaderboard")
+        if lb_saved is not None and len(lb_saved.get("entries", [])) > 0:
+            leaderboard.load_state_dict(lb_saved)
             log.print(f"Leaderboard restored: {len(leaderboard.entries)} entries")
+        else:
+            # Cold start: seed the pool with the initial model itself, so early
+            # iterations have a real opponent (params is the correctly-folded
+            # no-BN vector — NOT raw ckpt["mean"] which has BN layout).
+            leaderboard.entries.append(
+                LeaderboardEntry(gen=-1, params=params.astype(np.float32), score=0.5))
+            log.print("Leaderboard cold-started with initial model.")
         log.print(f"Leaderboard: max_size={args.lb_max_size} threshold={args.lb_threshold}")
+        # Safe fallback if the pool is somehow empty (never, after cold start)
+        opp_params = params.copy()
     else:
         leaderboard = None
         # Fixed opponent fallback
@@ -480,8 +484,6 @@ def main():
         opp_params = extract_params_vec(opp_model)
         log.print(f"Opponent parameters: {len(opp_params):,}")
 
-    # ── Training state ──
-    params = extract_params_vec(model)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
