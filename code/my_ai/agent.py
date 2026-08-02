@@ -56,6 +56,7 @@ class NeuralAgent(BaseAgent):
         self.allowed_classes = allowed_classes
         self.action_dropout = action_dropout
         self.dropout_this_turn = False
+        self.last_sampled_classes: list[int] | None = None
 
     def set_model(self, model: AntWarNetwork) -> None:
         """Replace the model (used by ES to update weights)."""
@@ -104,11 +105,13 @@ class NeuralAgent(BaseAgent):
 
         # Decode (with optional class restriction)
         rng_ = np.random.default_rng()
+        self.last_sampled_classes = []
         operations = decode_network_output(output, state, player,
                                            allowed_classes=self.allowed_classes,
                                            rng=rng_,
                                            temperature=self.eval_temperature,
-                                           intent_decoding=self.intent_decoding)
+                                           intent_decoding=self.intent_decoding,
+                                           sampled_class_out=self.last_sampled_classes)
 
         # ── Action Dropout: randomly override with legal action ──
         self.dropout_this_turn = False

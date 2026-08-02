@@ -6,7 +6,7 @@ Architecture (AlphaZero-style):
       └── GAP → board_emb(64)
   stats(~22) → MLP → stats_emb(64)
   state_emb = concat(board_emb, stats_emb) = 128
-      ├── Value Head → scalar [-1, 1]
+      ├── Value Head → scalar (bare linear)
       └── Policy Head → 3 × 23 class logits
 """
 
@@ -107,12 +107,13 @@ class AntWarNetwork(nn.Module):
             nn.Linear(self.LATENT_DIM, self.NUM_CLASSES) for _ in range(num_heads)
         ])
 
-        # Value head
+        # Value head — bare linear output (no Tanh).  The value target
+        # (discounted sum of HP differences) can exceed [-1, 1], so Tanh
+        # would cap the value network's range and inflate GAE error.
         self.value_head = nn.Sequential(
             nn.Linear(self.LATENT_DIM * 2, self.LATENT_DIM),  # state_emb = board_emb(64) + stats_emb(64)
             nn.ReLU(),
             nn.Linear(self.LATENT_DIM, 1),
-            nn.Tanh(),
         )
 
     def forward(self, board: torch.Tensor, stats: torch.Tensor) -> dict[str, torch.Tensor]:

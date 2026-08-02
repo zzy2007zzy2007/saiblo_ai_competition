@@ -221,6 +221,7 @@ def decode_head(
     rng: np.random.Generator | None = None,
     temperature: float = 0.0,
     intent_decoding: bool = False,
+    sampled_class_out: list[int] | None = None,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -235,8 +236,13 @@ def decode_head(
     but gold is insufficient, the decoder auto-downgrades a tower using
     class 16's action_map instead of returning None.
 
-    When temperature > 0, uses range-normalized temperature sampling
-    (scale to [-1, 1]) instead of argmax for smoother action selection.
+    When temperature > 0, uses z-score normalized temperature sampling
+    (per-head mean/std) instead of argmax for smoother action selection.
+
+    ``sampled_class_out`` (optional): a list that receives the sampled
+    class id (the actual action this head chose), so callers can build
+    on-policy log-prob targets.  Recorded for BOTH argmax and sampled
+    paths, before the legality check.
     """
     # Step 0: Filter by allowed_classes if set
     if allowed_classes is not None:
@@ -249,14 +255,18 @@ def decode_head(
 
     # Step 1: Choose class (argmax or temperature sampling)
     if temperature > 0 and rng is not None:
-        # Scale to [-1, 1] so temperature is scale-invariant
-        lo, hi = head_logits.min(), head_logits.max()
-        logits = (head_logits - lo) / (hi - lo + 1e-8) * 2 - 1
+        # z-score normalize so temperature is scale-invariant (per-head)
+        mean = head_logits.mean()
+        std = head_logits.std() + 1e-8
+        logits = (head_logits - mean) / std
         probs = np.exp(logits / temperature)
         probs /= probs.sum()
         class_id = int(rng.choice(len(probs), p=probs))
     else:
         class_id = int(np.argmax(head_logits))
+
+    if sampled_class_out is not None:
+        sampled_class_out.append(class_id)
 
     if not class_mask[class_id]:
         return None  # Head's top choice is illegal → skip this head
@@ -360,6 +370,7 @@ def decode_network_output(
     rng: np.random.Generator | None = None,
     temperature: float = 0.0,
     intent_decoding: bool = False,
+    sampled_class_out: list[int] | None = None,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -370,6 +381,9 @@ def decode_network_output(
             - value: (1, 1) or (1,) — ignored for decoding
         state: current game state
         player: current player (0 or 1)
+        sampled_class_out: optional list — receives the sampled class id
+            for each head (in head order), the ACTUAL action this head
+            chose.  Same length as head_logits_list.
 
     Returns:
         list of Operations (0-3 items, to be sent as the turn's bundle)
@@ -393,7 +407,8 @@ def decode_network_output(
     for head_idx, head_logits in enumerate(head_logits_list):
         op = decode_head(head_logits, action_map, class_mask, position_mask, state, player,
                          allowed_classes=allowed_classes, rng=rng, temperature=temperature,
-                         intent_decoding=intent_decoding)
+                         intent_decoding=intent_decoding,
+                         sampled_class_out=sampled_class_out)
         if op is not None:
             # Check if operation is legal (given already selected operations)
             if state.can_apply_operation(player, op, operations):

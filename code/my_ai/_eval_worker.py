@@ -10,6 +10,139 @@ import numpy as np
 from pathlib import Path
 
 
+def _ppo_rollout_and_save(
+    params_flat: np.ndarray,
+    opp_params_flat: np.ndarray,
+    seed: int,
+    rollout_dir: str,
+    temperature: float = 1.0,
+    num_heads: int = 3,
+    small: bool = False,
+    no_bn: bool = False,
+    bn_stats: dict | None = None,
+    intent_decoding: bool = True,
+) -> dict:
+    """Run one game, save trajectory for PPO training.
+
+    Exploration: the agent uses temperature sampling during gameplay
+    (stochastic).  The stored ``action_classes`` are argmax (deterministic),
+    so logπ_old is always computed from raw logits via log_softmax.
+    Entropy bonus in the PPO objective encourages exploration across
+    iterations.
+
+    ``bn_stats`` (dict of running_mean/running_var numpy arrays) must be
+    provided when the model uses BatchNorm (no_bn=False) — the parameter
+    vector from ``set_parameters_from_vector`` does NOT include BN buffers.
+
+    Returns: {'path': str, 'our_player': int, 'T': int}
+    """
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    import torch
+    torch.set_num_threads(1)
+
+    from my_ai.network import create_model
+    from my_ai.agent import NeuralAgent
+    from SDK.backend.engine import GameState
+    from SDK.utils.constants import MAX_ROUND
+
+    model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
+    model.set_parameters_from_vector(params_flat)
+    if bn_stats:
+        for name, buf in model.state_dict().items():
+            if "running_mean" in name or "running_var" in name:
+                buf.copy_(torch.from_numpy(bn_stats[name]))
+    agent = NeuralAgent(model=model, eval_temperature=temperature,
+                        intent_decoding=intent_decoding)
+
+    opp_model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
+    opp_model.set_parameters_from_vector(opp_params_flat)
+    if bn_stats:
+        for name, buf in opp_model.state_dict().items():
+            if "running_mean" in name or "running_var" in name:
+                buf.copy_(torch.from_numpy(bn_stats[name]))
+    opponent = NeuralAgent(model=opp_model)
+
+    our_player = seed % 2
+    opp_player = 1 - our_player
+
+    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+
+    boards, stats_list = [], []
+    action_classes, action_maps, head_logits_list = [], [], []
+    values, rewards = [], []
+
+    hp_us_prev = state.bases[our_player].hp
+    hp_opp_prev = state.bases[opp_player].hp
+
+    for _ in range(MAX_ROUND):
+        if state.terminal:
+            break
+
+        ops_us = agent._choose_operations(state, our_player)
+        output = agent.last_output
+
+        feat = agent.feature_extractor.encode_observation(
+            state, our_player, np.zeros(agent.max_actions))
+        boards.append(feat["board"].copy())
+        stats_list.append(feat["stats"].copy())
+
+        # Store the ACTUAL sampled class per head (from decoder's sampling,
+        # via sampled_class_out).  This is the on-policy action that
+        # generated the reward — PPO log-probs must match it.
+        cls = np.array(agent.last_sampled_classes, dtype=np.int64)
+        action_classes.append(cls)
+
+        action_maps.append(output["action_map"].squeeze(0).cpu().numpy())
+        hsl = np.stack([output[f"head{hi+1}_logits"].squeeze(0).cpu().numpy()
+                        for hi in range(num_heads)], axis=0)
+        head_logits_list.append(hsl)
+        values.append(float(output["value"].squeeze().cpu().numpy()))
+
+        ops_opp = opponent._choose_operations(state, opp_player)
+        if our_player == 0:
+            state.resolve_turn(ops_us, ops_opp)
+        else:
+            state.resolve_turn(ops_opp, ops_us)
+
+        hp_us_now = state.bases[our_player].hp
+        hp_opp_now = state.bases[opp_player].hp
+        reward = (hp_opp_prev - hp_opp_now) - (hp_us_prev - hp_us_now)
+        rewards.append(float(reward))
+        hp_us_prev, hp_opp_prev = hp_us_now, hp_opp_now
+
+    # Progress dot (same as _eval_worker: green=win, red=loss, yellow=draw)
+    hp_us = state.bases[our_player].hp
+    hp_opp = state.bases[opp_player].hp
+    if hp_us <= 0 and hp_opp <= 0:
+        color = "\033[93m"
+    elif hp_us > hp_opp:
+        color = "\033[92m"
+    elif hp_opp > hp_us:
+        color = "\033[91m"
+    else:
+        color = "\033[93m"
+    reset = "\033[0m"
+    print(f"{color}.{reset}", end="", flush=True)
+
+    # Save to npz
+    path = Path(rollout_dir) / f"ppo_seed{seed:06d}.npz"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        boards=np.stack(boards, axis=0).astype(np.float16),
+        stats=np.stack(stats_list, axis=0).astype(np.float16),
+        action_classes=np.stack(action_classes, axis=0),
+        action_maps=np.stack(action_maps, axis=0).astype(np.float16),
+        head_logits=np.stack(head_logits_list, axis=0).astype(np.float16),
+        values=np.array(values, dtype=np.float32),
+        rewards=np.array(rewards, dtype=np.float32),
+    )
+    return {"path": str(path), "our_player": our_player, "T": len(rewards)}
+
+
 def _eval_worker(
     params_flat: np.ndarray,
     opp_params_flat: np.ndarray,
