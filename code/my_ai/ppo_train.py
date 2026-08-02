@@ -678,7 +678,7 @@ def main():
         update_time = time.time() - iter_start - rollout_time
 
         # ── 7e. Evaluate + Leaderboard challenge (on eval steps) ──
-        win_rate = 0.0
+        win_rate_str = "-"  # no evaluation this iteration
         lb_added = False
         if it % args.eval_every == 0 or it == args.generations - 1:
             model.eval()
@@ -729,14 +729,15 @@ def main():
                     bn_stats=bn_stats,
                 )
             model.train()
-            log.print_table(iter=it, win_rate=f"{win_rate:.3f}",
+            win_rate_str = f"{win_rate:.3f}"
+            log.print_table(iter=it, win_rate=win_rate_str,
                             eval_games=args.eval_games, lb_added=lb_added)
 
-        # ── 7f. Log + CSV (single row, always includes win_rate) ──
+        # ── 7f. Log + CSV (single row; win_rate shows '-' when not evaluated) ──
         log.print_table(
             iter=it,
             reward=f"{mean_reward:.3f}",
-            win_rate=f"{win_rate:.3f}",
+            win_rate=win_rate_str,
             steps=total_steps,
             policy_loss=f"{avg_policy_loss:.4f}",
             value_loss=f"{avg_value_loss:.4f}",
@@ -746,7 +747,7 @@ def main():
             update_s=f"{update_time:.0f}",
         )
         write_csv_row(csv_path, [
-            it, f"{mean_reward:.4f}", f"{win_rate:.4f}",
+            it, f"{mean_reward:.4f}", win_rate_str,
             f"{avg_value_loss:.4f}", f"{avg_policy_loss:.4f}",
             f"{avg_entropy:.4f}", f"{avg_kl:.4f}", "0.0",
         ])
