@@ -262,7 +262,7 @@ def decode_head(
     intent_decoding: bool = False,
     sampled_class_out: list[int] | None = None,
     pos_temperature: float = 0.0,
-    sampled_pos_out: list[tuple[int, int, float, np.ndarray]] | None = None,
+    sampled_pos_out: list[tuple[int, int, int, float, np.ndarray]] | None = None,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -290,11 +290,15 @@ def decode_head(
     paths, before the legality check.
 
     ``sampled_pos_out`` (optional): a list that receives
-    (x, y, logprob, mask) for each head that selected a position-bearing
-    action (super weapon / tower / downgrade).  logprob is log π_pos under
-    the masked sampling distribution; mask is the legal-cell mask used for
-    sampling — both needed so training can reconstruct the same distribution.
-    Only appended when a position is sampled.
+    (channel, x, y, logprob, mask) for each head that selected a
+    position-bearing action.  ``channel`` is the ACTION_MAP channel the
+    position was sampled from — normally the intent class_id, but for
+    intent-decoded super weapons (gold insufficient → downgrade) it is
+    16 (the tower-downgrade channel), because that's the map the position
+    actually came from.  logprob is log π_pos under the masked sampling
+    distribution; mask is the legal-cell mask used for sampling — both
+    needed so training can reconstruct the same distribution.  Only
+    appended when a position is sampled.
     """
     # Step 0: Filter by allowed_classes if set
     if allowed_classes is not None:
@@ -339,15 +343,19 @@ def decode_head(
         op_type = SUPER_WEAPON_TO_OP_TYPE[sw_type]
         cost = SUPER_WEAPON_STATS[sw_type].cost
 
-        # Intent decoding: gold insufficient → downgrade tower
+        # Intent decoding: gold insufficient → downgrade tower.
+        # The position is sampled from the DOWNGRADE channel (16) because
+        # that's the action_map the position actually comes from — the
+        # PPO position gradient must align with the channel actually used.
         if intent_decoding and state.coins[player] < cost:
-            dg_map = action_map[16]
             dg_mask = position_mask[16]
-            if dg_mask.any():
-                masked = np.where(dg_mask, dg_map, -np.inf)
-                x, y = np.unravel_index(np.argmax(masked), masked.shape)
-                tower = state.tower_at(int(x), int(y))
+            pos = _sample_position(action_map[16], dg_mask, rng, pos_temperature)
+            if pos is not None:
+                x, y, logprob = pos
+                tower = state.tower_at(x, y)
                 if tower is not None and tower.player == player:
+                    if sampled_pos_out is not None:
+                        sampled_pos_out.append((16, x, y, logprob, dg_mask.copy()))
                     return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
             return None
 
@@ -357,7 +365,7 @@ def decode_head(
             return None
         x, y, logprob = pos
         if sampled_pos_out is not None:
-            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+            sampled_pos_out.append((class_id, x, y, logprob, pos_mask.copy()))
         return Operation(op_type, x, y)
 
     # Step 4: Tower actions (classes 0-15)
@@ -368,7 +376,7 @@ def decode_head(
             return None
         x, y, logprob = pos
         if sampled_pos_out is not None:
-            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+            sampled_pos_out.append((class_id, x, y, logprob, pos_mask.copy()))
         return _decode_tower_action(state, player, class_id, x, y)
 
     # Step 5: Downgrade (class 16)
@@ -379,7 +387,7 @@ def decode_head(
             return None
         x, y, logprob = pos
         if sampled_pos_out is not None:
-            sampled_pos_out.append((x, y, logprob, pos_mask.copy()))
+            sampled_pos_out.append((16, x, y, logprob, pos_mask.copy()))
         tower = state.tower_at(x, y)
         if tower is not None and tower.player == player:
             return Operation(OperationType.DOWNGRADE_TOWER, tower.tower_id)
@@ -427,7 +435,7 @@ def decode_network_output(
     intent_decoding: bool = False,
     sampled_class_out: list[int] | None = None,
     pos_temperature: float = 0.0,
-    sampled_pos_out: list[tuple[int, int, float, np.ndarray]] | None = None,
+    sampled_pos_out: list[tuple[int, int, int, float, np.ndarray]] | None = None,
 ) -> list[Operation]:
     """Decode network output into a list of Operations (up to 3).
 
@@ -443,8 +451,10 @@ def decode_network_output(
             chose.  Same length as head_logits_list.
         pos_temperature: temperature for position sampling (>0 samples,
             else argmax).  Passed to decode_head.
-        sampled_pos_out: optional list — receives (x, y, logprob, mask)
-            for each head that sampled a position-bearing action.
+        sampled_pos_out: optional list — receives (channel, x, y, logprob,
+            mask) for each head that sampled a position-bearing action.
+            channel = the action_map channel the position came from (may
+            differ from the intent class under intent decoding).
 
     Returns:
         list of Operations (0-3 items, to be sent as the turn's bundle)

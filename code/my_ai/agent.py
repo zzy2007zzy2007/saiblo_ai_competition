@@ -59,7 +59,7 @@ class NeuralAgent(BaseAgent):
         self.action_dropout = action_dropout
         self.dropout_this_turn = False
         self.last_sampled_classes: list[int] | None = None
-        self.last_sampled_positions: list[tuple[int, int]] | None = None
+        self.last_sampled_positions: list[tuple[int, int, int, float, np.ndarray]] | None = None
 
     def set_model(self, model: AntWarNetwork) -> None:
         """Replace the model (used by ES to update weights)."""

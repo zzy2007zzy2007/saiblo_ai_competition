@@ -101,12 +101,17 @@ def _ppo_rollout_and_save(
         # Store sampled position + its log-prob + legal-cell mask per head
         # (for on-policy position targets).  -1 = head did not select a
         # position-bearing action (HOLD / base upgrade / illegal).
-        pos_xy = np.full((num_heads, 3), -1, dtype=np.float32)
+        # pos_record cols: [channel, x, y, logprob] — channel is the
+        # action_map channel the position came from (may differ from the
+        # intent class under intent decoding, e.g. super-weapon → downgrade
+        # records channel 16).
+        pos_xy = np.full((num_heads, 4), -1, dtype=np.float32)
         pos_mask_arr = np.zeros((num_heads, 19, 19), dtype=np.float16)
-        for hi, (x, y, lp, mask) in enumerate(agent.last_sampled_positions[:num_heads]):
-            pos_xy[hi, 0] = x
-            pos_xy[hi, 1] = y
-            pos_xy[hi, 2] = lp
+        for hi, (ch, x, y, lp, mask) in enumerate(agent.last_sampled_positions[:num_heads]):
+            pos_xy[hi, 0] = ch
+            pos_xy[hi, 1] = x
+            pos_xy[hi, 2] = y
+            pos_xy[hi, 3] = lp
             pos_mask_arr[hi] = mask.astype(np.float16)
         pos_record_list.append(pos_xy)
         pos_mask_list.append(pos_mask_arr)
