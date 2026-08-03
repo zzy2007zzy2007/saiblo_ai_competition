@@ -224,10 +224,11 @@ def _sample_position(
     """
     if not pos_mask.any():
         return None
-    # Use raw action_map values (no z-score).  z-score made position logπ
-    # hypersensitive to mean/std drift (same issue as class heads), which
-    # destabilized the PPO ratio.  Temperature scales the raw values.
-    masked = np.where(pos_mask, channel_map, -np.inf)
+    # Fixed-scale normalization (÷100): scale-independent like class heads
+    # want, but unlike z-score it doesn't depend on data statistics.
+    POS_SCALE = 100.0
+    scaled = channel_map / POS_SCALE
+    masked = np.where(pos_mask, scaled, -np.inf)
     if pos_temperature > 0 and rng is not None:
         logits = masked / pos_temperature
     else:
