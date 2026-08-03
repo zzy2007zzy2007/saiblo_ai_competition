@@ -91,6 +91,7 @@ class PPODataset(Dataset):
         boards, stats = [], []
         action_classes, head_logits_old = [], []
         action_maps_old = []
+        pos_record, pos_mask = [], []
         advantages, returns = [], []
         for traj in trajectories:
             boards.append(traj["boards"])
@@ -98,6 +99,8 @@ class PPODataset(Dataset):
             action_classes.append(traj["action_classes"])
             head_logits_old.append(traj["head_logits"])
             action_maps_old.append(traj["action_maps"])  # (T, 24, 19, 19) behavior policy
+            pos_record.append(traj["pos_record"])  # (T, N_heads, 3) = (x, y, _)
+            pos_mask.append(traj["pos_mask"])      # (T, N_heads, 19, 19)
             advantages.append(traj["advantages"])
             returns.append(traj["returns"])
         self.boards = torch.from_numpy(np.concatenate(boards, axis=0)).float()
@@ -108,6 +111,10 @@ class PPODataset(Dataset):
             np.concatenate(head_logits_old, axis=0)).float()
         self.action_maps_old = torch.from_numpy(
             np.concatenate(action_maps_old, axis=0)).float()  # (T, 24, 19, 19)
+        self.pos_record = torch.from_numpy(
+            np.concatenate(pos_record, axis=0)).float()  # (T, N_heads, 3)
+        self.pos_mask = torch.from_numpy(
+            np.concatenate(pos_mask, axis=0)).float()    # (T, N_heads, 19, 19)
         self.advantages = torch.from_numpy(
             np.concatenate(advantages, axis=0)).float()
         self.returns = torch.from_numpy(
@@ -123,6 +130,8 @@ class PPODataset(Dataset):
             "action_class": self.action_classes[idx],    # (N_heads,)
             "head_logits_old": self.head_logits_old[idx], # (N_heads, 24)
             "action_maps_old": self.action_maps_old[idx], # (24, 19, 19)
+            "pos_record": self.pos_record[idx],          # (N_heads, 3)
+            "pos_mask": self.pos_mask[idx],              # (N_heads, 19, 19)
             "advantage": self.advantages[idx],
             "return": self.returns[idx],
         }
@@ -208,6 +217,48 @@ def compute_pos_mse_loss(
     position distribution is constrained, not just sampled points.
     """
     return F.mse_loss(action_map, action_maps_old)
+
+
+def compute_pos_hard_loss(
+    action_map: torch.Tensor,      # (B, 24, 19, 19) current (new) policy
+    action_classes: torch.Tensor,  # (B, N_heads)
+    pos_record: torch.Tensor,      # (B, N_heads, 3) = (x, y, _)
+    pos_mask: torch.Tensor,        # (B, N_heads, 19, 19) legal cells
+    pos_temperature: float,
+) -> torch.Tensor:                 # scalar
+    """Hard position loss: -log softmax(masked am/100/T_pos)[sampled x,y].
+
+    Pushes the sampled position's probability UP (real optimization signal).
+    Combined with compute_pos_mse_loss (trust-region), the MSE keeps the
+    map from collapsing while this term actually optimizes positions.
+    """
+    POS_SCALE = 100.0
+    B = action_classes.shape[0]
+    total = torch.zeros((), device=action_map.device)
+    n_valid = 0
+    for hi in range(action_classes.shape[1]):
+        cls = action_classes[:, hi].long()            # (B,)
+        x = pos_record[:, hi, 0].long()
+        y = pos_record[:, hi, 1].long()
+        valid = x >= 0
+        if not valid.any():
+            continue
+        mask = pos_mask[:, hi] > 0.5                  # (B, 19, 19)
+        ch = action_map.gather(1, cls.view(B, 1, 1, 1).expand(B, 1, 19, 19))
+        ch = ch.squeeze(1) / POS_SCALE
+        if pos_temperature > 0:
+            ch = ch / pos_temperature
+        z_masked = torch.where(mask, ch, torch.full_like(ch, -torch.inf))
+        row_ok = mask.any(dim=(1, 2)) & valid
+        z_masked = torch.where(row_ok.view(B, 1, 1), z_masked,
+                               torch.zeros_like(z_masked))
+        logp = F.log_softmax(z_masked.view(B, -1), dim=-1)  # (B, 361)
+        idx = (x * 19 + y).clamp(0, 360)
+        per_sample = logp.gather(1, idx.unsqueeze(1)).squeeze(1)
+        total = total - torch.where(valid, per_sample,
+                                    torch.zeros_like(per_sample)).sum()
+        n_valid += int(valid.sum())
+    return total / max(n_valid, 1)
 
 
 def ppo_policy_loss(
@@ -335,6 +386,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="entropy bonus coefficient")
     p.add_argument("--lambda-pos-mse", type=float, default=1e-4,
                    help="position trust-region MSE weight (action_map vs behavior)")
+    p.add_argument("--lambda-pos-hard", type=float, default=0.01,
+                   help="position hard (-logp) loss weight (real optimization signal)")
     p.add_argument("--max-grad-norm", type=float, default=0.5,
                    help="gradient clipping norm")
 
@@ -616,6 +669,7 @@ def main():
         total_value_loss = 0.0
         total_entropy = 0.0
         total_pos_mse = 0.0
+        total_pos_hard = 0.0
         approx_kl = 0.0
         n_batches = 0
 
@@ -636,6 +690,7 @@ def main():
             epoch_entropy = 0.0
             epoch_kl = 0.0
             epoch_pos_mse = 0.0
+            epoch_pos_hard = 0.0
             batch_count = 0
 
             # Rebuild loader to reshuffle
@@ -647,6 +702,8 @@ def main():
                 stats = batch["stats"].to(device)          # (B, 42)
                 sampled_class = batch["action_class"].to(device)   # (B, N_heads)
                 action_maps_old = batch["action_maps_old"].to(device)  # (B, 24, 19, 19)
+                pos_record = batch["pos_record"].to(device)        # (B, N_heads, 3)
+                pos_mask = batch["pos_mask"].to(device)            # (B, N_heads, 19, 19)
                 adv = batch["advantage"].to(device)        # (B,)
                 ret = batch["return"].to(device)           # (B,)
 
@@ -677,13 +734,16 @@ def main():
                 # Entropy bonus (target policy)
                 ent = entropy_from_logits(new_logits)
 
-                # Position trust-region loss: keep new action_map close to
-                # the behavior policy's action_map (from rollout npz)
+                # Position: hard (-logp, real optimization) + MSE (trust-region)
                 pos_mse = compute_pos_mse_loss(new_action_map, action_maps_old)
+                pos_hard = compute_pos_hard_loss(
+                    new_action_map, sampled_class, pos_record, pos_mask,
+                    pos_temperature=args.pos_temperature)
 
                 # Total
                 loss = (pg_loss + args.c_v * vf_loss - args.c_e * ent
-                        + args.lambda_pos_mse * pos_mse)
+                        + args.lambda_pos_mse * pos_mse
+                        + args.lambda_pos_hard * pos_hard)
 
                 # Backward
                 optimizer.zero_grad()
@@ -701,6 +761,7 @@ def main():
                 epoch_entropy += ent.item()
                 epoch_kl += kl
                 epoch_pos_mse += pos_mse.item()
+                epoch_pos_hard += pos_hard.item()
                 batch_count += 1
 
             n_batches += batch_count
@@ -709,9 +770,11 @@ def main():
             total_entropy += epoch_entropy
             approx_kl += epoch_kl
             total_pos_mse += epoch_pos_mse
+            total_pos_hard += epoch_pos_hard
 
         n_epoch_batches = max(n_batches // args.ppo_epochs, 1)
         avg_pos_mse = total_pos_mse / (args.ppo_epochs * n_epoch_batches)
+        avg_pos_hard = total_pos_hard / (args.ppo_epochs * n_epoch_batches)
         avg_policy_loss = total_policy_loss / (args.ppo_epochs * n_epoch_batches)
         avg_value_loss = total_value_loss / (args.ppo_epochs * n_epoch_batches)
         avg_entropy = total_entropy / (args.ppo_epochs * n_epoch_batches)
@@ -810,6 +873,7 @@ def main():
             value_loss=f"{avg_value_loss:.4f}",
             entropy=f"{avg_entropy:.4f}",
             pos_mse=f"{avg_pos_mse:.4f}",
+            pos_hard=f"{avg_pos_hard:.4f}",
             kl=f"{avg_kl:.4f}",
             rollout_s=f"{rollout_time:.0f}",
             update_s=f"{update_time:.0f}",
