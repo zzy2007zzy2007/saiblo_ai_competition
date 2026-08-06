@@ -41,8 +41,14 @@ def load_model_from_ckpt(ckpt_path: str):
 
 
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
-                 max_rounds: int = 512, temp_rounds: int = 30) -> list[dict]:
-    """Play one self-play game (both sides = bundle MCTS), record training samples."""
+                 max_rounds: int = 512, temp_rounds: int = 30,
+                 progress_path: str | None = None) -> list[dict]:
+    """Play one self-play game (both sides = bundle MCTS), record training samples.
+
+    If ``progress_path`` is given, a per-round text log (round index + each
+    player's chosen operations) is written there and flushed every round, so the
+    game's progress can be watched while it runs (games take ~2h at 128/depth4).
+    """
     from SDK.backend.engine import GameState
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
@@ -51,11 +57,13 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
 
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
     samples: list[dict] = []
+    pfile = open(progress_path, "w", encoding="utf-8") if progress_path else None
 
     for round_idx in range(max_rounds):
         if state.terminal:
             break
         temperature = 1.0 if round_idx < temp_rounds else 1e-6
+        round_ops: list[list] = [[], []]
         for player in (0, 1):
             if state.terminal:
                 break
@@ -91,9 +99,13 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                 Operation(OperationType(int(k[0])), int(k[1]), int(k[2]))
                 for k in res.chosen_bundle
             ]
+            round_ops[player] = [(int(o.op_type), o.arg0, o.arg1) for o in ops]
             state.apply_operation_list(player, ops)
         if player == 1 and not state.terminal:
             state.advance_round()
+        if pfile is not None:
+            pfile.write(f"round={round_idx} P0={round_ops[0]} P1={round_ops[1]}\n")
+            pfile.flush()
 
     diff = state.bases[0].hp - state.bases[1].hp
     v_p0 = float(np.clip(diff / HP_SCALE, -1.0, 1.0))
@@ -101,6 +113,10 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         v_p0 = 0.1 if state.winner == 0 else -0.1
     for s in samples:
         s["value_target"] = v_p0 if s["player"] == 0 else -v_p0
+    if pfile is not None:
+        pfile.write(f"terminal winner={state.winner} hp={[b.hp for b in state.bases]} "
+                    f"rounds={state.round_index}\n")
+        pfile.close()
     return samples
 
 
@@ -119,7 +135,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos, seed=seed)
     samples = collect_game(net_fn, model, feat, mcts, seed,
-                           max_rounds=max_rounds, temp_rounds=temp_rounds)
+                           max_rounds=max_rounds, temp_rounds=temp_rounds,
+                           progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"))
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
