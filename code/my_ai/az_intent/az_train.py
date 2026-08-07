@@ -53,13 +53,17 @@ def load_samples(pkl_paths: list[Path]) -> list[dict]:
     return samples
 
 
-def add_weighted_labels(samples: list[dict], tau: float = 20.0) -> None:
+def add_weighted_labels(samples: list[dict], tau: float = 20.0,
+                        label_scale: float = 1.0) -> None:
     """In-place: set ``value_label`` = exp-weighted future HP-diff (P0 view, /HP_SCALE).
 
     Per-frame instantaneous HP diff d_t is reconstructed from the stats feature
     (extras offset 22: stats[24] = bases[player].hp/50, stats[25] = bases[enemy].hp/50).
     Relative form: label_t = weighted_future_avg - d_t (0-centered, predicts the
-    future advantage CHANGE from here).  Backward O(n) recurrence.
+    future advantage CHANGE from here).  ``label_scale`` amplifies the labels so
+    the trained value head's output magnitude matches the terminal-scale values
+    the search expects (else the PUCT explore term dominates and search starves).
+    Backward O(n) recurrence.
     """
     gamma = float(np.exp(-1.0 / tau))
     n = len(samples)
@@ -76,7 +80,7 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0) -> None:
         suffix = d[t] + gamma * suffix
         wsum = 1.0 + gamma * wsum
         raw = suffix / wsum
-        label = float(np.clip((raw - d[t]) / HP_SCALE, -1.0, 1.0))
+        label = float(np.clip((raw - d[t]) / HP_SCALE, -1.0, 1.0)) * label_scale
         # value must be from the SAMPLE's player perspective (features are
         # player-perspective; the search reads it as the current player's value)
         samples[t]["value_label"] = label if samples[t]["player"] == 0 else -label
@@ -249,6 +253,9 @@ def main() -> None:
     parser.add_argument("--lambda-anchor", type=float, default=1.0)
     parser.add_argument("--tau", type=float, default=20.0,
                         help="time constant for exp-weighted future hp-diff labels (view distance)")
+    parser.add_argument("--label-scale", type=float, default=1.0,
+                        help="amplify value labels so value-head output magnitude "
+                             "matches the terminal scale the search expects (~6)")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -269,12 +276,13 @@ def main() -> None:
     for path in value_paths:
         with open(path, "rb") as f:
             game = pickle.load(f)["samples"]
-        add_weighted_labels(game, tau=args.tau)
+        add_weighted_labels(game, tau=args.tau, label_scale=args.label_scale)
         value_samples.extend(game)
     labels = np.asarray([s["value_label"] for s in value_samples])
     print(f"[train] policy {len(policy_samples)} samples, value {len(value_samples)} samples; "
           f"label mean={labels.mean():+.3f} std={labels.std():.3f} "
-          f"range=[{labels.min():.3f},{labels.max():.3f}] tau={args.tau}", flush=True)
+          f"range=[{labels.min():.3f},{labels.max():.3f}] tau={args.tau} "
+          f"label_scale={args.label_scale}", flush=True)
 
     metrics = train(
         model, policy_samples, value_samples,
