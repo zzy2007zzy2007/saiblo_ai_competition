@@ -76,7 +76,10 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0) -> None:
         suffix = d[t] + gamma * suffix
         wsum = 1.0 + gamma * wsum
         raw = suffix / wsum
-        samples[t]["value_label"] = float(np.clip((raw - d[t]) / HP_SCALE, -1.0, 1.0))
+        label = float(np.clip((raw - d[t]) / HP_SCALE, -1.0, 1.0))
+        # value must be from the SAMPLE's player perspective (features are
+        # player-perspective; the search reads it as the current player's value)
+        samples[t]["value_label"] = label if samples[t]["player"] == 0 else -label
 
 
 def _marginalize(s: dict, head: int) -> dict:
