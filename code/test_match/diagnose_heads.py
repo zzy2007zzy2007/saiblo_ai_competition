@@ -65,16 +65,18 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
         raw = ckpt["mean"]
         params = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
     else:
-        raise ValueError("No params found")
+        params = None  # az_intent/AZ checkpoint format: model_state only
 
     no_bn = ckpt.get("no_bn", False)
     model = create_model(num_heads=num_heads, small=small, no_bn=no_bn)
     if "model_state" in ckpt:
         model.load_state_dict(ckpt["model_state"])
-        model.set_parameters_from_vector(params)  # overwrite individual params, keep BN stats
+        if params is not None:
+            model.set_parameters_from_vector(params)  # overwrite individual params, keep BN stats
     else:
         model.set_parameters_from_vector(params)
-    _print(f"num_heads={num_heads}, params={len(params):,} device={device}")
+    _print(f"num_heads={num_heads}, params={len(params):,} device={device}" if params is not None
+           else f"num_heads={num_heads} device={device}")
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
     opponent = ExampleAI(seed=seed)
 
@@ -142,7 +144,10 @@ def diagnose_heads(ckpt_path: str, seed: int = 0, num_heads: int | None = None, 
 
     # Print results
     _print(f"Checkpoint: {ckpt_path}")
-    _print(f"num_heads={num_heads}, params={len(params):,}")
+    if params is not None:
+        _print(f"num_heads={num_heads}, params={len(params):,}")
+    else:
+        _print(f"num_heads={num_heads}")
     r = "WIN" if state.bases[0].hp > state.bases[1].hp else "LOSS"
     _print(f"Seed={seed}, turns={turn+1}, result={r} ({state.bases[0].hp} vs {state.bases[1].hp})")
     _print(f"Bundle: {total_ops} ops, {total_holds} holds across {turn+1} turns")

@@ -71,24 +71,25 @@ def diagnose(ckpt_path: str, n_games: int = 10, seed_offset: int = 0, verbose: b
     if ind is not None and "ga_pop" in ckpt and ind < len(ckpt["ga_pop"]):
         param_vec = ckpt["ga_pop"][ind]
         label = f"ga_pop[{ind}]"
-    else:
-        if "top2_params" in ckpt:
-            param_vec = ckpt["top2_params"][0].numpy()
-        else:
-            raw = ckpt["mean"]
-            param_vec = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
+    elif "top2_params" in ckpt:
+        param_vec = ckpt["top2_params"][0].numpy()
         label = "TOP1"
+    elif "mean" in ckpt:
+        raw = ckpt["mean"]
+        param_vec = raw.numpy() if hasattr(raw, "numpy") else np.asarray(raw)
+        label = "TOP1"
+    else:
+        param_vec = None  # az_intent/AZ checkpoint format: model_state only
+        label = "model_state"
 
     model = create_model(num_heads=num_heads, no_bn=ckpt.get("no_bn", False))
     if "model_state" in ckpt:
-        model.load_state_dict(ckpt["model_state"])
-        if ind is not None:
-            # Overwrite with the specific individual's params (keep BN stats)
-            model.set_parameters_from_vector(param_vec)
-    else:
-        model.set_parameters_from_vector(param_vec)
+        model.load_state_dict(ckpt["model_state"])  # BN stats + params
+    if param_vec is not None:
+        model.set_parameters_from_vector(param_vec)  # overwrite trainable params
     agent = NeuralAgent(model=model, action_dropout=action_dropout)
-    _print(f"num_heads={num_heads}, params={len(param_vec):,}  [{label}]")
+    _print(f"num_heads={num_heads}, params={len(param_vec):,}  [{label}]" if param_vec is not None
+           else f"num_heads={num_heads}  [{label}]")
 
     # Aggregated stats
     total_turns = 0
