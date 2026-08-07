@@ -1,18 +1,26 @@
-"""Bundle-MCTS AlphaZero training (T2) — docs/az_bundle_alpha_zero_training.md.
+"""Bundle-MCTS AlphaZero training (T2, round 2) — docs/az_weighted_value_retraining_plan.md.
 
 Loads self-play samples collected by az_selfplay.py and trains:
   - policy loss: bundle visit distribution marginalized to per-head intent
     targets (count-weighted, §2), then a DECOMPOSED CE (§3.1): class CE over
     the class marginal + per-class weighted position CE, using the SAME
     distributions the search samples from (z-score + temperatures).
-  - value loss: MSE on the HP-difference target.
   - anchor loss: MSE of the policy outputs vs the recorded self-play outputs
     (trust-region, §3.2).
+  - value loss: MSE against exponentially-weighted future HP-difference labels
+    (docs/value_label_future_weighted.md), computed per frame from the stats
+    feature (extras offset 22) so every decision gets a distinct value target.
+
+Round-2 data split: the policy head trains on the CURRENT batch's samples only
+(policy targets go stale fast); the value head trains on the ACCUMULATED data
+(game outcomes are facts that stay useful).  Both are optimized jointly every
+step (two mini-batches, one loss) — NOT in phases.
 
 Usage:
     python code/my_ai/az_intent/az_train.py --init training_history/az_intent/gen0120_warm.pt \
+        --policy-dir training_history/az_intent/az_selfplay_data/batch4 \
         --data-dir training_history/az_intent/az_selfplay_data \
-        --checkpoint training_history/az_intent/az_az0.pt
+        --checkpoint training_history/az_intent/az_r2.pt
 """
 from __future__ import annotations
 
@@ -32,6 +40,8 @@ for p in (_REPO, _CODE):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
+from my_ai.az_intent.mcts import HP_SCALE
+
 
 def load_samples(pkl_paths: list[Path]) -> list[dict]:
     """Load self-play pickles into a flat list of samples."""
@@ -41,6 +51,32 @@ def load_samples(pkl_paths: list[Path]) -> list[dict]:
             d = pickle.load(f)
         samples.extend(d["samples"])
     return samples
+
+
+def add_weighted_labels(samples: list[dict], tau: float = 20.0) -> None:
+    """In-place: set ``value_label`` = exp-weighted future HP-diff (P0 view, /HP_SCALE).
+
+    Per-frame instantaneous HP diff d_t is reconstructed from the stats feature
+    (extras offset 22: stats[24] = bases[player].hp/50, stats[25] = bases[enemy].hp/50).
+    Relative form: label_t = weighted_future_avg - d_t (0-centered, predicts the
+    future advantage CHANGE from here).  Backward O(n) recurrence.
+    """
+    gamma = float(np.exp(-1.0 / tau))
+    n = len(samples)
+    if n == 0:
+        return
+    d = np.empty(n, dtype=np.float64)
+    for t, s in enumerate(samples):
+        if s["player"] == 0:
+            d[t] = (float(s["stats"][24]) - float(s["stats"][25])) * 50.0
+        else:
+            d[t] = (float(s["stats"][25]) - float(s["stats"][24])) * 50.0
+    suffix = wsum = 0.0
+    for t in range(n - 1, -1, -1):
+        suffix = d[t] + gamma * suffix
+        wsum = 1.0 + gamma * wsum
+        raw = suffix / wsum
+        samples[t]["value_label"] = float(np.clip((raw - d[t]) / HP_SCALE, -1.0, 1.0))
 
 
 def _marginalize(s: dict, head: int) -> dict:
@@ -109,47 +145,61 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
     return total
 
 
-def compute_loss(model, batch: list[dict], *, t_class: float, t_pos: float,
-                 lambda_value: float, lambda_anchor: float) -> tuple:
-    boards = torch.stack([torch.from_numpy(s["board"]).float() for s in batch])
-    stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in batch])
+def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
+                 t_class: float, t_pos: float, lambda_value: float,
+                 lambda_anchor: float) -> tuple:
+    """Joint loss over two mini-batches: policy+anchor on policy_batch,
+    value MSE on value_batch (both heads optimized together every step)."""
+    boards = torch.stack([torch.from_numpy(s["board"]).float() for s in policy_batch])
+    stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in policy_batch])
     out = model(boards, stats)
 
     policy_loss = sum(
         _sample_policy_loss(out, b, s, t_class, t_pos, model.num_heads)
-        for b, s in enumerate(batch)
-    ) / len(batch)
+        for b, s in enumerate(policy_batch)
+    ) / len(policy_batch)
 
-    v_tgt = torch.as_tensor([s["value_target"] for s in batch], dtype=torch.float32)
-    value_loss = F.mse_loss(out["value"].squeeze(-1), v_tgt)
-
-    am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in batch])
-    hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in batch])
+    am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in policy_batch])
+    hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in policy_batch])
     anchor_loss = F.mse_loss(out["action_map"], am_tgt) + F.mse_loss(
         torch.stack([out[f"head{i + 1}_logits"] for i in range(model.num_heads)], dim=1),
         hl_tgt,
     )
 
+    v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in value_batch])
+    v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in value_batch])
+    v_out = model(v_boards, v_stats)
+    v_tgt = torch.as_tensor([s["value_label"] for s in value_batch], dtype=torch.float32)
+    value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
+
     loss = policy_loss + lambda_value * value_loss + lambda_anchor * anchor_loss
     return loss, policy_loss, value_loss, anchor_loss
 
 
-def train(model, samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
-          lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
+def train(model, policy_samples: list[dict], value_samples: list[dict], *,
+          epochs: int = 5, batch_size: int = 32, lr: float = 1e-3,
+          t_class: float = 0.5, t_pos: float = 0.3,
           lambda_value: float = 1.0, lambda_anchor: float = 1.0,
           seed: int = 0, checkpoint: str = "") -> dict:
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
-    n = len(samples)
+    n = len(policy_samples)
+    nv = len(value_samples)
     for epoch in range(epochs):
         order = list(range(n))
         rng.shuffle(order)
+        v_order = list(range(nv))
+        rng.shuffle(v_order)
+        v_pos = 0
         tl = tp = tv = ta = 0.0
         n_steps = 0
         for start in range(0, n, batch_size):
-            batch = [samples[i] for i in order[start:start + batch_size]]
+            p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
+            v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
+            v_pos += len(p_batch)
             loss, p, v, a = compute_loss(
-                model, batch, t_class=t_class, t_pos=t_pos,
+                model, p_batch, v_batch,
+                t_class=t_class, t_pos=t_pos,
                 lambda_value=lambda_value, lambda_anchor=lambda_anchor,
             )
             optimizer.zero_grad()
@@ -161,7 +211,8 @@ def train(model, samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
             n_steps += 1
         print(f"  epoch {epoch}: loss={tl/max(n_steps,1):.4f} "
               f"policy={tp/max(n_steps,1):.4f} value={tv/max(n_steps,1):.4f} "
-              f"anchor={ta/max(n_steps,1):.4f}", flush=True)
+              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv})",
+              flush=True)
     if checkpoint:
         Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
         torch.save(
@@ -176,13 +227,15 @@ def train(model, samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
             checkpoint,
         )
         print(f"[train] saved -> {checkpoint}", flush=True)
-    return {"samples": n, "epochs": epochs, "steps": n_steps}
+    return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bundle-MCTS AlphaZero training (T2)")
+    parser = argparse.ArgumentParser(description="Bundle-MCTS AlphaZero training (T2, round 2)")
     parser.add_argument("--init", required=True, help="initial checkpoint (gen0120_warm)")
-    parser.add_argument("--data-dir", required=True, help="self-play data dir (pickles)")
+    parser.add_argument("--data-dir", required=True, help="accumulated self-play data dir (value pool)")
+    parser.add_argument("--policy-dir", type=str, default=None,
+                        help="current-batch data dir (policy pool); default = --data-dir")
     parser.add_argument("--checkpoint", type=str, default="training_history/az_intent/az_az0.pt")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -191,6 +244,8 @@ def main() -> None:
     parser.add_argument("--t-pos", type=float, default=0.3)
     parser.add_argument("--lambda-value", type=float, default=1.0)
     parser.add_argument("--lambda-anchor", type=float, default=1.0)
+    parser.add_argument("--tau", type=float, default=20.0,
+                        help="time constant for exp-weighted future hp-diff labels (view distance)")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -200,13 +255,26 @@ def main() -> None:
     model = load_model_from_ckpt(args.init)
     model.train()
 
-    pkl_paths = sorted(Path(args.data_dir).glob("az_selfplay_seed*.pkl"))
-    print(f"[train] loading {len(pkl_paths)} self-play files...", flush=True)
-    samples = load_samples(pkl_paths)
-    print(f"[train] {len(samples)} samples", flush=True)
+    policy_dir = args.policy_dir or args.data_dir
+    policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
+    value_paths = sorted(Path(args.data_dir).rglob("az_selfplay_seed*.pkl"))
+    print(f"[train] policy pool: {len(policy_paths)} files from {policy_dir}", flush=True)
+    print(f"[train] value pool:  {len(value_paths)} files from {args.data_dir}", flush=True)
+    policy_samples = load_samples(policy_paths)
+
+    value_samples: list[dict] = []
+    for path in value_paths:
+        with open(path, "rb") as f:
+            game = pickle.load(f)["samples"]
+        add_weighted_labels(game, tau=args.tau)
+        value_samples.extend(game)
+    labels = np.asarray([s["value_label"] for s in value_samples])
+    print(f"[train] policy {len(policy_samples)} samples, value {len(value_samples)} samples; "
+          f"label mean={labels.mean():+.3f} std={labels.std():.3f} "
+          f"range=[{labels.min():.3f},{labels.max():.3f}] tau={args.tau}", flush=True)
 
     metrics = train(
-        model, samples,
+        model, policy_samples, value_samples,
         epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
         t_class=args.t_class, t_pos=args.t_pos,
         lambda_value=args.lambda_value, lambda_anchor=args.lambda_anchor,

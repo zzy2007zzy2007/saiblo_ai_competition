@@ -26,16 +26,18 @@ fi
 echo "[run] total batches=$N_BATCHES start=$START_BATCH data=$DATA"
 for b in $(seq "$START_BATCH" $((START_BATCH + N_BATCHES - 1))); do
     echo "==================== [batch $b] 开始 ===================="
-    echo "[batch $b] 采集 10 局 (128 iter / depth 4, 10 workers) seed=$b ..."
+    BATCH_DIR="$DATA/batch$b"
+    echo "[batch $b] 采集 10 局 (128 iter / depth 4, 10 workers) seed=$b -> $BATCH_DIR ..."
     "$PY" code/my_ai/az_intent/az_selfplay.py \
         --checkpoint "$prev" \
         --games 10 --workers 10 \
         --iterations 128 --max-depth-rounds 4 --max-rounds 512 \
-        --out-dir "$DATA" --seed "$b"
+        --out-dir "$BATCH_DIR" --seed "$b"
     ckpt="$REPO/training_history/az_intent/az_az$b.pt"
-    echo "[batch $b] 训练 (init=$prev) -> $ckpt ..."
+    echo "[batch $b] 训练 (init=$prev) -> $ckpt (policy=$BATCH_DIR, value=累计)..."
     "$PY" code/my_ai/az_intent/az_train.py \
-        --init "$prev" --data-dir "$DATA" --checkpoint "$ckpt" --epochs 5
+        --init "$prev" --policy-dir "$BATCH_DIR" --data-dir "$DATA" \
+        --checkpoint "$ckpt" --epochs 5 --tau 20
     echo "[batch $b] 完成 -> $ckpt"
     prev="$ckpt"
 done
