@@ -106,9 +106,9 @@ def _worker(args: tuple) -> dict:
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType
         from my_ai.az_intent.bundle_mcts import BundleMCTS
-        from my_ai.az_intent.train import make_net_fn
+        from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
 
-        net_fn = make_net_fn(model, feat)
+        _, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
         bmcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                            t_class=t_class, t_pos=t_pos, seed=seed)
 

@@ -40,6 +40,49 @@ def load_model_from_ckpt(ckpt_path: str):
     return model
 
 
+def load_split_models(ckpt_path: str):
+    """Load a split checkpoint into (policy_model, value_model).
+
+    Both networks share the same architecture.  For a single-model checkpoint
+    (model_state only, e.g. gen0120_warm) both nets warm-start from the same
+    weights; for a split checkpoint (has ``value_state``) each loads its own.
+    """
+    from my_ai.network import create_model
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+
+    def _build():
+        return create_model(
+            num_resblocks=ckpt.get("num_resblocks", 6),
+            num_heads=ckpt.get("num_heads", 3),
+            latent_dim=ckpt.get("latent_dim", 64),
+            no_bn=True,
+        )
+
+    policy_model = _build()
+    policy_model.load_state_dict(ckpt["model_state"])
+    value_model = _build()
+    value_model.load_state_dict(ckpt.get("value_state", ckpt["model_state"]))
+    policy_model.eval()
+    value_model.eval()
+    return policy_model, value_model
+
+
+def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor):
+    """Build (anchor_model, net_fn) for a checkpoint — single or split.
+
+    ``anchor_model`` is the policy network (used to record the anchor outputs
+    during self-play); ``net_fn`` is the search interface (one or two forwards).
+    """
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    if "value_state" in ckpt:
+        from my_ai.az_intent.train import make_split_net_fn
+        policy_model, value_model = load_split_models(ckpt_path)
+        return policy_model, make_split_net_fn(policy_model, value_model, feature_extractor)
+    from my_ai.az_intent.train import make_net_fn
+    model = load_model_from_ckpt(ckpt_path)
+    return model, make_net_fn(model, feature_extractor)
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None) -> list[dict]:
@@ -126,12 +169,9 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
-    from my_ai.az_intent.train import make_net_fn
 
-    model = load_model_from_ckpt(ckpt_path)
-    model.eval()
     feat = FeatureExtractor(max_actions=96)
-    net_fn = make_net_fn(model, feat)
+    model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
     mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos, seed=seed)
     samples = collect_game(net_fn, model, feat, mcts, seed,

@@ -34,19 +34,16 @@ def _worker(args: tuple) -> dict:
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import load_model_from_ckpt
+    from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
     from my_ai.az_intent.bundle_mcts import BundleMCTS
-    from my_ai.az_intent.train import make_net_fn
 
-    model_a = load_model_from_ckpt(a_path)
-    model_a.eval()
-    model_b = load_model_from_ckpt(b_path)
-    model_b.eval()
     feat = FeatureExtractor(max_actions=96)
-    mcts_a = BundleMCTS(make_net_fn(model_a, feat), iterations=iterations,
+    _, net_fn_a = make_net_fn_from_ckpt(a_path, feat)
+    _, net_fn_b = make_net_fn_from_ckpt(b_path, feat)
+    mcts_a = BundleMCTS(net_fn_a, iterations=iterations,
                         max_depth_rounds=max_depth_rounds,
                         t_class=t_class, t_pos=t_pos, seed=seed)
-    mcts_b = BundleMCTS(make_net_fn(model_b, feat), iterations=iterations,
+    mcts_b = BundleMCTS(net_fn_b, iterations=iterations,
                         max_depth_rounds=max_depth_rounds,
                         t_class=t_class, t_pos=t_pos, seed=seed + 1)
 

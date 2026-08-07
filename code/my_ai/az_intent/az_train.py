@@ -237,6 +237,93 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
     return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
 
 
+def train_split(policy_model, value_model, policy_samples: list[dict],
+                value_samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
+                lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
+                lambda_anchor: float = 1.0, seed: int = 0,
+                checkpoint: str = "") -> dict:
+    """Independent training: policy net (CE + anchor) and value net (weighted MSE).
+
+    Two separate networks, two optimizers — no shared-backbone coupling.
+    Saves a combined checkpoint with both state_dicts.
+    """
+    opt_p = torch.optim.AdamW(policy_model.parameters(), lr=lr, weight_decay=1e-4)
+    opt_v = torch.optim.AdamW(value_model.parameters(), lr=lr, weight_decay=1e-4)
+    rng = random.Random(seed)
+    n = len(policy_samples)
+    nv = len(value_samples)
+    for epoch in range(epochs):
+        order = list(range(n))
+        rng.shuffle(order)
+        v_order = list(range(nv))
+        rng.shuffle(v_order)
+        v_pos = 0
+        tl = tp = tv = ta = 0.0
+        n_steps = 0
+        for start in range(0, n, batch_size):
+            p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
+            v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
+            v_pos += len(p_batch)
+
+            # policy step: decomposed CE + anchor (policy net only)
+            boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch])
+            stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch])
+            p_out = policy_model(boards, stats)
+            policy_loss = sum(
+                _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
+                for b, s in enumerate(p_batch)
+            ) / len(p_batch)
+            am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch])
+            hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch])
+            anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
+                torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)],
+                            dim=1),
+                hl_tgt,
+            )
+            loss_p = policy_loss + lambda_anchor * anchor_loss
+            opt_p.zero_grad()
+            loss_p.backward()
+            torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 5.0)
+            opt_p.step()
+
+            # value step: MSE on weighted labels (value net only)
+            v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch])
+            v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch])
+            v_out = value_model(v_boards, v_stats)
+            v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32)
+            value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
+            opt_v.zero_grad()
+            value_loss.backward()
+            torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
+            opt_v.step()
+
+            tl += loss_p.detach().item() + value_loss.detach().item()
+            tp += policy_loss.detach().item()
+            tv += value_loss.detach().item()
+            ta += anchor_loss.detach().item()
+            n_steps += 1
+        print(f"  epoch {epoch}: loss={tl/max(n_steps,1):.4f} "
+              f"policy={tp/max(n_steps,1):.4f} value={tv/max(n_steps,1):.4f} "
+              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv})",
+              flush=True)
+    if checkpoint:
+        Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "model_state": policy_model.state_dict(),
+                "value_state": value_model.state_dict(),
+                "num_heads": policy_model.num_heads,
+                "no_bn": policy_model.no_bn,
+                "latent_dim": policy_model.LATENT_DIM,
+                "num_resblocks": policy_model.num_resblocks,
+                "completed_batches": 1,
+            },
+            checkpoint,
+        )
+        print(f"[train] saved -> {checkpoint}", flush=True)
+    return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bundle-MCTS AlphaZero training (T2, round 2)")
     parser.add_argument("--init", required=True, help="initial checkpoint (gen0120_warm)")
@@ -256,14 +343,22 @@ def main() -> None:
     parser.add_argument("--label-scale", type=float, default=1.0,
                         help="amplify value labels so value-head output magnitude "
                              "matches the terminal scale the search expects (~6)")
+    parser.add_argument("--split", action="store_true",
+                        help="train policy and value as two independent networks "
+                             "(docs/az_split_policy_value_plan.md)")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    from my_ai.az_intent.az_selfplay import load_model_from_ckpt
+    from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
 
     torch.manual_seed(args.seed)
-    model = load_model_from_ckpt(args.init)
-    model.train()
+    if args.split:
+        policy_model, value_model = load_split_models(args.init)
+        policy_model.train()
+        value_model.train()
+    else:
+        model = load_model_from_ckpt(args.init)
+        model.train()
 
     policy_dir = args.policy_dir or args.data_dir
     policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
@@ -284,13 +379,22 @@ def main() -> None:
           f"range=[{labels.min():.3f},{labels.max():.3f}] tau={args.tau} "
           f"label_scale={args.label_scale}", flush=True)
 
-    metrics = train(
-        model, policy_samples, value_samples,
-        epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
-        t_class=args.t_class, t_pos=args.t_pos,
-        lambda_value=args.lambda_value, lambda_anchor=args.lambda_anchor,
-        seed=args.seed, checkpoint=args.checkpoint,
-    )
+    if args.split:
+        metrics = train_split(
+            policy_model, value_model, policy_samples, value_samples,
+            epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+            t_class=args.t_class, t_pos=args.t_pos,
+            lambda_anchor=args.lambda_anchor,
+            seed=args.seed, checkpoint=args.checkpoint,
+        )
+    else:
+        metrics = train(
+            model, policy_samples, value_samples,
+            epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+            t_class=args.t_class, t_pos=args.t_pos,
+            lambda_value=args.lambda_value, lambda_anchor=args.lambda_anchor,
+            seed=args.seed, checkpoint=args.checkpoint,
+        )
     print(f"[train] done {metrics}", flush=True)
 
 

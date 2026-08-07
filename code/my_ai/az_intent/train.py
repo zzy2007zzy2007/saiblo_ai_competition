@@ -49,6 +49,32 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96):
     return net_fn
 
 
+def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions: int = 96):
+    """net_fn over two independent networks (policy + value) — docs/az_split_policy_value_plan.md.
+
+    Same interface as make_net_fn so the MCTS is agnostic.  ``value`` is passed
+    through tanh (bounded Q), matching the single-model path.
+    """
+    def net_fn(state, player):
+        policy_model.eval()
+        value_model.eval()
+        obs = feature_extractor.encode_observation(state, player, np.zeros(max_actions))
+        board = torch.from_numpy(obs["board"]).unsqueeze(0).float()
+        stats = torch.from_numpy(obs["stats"]).unsqueeze(0).float()
+        with torch.no_grad():
+            p_out = policy_model(board, stats)
+            v_out = value_model(board, stats)
+        heads = [p_out[f"head{i + 1}_logits"].squeeze(0).numpy()
+                 for i in range(policy_model.num_heads)]
+        value = float(torch.tanh(v_out["value"].squeeze(0)).item())
+        return {
+            "action_map": p_out["action_map"].squeeze(0).numpy(),
+            "head_logits": heads,
+            "value": value,
+        }
+    return net_fn
+
+
 def infer_model_config(ckpt: dict) -> dict:
     """Infer the model architecture from a checkpoint's state_dict."""
     sd = ckpt.get("model_state")
