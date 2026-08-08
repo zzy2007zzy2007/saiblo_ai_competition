@@ -99,8 +99,8 @@ std::array<int, 4> Game::weapon_cds(int player) const {
             item[player][ItemType::EmergencyEvasion].cd};
 }
 
-std::vector<std::array<int, 9>> Game::ant_details() const {
-    std::vector<std::array<int, 9>> out;
+std::vector<std::array<int, 12>> Game::ant_details() const {
+    std::vector<std::array<int, 12>> out;
     out.reserve(ants.size());
     for (const auto &a : ants) {
         if (a.get_hp() <= 0)
@@ -108,9 +108,57 @@ std::vector<std::array<int, 9>> Game::ant_details() const {
         out.push_back({a.get_id(), a.get_x(), a.get_y(), a.get_player(),
                        a.get_hp(), static_cast<int>(a.get_kind()),
                        a.get_age(), a.get_level(),
-                       static_cast<int>(a.get_status())});
+                       static_cast<int>(a.get_status()),
+                       a.get_hp_limit(), a.is_frozen ? 1 : 0,
+                       static_cast<int>(a.behavior)});
     }
     return out;
+}
+
+std::vector<std::array<int, 11>> Game::tower_details() const {
+    std::vector<std::array<int, 11>> out;
+    out.reserve(defensive_towers.size());
+    for (const auto &t : defensive_towers) {
+        if (t.destroy())
+            continue;
+        out.push_back({t.get_id(), t.get_x(), t.get_y(), t.get_player(),
+                       static_cast<int>(t.get_type()), t.get_hp(), t.get_hp_limit(),
+                       t.get_level(), t.get_range(), t.get_damage(), t.get_cd()});
+    }
+    return out;
+}
+
+std::vector<double> Game::pheromone_flat() {
+    auto ph = map.get_pheromone();  // [2][MAP_SIZE][MAP_SIZE]
+    std::vector<double> out;
+    out.reserve(2 * MAP_SIZE * MAP_SIZE);
+    for (int p = 0; p < 2; ++p)
+        for (int x = 0; x < MAP_SIZE; ++x)
+            for (int y = 0; y < MAP_SIZE; ++y)
+                out.push_back(ph[p][x][y]);
+    return out;
+}
+
+std::vector<std::array<int, 5>> Game::active_effects() const {
+    std::vector<std::array<int, 5>> out;
+    for (int p = 0; p < 2; ++p)
+        for (int t = 0; t < ItemType::Count; ++t) {
+            const Item &it = item[p][t];
+            if (it.duration > 0)
+                out.push_back({t, p, it.x, it.y, it.duration});
+        }
+    return out;
+}
+
+int Game::tower_build_cost(int tower_count) {
+    // mirrors coin.cpp's tower_build_cost_for_count (INITIAL_TOWER_BUILD_PRICE = 15)
+    tower_count = std::max(tower_count, 0);
+    int cost = 15;
+    for (int index = 0; index < tower_count / 2; ++index)
+        cost *= 3;
+    if (tower_count % 2 == 1)
+        cost *= 2;
+    return cost;
 }
 
 namespace {

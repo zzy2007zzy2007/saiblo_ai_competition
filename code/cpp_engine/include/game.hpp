@@ -215,8 +215,18 @@ class Game {
     }
     // weapon cooldowns for a player: [lightning, emp, deflector, evasion]
     std::array<int, 4> weapon_cds(int player) const;
-    // ant details: (id, x, y, player, hp, kind, age, level, status)
-    std::vector<std::array<int, 9>> ant_details() const;
+    // tower details: (id, x, y, player, type, hp, hp_limit, level, range, damage, cd)
+    std::vector<std::array<int, 11>> tower_details() const;
+    // ant details: (id, x, y, player, hp, kind, age, level, status, max_hp, frozen, behavior)
+    std::vector<std::array<int, 12>> ant_details() const;
+    // pheromone field as a flat 2*MAP_SIZE*MAP_SIZE float array
+    std::vector<double> pheromone_flat();
+    // active weapon effects: (weapon_type, player, x, y, remaining_turns) for items with duration > 0
+    std::vector<std::array<int, 5>> active_effects() const;
+    int super_weapon_usage(int player) const {
+        return player == 0 ? player0.super_weapons_usage : player1.super_weapons_usage;
+    }
+    static int tower_build_cost(int tower_count);
     // Apply ops with the official cold_handle_rule_illegal semantics: per-op,
     // illegal ones skipped, but used_tower / camp-upgraded flags persist across
     // the whole list (matches Game::round_read_from_judger's cold path).

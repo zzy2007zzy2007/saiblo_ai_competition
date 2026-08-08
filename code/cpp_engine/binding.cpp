@@ -69,6 +69,11 @@ PYBIND11_MODULE(native_game, m) {
         .def("rng_state_now", &Game::rng_state_now)
         .def("weapon_cds", &Game::weapon_cds)
         .def("base_levels", &Game::base_levels)
+        .def("tower_details", &Game::tower_details)
         .def("ant_details", &Game::ant_details)
+        .def("pheromone_flat", &Game::pheromone_flat)
+        .def("active_effects", &Game::active_effects)
+        .def("super_weapon_usage", &Game::super_weapon_usage)
+        .def_static("tower_build_cost", &Game::tower_build_cost)
         .def("clone", &Game::deep_clone);
 }
