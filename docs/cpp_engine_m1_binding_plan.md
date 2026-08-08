@@ -1,7 +1,12 @@
 # C++ 引擎 M1：code/ 副本 + 极薄 pybind11 绑定
 
-> 目标：把官方 `game/` C++ 引擎（已验证、和 Python 逐回合一致）封装成可嵌入 MCTS 的极薄 pybind11 模块，目标单回合结算 <100μs。
-> 日期：2026-08-08。状态：计划阶段。前置：M0 完成（工具链 MinGW-w64 16.1.0、game/ 编译通过、test_cpp_runtime.py 8/9 通过）。
+> 目标：把官方 `game/` C++ 引擎封装成可嵌入 MCTS 的极薄 pybind11 模块。
+> 日期：2026-08-08。状态：**M1 已完成**（绑定可用、副本逐字节忠实官方）。前置：M0（工具链 + 编译 + test_cpp_runtime.py 8/9）。
+
+> ⚠️ 关键更正（2026-08-08）：**C++ 引擎是权威裁判**，Python SDK 与其在 99/361 格地图定义 + 部分合法性检查上不一致。所以：
+> - **一致性目标 = 官方 C++**，不是 Python。嵌入副本逐字节复制官方源码，验证方式 = `diff` 源码一致 + 官方 test_cpp_runtime.py。
+> - 曾为对齐 Python 给副本打了高地/VOID 补丁——已撤回（那会让副本偏离权威）。
+> - `test_consistency.py`（C++ vs Python 随机对局）降级为**漂移诊断工具**，记录 C++/Python 分叉点，不作为 M1 门禁。
 
 ## 1. 背景
 
@@ -91,33 +96,34 @@ MCTS 侧替换 `advance_round`：
 
 训练/评测分离：自对弈用 C++ 引擎（自洽即可），评测/提交用官方 Python 引擎（规则权威）。
 
-## 5. 里程碑
+## 5. 里程碑（2026-08-08 状态）
 
-| 里程碑 | 内容 | 验证 |
-|--------|------|------|
-| M1a | 绑定编译通过，`NativeGame` 可初始化 + 空操作 512 回合 | import 成功、回合推进正常 |
-| M1b | 随机操作序列逐回合对比 Python 引擎（塔血量/蚂蚁/回合数/终局） | 一致（同一 seed+ops，两个引擎输出相同） |
-| M1c | clone 正确性专项 | 克隆并行跑 N 回合一致 |
-| M1d | 性能基准 | 单回合 <100μs（Python ~3-6ms） |
-| M1e | 接入 bundle MCTS（可选，先做 a-d） | 自对弈采集用上 C++ 引擎 |
+| 里程碑 | 内容 | 验证 | 状态 |
+|--------|------|------|------|
+| M1a | 绑定编译通过，`NativeGame` 可初始化 + 空操作 512 回合 | import 成功、回合推进正常 | ✅ |
+| M1b | **C++ 是权威** → 一致性 = 副本源码与官方 `game/` 逐字节一致（`diff` 无差异） | `diff -r` 退出码 0（仅 .o/.d 产物和 game.hpp 访问器差异） | ✅ |
+| M1c | clone 正确性专项 | 克隆并行跑 N 回合一致 | ✅ |
+| M1d | 性能基准 | 单回合 <100μs（Python ~3-6ms） | ⏳ 待测 |
+| M1e | 接入 bundle MCTS（可选） | 自对弈采集用上 C++ 引擎 | ⏳ 待定 |
 
-## 6. 一致性验证（门禁）
+## 6. 一致性验证（2026-08-08 修订）
 
-写 `code/cpp_engine/test_consistency.py`：
-- 随机 seed + 随机（但合法）操作序列，跑 100 回合
-- 每回合对比：双方 base hp、全部塔（位置+类型+血量）、全部蚂蚁（位置+血量+状态）
-- 差异超过阈值即失败，需修 C++ 副本
-- 规则漂移缓解：官方 Python 引擎是权威，以它为准修副本
+**权威是官方 C++**。验证方式：
+1. `diff -r code/cpp_engine/src Ant-Game/game/src --exclude='*.o' --exclude='*.d'` 退出码 0（源码逐字节一致）
+2. `code/cpp_engine/include` 仅差 game.hpp 的 M1 访问器声明
+3. 官方 `test_cpp_runtime.py`（M0 已 8/9 通过）覆盖官方引擎核心行为
+
+`test_consistency.py`（C++ vs Python 随机对局）保留为**漂移诊断工具**：记录 C++/Python 分叉点（发现：地图合法性 99/361 格不一致、建塔高地检查、武器 VOID 检查等），供参考，不作为 M1 门禁。
 
 ## 7. 风险
 
 | 风险 | 缓解 |
 |------|------|
-| clone 语义（deque + rewire_map）深拷贝错 | M1c 专项压测 |
-| 私有成员访问 hack 化 | 只加查询访问器，不改逻辑 |
-| 随机回放不一致（Enhanced 寻路细节） | 一致性测试门禁 |
-| pybind11 编译环境问题 | base env 已有 3.0.4；先 hello-world 冒烟 |
-| 中文路径坑 | 构建产物/路径保持 ASCII |
+| clone 语义（deque + rewire_map）深拷贝错 | M1c 专项压测（已验证 ✓） |
+| 私有成员访问 hack 化 | 只加查询访问器，不改逻辑 ✓ |
+| C++ 与 Python 漂移（地图 99 格、合法性检查） | **C++ 是权威，副本逐字节忠实即可**；Python 侧差异仅影响"用 Python 评测时的迁移"，用 test_consistency.py 记录 |
+| pybind11 编译环境问题 | 为 pytorch-gpu 3.11 构建（MinGW 扩展与 3.13 ABI 不兼容）；运行时 DLL 复制到 pyd 旁 |
+| 中文路径坑 | 构建产物/路径保持 ASCII；pytest 用 `--basetemp=C:/mingw64/pytest_tmp` |
 
 ## 8. 一句话总结
 

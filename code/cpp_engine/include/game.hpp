@@ -191,6 +191,22 @@ class Game {
     template <typename T> void read_from_judger(T &des);
     void listen(int player);
     bool round_read_from_judger(int player);
+
+    // ── M1 embeddable-engine interface (added in the code/cpp_engine copy) ──
+    // Defined in m1_support.cpp.  No judger protocol, no replay I/O.
+    void init_game(unsigned long long seed, const std::string &movement_policy,
+                   bool cold_handle_illegal);
+    int get_round() const { return round; }
+    int get_winner() const { return winner; }
+    int get_base_hp(int player) const {
+        return player == 0 ? base_camp0.get_hp() : base_camp1.get_hp();
+    }
+    // tower snapshot: (id, x, y, player, type, hp, hp_limit) of alive towers
+    std::vector<std::array<int, 7>> tower_snapshot() const;
+    // ant snapshot: (id, x, y, player, hp, kind) of alive ants
+    std::vector<std::array<int, 6>> ant_snapshot() const;
+    bool valid_cell(int x, int y) const { return map.is_valid(x, y); }
+    Game deep_clone() const;
 };
 
 #endif

@@ -1,0 +1,5 @@
+*.pyd
+*.dll
+output/
+*.o
+*.d
