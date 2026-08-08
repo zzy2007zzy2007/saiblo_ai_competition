@@ -263,6 +263,8 @@ def decode_head(
     sampled_class_out: list[int] | None = None,
     pos_temperature: float = 0.0,
     sampled_pos_out: list[tuple[int, int, int, float, np.ndarray]] | None = None,
+    class_probs: np.ndarray | None = None,
+    class_id: int | None = None,
 ) -> Operation | None:
     """Decode one policy head into a single Operation (or None if pass).
 
@@ -309,8 +311,12 @@ def decode_head(
             if ch not in allowed_classes:
                 position_mask[ch] = False
 
-    # Step 1: Choose class (argmax or temperature sampling)
-    if temperature > 0 and rng is not None:
+    # Step 1: Choose class (pre-sampled / precomputed-probs / argmax)
+    if class_id is not None:
+        pass  # class was pre-sampled in a batch (vectorized sampling)
+    elif class_probs is not None:
+        class_id = int(rng.choice(len(class_probs), p=class_probs))
+    elif temperature > 0 and rng is not None:
         # z-score normalize so temperature is scale-invariant (per-head)
         mean = head_logits.mean()
         std = head_logits.std() + 1e-8

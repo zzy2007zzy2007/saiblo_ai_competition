@@ -36,6 +36,19 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     return e / s
 
 
+def head_class_probs(head_logits: np.ndarray, t_class: float) -> np.ndarray:
+    """Per-head class distribution (z-score softmax) — mirrors decode_head's
+    sampling distribution.  Computed ONCE per expansion so the 360 samples of a
+    head don't each re-do the mean/std/exp/sum."""
+    head_logits = np.asarray(head_logits, dtype=np.float32)
+    mean = head_logits.mean()
+    std = head_logits.std() + 1e-8
+    logits = (head_logits - mean) / std
+    probs = np.exp(logits / t_class)
+    probs /= probs.sum()
+    return probs
+
+
 def sample_bundle(
     net_out: dict,
     state: BackendState,
@@ -47,6 +60,8 @@ def sample_bundle(
     intent_decoding: bool = True,
     position_mask: np.ndarray | None = None,
     class_mask: np.ndarray | None = None,
+    class_probs: list | None = None,
+    class_ids: list | None = None,
 ) -> tuple[list[Operation], list]:
     """Sample one complete action group by calling the DECODER's own decode_head
     for each head (single source of truth — the search's candidates always match
@@ -85,6 +100,8 @@ def sample_bundle(
             rng=rng, temperature=t_class, intent_decoding=intent_decoding,
             pos_temperature=t_pos,
             sampled_class_out=sampled_class, sampled_pos_out=sampled_pos,
+            class_probs=(class_probs[head] if class_probs else None),
+            class_id=(class_ids[head] if class_ids else None),
         )
         # record the sampled network intent (class, position) per head
         if sampled_class:
@@ -192,12 +209,23 @@ class BundleMCTS:
 
         # sample k*sample_mult times; aggregate per decoded key the count and the
         # per-head intent sample counts (for AlphaZero marginalization).
+        # Vectorized class sampling: compute each head's class distribution once
+        # and batch-sample all k*sample_mult classes per head (one rng.choice
+        # each instead of 360×3 sequential calls).
+        n_samples = k * self.sample_mult
+        head_logits_list = [np.asarray(net_out["head_logits"][h], dtype=np.float32)
+                            for h in range(3)]
+        class_probs = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
+        class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
+                     for p in class_probs]
         agg: dict[tuple, dict] = {}
-        for _ in range(k * self.sample_mult):
+        for idx in range(n_samples):
             ops, intents = sample_bundle(
                 net_out, node.state, node.player,
                 t_class=self.t_class, t_pos=self.t_pos, rng=self.rng,
                 position_mask=base_pos_mask, class_mask=base_cls_mask,
+                class_probs=class_probs,
+                class_ids=[cid[idx] for cid in class_ids],
             )
             key = tuple((int(o.op_type), o.arg0, o.arg1) for o in ops)
             if key not in agg:
