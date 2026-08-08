@@ -38,7 +38,8 @@ for b in $(seq "$START_BATCH" $((START_BATCH + N_BATCHES - 1))); do
     echo "[batch $b] 训练 (init=$prev) -> $ckpt (policy=$BATCH_DIR, value=累计, split, scale=6)..."
     "$PY" code/my_ai/az_intent/az_train.py \
         --init "$prev" --policy-dir "$BATCH_DIR" --data-dir "$DATA" \
-        --checkpoint "$ckpt" --epochs 5 --tau 20 --label-scale 6 --split
+        --checkpoint "$ckpt" --epochs 5 --tau 20 --label-scale 6 --split \
+        --max-value-batches 16
     echo "[batch $b] 完成 -> $ckpt"
     prev="$ckpt"
 done

@@ -346,6 +346,9 @@ def main() -> None:
     parser.add_argument("--split", action="store_true",
                         help="train policy and value as two independent networks "
                              "(docs/az_split_policy_value_plan.md)")
+    parser.add_argument("--max-value-batches", type=int, default=None,
+                        help="value pool keeps only the most recent N batch dirs "
+                             "(keeps training memory bounded over long runs)")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -363,6 +366,20 @@ def main() -> None:
     policy_dir = args.policy_dir or args.data_dir
     policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
     value_paths = sorted(Path(args.data_dir).rglob("az_selfplay_seed*.pkl"))
+    if args.max_value_batches:
+        from collections import defaultdict
+        by_batch: dict = defaultdict(list)
+        for p in value_paths:
+            by_batch[p.parent.name].append(p)
+
+        def _batch_key(name: str) -> int:
+            num = name.replace("batch", "")
+            return int(num) if num.isdigit() else -1
+
+        keep = set(sorted(by_batch, key=_batch_key)[-args.max_value_batches:])
+        value_paths = sorted(p for bn, ps in by_batch.items() if bn in keep for p in ps)
+        print(f"[train] value pool limited to last {args.max_value_batches} batches "
+              f"({len(value_paths)} files)", flush=True)
     print(f"[train] policy pool: {len(policy_paths)} files from {policy_dir}", flush=True)
     print(f"[train] value pool:  {len(value_paths)} files from {args.data_dir}", flush=True)
     policy_samples = load_samples(policy_paths)
