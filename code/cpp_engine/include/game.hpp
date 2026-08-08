@@ -232,6 +232,15 @@ class Game {
     // the whole list (matches Game::round_read_from_judger's cold path).
     std::vector<Operation> apply_operation_list_cold(
         int player, const std::vector<Operation> &op_list);
+    // Can ``op`` be accepted after ``pending``?  Uses the REAL cold path on a
+    // deep clone (no state mutation), so it is exactly as faithful as the
+    // engine — but in ONE C++ call instead of Python-side clone+apply.
+    bool can_apply_cold(int player, const Operation &op,
+                        const std::vector<Operation> &pending);
+    // Clone-free legality check (replicates the cold path's checks with
+    // pending's gold/used_tower/camp simulated) — cheap at any state size.
+    bool can_apply_dry(int player, const Operation &op,
+                       const std::vector<Operation> &pending);
     Game deep_clone() const;
 };
 

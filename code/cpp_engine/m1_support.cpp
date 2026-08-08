@@ -206,6 +206,199 @@ std::vector<Operation> Game::apply_operation_list_cold(
     return accepted_ops;
 }
 
+namespace {
+// mirror of coin.cpp's file-local tower_build_cost_for_count (INITIAL=15)
+int tower_build_cost_for_count(int tower_count) {
+    tower_count = std::max(tower_count, 0);
+    int cost = 15;
+    for (int index = 0; index < tower_count / 2; ++index)
+        cost *= 3;
+    if (tower_count % 2 == 1)
+        cost *= 2;
+    return cost;
+}
+constexpr int TOWER_MAX_LEVEL = 2;  // mirror of game.cpp's define
+bool op_eq(const Operation &a, const Operation &b) {
+    return a.get_operation_type() == b.get_operation_type() &&
+           a.get_id() == b.get_id() && a.get_args() == b.get_args() &&
+           a.get_pos_x() == b.get_pos_x() && a.get_pos_y() == b.get_pos_y();
+}
+int tower_upgrade_cost(int level) { return level == 0 ? 60 : 200; }
+int item_cost(ItemType it) {
+    const int cost[4] = {90, 135, 60, 60};
+    return cost[it];
+}
+int base_upgrade_cost(int level) {
+    const int cost[2] = {200, 250};
+    return cost[level];
+}
+int tower_destroy_income(const DefenseTower &t, int tower_count) {
+    switch (t.get_level()) {
+    case 0:
+        return static_cast<int>(
+            (9LL * tower_build_cost_for_count(tower_count - 1) *
+             std::max(t.get_hp(), 0)) /
+            (10LL * std::max(t.get_hp_limit(), 1)));
+    case 1:
+        return static_cast<int>((9LL * 60 * std::max(t.get_hp(), 0)) /
+                                (10LL * std::max(t.get_hp_limit(), 1)));
+    case 2:
+        return static_cast<int>((9LL * 200 * std::max(t.get_hp(), 0)) /
+                                (10LL * std::max(t.get_hp_limit(), 1)));
+    }
+    return 0;
+}
+}  // namespace
+
+bool Game::can_apply_dry(int player, const Operation &op,
+                         const std::vector<Operation> &pending) {
+    // Clone-free cold-path simulation: iterate pending + op, check each against
+    // the simulated state (gold / tower count / used_tower / camp / cooldowns),
+    // apply only the accepted ones.  Returns whether the final op was accepted.
+    int gold = player == 0 ? player0.coin.get_coin() : player1.coin.get_coin();
+    int tower_count = tower_count_for_player(player);
+    int next_tower_id = tower_id;
+    std::vector<int> used_tower;
+    bool camp_upgraded = false;
+    std::array<int, 4> cds;
+    for (int t = 0; t < 4; ++t)
+        cds[t] = item[player][t].cd;
+
+    auto emp_shielded = [&](int px, int py) {
+        const Item &it = item[1 - player][ItemType::EMPBlaster];
+        return it.duration && distance(Pos(px, py), Pos(it.x, it.y)) <= 3;
+    };
+
+    auto check_apply = [&](const Operation &p) -> bool {
+        const auto pt = p.get_operation_type();
+        int x = p.get_pos_x(), y = p.get_pos_y();
+        switch (pt) {
+        case Operation::Type::TowerBuild:
+            if (x < 0 || x >= MAP_SIZE || y < 0 || y >= MAP_SIZE)
+                return false;
+            if (map.map[x][y].base_camp != nullptr)
+                return false;
+            if (map.map[x][y].tower != nullptr)
+                return false;
+            if (map.map[x][y].player != player)
+                return false;
+            if (emp_shielded(x, y))
+                return false;
+            if (gold < tower_build_cost_for_count(tower_count))
+                return false;
+            used_tower.push_back(next_tower_id++);
+            gold -= tower_build_cost_for_count(tower_count);
+            tower_count++;
+            return true;
+        case Operation::Type::TowerUpgrade: {
+            int id = p.get_id();
+            if (id < 0 || id >= (int)defensive_towers.size() ||
+                defensive_towers[id].destroy() ||
+                defensive_towers[id].get_player() != player)
+                return false;
+            if (std::find(used_tower.begin(), used_tower.end(), id) !=
+                used_tower.end())
+                return false;
+            const DefenseTower &t = defensive_towers[id];
+            if (emp_shielded(t.get_x(), t.get_y()))
+                return false;
+            if (t.get_level() == TOWER_MAX_LEVEL)
+                return false;
+            if (!t.upgrade_type_check(TowerType(p.get_args())))
+                return false;
+            if (gold < tower_upgrade_cost(t.get_level()))
+                return false;
+            used_tower.push_back(id);
+            gold -= tower_upgrade_cost(t.get_level());
+            return true;
+        }
+        case Operation::Type::TowerDestroy: {
+            int id = p.get_id();
+            if (id < 0 || id >= (int)defensive_towers.size() ||
+                defensive_towers[id].destroy() ||
+                defensive_towers[id].get_player() != player)
+                return false;
+            if (std::find(used_tower.begin(), used_tower.end(), id) !=
+                used_tower.end())
+                return false;
+            const DefenseTower &t = defensive_towers[id];
+            if (emp_shielded(t.get_x(), t.get_y()))
+                return false;
+            used_tower.push_back(id);
+            gold += tower_destroy_income(t, tower_count);
+            if (t.get_type() == TowerType::Basic)
+                tower_count--;
+            return true;
+        }
+        case Operation::Type::LightingStorm:
+        case Operation::Type::EMPBlaster:
+        case Operation::Type::Deflectors:
+        case Operation::Type::EmergencyEvasion: {
+            if (x < 0 || x >= MAP_SIZE || y < 0 || y >= MAP_SIZE)
+                return false;
+            ItemType it = pt == Operation::Type::LightingStorm
+                              ? ItemType::LightingStorm
+                              : pt == Operation::Type::EMPBlaster
+                                    ? ItemType::EMPBlaster
+                                    : pt == Operation::Type::Deflectors
+                                          ? ItemType::Deflectors
+                                          : ItemType::EmergencyEvasion;
+            if (cds[it] > 0)
+                return false;
+            if (gold < item_cost(it))
+                return false;
+            gold -= item_cost(it);
+            cds[it] = get_item_cd(it);
+            return true;
+        }
+        case Operation::Type::BarrackUpgrade:
+        case Operation::Type::AntUpgrade: {
+            if (camp_upgraded)
+                return false;
+            int level = player == 0 ? base_camp0.get_cd_level()
+                                    : base_camp1.get_cd_level();
+            if (level == 2)
+                return false;
+            if (gold < base_upgrade_cost(level))
+                return false;
+            gold -= base_upgrade_cost(level);
+            camp_upgraded = true;
+            return true;
+        }
+        default:
+            return false;
+        }
+    };
+
+    std::vector<Operation> all = pending;
+    all.push_back(op);
+    bool last_accepted = false;
+    for (size_t i = 0; i < all.size(); ++i) {
+        bool acc = check_apply(all[i]);
+        if (i + 1 == all.size())
+            last_accepted = acc;
+    }
+    return last_accepted;
+}
+
+bool Game::can_apply_cold(int player, const Operation &op,
+                          const std::vector<Operation> &pending) {
+    // pending + op must be applied in ONE cold-list call so used_tower /
+    // camp_upgraded persist across the whole round sequence.
+    Game copy = deep_clone();
+    std::vector<Operation> all = pending;
+    all.push_back(op);
+    std::vector<Operation> accepted = copy.apply_operation_list_cold(player, all);
+    // op was accepted iff it appears in `accepted` more times than in `pending`
+    // (a duplicate op in pending that got skipped is not counted twice).
+    int in_pending = 0, in_accepted = 0;
+    for (const auto &p : pending)
+        if (op_eq(p, op)) in_pending++;
+    for (const auto &a : accepted)
+        if (op_eq(a, op)) in_accepted++;
+    return in_accepted > in_pending;
+}
+
 Game Game::deep_clone() const {
     Game copy = *this;  // memberwise copy: containers deep-copied, Map pointers stale
 

@@ -75,5 +75,29 @@ PYBIND11_MODULE(native_game, m) {
         .def("active_effects", &Game::active_effects)
         .def("super_weapon_usage", &Game::super_weapon_usage)
         .def_static("tower_build_cost", &Game::tower_build_cost)
+        .def("can_apply_cold",
+             [](Game &g, int player, const std::array<int, 3> &op,
+                const std::vector<std::array<int, 3>> &pending) {
+                 std::vector<Operation> pend;
+                 pend.reserve(pending.size());
+                 for (const auto &o : pending)
+                     pend.push_back(make_operation(o[0], o[1], o[2]));
+                 return g.can_apply_cold(player,
+                                         make_operation(op[0], op[1], op[2]),
+                                         pend);
+             },
+             py::arg("player"), py::arg("op"), py::arg("pending"))
+        .def("can_apply_dry",
+             [](Game &g, int player, const std::array<int, 3> &op,
+                const std::vector<std::array<int, 3>> &pending) {
+                 std::vector<Operation> pend;
+                 pend.reserve(pending.size());
+                 for (const auto &o : pending)
+                     pend.push_back(make_operation(o[0], o[1], o[2]));
+                 return g.can_apply_dry(player,
+                                        make_operation(op[0], op[1], op[2]),
+                                        pend);
+             },
+             py::arg("player"), py::arg("op"), py::arg("pending"))
         .def("clone", &Game::deep_clone);
 }

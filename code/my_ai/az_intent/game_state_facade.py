@@ -158,15 +158,14 @@ class GameStateFacade:
         self._cache.clear()
 
     def can_apply_operation(self, player: int, operation, pending=()) -> bool:
-        # Probe via clone: apply pending ops first (used_tower / gold context),
-        # then the op in question; accepted > 0 means legal.
-        c = self._g.clone()
-        if pending:
-            c.apply_operation_list(player,
-                                   [(int(o.op_type), o.arg0, o.arg1) for o in pending])
-        _, accepted = c.apply_operation_list(
-            player, [(int(operation.op_type), operation.arg0, operation.arg1)])
-        return accepted > 0
+        # Clone-free C++ legality check (dry-run): replicates the cold path's
+        # checks with pending's gold/used_tower/camp simulated.  Cheap at any
+        # state size (deep-clone per call is ~ms at mid-game — unusable).
+        return bool(self._g.can_apply_dry(
+            player,
+            [int(operation.op_type), operation.arg0, operation.arg1],
+            [[int(o.op_type), o.arg0, o.arg1] for o in pending],
+        ))
 
     # ── state properties ──
     @property
