@@ -399,8 +399,46 @@ bool Game::can_apply_cold(int player, const Operation &op,
     return in_accepted > in_pending;
 }
 
+Game::Game(const Game &other) : Game() {
+    // Live state (everything the engine's apply/advance/query paths read).
+    is_end = other.is_end;
+    winner = other.winner;
+    round = other.round;
+    ant_id = other.ant_id;
+    barrack_id = other.barrack_id;
+    tower_id = other.tower_id;
+    err_msg = other.err_msg;
+    state[0] = other.state[0];
+    state[1] = other.state[1];
+    random_seed = other.random_seed;
+    rng_state = other.rng_state;  // RNG is state: clones evolve independently
+    map = other.map;              // tower/base_camp pointers re-pointed in deep_clone
+    player0 = other.player0;
+    player1 = other.player1;
+    base_camp0 = other.base_camp0;
+    base_camp1 = other.base_camp1;
+    op[0] = other.op[0];
+    op[1] = other.op[1];
+    item[0] = other.item[0];
+    item[1] = other.item[1];
+    defensive_towers = other.defensive_towers;
+    ants = other.ants;
+    movement_policy = other.movement_policy;
+    cold_handle_rule_illegal = other.cold_handle_rule_illegal;
+    enhanced_move_phase_active = other.enhanced_move_phase_active;
+
+    // Derived caches are NOT copied: begin_move_phase() unconditionally
+    // recomputes them from live state at every round's move phase, so a
+    // clone's copy of them was never read — copying was pure waste.  Game()
+    // default-constructs them empty; mark dirty so the next move phase
+    // recomputes from the copied live state.  (output, the replay recorder,
+    // is likewise left default — the embedded engine never writes/reads it.)
+    risk_fields_dirty = true;
+    enhanced_move_cache_dirty = true;
+}
+
 Game Game::deep_clone() const {
-    Game copy = *this;  // memberwise copy: containers deep-copied, Map pointers stale
+    Game copy(*this);  // custom copy ctor: live state deep-copied, derived caches left dirty
 
     // Re-point the base camps to the copy's own Headquarter members.
     copy.map.map[PLAYER_0_BASE_CAMP_X][PLAYER_0_BASE_CAMP_Y].base_camp = &copy.base_camp0;

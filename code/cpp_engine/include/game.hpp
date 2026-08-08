@@ -232,6 +232,12 @@ class Game {
     // the whole list (matches Game::round_read_from_judger's cold path).
     std::vector<Operation> apply_operation_list_cold(
         int player, const std::vector<Operation> &op_list);
+    // Clone optimization: copies all live state but SKIPS the derived caches
+    // (risk fields, enhanced_* move caches).  Those are unconditionally
+    // recomputed from live state at every round's move phase, so a clone's
+    // copy of them was never read — copying was pure waste.  Defined in
+    // m1_support.cpp.
+    Game(const Game &other);
     // Can ``op`` be accepted after ``pending``?  Uses the REAL cold path on a
     // deep clone (no state mutation), so it is exactly as faithful as the
     // engine — but in ONE C++ call instead of Python-side clone+apply.
