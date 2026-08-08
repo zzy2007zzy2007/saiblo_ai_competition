@@ -83,22 +83,40 @@ def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor):
     return model, make_net_fn(model, feature_extractor)
 
 
+def make_initial_state(seed: int, native_engine: bool = False):
+    """Create a fresh game state — pure-Python engine or the C++ engine.
+
+    The C++ engine (``native_game`` + GameStateFacade) matches the official game
+    binary; the Python SDK has known detail deviations.  Switching engines
+    changes the simulated game, so results are only comparable within the same
+    engine.  The C++ engine's advance_round is ~22x faster (MCTS bottleneck).
+    """
+    if native_engine:
+        cpp_dir = Path(__file__).resolve().parents[2] / "cpp_engine"
+        if str(cpp_dir) not in sys.path:
+            sys.path.insert(0, str(cpp_dir))
+        from my_ai.az_intent.game_state_facade import GameStateFacade
+        return GameStateFacade.initial(seed=seed, cold_handle_rule_illegal=True)
+    from SDK.backend.engine import GameState
+    return GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
-                 progress_path: str | None = None) -> list[dict]:
+                 progress_path: str | None = None,
+                 native_engine: bool = False) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
 
     If ``progress_path`` is given, a per-round text log (round index + each
     player's chosen operations) is written there and flushed every round, so the
     game's progress can be watched while it runs (games take ~2h at 128/depth4).
     """
-    from SDK.backend.engine import GameState
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
     from my_ai.decoder import make_class_mask, make_position_masks
     from my_ai.az_intent.mcts import HP_SCALE
 
-    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    state = make_initial_state(seed, native_engine)
     samples: list[dict] = []
     pfile = open(progress_path, "w", encoding="utf-8") if progress_path else None
 
@@ -165,7 +183,8 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
 
 def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       max_depth_rounds: int, t_class: float, t_pos: float,
-                      k: int, sample_mult: int, max_rounds: int, temp_rounds: int) -> dict:
+                      k: int, sample_mult: int, max_rounds: int, temp_rounds: int,
+                      native_engine: bool = False) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -176,7 +195,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos, seed=seed)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
-                           progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"))
+                           progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
+                           native_engine=native_engine)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
@@ -188,10 +208,10 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
 def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, workers: int,
                            iterations: int, max_depth_rounds: int, t_class: float,
                            t_pos: float, k: int, sample_mult: int, max_rounds: int,
-                           temp_rounds: int) -> list[Path]:
+                           temp_rounds: int, native_engine: bool = False) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
-             k, sample_mult, max_rounds, temp_rounds) for s in seeds]
+             k, sample_mult, max_rounds, temp_rounds, native_engine) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -217,15 +237,19 @@ def main() -> None:
     parser.add_argument("--max-rounds", type=int, default=512)
     parser.add_argument("--temp-rounds", type=int, default=30)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--native-engine", action="store_true",
+                        help="use the C++ engine (native_game) instead of the Python SDK engine")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
     print(f"[selfplay] collecting {args.games} games ({args.workers} workers, "
-          f"{args.iterations} iters / depth {args.max_depth_rounds})...", flush=True)
+          f"{args.iterations} iters / depth {args.max_depth_rounds}) "
+          f"[engine={'C++' if args.native_engine else 'python'}]...", flush=True)
     paths = collect_games_parallel(
         args.checkpoint, seeds, args.out_dir, args.workers,
         args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
         args.k, args.sample_mult, args.max_rounds, args.temp_rounds,
+        native_engine=args.native_engine,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 

@@ -26,15 +26,14 @@ for p in (_REPO, _CODE):
 
 
 def _worker(args: tuple) -> dict:
-    a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos = args
+    a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos, native_engine = args
     import torch
     torch.set_num_threads(1)
 
-    from SDK.backend.engine import GameState
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
+    from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt, make_initial_state
     from my_ai.az_intent.bundle_mcts import BundleMCTS
 
     feat = FeatureExtractor(max_actions=96)
@@ -49,7 +48,7 @@ def _worker(args: tuple) -> dict:
 
     # alternate which model is P0
     mcts = [mcts_a, mcts_b] if seed % 2 == 0 else [mcts_b, mcts_a]
-    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    state = make_initial_state(seed, native_engine)
     for _ in range(512):
         if state.terminal:
             break
@@ -95,10 +94,12 @@ def main() -> None:
     parser.add_argument("--t-class", type=float, default=0.5)
     parser.add_argument("--t-pos", type=float, default=0.3)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--native-engine", action="store_true",
+                        help="use the C++ engine (native_game) for the game simulation")
     args = parser.parse_args()
 
     jobs = [(args.a, args.b, args.seed + s, args.iterations, args.max_depth_rounds,
-             args.t_class, args.t_pos) for s in range(args.games)]
+             args.t_class, args.t_pos, args.native_engine) for s in range(args.games)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:

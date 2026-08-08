@@ -33,11 +33,11 @@ import numpy as np
 
 
 def _worker(args: tuple) -> dict:
-    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, t_class, t_pos, self_raw_opponent, max_rounds = args
+    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, t_class, t_pos, self_raw_opponent, max_rounds, native_engine = args
     import torch
     torch.set_num_threads(1)
 
-    from SDK.backend.engine import GameState
+    from my_ai.az_intent.az_selfplay import make_initial_state
     from SDK.utils.features import FeatureExtractor
 
     if hotstart:
@@ -56,7 +56,7 @@ def _worker(args: tuple) -> dict:
     model.eval()
 
     feat = FeatureExtractor(max_actions=96)
-    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    state = make_initial_state(seed, native_engine)
     opp_player = 1 - our_player
 
     def opp_play(player):
@@ -185,6 +185,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--our-player", type=int, default=-1,
                         help="fix our player role (0 or 1); default -1 = alternate by game index")
+    parser.add_argument("--native-engine", action="store_true",
+                        help="use the C++ engine (native_game) for the game simulation")
     args = parser.parse_args()
 
     if args.checkpoint is None and args.baseline_hotstart is None:
@@ -196,7 +198,7 @@ def main() -> None:
          args.our_player if args.our_player >= 0 else s % 2,
          args.opponent, args.baseline_hotstart, args.no_search, args.select_by_prior,
          args.intent_decoding, args.one_head, args.bundle_mcts, args.t_class, args.t_pos,
-         args.self_raw_opponent, args.max_rounds)
+         args.self_raw_opponent, args.max_rounds, args.native_engine)
         for s in range(args.games)
     ]
     if args.workers > 1:

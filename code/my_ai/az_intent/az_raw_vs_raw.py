@@ -25,12 +25,11 @@ import torch
 
 
 def _worker(args: tuple) -> dict:
-    a_path, b_path, seed = args
+    a_path, b_path, seed, native_engine = args
     import torch
     torch.set_num_threads(1)
-    from SDK.backend.engine import GameState
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import load_model_from_ckpt
+    from my_ai.az_intent.az_selfplay import load_model_from_ckpt, make_initial_state
     from my_ai.decoder import decode_network_output
 
     model_a = load_model_from_ckpt(a_path)
@@ -41,7 +40,7 @@ def _worker(args: tuple) -> dict:
 
     # alternate which model is P0
     models = [model_a, model_b] if seed % 2 == 0 else [model_b, model_a]
-    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    state = make_initial_state(seed, native_engine)
     for _ in range(512):
         if state.terminal:
             break
@@ -84,9 +83,11 @@ def main() -> None:
     parser.add_argument("--games", type=int, default=10)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--native-engine", action="store_true",
+                        help="use the C++ engine (native_game) for the game simulation")
     args = parser.parse_args()
 
-    jobs = [(args.a, args.b, args.seed + s) for s in range(args.games)]
+    jobs = [(args.a, args.b, args.seed + s, args.native_engine) for s in range(args.games)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
