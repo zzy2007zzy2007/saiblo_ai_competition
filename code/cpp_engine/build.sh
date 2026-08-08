@@ -26,7 +26,7 @@ echo "pybind11 include: $PBI_INC"
 # -O0 matches the official Makefile flags (g++ -g, no -O): avoids FP
 # optimization differences in the Enhanced ant-movement pathfinding that would
 # diverge behavior from the official binary.
-"$GXX" -std=c++17 -O0 -fPIC -shared \
+"$GXX" -std=c++17 -O2 -fPIC -shared \
     -I"$PBI_INC" -I"$PY_INC" \
     -I"$CE/include" \
     "$CE/src/game.cpp" "$CE/src/ant.cpp" "$CE/src/map.cpp" \
