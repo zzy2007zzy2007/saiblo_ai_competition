@@ -206,6 +206,22 @@ class Game {
     // ant snapshot: (id, x, y, player, hp, kind) of alive ants
     std::vector<std::array<int, 6>> ant_snapshot() const;
     bool valid_cell(int x, int y) const { return map.is_valid(x, y); }
+    int coin(int player) const { return player == 0 ? player0.coin.get_coin()
+                                                    : player1.coin.get_coin(); }
+    unsigned long long rng_state_now() const { return rng_state; }
+    std::array<int, 2> base_levels(int player) const {
+        return {player == 0 ? base_camp0.get_cd_level() : base_camp1.get_cd_level(),
+                player == 0 ? base_camp0.get_ant_level() : base_camp1.get_ant_level()};
+    }
+    // weapon cooldowns for a player: [lightning, emp, deflector, evasion]
+    std::array<int, 4> weapon_cds(int player) const;
+    // ant details: (id, x, y, player, hp, kind, age, level, status)
+    std::vector<std::array<int, 9>> ant_details() const;
+    // Apply ops with the official cold_handle_rule_illegal semantics: per-op,
+    // illegal ones skipped, but used_tower / camp-upgraded flags persist across
+    // the whole list (matches Game::round_read_from_judger's cold path).
+    std::vector<Operation> apply_operation_list_cold(
+        int player, const std::vector<Operation> &op_list);
     Game deep_clone() const;
 };
 

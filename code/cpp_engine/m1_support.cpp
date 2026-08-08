@@ -92,6 +92,72 @@ std::vector<std::array<int, 6>> Game::ant_snapshot() const {
     return out;
 }
 
+std::array<int, 4> Game::weapon_cds(int player) const {
+    return {item[player][ItemType::LightingStorm].cd,
+            item[player][ItemType::EMPBlaster].cd,
+            item[player][ItemType::Deflectors].cd,
+            item[player][ItemType::EmergencyEvasion].cd};
+}
+
+std::vector<std::array<int, 9>> Game::ant_details() const {
+    std::vector<std::array<int, 9>> out;
+    out.reserve(ants.size());
+    for (const auto &a : ants) {
+        if (a.get_hp() <= 0)
+            continue;
+        out.push_back({a.get_id(), a.get_x(), a.get_y(), a.get_player(),
+                       a.get_hp(), static_cast<int>(a.get_kind()),
+                       a.get_age(), a.get_level(),
+                       static_cast<int>(a.get_status())});
+    }
+    return out;
+}
+
+namespace {
+bool is_base_upgrade_op(Operation::Type type) {
+    return type == Operation::Type::BarrackUpgrade ||
+           type == Operation::Type::AntUpgrade;
+}
+}  // namespace
+
+std::vector<Operation> Game::apply_operation_list_cold(
+    int player, const std::vector<Operation> &op_list) {
+    // Replicates the official cold_handle_rule_illegal path in
+    // round_read_from_judger: per-op apply, illegal skipped, but used_tower
+    // and camp_upgraded_flag persist across the whole list.
+    std::vector<Operation> accepted_ops;
+    std::vector<int> used_tower;
+    bool camp_upgraded_flag = false;
+    for (const auto &operation : op_list) {
+        const auto type = operation.get_operation_type();
+        if ((type == Operation::Type::TowerUpgrade ||
+             type == Operation::Type::TowerDestroy) &&
+            std::find(used_tower.begin(), used_tower.end(), operation.get_id()) !=
+                used_tower.end()) {
+            continue;
+        }
+        if (is_base_upgrade_op(type) && camp_upgraded_flag) {
+            continue;
+        }
+        const int pending_tower_id = tower_id;
+        std::string operation_error;
+        OperationErrorKind error_kind = OperationErrorKind::None;
+        if (!apply_operation(std::vector<Operation>{operation}, player,
+                             operation_error, &error_kind)) {
+            continue;  // protocol errors can't arise outside the judger
+        }
+        accepted_ops.push_back(operation);
+        if (type == Operation::Type::TowerBuild)
+            used_tower.push_back(pending_tower_id);
+        else if (type == Operation::Type::TowerUpgrade ||
+                 type == Operation::Type::TowerDestroy)
+            used_tower.push_back(operation.get_id());
+        if (is_base_upgrade_op(type))
+            camp_upgraded_flag = true;
+    }
+    return accepted_ops;
+}
+
 Game Game::deep_clone() const {
     Game copy = *this;  // memberwise copy: containers deep-copied, Map pointers stale
 

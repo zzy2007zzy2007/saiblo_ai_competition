@@ -45,23 +45,16 @@ PYBIND11_MODULE(native_game, m) {
              py::arg("cold") = true)
         .def("apply_operation_list",
              [](Game &g, int player, const std::vector<std::array<int, 3>> &ops) {
-                 // Per-op calls replicate the Python engine's cold handling:
-                 // an illegal op is skipped (returns false, no state change)
-                 // and the remaining ops still apply.  The C++ apply_operation
-                 // takes a whole list and aborts on the first failure, so we
-                 // must call it once per operation.
-                 int failed = 0;
-                 std::string first_err;
-                 for (const auto &o : ops) {
-                     std::vector<Operation> one{make_operation(o[0], o[1], o[2])};
-                     std::string err;
-                     if (!g.apply_operation(one, player, err)) {
-                         failed++;
-                         if (first_err.empty())
-                             first_err = err;
-                     }
-                 }
-                 return std::make_tuple(failed == 0, first_err);
+                 // Replicates the official cold_handle_rule_illegal path
+                 // (round_read_from_judger): per-op apply with illegal ops
+                 // skipped, while used_tower / camp-upgraded flags persist
+                 // across the whole list.
+                 std::vector<Operation> list;
+                 list.reserve(ops.size());
+                 for (const auto &o : ops)
+                     list.push_back(make_operation(o[0], o[1], o[2]));
+                 auto accepted = g.apply_operation_list_cold(player, list);
+                 return std::make_tuple(true, accepted.size());
              },
              py::arg("player"), py::arg("ops"))
         .def("advance_round", &Game::next_round)
@@ -72,5 +65,10 @@ PYBIND11_MODULE(native_game, m) {
         .def("tower_snapshot", &Game::tower_snapshot)
         .def("ant_snapshot", &Game::ant_snapshot)
         .def("valid_cell", &Game::valid_cell)
+        .def("coin", &Game::coin)
+        .def("rng_state_now", &Game::rng_state_now)
+        .def("weapon_cds", &Game::weapon_cds)
+        .def("base_levels", &Game::base_levels)
+        .def("ant_details", &Game::ant_details)
         .def("clone", &Game::deep_clone);
 }
