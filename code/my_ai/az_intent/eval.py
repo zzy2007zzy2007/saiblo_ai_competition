@@ -183,6 +183,8 @@ def main() -> None:
                         help="opponent = raw (no-search) decode of the same model")
     parser.add_argument("--max-rounds", type=int, default=512)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--our-player", type=int, default=-1,
+                        help="fix our player role (0 or 1); default -1 = alternate by game index")
     args = parser.parse_args()
 
     if args.checkpoint is None and args.baseline_hotstart is None:
@@ -190,7 +192,8 @@ def main() -> None:
     src = args.checkpoint or args.baseline_hotstart
 
     jobs = [
-        (args.checkpoint, args.iterations, args.max_depth_rounds, args.seed + s, s % 2,
+        (args.checkpoint, args.iterations, args.max_depth_rounds, args.seed + s,
+         args.our_player if args.our_player >= 0 else s % 2,
          args.opponent, args.baseline_hotstart, args.no_search, args.select_by_prior,
          args.intent_decoding, args.one_head, args.bundle_mcts, args.t_class, args.t_pos,
          args.self_raw_opponent, args.max_rounds)
