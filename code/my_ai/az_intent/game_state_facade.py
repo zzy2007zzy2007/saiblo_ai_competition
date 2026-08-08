@@ -13,12 +13,21 @@ from __future__ import annotations
 import numpy as np
 
 from SDK.utils.constants import (
+    ANT_KILL_REWARD,
+    BASE_UPGRADE_COST,
+    CENTERLINE_WEIGHTS,
+    COMBAT_ANT_KILL_REWARD,
+    LEVEL2_TOWER_UPGRADE_COST,
+    LEVEL3_TOWER_UPGRADE_COST,
     MAP_SIZE,
     PLAYER_BASES,
+    STRATEGIC_BUILD_ORDER,
     SUPER_WEAPON_STATS,
+    TOWER_DOWNGRADE_REFUND_RATIO,
     TOWER_STATS,
     AntBehavior,
     AntKind,
+    OperationType,
     SuperWeaponType,
     TowerType,
 )
@@ -104,6 +113,13 @@ class FacadeAnt:
 
     def is_alive(self) -> bool:
         return self.hp > 0
+
+    @property
+    def kill_reward(self) -> int:
+        # Mirrors Ant.kill_reward (COMBAT 18, else ANT_KILL_REWARD[level]).
+        if self.kind == AntKind.COMBAT:
+            return COMBAT_ANT_KILL_REWARD
+        return ANT_KILL_REWARD[self.level]
 
 
 class FacadeEffect:
@@ -276,12 +292,81 @@ class GameStateFacade:
     def build_tower_cost(self, tower_count: int) -> int:
         return type(self._g).tower_build_cost(tower_count)
 
+    def tower_by_id(self, tower_id: int):
+        for tower in self.towers:
+            if tower.tower_id == tower_id:
+                return tower
+        return None
+
+    def strategic_slots(self, player: int) -> tuple:
+        return STRATEGIC_BUILD_ORDER[player]
+
+    def upgrade_tower_cost(self, target_type) -> int:
+        # Basic/level-2 towers cost 60, upgraded level-3 cost 200 — mirrors
+        # GameState.upgrade_tower_cost (and the C++ tower_upgrade_cost helper).
+        if target_type.value < 10:
+            return LEVEL2_TOWER_UPGRADE_COST
+        return LEVEL3_TOWER_UPGRADE_COST
+
+    def destroy_tower_income(self, tower_count: int, tower=None) -> int:
+        refund = self.build_tower_cost(tower_count - 1) * TOWER_DOWNGRADE_REFUND_RATIO
+        if tower is None:
+            return int(refund)
+        return int(refund * max(tower.hp, 0) / max(tower.max_hp, 1))
+
+    def downgrade_tower_income(self, tower_type, tower=None) -> int:
+        refund = self.upgrade_tower_cost(tower_type) * TOWER_DOWNGRADE_REFUND_RATIO
+        if tower is None:
+            return int(refund)
+        return int(refund * max(tower.hp, 0) / max(tower.max_hp, 1))
+
+    def upgrade_base_cost(self, level: int) -> int:
+        return BASE_UPGRADE_COST[level]
+
+    def weapon_cost(self, weapon_type) -> int:
+        return SUPER_WEAPON_STATS[weapon_type].cost
+
+    def operation_income(self, player: int, operation, tower_count_hint=None) -> int:
+        # Mirrors GameState._operation_income (net gold change of the op).
+        op_type = operation.op_type
+        if op_type == OperationType.BUILD_TOWER:
+            count = self.tower_count(player) if tower_count_hint is None else tower_count_hint
+            return -self.build_tower_cost(count)
+        if op_type == OperationType.UPGRADE_TOWER:
+            return -self.upgrade_tower_cost(TowerType(operation.arg1))
+        if op_type == OperationType.DOWNGRADE_TOWER:
+            tower = self.tower_by_id(operation.arg0)
+            if tower is None:
+                return 0
+            if tower.tower_type == TowerType.BASIC:
+                count = self.tower_count(player) if tower_count_hint is None else tower_count_hint
+                return self.destroy_tower_income(count, tower)
+            return self.downgrade_tower_income(tower.tower_type, tower)
+        if op_type in (OperationType.USE_LIGHTNING_STORM, OperationType.USE_EMP_BLASTER,
+                       OperationType.USE_DEFLECTOR, OperationType.USE_EMERGENCY_EVASION):
+            return -self.weapon_cost(SuperWeaponType(op_type % 10))
+        if op_type == OperationType.UPGRADE_GENERATION_SPEED:
+            level = self.bases[player].generation_level
+            return -self.upgrade_base_cost(level) if level < len(BASE_UPGRADE_COST) else 0
+        if op_type == OperationType.UPGRADE_GENERATED_ANT:
+            level = self.bases[player].ant_level
+            return -self.upgrade_base_cost(level) if level < len(BASE_UPGRADE_COST) else 0
+        return 0
+
     # ── computed properties (mirror GameState) ──
     def nearest_ant_distance(self, player: int) -> int:
         bx, by = PLAYER_BASES[player]
         enemies = [hex_distance(a.x, a.y, bx, by)
                    for a in self.ants if a.player != player and a.is_alive()]
         return min(enemies) if enemies else 32
+
+    def frontline_distance(self, player: int) -> int:
+        # Mirrors GameState.frontline_distance: nearest of player's OWN ants to
+        # the ENEMY base (32 when none alive).
+        bx, by = PLAYER_BASES[1 - player]
+        own = [hex_distance(a.x, a.y, bx, by)
+               for a in self.ants if a.player == player and a.is_alive()]
+        return min(own) if own else 32
 
     def safe_coin_threshold(self, player: int) -> int:
         enemy = 1 - player
@@ -308,3 +393,16 @@ class GameStateFacade:
                 elif d <= 6:
                     penalty += 2.0
         return -penalty
+
+    def slot_priority(self, player: int, x: int, y: int) -> float:
+        # Pure heuristic (STRATEGIC_BUILD_ORDER / CENTERLINE_WEIGHTS), mirrors
+        # GameState.slot_priority — no engine state involved.
+        try:
+            order = self.strategic_slots(player).index((x, y))
+        except ValueError:
+            order = len(self.strategic_slots(player))
+        priority = max(0.0, 24.0 - order * 0.6)
+        priority *= CENTERLINE_WEIGHTS.get((x, y), 1.0)
+        base_x, base_y = PLAYER_BASES[player]
+        priority += hex_distance(x, y, base_x, base_y) * 0.4
+        return priority
