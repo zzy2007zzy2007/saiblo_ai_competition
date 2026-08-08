@@ -3,3 +3,4 @@
 output/
 *.o
 *.d
+mini_replay.txt
