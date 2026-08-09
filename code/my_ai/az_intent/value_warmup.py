@@ -30,21 +30,23 @@ for p in (_REPO, _CODE):
         sys.path.insert(0, str(p))
 
 
-def collect_game(model, feature_extractor, seed: int) -> tuple[list[dict], dict]:
+def collect_game(model, feature_extractor, seed: int,
+                 native_engine: bool = False) -> tuple[list[dict], dict]:
     """Play one self-play game with the raw policy (argmax decode), record samples.
 
     Each sample = one player's turn: board/stats inputs, the full policy outputs
     (action_map + 3 head logits) as anchor targets, the player, and the terminal
     HP-difference value target (same for all samples of the game, player-signed).
 
-    Returns (samples, game_info) where game_info = {rounds, winner, hp, samples}.
+    ``native_engine`` uses the C++ engine (official rules) instead of the Python
+    SDK engine.  Returns (samples, game_info).
     """
-    from SDK.backend.engine import GameState
     from SDK.utils.constants import MAX_ROUND
     from my_ai.decoder import decode_network_output
     from my_ai.az_intent.mcts import HP_SCALE
+    from my_ai.az_intent.az_selfplay import make_initial_state
 
-    state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    state = make_initial_state(seed, native_engine)
     samples: list[dict] = []
 
     for _ in range(MAX_ROUND):
@@ -92,7 +94,8 @@ def collect_game(model, feature_extractor, seed: int) -> tuple[list[dict], dict]
     return samples, info
 
 
-def _collect_and_save(seed: int, out_dir: str, hotstart: str | None) -> dict:
+def _collect_and_save(seed: int, out_dir: str, hotstart: str | None,
+                      native_engine: bool = False) -> dict:
     """Worker: build the model (same hot-start, deterministic), play one self-play game,
     save the samples to an npz, then free them.  Mirrors code/distill/collect.py's _worker."""
     from SDK.utils.features import FeatureExtractor
@@ -101,7 +104,7 @@ def _collect_and_save(seed: int, out_dir: str, hotstart: str | None) -> dict:
     model = build_model(hotstart)
     model.eval()
     feat = FeatureExtractor(max_actions=96)
-    samples, info = collect_game(model, feat, seed)
+    samples, info = collect_game(model, feat, seed, native_engine=native_engine)
     path = Path(out_dir) / f"warm_seed{seed:05d}.npz"
     if samples:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,11 +122,12 @@ def _collect_and_save(seed: int, out_dir: str, hotstart: str | None) -> dict:
     return {"seed": seed, "samples": len(samples), "path": str(path)}
 
 
-def collect_games_parallel(hotstart: str | None, seeds: list[int], out_dir: str, workers: int) -> list[Path]:
+def collect_games_parallel(hotstart: str | None, seeds: list[int], out_dir: str, workers: int,
+                           native_engine: bool = False) -> list[Path]:
     """Collect self-play data in parallel, one npz per game (workers save to disk,
     parent only receives paths — bounded memory)."""
     Path(out_dir).mkdir(parents=True, exist_ok=True)
-    jobs = [(seed, out_dir, hotstart) for seed in seeds]
+    jobs = [(seed, out_dir, hotstart, native_engine) for seed in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -270,6 +274,8 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lambda-value", type=float, default=1.0)
+    parser.add_argument("--native-engine", action="store_true",
+                        help="collect on the C++ engine (official rules) instead of the Python SDK engine")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -277,8 +283,10 @@ def main() -> None:
     model.eval()
 
     seeds = [args.seed * 1000 + g for g in range(args.games)]
-    print(f"[warmup] collecting {args.games} self-play games ({args.workers} workers)...", flush=True)
-    npz_paths = collect_games_parallel(args.hotstart, seeds, args.data_dir, args.workers)
+    print(f"[warmup] collecting {args.games} self-play games ({args.workers} workers) "
+          f"[engine={'C++' if args.native_engine else 'python'}]...", flush=True)
+    npz_paths = collect_games_parallel(args.hotstart, seeds, args.data_dir, args.workers,
+                                       native_engine=args.native_engine)
 
     print("[warmup] loading all data into memory...", flush=True)
     data = load_all_data(npz_paths)
