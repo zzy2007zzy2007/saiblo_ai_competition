@@ -64,29 +64,30 @@ inline void to_json(json &j, const Pos &pos) {
     j = json{{"x", pos.x}, {"y", pos.y}};
 }
 
+
 void int_to_bytes(int des) {
     char tmp;
     for (int i = 3; i >= 0; i--) {
         tmp = (des >> (i * 8)) % (1 << 8);
-        std::cout << tmp;
+        fwrite(&tmp, 1, 1, stdout);  // binary-safe (cout would translate 0x0A on Windows)
     }
 }
 
 void output_info(int object, json info) {
-    size_t info_size = info.dump().size();
+    std::string dumped = info.dump();
+    size_t info_size = dumped.size();
     int_to_bytes(info_size);
     int_to_bytes(object);
-    std::cout << info;
-    std::cout.flush();
+    fwrite(dumped.data(), 1, dumped.size(), stdout);  // binary-safe
+    fflush(stdout);
 }
 
 void output_info(int object, std::string info) {
     size_t info_size = info.size();
     int_to_bytes(info_size);
     int_to_bytes(object);
-
-    std::cout << info;
-    std::cout.flush();
+    fwrite(info.data(), 1, info.size(), stdout);  // binary-safe
+    fflush(stdout);
 }
 
 /* this function transfer operations from player
