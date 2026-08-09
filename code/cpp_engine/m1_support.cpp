@@ -435,27 +435,29 @@ Game::Game(const Game &other) : Game() {
     // is likewise left default — the embedded engine never writes/reads it.)
     risk_fields_dirty = true;
     enhanced_move_cache_dirty = true;
-}
 
-Game Game::deep_clone() const {
-    Game copy(*this);  // custom copy ctor: live state deep-copied, derived caches left dirty
-
-    // Re-point the base camps to the copy's own Headquarter members.
-    copy.map.map[PLAYER_0_BASE_CAMP_X][PLAYER_0_BASE_CAMP_Y].base_camp = &copy.base_camp0;
-    copy.map.map[PLAYER_1_BASE_CAMP_X][PLAYER_1_BASE_CAMP_Y].base_camp = &copy.base_camp1;
-
-    // Re-point every Map cell's DefenseTower* to the copy's towers (by id).
+    // Re-point the map's base_camp pointers to this copy's own camps.
+    map.map[PLAYER_0_BASE_CAMP_X][PLAYER_0_BASE_CAMP_Y].base_camp = &base_camp0;
+    map.map[PLAYER_1_BASE_CAMP_X][PLAYER_1_BASE_CAMP_Y].base_camp = &base_camp1;
+    // Re-point every Map cell's DefenseTower* to this copy's towers (by id).
+    // Done HERE (not in deep_clone) so that ANY copy — including the
+    // return-by-value temp in deep_clone, which copies the local's map
+    // pointing at the local's objects — is self-consistent.
     std::unordered_map<int, DefenseTower *> id_to_ptr;
-    id_to_ptr.reserve(copy.defensive_towers.size());
-    for (auto &t : copy.defensive_towers)
+    id_to_ptr.reserve(defensive_towers.size());
+    for (auto &t : defensive_towers)
         id_to_ptr[t.get_id()] = &t;
     for (int i = 0; i < MAP_SIZE; i++)
         for (int j = 0; j < MAP_SIZE; j++) {
-            if (copy.map.map[i][j].tower == nullptr)
+            if (map.map[i][j].tower == nullptr)
                 continue;
-            auto it = id_to_ptr.find(copy.map.map[i][j].tower->get_id());
-            copy.map.map[i][j].tower =
-                (it != id_to_ptr.end()) ? it->second : nullptr;
+            auto it = id_to_ptr.find(map.map[i][j].tower->get_id());
+            map.map[i][j].tower = (it != id_to_ptr.end()) ? it->second : nullptr;
         }
-    return copy;
 }
+
+Game Game::deep_clone() const {
+    return Game(*this);  // copy ctor deep-copies live state + rewires pointers
+}
+
+
