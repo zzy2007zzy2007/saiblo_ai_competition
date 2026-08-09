@@ -98,6 +98,8 @@ def _collect_and_save(seed: int, out_dir: str, hotstart: str | None,
                       native_engine: bool = False) -> dict:
     """Worker: build the model (same hot-start, deterministic), play one self-play game,
     save the samples to an npz, then free them.  Mirrors code/distill/collect.py's _worker."""
+    import torch
+    torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.train import build_model
 
