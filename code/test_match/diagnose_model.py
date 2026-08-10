@@ -39,17 +39,8 @@ OP_NAME_MAP = {
 
 
 def op_desc(op) -> str:
-    name = OP_NAME_MAP.get(op.op_type, f"OP_{op.op_type}")
-    if op.op_type in (OperationType.BUILD_TOWER,):
-        return f"{name}({op.arg0},{op.arg1})"
-    elif op.op_type == OperationType.UPGRADE_TOWER:
-        return f"{name}(id={op.arg0}->type={op.arg1})"
-    elif op.op_type == OperationType.DOWNGRADE_TOWER:
-        return f"{name}(id={op.arg0})"
-    elif OperationType.USE_LIGHTNING_STORM <= op.op_type <= OperationType.USE_EMERGENCY_EVASION:
-        return f"{name}({op.arg0},{op.arg1})"
-    else:
-        return name
+    """动作表示与自对弈进度文件一致：元组 (op_type, arg0, arg1)，如 (11,5,9)。"""
+    return f"({int(op.op_type)},{op.arg0},{op.arg1})"
 CLASS_NAMES = {
     0: "build_Basic", 1: "toward_Heavy", 2: "toward_Heavy+", 3: "toward_Ice",
     4: "toward_Bewitch", 5: "toward_Quick", 6: "toward_Quick+", 7: "toward_Double",
