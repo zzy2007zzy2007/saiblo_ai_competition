@@ -194,9 +194,11 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         if pfile is not None:
             hp0 = state.bases[0].hp
             hp1 = state.bases[1].hp
+            g0 = state.coins[0]
+            g1 = state.coins[1]
             p0 = "[" + ", ".join(_fmt_op(*op) for op in round_ops[0]) + "]" if round_ops[0] else "[]"
             p1 = "[" + ", ".join(_fmt_op(*op) for op in round_ops[1]) + "]" if round_ops[1] else "[]"
-            pfile.write(f"round={round_idx} HP0={hp0} HP1={hp1} "
+            pfile.write(f"round={round_idx} HP0={hp0} HP1={hp1} G0={g0} G1={g1} "
                         f"P0={p0} P1={p1}\n")
             pfile.flush()
 
