@@ -184,7 +184,7 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
 def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       max_depth_rounds: int, t_class: float, t_pos: float,
                       k: int, sample_mult: int, max_rounds: int, temp_rounds: int,
-                      native_engine: bool = False) -> dict:
+                      native_engine: bool = False, c_puct: float = 1.25) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -192,7 +192,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     feat = FeatureExtractor(max_actions=96)
     model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
     mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
-                      k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos, seed=seed)
+                      k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
+                      c_puct=c_puct, seed=seed)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
@@ -208,10 +209,11 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
 def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, workers: int,
                            iterations: int, max_depth_rounds: int, t_class: float,
                            t_pos: float, k: int, sample_mult: int, max_rounds: int,
-                           temp_rounds: int, native_engine: bool = False) -> list[Path]:
+                           temp_rounds: int, native_engine: bool = False,
+                           c_puct: float = 1.25) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
-             k, sample_mult, max_rounds, temp_rounds, native_engine) for s in seeds]
+             k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -239,17 +241,19 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--native-engine", action="store_true",
                         help="use the C++ engine (native_game) instead of the Python SDK engine")
+    parser.add_argument("--c-puct", type=float, default=1.25,
+                        help="MCTS PUCT exploration constant (higher = more exploration)")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
     print(f"[selfplay] collecting {args.games} games ({args.workers} workers, "
           f"{args.iterations} iters / depth {args.max_depth_rounds}) "
-          f"[engine={'C++' if args.native_engine else 'python'}]...", flush=True)
+          f"[engine={'C++' if args.native_engine else 'python'}, c_puct={args.c_puct}]...", flush=True)
     paths = collect_games_parallel(
         args.checkpoint, seeds, args.out_dir, args.workers,
         args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
         args.k, args.sample_mult, args.max_rounds, args.temp_rounds,
-        native_engine=args.native_engine,
+        native_engine=args.native_engine, c_puct=args.c_puct,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 
