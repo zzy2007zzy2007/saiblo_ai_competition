@@ -101,6 +101,33 @@ def make_initial_state(seed: int, native_engine: bool = False):
     return GameState.initial(seed=seed, cold_handle_rule_illegal=True)
 
 
+def _fmt_op(t: int, a0: int, a1: int) -> str:
+    """动作命名表示（与 code/test_match/diagnose.py 的 op_desc 一致），如 BUILD(6,9)。"""
+    from SDK.utils.constants import OperationType
+    name = {
+        OperationType.BUILD_TOWER: "BUILD",
+        OperationType.UPGRADE_TOWER: "UPGRADE",
+        OperationType.DOWNGRADE_TOWER: "DOWNGRADE",
+        OperationType.USE_LIGHTNING_STORM: "LIGHTNING",
+        OperationType.USE_EMP_BLASTER: "EMP",
+        OperationType.USE_DEFLECTOR: "DEFLECTOR",
+        OperationType.USE_EMERGENCY_EVASION: "EVASION",
+        OperationType.UPGRADE_GENERATION_SPEED: "UP_SPEED",
+        OperationType.UPGRADE_GENERATED_ANT: "UP_ANT_HP",
+    }.get(OperationType(t))
+    if name is None:
+        return f"OP_{t}"
+    if t == OperationType.BUILD_TOWER:
+        return f"{name}({a0},{a1})"
+    if t == OperationType.UPGRADE_TOWER:
+        return f"{name}(id={a0}->type={a1})"
+    if t == OperationType.DOWNGRADE_TOWER:
+        return f"{name}(id={a0})"
+    if OperationType.USE_LIGHTNING_STORM <= t <= OperationType.USE_EMERGENCY_EVASION:
+        return f"{name}({a0},{a1})"
+    return name
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None,
@@ -167,8 +194,10 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         if pfile is not None:
             hp0 = state.bases[0].hp
             hp1 = state.bases[1].hp
+            p0 = "[" + ", ".join(_fmt_op(*op) for op in round_ops[0]) + "]" if round_ops[0] else "[]"
+            p1 = "[" + ", ".join(_fmt_op(*op) for op in round_ops[1]) + "]" if round_ops[1] else "[]"
             pfile.write(f"round={round_idx} HP0={hp0} HP1={hp1} "
-                        f"P0={round_ops[0]} P1={round_ops[1]}\n")
+                        f"P0={p0} P1={p1}\n")
             pfile.flush()
 
     diff = state.bases[0].hp - state.bases[1].hp
