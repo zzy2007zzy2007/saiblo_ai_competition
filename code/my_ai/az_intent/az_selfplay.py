@@ -165,7 +165,10 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         if player == 1 and not state.terminal:
             state.advance_round()
         if pfile is not None:
-            pfile.write(f"round={round_idx} P0={round_ops[0]} P1={round_ops[1]}\n")
+            hp0 = state.bases[0].hp
+            hp1 = state.bases[1].hp
+            pfile.write(f"round={round_idx} HP0={hp0} HP1={hp1} "
+                        f"P0={round_ops[0]} P1={round_ops[1]}\n")
             pfile.flush()
 
     diff = state.bases[0].hp - state.bases[1].hp
