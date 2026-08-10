@@ -154,11 +154,11 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
 
 def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
                  t_class: float, t_pos: float, lambda_value: float,
-                 lambda_anchor: float) -> tuple:
+                 lambda_anchor: float, device: str = "cpu") -> tuple:
     """Joint loss over two mini-batches: policy+anchor on policy_batch,
     value MSE on value_batch (both heads optimized together every step)."""
-    boards = torch.stack([torch.from_numpy(s["board"]).float() for s in policy_batch])
-    stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in policy_batch])
+    boards = torch.stack([torch.from_numpy(s["board"]).float() for s in policy_batch]).to(device)
+    stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in policy_batch]).to(device)
     out = model(boards, stats)
 
     policy_loss = sum(
@@ -166,17 +166,17 @@ def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
         for b, s in enumerate(policy_batch)
     ) / len(policy_batch)
 
-    am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in policy_batch])
-    hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in policy_batch])
+    am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in policy_batch]).to(device)
+    hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in policy_batch]).to(device)
     anchor_loss = F.mse_loss(out["action_map"], am_tgt) + F.mse_loss(
         torch.stack([out[f"head{i + 1}_logits"] for i in range(model.num_heads)], dim=1),
         hl_tgt,
     )
 
-    v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in value_batch])
-    v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in value_batch])
+    v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in value_batch]).to(device)
+    v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in value_batch]).to(device)
     v_out = model(v_boards, v_stats)
-    v_tgt = torch.as_tensor([s["value_label"] for s in value_batch], dtype=torch.float32)
+    v_tgt = torch.as_tensor([s["value_label"] for s in value_batch], dtype=torch.float32).to(device)
     value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
 
     loss = policy_loss + lambda_value * value_loss + lambda_anchor * anchor_loss
@@ -187,7 +187,7 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
           epochs: int = 5, batch_size: int = 32, lr: float = 1e-3,
           t_class: float = 0.5, t_pos: float = 0.3,
           lambda_value: float = 1.0, lambda_anchor: float = 1.0,
-          seed: int = 0, checkpoint: str = "") -> dict:
+          seed: int = 0, checkpoint: str = "", device: str = "cpu") -> dict:
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
     n = len(policy_samples)
@@ -208,6 +208,7 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
                 model, p_batch, v_batch,
                 t_class=t_class, t_pos=t_pos,
                 lambda_value=lambda_value, lambda_anchor=lambda_anchor,
+                device=device,
             )
             optimizer.zero_grad()
             loss.backward()
@@ -241,7 +242,7 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 value_samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
                 lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
                 lambda_anchor: float = 1.0, seed: int = 0,
-                checkpoint: str = "") -> dict:
+                checkpoint: str = "", device: str = "cpu") -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
 
     Two separate networks, two optimizers — no shared-backbone coupling.
@@ -266,15 +267,15 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
             v_pos += len(p_batch)
 
             # policy step: decomposed CE + anchor (policy net only)
-            boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch])
-            stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch])
+            boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
+            stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
             p_out = policy_model(boards, stats)
             policy_loss = sum(
                 _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
                 for b, s in enumerate(p_batch)
             ) / len(p_batch)
-            am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch])
-            hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch])
+            am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
+            hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch]).to(device)
             anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
                 torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)],
                             dim=1),
@@ -287,10 +288,10 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
             opt_p.step()
 
             # value step: MSE on weighted labels (value net only)
-            v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch])
-            v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch])
+            v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch]).to(device)
+            v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch]).to(device)
             v_out = value_model(v_boards, v_stats)
-            v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32)
+            v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32).to(device)
             value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
             opt_v.zero_grad()
             value_loss.backward()
@@ -350,18 +351,26 @@ def main() -> None:
                         help="value pool keeps only the most recent N batch dirs "
                              "(keeps training memory bounded over long runs)")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--device", type=str, default="auto",
+                        help="'auto' (cuda if available), 'cuda', or 'cpu'")
     args = parser.parse_args()
 
     from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
 
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = args.device
+    print(f"[train] device={device}", flush=True)
+
     torch.manual_seed(args.seed)
     if args.split:
         policy_model, value_model = load_split_models(args.init)
-        policy_model.train()
-        value_model.train()
+        policy_model.train().to(device)
+        value_model.train().to(device)
     else:
         model = load_model_from_ckpt(args.init)
-        model.train()
+        model.train().to(device)
 
     policy_dir = args.policy_dir or args.data_dir
     policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
@@ -402,7 +411,7 @@ def main() -> None:
             epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_anchor=args.lambda_anchor,
-            seed=args.seed, checkpoint=args.checkpoint,
+            seed=args.seed, checkpoint=args.checkpoint, device=device,
         )
     else:
         metrics = train(
@@ -410,7 +419,7 @@ def main() -> None:
             epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_value=args.lambda_value, lambda_anchor=args.lambda_anchor,
-            seed=args.seed, checkpoint=args.checkpoint,
+            seed=args.seed, checkpoint=args.checkpoint, device=device,
         )
     print(f"[train] done {metrics}", flush=True)
 
