@@ -238,85 +238,108 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
     return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
 
 
+def _policy_step(policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device):
+    """One policy step: decomposed CE + anchor. Returns (loss_p, policy_loss, anchor_loss)."""
+    boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
+    stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
+    p_out = policy_model(boards, stats)
+    policy_loss = sum(
+        _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
+        for b, s in enumerate(p_batch)
+    ) / len(p_batch)
+    am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
+    hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch]).to(device)
+    anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
+        torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)], dim=1),
+        hl_tgt,
+    )
+    loss_p = policy_loss + lambda_anchor * anchor_loss
+    opt_p.zero_grad()
+    loss_p.backward()
+    torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 5.0)
+    opt_p.step()
+    return loss_p, policy_loss, anchor_loss
+
+
+def _value_step(value_model, v_batch, opt_v, device):
+    """One value step: MSE on weighted labels. Returns value_loss."""
+    v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch]).to(device)
+    v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch]).to(device)
+    v_out = value_model(v_boards, v_stats)
+    v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32).to(device)
+    value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
+    opt_v.zero_grad()
+    value_loss.backward()
+    torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
+    opt_v.step()
+    return value_loss
+
+
 def train_split(policy_model, value_model, policy_samples: list[dict],
                 value_samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
                 lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
                 lambda_anchor: float = 1.0, seed: int = 0,
                 checkpoint: str = "", device: str = "cpu",
-                value_only: bool = False) -> dict:
+                value_only: bool = False, value_passes: int = 1) -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
 
     Two separate networks, two optimizers — no shared-backbone coupling.
     Saves a combined checkpoint with both state_dicts.
-    ``value_only`` freezes the policy net (no policy/anchor step) — used to
-    re-calibrate the value head on new labels (e.g. a different tau).
+
+    Per epoch the policy gets 1 pass over the POLICY pool while the value gets
+    ``value_passes`` passes over the VALUE pool (decoupled — the value pool is
+    much larger, so tying its steps to the policy pool under-trains it).
+    ``value_only`` freezes the policy net (no policy/anchor step).
     """
     opt_p = torch.optim.AdamW(policy_model.parameters(), lr=lr, weight_decay=1e-4)
     opt_v = torch.optim.AdamW(value_model.parameters(), lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
     n = len(policy_samples)
     nv = len(value_samples)
-    for epoch in range(epochs):
-        order = list(range(n))
-        rng.shuffle(order)
+
+    def _value_pass(acc_tl, acc_tv, acc_steps):
         v_order = list(range(nv))
         rng.shuffle(v_order)
-        v_pos = 0
+        for start in range(0, nv, batch_size):
+            v_batch = [value_samples[v_order[(start + j) % nv]] for j in range(min(batch_size, nv - start))]
+            value_loss = _value_step(value_model, v_batch, opt_v, device)
+            acc_tl += value_loss.detach().item()
+            acc_tv += value_loss.detach().item()
+            acc_steps += 1
+        return acc_tl, acc_tv, acc_steps
+
+    for epoch in range(epochs):
         tl = tp = tv = ta = 0.0
         n_steps = 0
-        for start in range(0, n, batch_size):
-            if value_only:
-                # policy frozen: steps iterate over the value pool
-                v_batch = [value_samples[v_order[(start + j) % nv]] for j in range(batch_size)]
-            else:
+        if value_only:
+            for _ in range(max(value_passes, 1)):
+                tl, tv, n_steps = _value_pass(tl, tv, n_steps)
+        else:
+            # policy: 1 pass over the policy pool (with one interleaved value batch each)
+            order = list(range(n))
+            rng.shuffle(order)
+            v_order = list(range(nv))
+            rng.shuffle(v_order)
+            v_pos = 0
+            for start in range(0, n, batch_size):
                 p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
                 v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
                 v_pos += len(p_batch)
-
-                # policy step: decomposed CE + anchor (policy net only)
-                boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
-                stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
-                p_out = policy_model(boards, stats)
-                policy_loss = sum(
-                    _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
-                    for b, s in enumerate(p_batch)
-                ) / len(p_batch)
-                am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
-                hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch]).to(device)
-                anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
-                    torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)],
-                                dim=1),
-                    hl_tgt,
-                )
-                loss_p = policy_loss + lambda_anchor * anchor_loss
-                opt_p.zero_grad()
-                loss_p.backward()
-                torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 5.0)
-                opt_p.step()
-
-            # value step: MSE on weighted labels (value net only)
-            v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch]).to(device)
-            v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch]).to(device)
-            v_out = value_model(v_boards, v_stats)
-            v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32).to(device)
-            value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
-            opt_v.zero_grad()
-            value_loss.backward()
-            torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
-            opt_v.step()
-
-            if value_only:
-                tl += value_loss.detach().item()
-                tv += value_loss.detach().item()
-            else:
+                loss_p, policy_loss, anchor_loss = _policy_step(
+                    policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device)
+                value_loss = _value_step(value_model, v_batch, opt_v, device)
                 tl += loss_p.detach().item() + value_loss.detach().item()
                 tp += policy_loss.detach().item()
                 tv += value_loss.detach().item()
                 ta += anchor_loss.detach().item()
-            n_steps += 1
+                n_steps += 1
+            # value: additional passes over the full value pool (decoupled)
+            for _ in range(1, value_passes):
+                tl, tv, n_steps = _value_pass(tl, tv, n_steps)
         print(f"  epoch {epoch}: loss={tl/max(n_steps,1):.4f} "
               f"policy={tp/max(n_steps,1):.4f} value={tv/max(n_steps,1):.4f} "
-              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv})"
+              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv}, "
+              f"value_passes={value_passes})"
               + (" [value_only]" if value_only else ""), flush=True)
     if checkpoint:
         Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
@@ -367,6 +390,10 @@ def main() -> None:
     parser.add_argument("--value-only", action="store_true",
                         help="freeze the policy net, train only the value head "
                              "(e.g. re-calibrate on a different tau)")
+    parser.add_argument("--value-passes", type=int, default=1,
+                        help="how many full passes over the VALUE pool per epoch "
+                             "(decoupled from the policy pool size; value pool is "
+                             "much larger so default 1 under-trains it — use 3)")
     args = parser.parse_args()
 
     from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
@@ -426,7 +453,7 @@ def main() -> None:
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_anchor=args.lambda_anchor,
             seed=args.seed, checkpoint=args.checkpoint, device=device,
-            value_only=args.value_only,
+            value_only=args.value_only, value_passes=args.value_passes,
         )
     else:
         metrics = train(

@@ -44,7 +44,7 @@ for b in $(seq "$START_BATCH" $((START_BATCH + N_BATCHES - 1))); do
     "$PY" code/my_ai/az_intent/az_train.py \
         --init "$prev" --policy-dir "$BATCH_DIR" --data-dir "$DATA" \
         --checkpoint "$ckpt" --epochs 5 --tau 50 --label-scale 6 --split \
-        --max-value-batches 16 --device auto
+        --max-value-batches 16 --device auto --value-passes 3
     echo "[batch $b] 完成 -> $ckpt"
     prev="$ckpt"
 done
