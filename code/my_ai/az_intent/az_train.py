@@ -242,11 +242,14 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 value_samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
                 lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
                 lambda_anchor: float = 1.0, seed: int = 0,
-                checkpoint: str = "", device: str = "cpu") -> dict:
+                checkpoint: str = "", device: str = "cpu",
+                value_only: bool = False) -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
 
     Two separate networks, two optimizers — no shared-backbone coupling.
     Saves a combined checkpoint with both state_dicts.
+    ``value_only`` freezes the policy net (no policy/anchor step) — used to
+    re-calibrate the value head on new labels (e.g. a different tau).
     """
     opt_p = torch.optim.AdamW(policy_model.parameters(), lr=lr, weight_decay=1e-4)
     opt_v = torch.optim.AdamW(value_model.parameters(), lr=lr, weight_decay=1e-4)
@@ -262,30 +265,34 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
         tl = tp = tv = ta = 0.0
         n_steps = 0
         for start in range(0, n, batch_size):
-            p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
-            v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
-            v_pos += len(p_batch)
+            if value_only:
+                # policy frozen: steps iterate over the value pool
+                v_batch = [value_samples[v_order[(start + j) % nv]] for j in range(batch_size)]
+            else:
+                p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
+                v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
+                v_pos += len(p_batch)
 
-            # policy step: decomposed CE + anchor (policy net only)
-            boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
-            stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
-            p_out = policy_model(boards, stats)
-            policy_loss = sum(
-                _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
-                for b, s in enumerate(p_batch)
-            ) / len(p_batch)
-            am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
-            hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch]).to(device)
-            anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
-                torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)],
-                            dim=1),
-                hl_tgt,
-            )
-            loss_p = policy_loss + lambda_anchor * anchor_loss
-            opt_p.zero_grad()
-            loss_p.backward()
-            torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 5.0)
-            opt_p.step()
+                # policy step: decomposed CE + anchor (policy net only)
+                boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
+                stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
+                p_out = policy_model(boards, stats)
+                policy_loss = sum(
+                    _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
+                    for b, s in enumerate(p_batch)
+                ) / len(p_batch)
+                am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
+                hl_tgt = torch.stack([torch.from_numpy(s["recorded_head_logits"]).float() for s in p_batch]).to(device)
+                anchor_loss = F.mse_loss(p_out["action_map"], am_tgt) + F.mse_loss(
+                    torch.stack([p_out[f"head{i + 1}_logits"] for i in range(policy_model.num_heads)],
+                                dim=1),
+                    hl_tgt,
+                )
+                loss_p = policy_loss + lambda_anchor * anchor_loss
+                opt_p.zero_grad()
+                loss_p.backward()
+                torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 5.0)
+                opt_p.step()
 
             # value step: MSE on weighted labels (value net only)
             v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch]).to(device)
@@ -298,15 +305,19 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
             torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
             opt_v.step()
 
-            tl += loss_p.detach().item() + value_loss.detach().item()
-            tp += policy_loss.detach().item()
-            tv += value_loss.detach().item()
-            ta += anchor_loss.detach().item()
+            if value_only:
+                tl += value_loss.detach().item()
+                tv += value_loss.detach().item()
+            else:
+                tl += loss_p.detach().item() + value_loss.detach().item()
+                tp += policy_loss.detach().item()
+                tv += value_loss.detach().item()
+                ta += anchor_loss.detach().item()
             n_steps += 1
         print(f"  epoch {epoch}: loss={tl/max(n_steps,1):.4f} "
               f"policy={tp/max(n_steps,1):.4f} value={tv/max(n_steps,1):.4f} "
-              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv})",
-              flush=True)
+              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv})"
+              + (" [value_only]" if value_only else ""), flush=True)
     if checkpoint:
         Path(checkpoint).parent.mkdir(parents=True, exist_ok=True)
         torch.save(
@@ -353,6 +364,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=str, default="auto",
                         help="'auto' (cuda if available), 'cuda', or 'cpu'")
+    parser.add_argument("--value-only", action="store_true",
+                        help="freeze the policy net, train only the value head "
+                             "(e.g. re-calibrate on a different tau)")
     args = parser.parse_args()
 
     from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
@@ -412,6 +426,7 @@ def main() -> None:
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_anchor=args.lambda_anchor,
             seed=args.seed, checkpoint=args.checkpoint, device=device,
+            value_only=args.value_only,
         )
     else:
         metrics = train(
