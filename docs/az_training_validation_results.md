@@ -237,5 +237,28 @@ position CE 初始就贡献 4.7 倍于 class CE 的 loss，且几乎不随训练
   当前训练规模**。修复方向应"加速 position 学习"而非"放弃 position"：单点 argmax 目标
   （减少冲突）、只保留大 mass 位置目标（过滤虚高项）、或单独提高 action_map 的学习率。
 
+## 16. 更新（2026-08-12 深夜）：真正的根因——MCTS 搜索坍缩到 LIGHTNING
+
+**决定性发现**：batch85 全部 14006 个样本，**99.3% 的 head0 目标 top-class 是 LIGHTNING**
+（class 17）。搜索 bundle 也几乎全是 `(17,-1,-1)`（样本0 bundle0 visit=0.988，3 head 全是
+LIGHTNING）。
+
+**这推翻此前所有 position/anchor 排查方向**——它们都是搜索坍缩的次生现象：
+1. **class CE 全量学不动**（纯 class-only 3 epochs 0.280→0.277）——目标 99.3% 是 LIGHTNING，
+   模型无法把 gen0120 继承的策略扭成"一直放闪电"
+2. **position CE 冲突/卡死**——有 position 的目标本来就稀少且被 LIGHTNING 主导
+3. **anchor 无效**——模型根本没在学，输出自然贴近记录值
+
+**因果链**：MCTS 搜索被 value 引导到 LIGHTNING 单峰 → 自对弈动作几乎全是放闪电 →
+训练目标坍缩到 LIGHTNING → 模型学不进去、策略不进步 → vs rule_v4 卡在 43-47%。
+
+**下一步**：修搜索坍缩，而非训练损失。怀疑方向：
+- value 网络高估 LIGHTNING 收益（闪电收益不对称）
+- MCTS bundle 采样探索不足，LIGHTNING 先验被过度放大
+- c_puct/探索参数不足以对抗先验坍缩
+
+**实验备注**：--pos-single（单点 position 目标）已实现，小样本过拟合中 pos CE 能降
+（0.656→0.633），但完整训练配置下无效（policy 0.848→0.8475，anchor≈0）——因根因在搜索坍缩。
+
 **代码状态**：az_train.py 已实现 ÷POS_SCALE=100 归一化 + POS_MASS_MIN=0.01 过滤，但两者均被
 实验证明无效。t_pos 默认从 0.3 调至 1.0（与 eval 侧一致，但训练侧应跟自对弈 0.3 对齐）。
