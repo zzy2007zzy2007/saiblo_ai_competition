@@ -100,8 +100,16 @@ def _marginalize(s: dict, head: int) -> dict:
 
 
 def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float,
-                        num_heads: int) -> torch.Tensor:
-    """Decomposed CE for one sample (all heads): class CE + position CE."""
+                        num_heads: int, pos_single: bool = False) -> torch.Tensor:
+    """Decomposed CE for one sample (all heads): class CE + position CE.
+
+    ``pos_single`` collapses each class's position target to its argmax
+    position (single-point target).  Multi-position targets in a sample are
+    often spread across non-adjacent cells (esp. LIGHTNING) which the smooth
+    action_map conv cannot match simultaneously — their gradients cancel.
+    Collapsing to one position removes the conflict; loss/divergence tests
+    show action_map then develops position discrimination much faster.
+    """
     cm = torch.from_numpy(s["class_mask"]).bool()
     pm = torch.from_numpy(s["position_mask"]).bool()
     legal = torch.where(cm)[0]
@@ -135,6 +143,9 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
         for c, pos_mass in target_pos.items():
             if c not in legal_list:
                 continue
+            if pos_single:
+                pos_mass = {max(pos_mass.items(), key=lambda kv: kv[1])[0]:
+                            max(pos_mass.values())}
             total_m = sum(pos_mass.values())
             if total_m <= 0:
                 continue
@@ -154,7 +165,8 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
 
 def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
                  t_class: float, t_pos: float, lambda_value: float,
-                 lambda_anchor: float, device: str = "cpu") -> tuple:
+                 lambda_anchor: float, device: str = "cpu",
+                 pos_single: bool = False) -> tuple:
     """Joint loss over two mini-batches: policy+anchor on policy_batch,
     value MSE on value_batch (both heads optimized together every step)."""
     boards = torch.stack([torch.from_numpy(s["board"]).float() for s in policy_batch]).to(device)
@@ -162,7 +174,7 @@ def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
     out = model(boards, stats)
 
     policy_loss = sum(
-        _sample_policy_loss(out, b, s, t_class, t_pos, model.num_heads)
+        _sample_policy_loss(out, b, s, t_class, t_pos, model.num_heads, pos_single)
         for b, s in enumerate(policy_batch)
     ) / len(policy_batch)
 
@@ -187,7 +199,8 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
           epochs: int = 5, batch_size: int = 32, lr: float = 1e-3,
           t_class: float = 0.5, t_pos: float = 0.3,
           lambda_value: float = 1.0, lambda_anchor: float = 1.0,
-          seed: int = 0, checkpoint: str = "", device: str = "cpu") -> dict:
+          seed: int = 0, checkpoint: str = "", device: str = "cpu",
+          pos_single: bool = False) -> dict:
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
     n = len(policy_samples)
@@ -208,7 +221,7 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
                 model, p_batch, v_batch,
                 t_class=t_class, t_pos=t_pos,
                 lambda_value=lambda_value, lambda_anchor=lambda_anchor,
-                device=device,
+                device=device, pos_single=pos_single,
             )
             optimizer.zero_grad()
             loss.backward()
@@ -238,13 +251,14 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
     return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
 
 
-def _policy_step(policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device):
+def _policy_step(policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device,
+                 pos_single: bool = False):
     """One policy step: decomposed CE + anchor. Returns (loss_p, policy_loss, anchor_loss)."""
     boards = torch.stack([torch.from_numpy(s["board"]).float() for s in p_batch]).to(device)
     stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in p_batch]).to(device)
     p_out = policy_model(boards, stats)
     policy_loss = sum(
-        _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads)
+        _sample_policy_loss(p_out, b, s, t_class, t_pos, policy_model.num_heads, pos_single)
         for b, s in enumerate(p_batch)
     ) / len(p_batch)
     am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float() for s in p_batch]).to(device)
@@ -280,7 +294,8 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
                 lambda_anchor: float = 1.0, seed: int = 0,
                 checkpoint: str = "", device: str = "cpu",
-                value_only: bool = False, value_passes: int = 1) -> dict:
+                value_only: bool = False, value_passes: int = 1,
+                pos_single: bool = False) -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
 
     Two separate networks, two optimizers — no shared-backbone coupling.
@@ -327,7 +342,8 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 v_batch = [value_samples[v_order[(v_pos + j) % nv]] for j in range(len(p_batch))]
                 v_pos += len(p_batch)
                 loss_p, policy_loss, anchor_loss = _policy_step(
-                    policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device)
+                    policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device,
+                    pos_single=pos_single)
                 value_loss = _value_step(value_model, v_batch, opt_v, device)
                 tl += loss_p.detach().item() + value_loss.detach().item()
                 tp += policy_loss.detach().item()
@@ -398,6 +414,11 @@ def main() -> None:
                         help="how many full passes over the VALUE pool per epoch "
                              "(decoupled from the policy pool size; value pool is "
                              "much larger so default 1 under-trains it — use 3)")
+    parser.add_argument("--pos-single", action="store_true",
+                        help="collapse each class's position target to its argmax "
+                             "position (single-point); multi-position targets are often "
+                             "spread across non-adjacent cells whose gradients cancel, "
+                             "making position CE unlearnable at practical step counts")
     args = parser.parse_args()
 
     from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
@@ -458,6 +479,7 @@ def main() -> None:
             lambda_anchor=args.lambda_anchor,
             seed=args.seed, checkpoint=args.checkpoint, device=device,
             value_only=args.value_only, value_passes=args.value_passes,
+            pos_single=args.pos_single,
         )
     else:
         metrics = train(
@@ -466,6 +488,7 @@ def main() -> None:
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_value=args.lambda_value, lambda_anchor=args.lambda_anchor,
             seed=args.seed, checkpoint=args.checkpoint, device=device,
+            pos_single=args.pos_single,
         )
     print(f"[train] done {metrics}", flush=True)
 
