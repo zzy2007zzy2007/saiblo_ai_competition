@@ -197,3 +197,26 @@ batch 71-85 用 value_passes=3 训练后（价值 loss 0.079→0.038，训透）
 **策略训练本身没推动模型**（模型输出几乎没变，自然与记录的输出接近），不是 anchor 在拉住。
 用"训练后模型 vs 训练前模型在采集数据上的输出 MSE"验证：az_r84→az_r85 变化仅 3.8e-5，且
 5 epoch 内 CE 未收敛——策略确实几乎没有学习。
+
+## 15. 更新（2026-08-12）：策略不学的根因——position CE 与 action_map 结构不匹配
+
+**现象**：过拟合测试（128 样本，50-100 epoch）——
+无 position CE 收敛 0.18→0.14，加 position CE 卡死 0.85→0.83。
+position CE 初始就贡献 4.7 倍于 class CE 的 loss，且几乎不随训练下降。
+
+**排查过程（含修正过的错误方向）**：
+1. ✗ **"÷100 尺度归一化"是错的**：raw/÷100/z-score 三种方式 position CE 数值几乎相同
+   （52.5 vs 52.6 vs 52.0）——在合法位置子集上做 softmax 对绝对尺度不敏感。已实现但无效。
+2. ✗ **"过滤 92% 的 float16 噪声项"无效**：92.2% 的 position target 对应 class 边际 mass<0.01
+   （median=0），过滤（POS_MASS_MIN=0.01）后过拟合反而更差（0.505→0.466 vs 0.362→0.329）。
+3. ✓ **真正机制**：大 position CE 项（>1.0）几乎全部来自 **class 17（LIGHTNING）**
+   （18 个大项中 15 个是 class 17）。LIGHTNING 的 action_map 通道在合法位置内**几乎没有区分度**
+   （std≈0.1，全部位置 logit 集中 -28.5~-29.0），模型无法编码闪电的目标位置 → 对目标位置给出
+   比 logsumexp 低 5.6 的 logit → position CE 单项贡献 5.33，且梯度无法有效降低它。
+
+**结论**：position CE 的问题不是归一化、不是噪声过滤，而是**模型 action_map 结构与 position 目标
+系统性不匹配**（尤其超级武器 LIGHTNING 类）。常规梯度下降无法通过 action_map 通道学会编码位置信息。
+修复方向需重新设计（如 position 目标只在"位置语义真实的 class"上启用、或换 position 编码方式）。
+
+**代码状态**：az_train.py 已实现 ÷POS_SCALE=100 归一化 + POS_MASS_MIN=0.01 过滤，但两者均被
+实验证明无效。t_pos 默认从 0.3 调至 1.0（与 eval 侧一致，但训练侧应跟自对弈 0.3 对齐）。
