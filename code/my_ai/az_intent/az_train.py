@@ -297,7 +297,7 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
     n = len(policy_samples)
     nv = len(value_samples)
 
-    def _value_pass(acc_tl, acc_tv, acc_steps):
+    def _value_pass(acc_tl, acc_tv, acc_vsteps, acc_steps):
         v_order = list(range(nv))
         rng.shuffle(v_order)
         for start in range(0, nv, batch_size):
@@ -305,15 +305,16 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
             value_loss = _value_step(value_model, v_batch, opt_v, device)
             acc_tl += value_loss.detach().item()
             acc_tv += value_loss.detach().item()
+            acc_vsteps += 1
             acc_steps += 1
-        return acc_tl, acc_tv, acc_steps
+        return acc_tl, acc_tv, acc_vsteps, acc_steps
 
     for epoch in range(epochs):
         tl = tp = tv = ta = 0.0
-        n_steps = 0
+        n_p = n_v = n_steps = 0
         if value_only:
             for _ in range(max(value_passes, 1)):
-                tl, tv, n_steps = _value_pass(tl, tv, n_steps)
+                tl, tv, n_v, n_steps = _value_pass(tl, tv, n_v, n_steps)
         else:
             # policy: 1 pass over the policy pool (with one interleaved value batch each)
             order = list(range(n))
@@ -332,13 +333,16 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 tp += policy_loss.detach().item()
                 tv += value_loss.detach().item()
                 ta += anchor_loss.detach().item()
+                n_p += 1
+                n_v += 1
                 n_steps += 1
             # value: additional passes over the full value pool (decoupled)
             for _ in range(1, value_passes):
-                tl, tv, n_steps = _value_pass(tl, tv, n_steps)
+                tl, tv, n_v, n_steps = _value_pass(tl, tv, n_v, n_steps)
+        # loss 用总步数平均；policy/anchor 只用 policy 步数平均，value 只用 value 步数平均
         print(f"  epoch {epoch}: loss={tl/max(n_steps,1):.4f} "
-              f"policy={tp/max(n_steps,1):.4f} value={tv/max(n_steps,1):.4f} "
-              f"anchor={ta/max(n_steps,1):.4f}  (policy pool {n}, value pool {nv}, "
+              f"policy={tp/max(n_p,1):.4f} value={tv/max(n_v,1):.4f} "
+              f"anchor={ta/max(n_p,1):.4f}  (policy pool {n}, value pool {nv}, "
               f"value_passes={value_passes})"
               + (" [value_only]" if value_only else ""), flush=True)
     if checkpoint:

@@ -180,6 +180,20 @@ batch 71-85 用 value_passes=3 训练后（价值 loss 0.079→0.038，训透）
 **工具**：新增 `code/my_ai/az_intent/make_mix_checkpoint.py` 一键拼接任意策略+价值 checkpoint
 （`--policy A --value B --out C`），便于复现上述消融。
 
-**附：anchor 权重实测**（batch85）：`--lambda-anchor` 默认 1.0，但实测 anchor loss 仅 ~3e-4
-（action_map MSE 3.3e-5 + head_logits MSE 2.6e-4），相对 policy loss ~0.026 小两个数量级，**实际约束力≈0**。
-anchor 项在当前实现里基本不起作用，不能依赖它防策略漂移。
+## 14. 更新（2026-08-12）：训练日志 policy loss 显示 bug（被稀释 33 倍）+ anchor 实测
+
+**显示 bug（已修复）**：`train_split` 的 epoch 日志用 `tp/n_steps` 打印 policy loss，但 `n_steps`
+统计了全部步数（policy 438 步 + 价值池额外 passes 14074 步 = 14512），`tp` 只累加 policy 步的 loss
+→ **policy loss 被稀释 33 倍**（14512/438）。batch71-85 日志里恒为 0.0256 的 policy loss 实为
+**0.85 左右**。同样 anchor 显示 0.0000 实为 ~4e-4。value loss 因 value 步占多数稀释不明显，数字可信。
+修复：policy/anchor 用 policy 步数平均，value 用 value 步数平均，loss 用总步数。
+
+**修正结论**：之前"策略 loss 趴在 0.026 不降"的观察错误——真实 policy loss 是 0.85 量级，且训练后
+依然几乎不降（az_r84 在 batch85 上 0.611 → az_r85 0.610，5 epoch 只降 0.1%）。**策略训练连拟合自己
+训练集都没做到**，进一步强化"策略侧无进步"的结论。
+
+**anchor 权重实测**（batch85）：`--lambda-anchor` 默认 1.0，但 anchor 梯度只有 CE 梯度的 **2.3%**
+（0.0035 vs 0.15）——anchor 对优化方向贡献≈0，不起锚定作用。anchor loss 小（~3e-4）的真正原因是
+**策略训练本身没推动模型**（模型输出几乎没变，自然与记录的输出接近），不是 anchor 在拉住。
+用"训练后模型 vs 训练前模型在采集数据上的输出 MSE"验证：az_r84→az_r85 变化仅 3.8e-5，且
+5 epoch 内 CE 未收敛——策略确实几乎没有学习。
