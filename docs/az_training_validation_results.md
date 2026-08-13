@@ -257,8 +257,31 @@ LIGHTNING）。
 - MCTS bundle 采样探索不足，LIGHTNING 先验被过度放大
 - c_puct/探索参数不足以对抗先验坍缩
 
+## 17. 更新（2026-08-13 凌晨）：坍缩机制定位——t_class 温度放大 LIGHTNING
+
+**修正第 16 节"value 高估"的猜测**：网络原始输出对 LIGHTNING 的偏好**并不极端**——
+az_r84 在 batch85 样本上，class 17 的 logits mean=0.422（其他 class 平均 -0.353），
+原始 softmax 下 class17 概率仅 **8.4%**。网络本身健康。
+
+**真正放大器是 `head_class_probs` 的 z-score + t_class=0.5**：
+```python
+logits = (head_logits - mean) / std   # z-score 后 std=1
+probs = np.exp(logits / t_class)      # t_class=0.5 放大 2 倍 → std=2
+```
+实测采样分布（模拟 360 采样 × 30 样本 × 3 head）：
+
+| t_class | LIGHTNING | 建塔类 0-15 | 非闪电 |
+|---------|-----------|-------------|--------|
+| 0.5（当前）| 84.9% | 1.0% | 15.1% |
+| 1.0 | 54.0% | 21.1% | 46.0% |
+| 1.5 | 31.2% | 41.0% | 68.8% |
+| 2.0 | 20.4% | 51.1% | 79.6% |
+
+**结论**：t_class=0.5 把 LIGHTNING 的相对优势（logit 0.42 vs -0.35）放大几十倍，softmax
+极端尖锐 → 采样几乎只选 LIGHTNING → 搜索 visit 坍缩 → 训练目标 99.8% LIGHTNING → 模型
+学不进策略。**调大 t_class（1.0~1.5）能给建塔类动作 21-41% 的采样机会**，恢复训练目标多样性。
+注意：真实搜索还有 MCTS/PUCT 进一步集中，实际效果需实测；t_class 同时影响搜索强度
+（66-69% 增强是在 0.5 下测的），调大需重验搜索增强。
+
 **实验备注**：--pos-single（单点 position 目标）已实现，小样本过拟合中 pos CE 能降
 （0.656→0.633），但完整训练配置下无效（policy 0.848→0.8475，anchor≈0）——因根因在搜索坍缩。
-
-**代码状态**：az_train.py 已实现 ÷POS_SCALE=100 归一化 + POS_MASS_MIN=0.01 过滤，但两者均被
-实验证明无效。t_pos 默认从 0.3 调至 1.0（与 eval 侧一致，但训练侧应跟自对弈 0.3 对齐）。
