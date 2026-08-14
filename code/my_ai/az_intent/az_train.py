@@ -55,17 +55,20 @@ def load_samples(pkl_paths: list[Path]) -> list[dict]:
 
 def add_weighted_labels(samples: list[dict], tau: float = 20.0,
                         label_scale: float = 1.0,
-                        label_mode: str = "rel") -> None:
+                        label_mode: str = "rel",
+                        mix_alpha: float = 0.5) -> None:
     """In-place: set ``value_label`` = exp-weighted future HP-diff (P0 view, /HP_SCALE).
 
     Per-frame instantaneous HP diff d_t is reconstructed from the stats feature
     (extras offset 22: stats[24] = bases[player].hp/50, stats[25] = bases[enemy].hp/50).
-    Two label forms (docs/value_label_future_weighted.md):
+    Label forms (docs/value_label_future_weighted.md):
       - "rel" (default): label_t = weighted_future_avg - d_t  (0-centered, predicts
         the future advantage CHANGE from here).  Design-recommended, but the search
         reads value as an absolute evaluation — mismatch (see results doc §19).
       - "abs": label_t = weighted_future_avg (absolute weighted future HP-diff;
         matches how the search consumes value as an absolute advantage).
+      - "mix": label_t = mix_alpha * d_t + (1 - mix_alpha) * weighted_future_avg
+        (current absolute HP-diff blended with the future trend).
     ``label_scale`` amplifies the labels so the trained value head's output
     magnitude matches the terminal-scale values the search expects (else the
     PUCT explore term dominates and search starves).
@@ -86,7 +89,12 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
         suffix = d[t] + gamma * suffix
         wsum = 1.0 + gamma * wsum
         raw = suffix / wsum
-        lab = raw if label_mode == "abs" else (raw - d[t])
+        if label_mode == "abs":
+            lab = raw
+        elif label_mode == "mix":
+            lab = mix_alpha * d[t] + (1.0 - mix_alpha) * raw
+        else:
+            lab = raw - d[t]
         label = float(np.clip(lab / HP_SCALE, -1.0, 1.0)) * label_scale
         # value must be from the SAMPLE's player perspective (features are
         # player-perspective; the search reads it as the current player's value)
@@ -406,10 +414,14 @@ def main() -> None:
                         help="amplify value labels so value-head output magnitude "
                              "matches the terminal scale the search expects (~6)")
     parser.add_argument("--label-mode", type=str, default="rel",
-                        choices=["rel", "abs"],
+                        choices=["rel", "abs", "mix"],
                         help="value label form: 'rel' = weighted_future_avg - d_t "
                              "(0-centered change, default), 'abs' = weighted_future_avg "
-                             "(absolute advantage, matches search's absolute read)")
+                             "(absolute advantage), 'mix' = blend of current d_t and "
+                             "weighted_future_avg (see --label-mix-alpha)")
+    parser.add_argument("--label-mix-alpha", type=float, default=0.5,
+                        help="for label_mode='mix': weight of current HP-diff d_t "
+                             "(1-alpha weights the future average)")
     parser.add_argument("--split", action="store_true",
                         help="train policy and value as two independent networks "
                              "(docs/az_split_policy_value_plan.md)")
@@ -476,7 +488,8 @@ def main() -> None:
         with open(path, "rb") as f:
             game = pickle.load(f)["samples"]
         add_weighted_labels(game, tau=args.tau, label_scale=args.label_scale,
-                            label_mode=args.label_mode)
+                            label_mode=args.label_mode,
+                            mix_alpha=args.label_mix_alpha)
         value_samples.extend(game)
     labels = np.asarray([s["value_label"] for s in value_samples])
     print(f"[train] policy {len(policy_samples)} samples, value {len(value_samples)} samples; "
