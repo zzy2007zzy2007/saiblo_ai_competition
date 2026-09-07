@@ -26,6 +26,7 @@ T_CLASS="${10:-0.5}"
 T_POS="${11:-0.3}"
 K="${12:-24}"
 VALUE_PASSES="${13:-3}"
+LABEL_MODE="${14:-abs}"
 
 cd "$REPO"
 mkdir -p "$DATA" "$CKPT_DIR"
@@ -49,7 +50,8 @@ for b in $(seq "$START_BATCH" $((START_BATCH + N_BATCHES - 1))); do
     "$PY" code/my_ai/az_intent/az_train.py \
         --init "$prev" --policy-dir "$BATCH_DIR" --data-dir "$DATA" \
         --checkpoint "$ckpt" --epochs 5 --tau 50 --label-scale 6 --split \
-        --max-value-batches 16 --device auto --value-passes "$VALUE_PASSES"
+        --max-value-batches 16 --device auto --value-passes "$VALUE_PASSES" \
+        --label-mode "${LABEL_MODE:-abs}"
     echo "[batch $b] 完成 -> $ckpt"
     prev="$ckpt"
 done
