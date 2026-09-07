@@ -390,3 +390,32 @@ apply 后局面"（depth0 greedy），能省掉多层 rollout 的 advance，大�
 **结论**：深度（多步 rollout）是本游戏搜索增强的**必要条件**，depth0 提速路线
 不成立。同时暴露：价值网络对"单步后局面"评估能力弱，深度 MCTS 靠多步平均
 补偿了这一弱点。
+
+## 22. 更新（2026-08-18）：价值标签两个关键 bug——stats index 错 + 视角抵消
+
+**发现过程**（depth0 实验 → 视角不对称 → 追查价值头输入）：
+1. depth0 greedy 全败（0%），怀疑价值网络"失明"
+2. 检查发现 BN+abs 价值头对"对称局面"P0/P1 视角不对称（都输出负）
+3. 追查价值标签计算 → 发现两个 bug：
+
+**Bug 1：stats index 错**。`add_weighted_labels` 原用 `stats[24]/stats[25]` 当
+双方 HP——实际 stats = 22 维 summarize features + 20 维 extras，`hp_delta`
+在 **stats[1]**（= player.hp - enemy.hp，player 视角）。stats[24]/[25] 是
+extras 里别的字段，**整个价值标签一直基于垃圾数据**。
+
+**Bug 2：视角抵消**。d[t] 未统一视角：同回合 P0(+hp_delta)/P1(-hp_delta)
+样本交错存储（同一物理局面两个视角），加权平均时 +6/-6 正负抵消 → 标签
+≈0。修复：d[t] 统一 P0 视角再做反向递推，末尾翻回各自 player 视角。
+
+**修复效果**：abs 标签 vs 真实 winner 相关 **+0.503**（修复前 ≈0.00）——
+有史以来最好。rel 也到 +0.262。
+
+**关键对照（解释历史矛盾）**：为什么"错误标签训的价值头"能打赢 raw（90%）？
+因为打赢 raw 的 gen0120_warm_cpp 价值头**不是用 az_train 的错误标签训的**——
+它是 value_warmup 训的，value_warmup **直接读 engine 真实终局 HP**
+（`state.bases[].hp`），标签一直正确。az_train 的未来加权标签路径（add_weighted_labels）
+**从诞生起就是坏的**——这解释了 az 迭代训练长期不进步，而"手工 warmup 价值头"
+有效。
+
+**待验证**：修复标签的价值头实测（depth4 搜索增强、vs rule_v4 28.1%，还需
+与 gen0120 基线对比确认贡献）。
