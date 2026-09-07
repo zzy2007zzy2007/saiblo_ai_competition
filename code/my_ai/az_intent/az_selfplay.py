@@ -33,7 +33,7 @@ def load_model_from_ckpt(ckpt_path: str):
         num_resblocks=ckpt.get("num_resblocks", 6),
         num_heads=ckpt.get("num_heads", 3),
         latent_dim=ckpt.get("latent_dim", 64),
-        no_bn=True,
+        no_bn=ckpt.get("no_bn", True),
     )
     model.load_state_dict(ckpt["model_state"])
     model.eval()
@@ -55,7 +55,7 @@ def load_split_models(ckpt_path: str):
             num_resblocks=ckpt.get("num_resblocks", 6),
             num_heads=ckpt.get("num_heads", 3),
             latent_dim=ckpt.get("latent_dim", 64),
-            no_bn=True,
+            no_bn=ckpt.get("no_bn", True),
         )
 
     policy_model = _build()
