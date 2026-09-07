@@ -72,8 +72,9 @@ class Depth0Greedy(BundleMCTS):
             if player == 1:
                 child_state.advance_round()
             v = float(self.net_fn(child_state, 1 - player)["value"])
-            # net_fn returns the *current* player's view; invert for root's view
-            child_vals.append(-v if player == 0 else v)
+            # net_fn(child, 1-player) returns the opponent's view of the child
+            # state; the root player's view is always its negation.
+            child_vals.append(-v)
 
         child_vals = np.asarray(child_vals)
         priors = np.asarray([c.prior for c in root.children])
