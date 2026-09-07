@@ -57,10 +57,14 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
                         label_scale: float = 1.0,
                         label_mode: str = "rel",
                         mix_alpha: float = 0.5) -> None:
-    """In-place: set ``value_label`` = exp-weighted future HP-diff (P0 view, /HP_SCALE).
+    """In-place: set ``value_label`` = exp-weighted future HP-diff (player view, /HP_SCALE).
 
-    Per-frame instantaneous HP diff d_t is reconstructed from the stats feature
-    (extras offset 22: stats[24] = bases[player].hp/50, stats[25] = bases[enemy].hp/50).
+    Per-frame instantaneous HP diff d_t comes from the stats feature at index 1
+    (``hp_delta`` = bases[player].hp - bases[enemy].hp, already player-perspective).
+    NOTE (2026-08-18): the original code read stats[24]/stats[25] believing them to
+    be per-side HP/50 — they are NOT (stats = 22 summarize features + 20 extras;
+    hp_delta lives at index 1).  This index bug made every value label garbage,
+    a likely root cause of value-head blindness / weird behavior (see doc §22).
     Label forms (docs/value_label_future_weighted.md):
       - "rel" (default): label_t = weighted_future_avg - d_t  (0-centered, predicts
         the future advantage CHANGE from here).  Design-recommended, but the search
@@ -78,12 +82,15 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
     n = len(samples)
     if n == 0:
         return
+    # d[t] unified to P0 view so the weighted average doesn't cancel:
+    # the game stores P0 and P1 decision samples interleaved within a round
+    # (P0 +hp_delta then P1 -hp_delta for the SAME physical position); mixing
+    # per-player deltas cancels to ~0.  Unify to P0 view for the recurrence,
+    # then flip back to each sample's player view at the end.
     d = np.empty(n, dtype=np.float64)
     for t, s in enumerate(samples):
-        if s["player"] == 0:
-            d[t] = (float(s["stats"][24]) - float(s["stats"][25])) * 50.0
-        else:
-            d[t] = (float(s["stats"][25]) - float(s["stats"][24])) * 50.0
+        hp = float(s["stats"][1])  # hp_delta = player.hp - enemy.hp (player view)
+        d[t] = hp if s["player"] == 0 else -hp
     suffix = wsum = 0.0
     for t in range(n - 1, -1, -1):
         suffix = d[t] + gamma * suffix
