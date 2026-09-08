@@ -421,7 +421,7 @@ def main() -> None:
                         help="amplify value labels so value-head output magnitude "
                              "matches the terminal scale the search expects (~6)")
     parser.add_argument("--label-mode", type=str, default="rel",
-                        choices=["rel", "abs", "mix"],
+                        choices=["rel", "abs", "mix", "terminal"],
                         help="value label form: 'rel' = weighted_future_avg - d_t "
                              "(0-centered change, default), 'abs' = weighted_future_avg "
                              "(absolute advantage), 'mix' = blend of current d_t and "
@@ -494,9 +494,17 @@ def main() -> None:
     for path in value_paths:
         with open(path, "rb") as f:
             game = pickle.load(f)["samples"]
-        add_weighted_labels(game, tau=args.tau, label_scale=args.label_scale,
-                            label_mode=args.label_mode,
-                            mix_alpha=args.label_mix_alpha)
+        if args.label_mode == "terminal":
+            # 用采集时已存的终局 HP 差标签（value_target，value_warmup 风格，
+            # 每局所有样本同值、clip 到 ±1）——对齐被验证有效的 value_warmup。
+            for s in game:
+                if "value_target" not in s:
+                    raise SystemExit(f"terminal mode: {path} 无 value_target 字段")
+                s["value_label"] = float(s["value_target"])
+        else:
+            add_weighted_labels(game, tau=args.tau, label_scale=args.label_scale,
+                                label_mode=args.label_mode,
+                                mix_alpha=args.label_mix_alpha)
         value_samples.extend(game)
     labels = np.asarray([s["value_label"] for s in value_samples])
     print(f"[train] policy {len(policy_samples)} samples, value {len(value_samples)} samples; "
