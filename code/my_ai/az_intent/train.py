@@ -43,8 +43,8 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96,
         with torch.no_grad():
             out = model(board, stats)
         heads = [out[f"head{i + 1}_logits"].squeeze(0).numpy() for i in range(model.num_heads)]
-        raw = float(out["value"].squeeze(0).item())
-        value = float(torch.tanh(raw)) if value_tanh else raw
+        v_t = out["value"].squeeze(0)
+        value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
         return {
             "action_map": out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
@@ -72,8 +72,8 @@ def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions:
             v_out = value_model(board, stats)
         heads = [p_out[f"head{i + 1}_logits"].squeeze(0).numpy()
                  for i in range(policy_model.num_heads)]
-        raw = float(v_out["value"].squeeze(0).item())
-        value = float(torch.tanh(raw)) if value_tanh else raw
+        v_t = v_out["value"].squeeze(0)
+        value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
         return {
             "action_map": p_out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
