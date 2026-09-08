@@ -297,13 +297,24 @@ def _policy_step(policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, de
     return loss_p, policy_loss, anchor_loss
 
 
-def _value_step(value_model, v_batch, opt_v, device):
-    """One value step: MSE on weighted labels. Returns value_loss."""
+def _value_step(value_model, v_batch, opt_v, device,
+                anchor_model=None, lambda_anchor_v: float = 0.0):
+    """One value step: MSE on labels + optional backbone anchor.
+
+    ``anchor_model`` (frozen copy of the value net at training start) anchors the
+    value net's shared backbone so value-only training doesn't drift/collapse the
+    features — mirrors value_warmup's shared-backbone anchor that produced a good
+    value head while az's free value-net backbone drifted. Returns value_loss.
+    """
     v_boards = torch.stack([torch.from_numpy(s["board"]).float() for s in v_batch]).to(device)
     v_stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in v_batch]).to(device)
     v_out = value_model(v_boards, v_stats)
     v_tgt = torch.as_tensor([s["value_label"] for s in v_batch], dtype=torch.float32).to(device)
     value_loss = F.mse_loss(v_out["value"].squeeze(-1), v_tgt)
+    if anchor_model is not None and lambda_anchor_v > 0:
+        with torch.no_grad():
+            ref = anchor_model(v_boards, v_stats)["state_emb"]
+        value_loss = value_loss + lambda_anchor_v * F.mse_loss(v_out["state_emb"], ref)
     opt_v.zero_grad()
     value_loss.backward()
     torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
@@ -317,7 +328,8 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 lambda_anchor: float = 1.0, seed: int = 0,
                 checkpoint: str = "", device: str = "cpu",
                 value_only: bool = False, value_passes: int = 1,
-                pos_single: bool = False) -> dict:
+                pos_single: bool = False,
+                value_anchor: float = 0.0) -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
 
     Two separate networks, two optimizers — no shared-backbone coupling.
@@ -334,12 +346,25 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
     n = len(policy_samples)
     nv = len(value_samples)
 
+    # value-only backbone anchor: freeze the value net at its starting weights so
+    # value-only training can't drift/collapse the shared feature backbone.
+    v_anchor_model = None
+    if value_only and value_anchor > 0:
+        import copy as _copy
+        v_anchor_model = _copy.deepcopy(value_model)
+        v_anchor_model.eval()
+        for p in v_anchor_model.parameters():
+            p.requires_grad_(False)
+        v_anchor_model.to(device)
+
     def _value_pass(acc_tl, acc_tv, acc_vsteps, acc_steps):
         v_order = list(range(nv))
         rng.shuffle(v_order)
         for start in range(0, nv, batch_size):
             v_batch = [value_samples[v_order[(start + j) % nv]] for j in range(min(batch_size, nv - start))]
-            value_loss = _value_step(value_model, v_batch, opt_v, device)
+            value_loss = _value_step(value_model, v_batch, opt_v, device,
+                                     anchor_model=v_anchor_model,
+                                     lambda_anchor_v=value_anchor)
             acc_tl += value_loss.detach().item()
             acc_tv += value_loss.detach().item()
             acc_vsteps += 1
@@ -441,6 +466,11 @@ def main() -> None:
     parser.add_argument("--value-only", action="store_true",
                         help="freeze the policy net, train only the value head "
                              "(e.g. re-calibrate on a different tau)")
+    parser.add_argument("--value-anchor", type=float, default=0.0,
+                        help="value-only: anchor the value net's backbone (state_emb) "
+                             "to its frozen starting weights with this MSE weight — "
+                             "prevents value-only training from drifting/collapsing "
+                             "the features (mirrors value_warmup's shared-backbone anchor)")
     parser.add_argument("--value-passes", type=int, default=1,
                         help="how many full passes over the VALUE pool per epoch "
                              "(decoupled from the policy pool size; value pool is "
@@ -521,6 +551,7 @@ def main() -> None:
             seed=args.seed, checkpoint=args.checkpoint, device=device,
             value_only=args.value_only, value_passes=args.value_passes,
             pos_single=args.pos_single,
+            value_anchor=args.value_anchor,
         )
     else:
         metrics = train(
