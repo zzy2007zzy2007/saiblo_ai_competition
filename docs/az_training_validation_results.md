@@ -469,3 +469,27 @@ az_fixed 线（BN 修复 + 标签双 bug 修复）从 gen0120_warm_cpp_bn 迭代
 **当前最佳**：训过策略 + 原版价值头 = 34.4%（mix_r10p_bn0v）。价值头
 重训路径（无论标签）都不如保留原版。下一步待定：可能是数据/训练方式
 问题，或接受原版价值头继续迭代策略。
+
+## 25. 更新（2026-09-08）：价值头复现实验——锁定原版训练配方
+
+原版 gen0120_warm_cpp 价值头（配 az_r10 策略 = 34.4%）的精确训练命令
+（从历史会话恢复）：
+```
+value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt \
+    --games 200 --workers 8 --data-dir warm_data_cpp \
+    --checkpoint gen0120_warm_cpp.pt --epochs 10 --native-engine
+```
+
+复现发现：
+1. 用 gen_0120_ms.pt（3头）复现得 25%（vs 原版 34.4%）——init 不对
+2. **原版 hotstart 是 ga_ss_20260730_093908/gen_0120.pt（1头，build_model 展开 3头）**
+3. 正在用原版 hotstart 完整复现（200局/10ep/native），验证能否到 34.4%
+
+**复现成功**：用原版配方（ga_ss gen_0120 + 200局 + 10ep + native）复现的
+价值头配 az_r10 策略 = **34.4%**，与原版完全一致。
+之前 25% 复现失败 = 用错 init（gen_0120_ms vs ga_ss gen_0120）。
+
+**核心结论**：价值头训练配方已锁定且可复现。value_warmup（重放原始策略 +
+共享骨干 anchor + 终局标签）稳定产出好价值头；而 az_train value-only 路径
+（pkl 搜索自对弈数据 + split 双网）无论标签都训不好。问题锁定在
+**az 训练管线 vs value_warmup 管线的差异**。
