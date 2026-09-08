@@ -67,7 +67,7 @@ def load_split_models(ckpt_path: str):
     return policy_model, value_model
 
 
-def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor):
+def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True):
     """Build (anchor_model, net_fn) for a checkpoint — single or split.
 
     ``anchor_model`` is the policy network (used to record the anchor outputs
@@ -77,10 +77,11 @@ def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor):
     if "value_state" in ckpt:
         from my_ai.az_intent.train import make_split_net_fn
         policy_model, value_model = load_split_models(ckpt_path)
-        return policy_model, make_split_net_fn(policy_model, value_model, feature_extractor)
+        return policy_model, make_split_net_fn(policy_model, value_model, feature_extractor,
+                                               value_tanh=value_tanh)
     from my_ai.az_intent.train import make_net_fn
     model = load_model_from_ckpt(ckpt_path)
-    return model, make_net_fn(model, feature_extractor)
+    return model, make_net_fn(model, feature_extractor, value_tanh=value_tanh)
 
 
 def make_initial_state(seed: int, native_engine: bool = False):

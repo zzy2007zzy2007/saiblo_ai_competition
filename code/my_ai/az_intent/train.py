@@ -26,11 +26,14 @@ for p in (_REPO, _CODE):
         sys.path.insert(0, str(p))
 
 
-def make_net_fn(model, feature_extractor, max_actions: int = 96):
+def make_net_fn(model, feature_extractor, max_actions: int = 96,
+                value_tanh: bool = True):
     """Wrap the torch model into the net_fn interface used by MCTS/self-play.
 
     ``value`` is passed through tanh so the search Q is always bounded (the
     value head is re-initialized but may output large values early on).
+    ``value_tanh=False`` keeps the raw value-head output (experiment: tanh
+    saturates large abs-label-trained value heads, flattening discrimination).
     """
     def net_fn(state, player):
         model.eval()  # inference path: no dropout, fixed BN
@@ -40,7 +43,8 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96):
         with torch.no_grad():
             out = model(board, stats)
         heads = [out[f"head{i + 1}_logits"].squeeze(0).numpy() for i in range(model.num_heads)]
-        value = float(torch.tanh(out["value"].squeeze(0)).item())
+        raw = float(out["value"].squeeze(0).item())
+        value = float(torch.tanh(raw)) if value_tanh else raw
         return {
             "action_map": out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
@@ -49,11 +53,13 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96):
     return net_fn
 
 
-def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions: int = 96):
+def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions: int = 96,
+                      value_tanh: bool = True):
     """net_fn over two independent networks (policy + value) — docs/az_split_policy_value_plan.md.
 
     Same interface as make_net_fn so the MCTS is agnostic.  ``value`` is passed
     through tanh (bounded Q), matching the single-model path.
+    ``value_tanh=False`` keeps the raw value-head output (experiment).
     """
     def net_fn(state, player):
         policy_model.eval()
@@ -66,7 +72,8 @@ def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions:
             v_out = value_model(board, stats)
         heads = [p_out[f"head{i + 1}_logits"].squeeze(0).numpy()
                  for i in range(policy_model.num_heads)]
-        value = float(torch.tanh(v_out["value"].squeeze(0)).item())
+        raw = float(v_out["value"].squeeze(0).item())
+        value = float(torch.tanh(raw)) if value_tanh else raw
         return {
             "action_map": p_out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,

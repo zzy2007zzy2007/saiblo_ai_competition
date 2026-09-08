@@ -33,7 +33,7 @@ import numpy as np
 
 
 def _worker(args: tuple) -> dict:
-    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine = args
+    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine = args
     import torch
     torch.set_num_threads(1)
 
@@ -108,7 +108,7 @@ def _worker(args: tuple) -> dict:
         from my_ai.az_intent.bundle_mcts import BundleMCTS
         from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
 
-        _, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
+        _, net_fn = make_net_fn_from_ckpt(ckpt_path, feat, value_tanh=value_tanh)
         if depth0:
             from my_ai.az_intent.az_depth0_greedy import Depth0Greedy
             bmcts = Depth0Greedy(net_fn, iterations=iterations, k=k,
@@ -185,6 +185,9 @@ def main() -> None:
     parser.add_argument("--depth0", action="store_true",
                         help="use depth-0 greedy search (value candidate post-apply states) "
                              "instead of full MCTS rollout")
+    parser.add_argument("--no-value-tanh", action="store_true",
+                        help="keep the raw value-head output (skip tanh) in net_fn — "
+                             "experiment: tanh saturates large abs-label value heads")
     parser.add_argument("--k", type=int, default=24, help="bundle sampling top-k (default 24)")
     parser.add_argument("--c-puct", type=float, default=1.25,
                         help="MCTS exploration constant (explore = c_puct * prior * ...)")
@@ -208,7 +211,8 @@ def main() -> None:
         (args.checkpoint, args.iterations, args.max_depth_rounds, args.seed + s,
          args.our_player if args.our_player >= 0 else s % 2,
          args.opponent, args.baseline_hotstart, args.no_search, args.select_by_prior,
-         args.intent_decoding, args.one_head, args.bundle_mcts, args.depth0, args.k, args.c_puct,
+         args.intent_decoding, args.one_head, args.bundle_mcts, args.depth0,
+         not args.no_value_tanh, args.k, args.c_puct,
          args.t_class, args.t_pos,
          args.self_raw_opponent, args.max_rounds, args.native_engine)
         for s in range(args.games)
