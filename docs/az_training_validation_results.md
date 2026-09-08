@@ -442,3 +442,30 @@ az_fixed 线（BN 修复 + 标签双 bug 修复）从 gen0120_warm_cpp_bn 迭代
 **待查**：为什么价值头训练（BN + abs 标签）会训坏？value loss 下降 ≠ 搜索决策
 质量好。怀疑：标签仍与搜索用法不匹配（abs 加权未来 vs 搜索期望的绝对评估）、
 或价值头对 apply 后局面评估失准、或视角问题残留。
+
+## 24. 更新（2026-09-08）：terminal 终局标签重训意外失败——问题不在标签在数据/训练
+
+用 az_fixed batch1-10 数据 + 终局标签（value_target 字段，value_warmup 风格）
+重训价值头（配 az_r10 策略），vs rule_v4 = **3.1%（1W/31L）**——比 tau 标签
+任何配置还差。
+
+**完整价值头矩阵（都配 az_r10 策略）**：
+| 价值头 | 标签 | 训练方式 | vs rule_v4 |
+|--------|------|---------|-----------|
+| 原版 gen0120 | value_warmup 终局 | value_warmup | **34.4%** |
+| terminal 重训 | 终局 | az value-only | 3.1% |
+| ls1 | tau abs | az value-only | 15.6% |
+| ls6 | tau abs | az value-only | 9.4% |
+
+**反直觉**：原版（终局标签，34.4%）和 terminal 重训（同样终局标签，3.1%）
+标签语义相同，成绩天差地别。差别只在：训练方式（value_warmup vs az value-only）
+和数据（gen0120 原始轨迹 vs az_fixed batch1-10 自对弈轨迹）。
+
+**假设**：问题不在标签语义，而在：
+1. **az_fixed batch1-10 自对弈数据质量低**——az 迭代早期策略混乱，对局
+   终局结果含噪声，不适合做价值标签
+2. **value_warmup 的训练方式**（重放轨迹 + anchor 保护）优于 az 的 value-only
+
+**当前最佳**：训过策略 + 原版价值头 = 34.4%（mix_r10p_bn0v）。价值头
+重训路径（无论标签）都不如保留原版。下一步待定：可能是数据/训练方式
+问题，或接受原版价值头继续迭代策略。
