@@ -59,12 +59,17 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
                         mix_alpha: float = 0.5) -> None:
     """In-place: set ``value_label`` = exp-weighted future HP-diff (player view, /HP_SCALE).
 
-    Per-frame instantaneous HP diff d_t comes from the stats feature at index 1
-    (``hp_delta`` = bases[player].hp - bases[enemy].hp, already player-perspective).
-    NOTE (2026-08-18): the original code read stats[24]/stats[25] believing them to
-    be per-side HP/50 — they are NOT (stats = 22 summarize features + 20 extras;
-    hp_delta lives at index 1).  This index bug made every value label garbage,
-    a likely root cause of value-head blindness / weird behavior (see doc §22).
+    Per-frame instantaneous HP diff d_t is taken from stats[1] (``hp_delta`` =
+    bases[player].hp - bases[enemy].hp, player perspective).  It is numerically
+    identical to the original ``(stats[24]-stats[25])*50`` form — see below.
+    NOTE (2026-09-09 correction): the 2026-09-07 commit called the original code
+    an "index bug" and claimed the labels had always been garbage.  That was a
+    MISDIAGNOSIS.  stats = 22 summarize features + 20 extras, so extras[2]/[3]
+    land exactly at indices 24/25 (bases[player].hp/50, bases[enemy].hp/50) — and
+    the original player==1 branch flipped the index order, so d_t was already a
+    unified P0 view.  Old and new labels are identical (corr 0.999999); the net
+    effect of the "fix" was zero.  The value-head problem is the DATA (see
+    results doc §26), not the label formula.
     Label forms (docs/value_label_future_weighted.md):
       - "rel" (default): label_t = weighted_future_avg - d_t  (0-centered, predicts
         the future advantage CHANGE from here).  Design-recommended, but the search
@@ -82,11 +87,11 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
     n = len(samples)
     if n == 0:
         return
-    # d[t] unified to P0 view so the weighted average doesn't cancel:
-    # the game stores P0 and P1 decision samples interleaved within a round
-    # (P0 +hp_delta then P1 -hp_delta for the SAME physical position); mixing
-    # per-player deltas cancels to ~0.  Unify to P0 view for the recurrence,
-    # then flip back to each sample's player view at the end.
+    # d[t] in a unified P0 view: P0/P1 decision samples of one round are stored
+    # interleaved (P0 +hp_delta, P1 -hp_delta for the same physical position), so
+    # a per-player-perspective d[t] would cancel in the weighted average.  This
+    # matches the original (stats[24]-stats[25])*50 form, which also unified to P0
+    # by flipping the index order for player==1.
     d = np.empty(n, dtype=np.float64)
     for t, s in enumerate(samples):
         hp = float(s["stats"][1])  # hp_delta = player.hp - enemy.hp (player view)
