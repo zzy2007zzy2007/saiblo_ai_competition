@@ -343,7 +343,7 @@ az_train.py --init az_fixed/gen0120_bn_init.pt --policy-dir az_fixed/data/batch1
 | arm | 标签 | vs rule_v4 |
 |-----|------|-----------|
 | `az_frozen_gpu` | abs, scale 6 | **6.2%**（2W/30L） |
-| `az_frozen_terminal_gpu` | terminal | ~4.5%（23/32, 1W） |
+| `az_frozen_terminal_gpu` | terminal | **3.1%**（1W/31L） |
 | 对照：az 数据不冻结 | abs, scale 6 | 9.4% |
 
 **结论：冻结骨干救不了 az 数据**——两个标签模式都更差。
@@ -363,6 +363,17 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
 
 1. **冻结骨干**是"训练稳定性"的正解（gen 数据 25-34%、跨设备可复现），但**不是"数据没信号"的解**。
 2. **az 自对弈数据是瓶颈**（§26 结论成立）：标签弱、胶着局多、决定性局仅 36%。
-   在 az 数据上，不冻结 9.4%、冻结 6.2%/4.5%——怎么训都差。
+   在 az 数据上，不冻结 9.4%、冻结 6.2%/3.1%——怎么训都差。
 3. 冻结骨干用的是 **gen 数据的骨干**，没有机会适配 az 状态分布，可能是它在 az 数据上更差的原因之一。
 4. 下一步方向应回到**数据侧**（对手池 / 更多对局 / 混合数据），而不是继续调价值头训练。
+
+## 2026-09-09 22:09:49 — eval_azfrozen_term
+
+- **commit**: `016fac8` (dirty: 16 files)
+- **exit**: 0，用时 3341s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_azfrozen_term.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
+  ```
+- **output**: `training_history/runs/20260909_220949_eval_azfrozen_term/output.log`
+- **result**: _待填_
