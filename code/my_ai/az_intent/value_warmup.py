@@ -278,17 +278,25 @@ def main() -> None:
     parser.add_argument("--lambda-value", type=float, default=1.0)
     parser.add_argument("--native-engine", action="store_true",
                         help="collect on the C++ engine (official rules) instead of the Python SDK engine")
+    parser.add_argument("--skip-collect", action="store_true",
+                        help="reuse existing npz files in --data-dir instead of collecting new games")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     model = build_model(args.hotstart)
     model.eval()
 
-    seeds = [args.seed * 1000 + g for g in range(args.games)]
-    print(f"[warmup] collecting {args.games} self-play games ({args.workers} workers) "
-          f"[engine={'C++' if args.native_engine else 'python'}]...", flush=True)
-    npz_paths = collect_games_parallel(args.hotstart, seeds, args.data_dir, args.workers,
-                                       native_engine=args.native_engine)
+    if args.skip_collect:
+        npz_paths = sorted(Path(args.data_dir).glob("*.npz"))
+        print(f"[warmup] skip-collect: {len(npz_paths)} npz files in {args.data_dir}", flush=True)
+        if not npz_paths:
+            raise SystemExit(f"[warmup] no npz found in {args.data_dir}")
+    else:
+        seeds = [args.seed * 1000 + g for g in range(args.games)]
+        print(f"[warmup] collecting {args.games} self-play games ({args.workers} workers) "
+              f"[engine={'C++' if args.native_engine else 'python'}]...", flush=True)
+        npz_paths = collect_games_parallel(args.hotstart, seeds, args.data_dir, args.workers,
+                                           native_engine=args.native_engine)
 
     print("[warmup] loading all data into memory...", flush=True)
     data = load_all_data(npz_paths)
