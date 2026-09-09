@@ -95,3 +95,73 @@ bash code/run_logged.sh <实验名> <命令...>
 
 - **cmd**: `value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_gpu.pt --epochs 10 --skip-collect --device auto`
 - **result**: 训练完成（value loss 0.0529）；`mix_r10p_geninit_gpu.pt` vs rule_v4 测试进行中。用途：区分"init 是关键"还是"GPU 训练有问题"。
+
+## 2026-09-09 17:07:52 — vw_wcpp2_gpu
+
+- **commit**: `7528ad3` (dirty: 15 files)
+- **exit**: 0，用时 884s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp2 --checkpoint training_history/az_fixed/gen0120_warm_cpp2_gpu.pt --epochs 10 --skip-collect --device auto
+  ```
+- **output**: `training_history/runs/20260909_170752_vw_wcpp2_gpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 17:08:24 — vw_cpu_faithful
+
+- **commit**: `7528ad3` (dirty: 15 files)
+- **exit**: 0，用时 2009s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_cpu.pt --epochs 10 --skip-collect --device cpu
+  ```
+- **output**: `training_history/runs/20260909_170824_vw_cpu_faithful/output.log`
+- **result**: _待填_
+
+## 2026-09-09 17:43:02 — vw_gpu_no_tf32
+
+- **commit**: `7528ad3` (dirty: 16 files)
+- **exit**: 0，用时 488s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_gpu_notf32.pt --epochs 10 --skip-collect --device auto --no-tf32
+  ```
+- **output**: `training_history/runs/20260909_174302_vw_gpu_no_tf32/output.log`
+- **result**: _待填_
+
+---
+
+## 2026-09-09 — 34.4% 复现失败：根因是"训练对计算路径的系统性浮点差异极其敏感"
+
+### 排除的假设
+
+| 假设 | 结论 |
+|---|---|
+| 数据用错（`warm_data_cpp` vs `warm_data_cpp2`） | **排除**——两份数据集逐位相同（同 seed、同 board、同 value_target） |
+| BN 训练破坏价值头 | **排除**——no_bn 9.4% vs BN 6.2%，两者都差 |
+| init 不同 | **部分**——ga_ss/gen_0120 15.6% vs gen0120_bn_init 9.4%，init 有影响但不是主因 |
+| TF32 | **排除**——GPU+no-TF32 权重 corr 0.7156 ≈ GPU+TF32 0.7176 |
+| GPU 计算有 bug | **排除**——CPU vs GPU 梯度相对误差 1.8e-5，比 CPU 换线程数的 2.4e-5 还小 |
+
+### 核心证据
+
+- **CPU 复现与历史好头逐位相同**（w_corr = 1.00000，maxdiff = 0.0000）→ 34.4% 是 CPU/默认线程路径的确定解
+- **GPU 训练落在另一个解**（w_corr 0.7176）→ 15.6%
+- 两次 GPU 训练彼此逐位相同（w_corr = 1.0）→ GPU 路径自身可复现
+- 参数组散度：`policy_heads` corr 0.999（anchor loss 钉死输出），**`resblocks` 骨干 corr 0.246**（max|diff| 3.69 ≈ 20×std）→ 骨干自由漂移
+- 但**两者都远离 init**（corr 均 ~0.51，GPU 甚至更近）→ **漂移量不是质量差异的原因**
+- 梯度差分析：单批 ‖Δg‖/‖g‖ ≈ 1.4e-5~5.6e-5；**不同批次 Δg 的平均 cos = +0.31**，‖mean Δg‖/mean‖Δg‖ = **0.72** → 差异含**系统性偏置**，不是随机噪声。1e-5 × 5 万步 ≈ 0.5，可解释 w_corr 0.72 的散度。
+
+### 结论
+
+价值头训练在一个**欠约束的大空间**里自由优化（anchor loss 只约束输出、不约束权重），
+因此对计算路径的**系统性浮点差异**极度敏感：CPU/GPU（或换线程数）会确定性但任意地
+落到不同解，而这些解的搜索强度差 2 倍多（34.4% vs 15.6%）。
+
+**"34.4%" 不是"正确的解"，只是 CPU/默认线程那条路径恰好走到的解。**
+
+### 待验证 / 修法
+
+- 正在验证：CPU + 8 线程是否也训出不同的解（若成立，则与设备无关）
+- 修法候选：① 冻结骨干只训价值头；② 对 init 骨干加权重空间锚定（L2）
+- 短期工程解：价值头统一用 **CPU + 固定线程数** 训练（逐位可复现）

@@ -284,7 +284,7 @@ class AZTrainer:
         print(f"[train] checkpoint saved -> {path}", flush=True)
 
 
-def build_model(ckpt_path: str | None) -> nn.Module:
+def build_model(ckpt_path: str | None, keep_bn: bool = False) -> nn.Module:
     from my_ai.network import create_model
 
     if ckpt_path is not None:
@@ -295,11 +295,11 @@ def build_model(ckpt_path: str | None) -> nn.Module:
             num_resblocks=cfg["num_resblocks"],
             num_heads=target_heads,
             latent_dim=cfg["latent_dim"],
-            no_bn=True,  # unified: fold BN checkpoints, train without BN
+            no_bn=not keep_bn,  # default: fold BN checkpoints, train without BN
         )
-        load_hotstart(model, ckpt_path, fold_bn=True)
+        load_hotstart(model, ckpt_path, fold_bn=not keep_bn)
     else:
-        model = create_model(num_heads=3)
+        model = create_model(num_heads=3, no_bn=not keep_bn)
     return model
 
 

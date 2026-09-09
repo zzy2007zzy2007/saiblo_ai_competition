@@ -195,21 +195,25 @@ def train_in_memory(
     lambda_value: float = 1.0,
     seed: int = 0,
     log_interval: int = 200,
+    device: str = "cpu",
 ) -> dict:
     """Policy-anchor + value training on in-memory float16 arrays (per-batch f32)."""
     import time
 
     v_t = data["value_target"]
+    print(f"  [train] device={device}", flush=True)
     print(f"  [train] value targets: min={v_t.min():.3f} max={v_t.max():.3f} "
           f"mean={v_t.mean():.3f} std={v_t.std():.3f} "
           f"positive={100*(v_t>0).mean():.1f}% negative={100*(v_t<0).mean():.1f}%", flush=True)
 
+    model.to(device)
+    print(f"  [train] model on {next(model.parameters()).device}", flush=True)
     # value head output BEFORE training on a fixed probe batch
     probe_idx = np.arange(min(64, data["board"].shape[0]))
-    probe_board = torch.from_numpy(data["board"][probe_idx]).float()
-    probe_stats = torch.from_numpy(data["stats"][probe_idx]).float()
+    probe_board = torch.from_numpy(data["board"][probe_idx]).float().to(device)
+    probe_stats = torch.from_numpy(data["stats"][probe_idx]).float().to(device)
     with torch.no_grad():
-        v_before = model(probe_board, probe_stats)["value"].squeeze(-1).numpy()
+        v_before = model(probe_board, probe_stats)["value"].squeeze(-1).cpu().numpy()
     print(f"  [train] value head BEFORE: pred min={v_before.min():.3f} max={v_before.max():.3f} "
           f"std={v_before.std():.3f}  (target std={v_t.std():.3f})", flush=True)
 
@@ -227,11 +231,11 @@ def train_in_memory(
         batch_t0 = time.perf_counter()
         for start in range(0, n, batch_size):
             idx = order[start : start + batch_size]
-            board = torch.from_numpy(data["board"][idx]).float()
-            stats = torch.from_numpy(data["stats"][idx]).float()
-            a_map = torch.from_numpy(data["action_map"][idx]).float()
-            h_logits = torch.from_numpy(data["head_logits"][idx]).float()
-            v_tgt = torch.from_numpy(data["value_target"][idx]).float()
+            board = torch.from_numpy(data["board"][idx]).float().to(device)
+            stats = torch.from_numpy(data["stats"][idx]).float().to(device)
+            a_map = torch.from_numpy(data["action_map"][idx]).float().to(device)
+            h_logits = torch.from_numpy(data["head_logits"][idx]).float().to(device)
+            v_tgt = torch.from_numpy(data["value_target"][idx]).float().to(device)
             loss, a, v = _train_batch(
                 model, optimizer, board, stats, a_map, h_logits, v_tgt, lambda_value
             )
@@ -254,7 +258,7 @@ def train_in_memory(
     model.eval()
 
     with torch.no_grad():
-        v_after = model(probe_board, probe_stats)["value"].squeeze(-1).numpy()
+        v_after = model(probe_board, probe_stats)["value"].squeeze(-1).cpu().numpy()
     print(f"  [train] value head AFTER:  pred min={v_after.min():.3f} max={v_after.max():.3f} "
           f"std={v_after.std():.3f}", flush=True)
     print(f"  [train] probe value targets: {v_t[probe_idx].round(2)}", flush=True)
@@ -280,10 +284,37 @@ def main() -> None:
                         help="collect on the C++ engine (official rules) instead of the Python SDK engine")
     parser.add_argument("--skip-collect", action="store_true",
                         help="reuse existing npz files in --data-dir instead of collecting new games")
+    parser.add_argument("--keep-bn", action="store_true",
+                        help="keep BatchNorm from the hotstart checkpoint instead of folding it "
+                             "into no_bn (hotstart must be a BN checkpoint)")
+    parser.add_argument("--device", type=str, default="auto",
+                        help="'auto' picks cuda when available; use 'cpu' to force CPU")
+    parser.add_argument("--threads", type=int, default=-1,
+                        help="intra-op threads; -1 = auto (1 on GPU to avoid thread thrash, "
+                             "PyTorch default on CPU)")
+    parser.add_argument("--no-tf32", action="store_true",
+                        help="disable TF32 for matmul+cuDNN (GPU trains in full FP32; "
+                             "TF32's 10-bit mantissa can send training to a different basin)")
     args = parser.parse_args()
 
+    if args.device == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = args.device
+    if args.no_tf32:
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+    if args.threads > 0:
+        torch.set_num_threads(args.threads)
+    elif device == "cuda":
+        # GPU does the compute; pin CPU threads to 1 so tiny batches don't thrash
+        # 30+ intra-op threads (PyTorch default) and steal cores from other jobs.
+        torch.set_num_threads(1)
+    print(f"[warmup] device={device} tf32(matmul={torch.backends.cuda.matmul.allow_tf32}, "
+          f"cudnn={torch.backends.cudnn.allow_tf32}) threads={torch.get_num_threads()}", flush=True)
+
     torch.manual_seed(args.seed)
-    model = build_model(args.hotstart)
+    model = build_model(args.hotstart, keep_bn=args.keep_bn)
     model.eval()
 
     if args.skip_collect:
@@ -306,9 +337,10 @@ def main() -> None:
     metrics = train_in_memory(
         model, data,
         epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
-        lambda_value=args.lambda_value, seed=args.seed,
+        lambda_value=args.lambda_value, seed=args.seed, device=device,
     )
     Path(args.checkpoint).parent.mkdir(parents=True, exist_ok=True)
+    model.cpu()  # save CPU tensors regardless of training device
     torch.save(
         {
             "model_state": model.state_dict(),
