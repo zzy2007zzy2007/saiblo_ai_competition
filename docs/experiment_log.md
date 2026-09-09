@@ -165,3 +165,106 @@ bash code/run_logged.sh <实验名> <命令...>
 - 正在验证：CPU + 8 线程是否也训出不同的解（若成立，则与设备无关）
 - 修法候选：① 冻结骨干只训价值头；② 对 init 骨干加权重空间锚定（L2）
 - 短期工程解：价值头统一用 **CPU + 固定线程数** 训练（逐位可复现）
+
+## 2026-09-09 19:13:52 — vw_cpu_8threads
+
+- **commit**: `7528ad3` (dirty: 16 files)
+- **exit**: 0，用时 1307s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_cpu8.pt --epochs 10 --skip-collect --device cpu --threads 8
+  ```
+- **output**: `training_history/runs/20260909_191352_vw_cpu_8threads/output.log`
+- **result**: _待填_
+
+## 2026-09-09 19:44:07 — eval_hyb_gpub_cpuh
+
+- **commit**: `2566b42` (dirty: 14 files)
+- **exit**: 1，用时 710s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_hyb_gpubackbone_cpuhead.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
+  ```
+- **output**: `training_history/runs/20260909_194407_eval_hyb_gpub_cpuh/output.log`
+- **result**: _待填_
+
+## 2026-09-09 19:44:10 — eval_hyb_cpub_gpuh
+
+- **commit**: `2566b42` (dirty: 14 files)
+- **exit**: 1，用时 708s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_hyb_cpubackbone_gpuhead.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
+  ```
+- **output**: `training_history/runs/20260909_194410_eval_hyb_cpub_gpuh/output.log`
+- **result**: _待填_
+
+## 2026-09-09 19:56:31 — vw_frozen_cpu_bb
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 695s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/az_fixed/gen0120_warm_cpp_cpu.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/vw_frozen_cpubb.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_195631_vw_frozen_cpu_bb/output.log`
+- **result**: _待填_
+
+## 2026-09-09 19:56:38 — vw_frozen_gpu_bb
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 694s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/az_fixed/gen0120_warm_cpp_gpu.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/vw_frozen_gpubb.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_195638_vw_frozen_gpu_bb/output.log`
+- **result**: _待填_
+
+## 2026-09-09 20:08:29 — eval_frozen_cpubb
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 4065s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_frozen_cpubb.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
+  ```
+- **output**: `training_history/runs/20260909_200829_eval_frozen_cpubb/output.log`
+- **result**: _待填_
+
+## 2026-09-09 20:08:32 — eval_frozen_gpubb
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 4131s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_frozen_gpubb.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
+  ```
+- **output**: `training_history/runs/20260909_200832_eval_frozen_gpubb/output.log`
+- **result**: _待填_
+
+---
+
+## 2026-09-09 — 冻结骨干修复：2×2 定位实验
+
+### 设计
+
+| 组合 | 骨干 | 价值头 | 数据 | 结果 |
+|---|---|---|---|---|
+| A | CPU 解 | 联合训练（不冻结） | warm_data_cpp | **34.4%** |
+| D | GPU 解 | 联合训练（不冻结） | warm_data_cpp | **15.6%** |
+| F1 | CPU 解（冻结） | 重训 | warm_data_cpp | **25.0%** |
+| F2 | GPU 解（冻结） | 重训 | warm_data_cpp | **34.4%** |
+
+（A/D 是 `value_warmup` 全参训练；F1/F2 是 `--freeze-backbone`，只训 21K 参数）
+
+### 结论
+
+1. **冻结骨干后两个骨干都给出好结果**（25% / 34.4%），包括那个"坏"的 GPU 骨干
+2. **骨干本身不坏**——坏的是**联合训练**：骨干持续漂移，价值头在追移动靶，最终未收敛好
+3. 冻结后 trainable 从 220 万降到 **2.1 万**，混沌敏感度大降 → 结果稳定，换设备/换骨干都不再翻车
+4. 曾试图用"交叉互换"（换骨干/换头）定位，但**价值头与骨干是配套训练的**（§13 的策略-价值强耦合同理），换头必然失效 → 该设计被废弃，改用"冻结骨干 + 重训头"
+
+### 工程解
+
+价值头训练改用 `value_warmup.py --freeze-backbone`。

@@ -218,7 +218,10 @@ def train_in_memory(
           f"std={v_before.std():.3f}  (target std={v_t.std():.3f})", flush=True)
 
     model.train()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    print(f"  [train] trainable tensors: {len(trainable)} "
+          f"({sum(p.numel() for p in trainable):,} params)", flush=True)
+    optimizer = torch.optim.AdamW(trainable, lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
     n = data["board"].shape[0]
     steps_per_epoch = max((n + batch_size - 1) // batch_size, 1)
@@ -295,6 +298,10 @@ def main() -> None:
     parser.add_argument("--no-tf32", action="store_true",
                         help="disable TF32 for matmul+cuDNN (GPU trains in full FP32; "
                              "TF32's 10-bit mantissa can send training to a different basin)")
+    parser.add_argument("--freeze-backbone", action="store_true",
+                        help="freeze initial_conv + resblocks and train only the heads "
+                             "(removes the under-constrained backbone drift; the value head "
+                             "then fits a fixed feature space)")
     args = parser.parse_args()
 
     if args.device == "auto":
@@ -316,6 +323,13 @@ def main() -> None:
     torch.manual_seed(args.seed)
     model = build_model(args.hotstart, keep_bn=args.keep_bn)
     model.eval()
+    if args.freeze_backbone:
+        n_frozen = 0
+        for name, p in model.named_parameters():
+            if name.startswith("initial_conv") or name.startswith("resblocks"):
+                p.requires_grad = False
+                n_frozen += p.numel()
+        print(f"[warmup] backbone frozen: {n_frozen:,} params", flush=True)
 
     if args.skip_collect:
         npz_paths = sorted(Path(args.data_dir).glob("*.npz"))
