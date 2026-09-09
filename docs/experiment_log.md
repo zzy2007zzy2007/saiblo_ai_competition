@@ -243,28 +243,126 @@ bash code/run_logged.sh <实验名> <命令...>
 - **output**: `training_history/runs/20260909_200832_eval_frozen_gpubb/output.log`
 - **result**: _待填_
 
+## 2026-09-09 21:17:49 — vw_azdata_frozen_gpu
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 496s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_fixed/warm_from_pkl --checkpoint training_history/az_fixed/vw_azdata_frozen_gpu.pt --epochs 10 --skip-collect --device auto --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_211749_vw_azdata_frozen_gpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 21:17:51 — vw_azdata_frozen_cpu
+
+- **commit**: `2566b42` (dirty: 15 files)
+- **exit**: 0，用时 1294s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_fixed/warm_from_pkl --checkpoint training_history/az_fixed/vw_azdata_frozen_cpu.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_211751_vw_azdata_frozen_cpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 21:19:12 — az_frozen_gpu
+
+- **commit**: `016fac8` (dirty: 15 files)
+- **exit**: 0，用时 1679s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_gpu.pt --epochs 5 --tau 50 --label-scale 6 --split --max-value-batches 16 --device auto --value-passes 3 --label-mode abs --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_211912_az_frozen_gpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 21:19:26 — az_frozen_cpu
+
+- **commit**: `016fac8` (dirty: 15 files)
+- **exit**: 0，用时 2165s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_cpu.pt --epochs 5 --tau 50 --label-scale 6 --split --max-value-batches 16 --device cpu --value-passes 3 --label-mode abs --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_211926_az_frozen_cpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 21:47:27 — az_frozen_terminal_gpu
+
+- **commit**: `016fac8` (dirty: 16 files)
+- **exit**: 0，用时 1329s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_terminal_gpu.pt --epochs 5 --split --max-value-batches 16 --device auto --value-passes 3 --label-mode terminal --freeze-backbone
+  ```
+- **output**: `training_history/runs/20260909_214727_az_frozen_terminal_gpu/output.log`
+- **result**: _待填_
+
+## 2026-09-09 21:47:27 — eval_azfrozen_gpu
+
+- **commit**: `016fac8` (dirty: 16 files)
+- **exit**: 0，用时 3794s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_azfrozen_gpu.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 10
+  ```
+- **output**: `training_history/runs/20260909_214727_eval_azfrozen_gpu/output.log`
+- **result**: _待填_
+
 ---
 
-## 2026-09-09 — 冻结骨干修复：2×2 定位实验
+## 2026-09-09 — 冻结骨干消融：gen 数据有效、az 数据无效
 
-### 设计
+### 背景
 
-| 组合 | 骨干 | 价值头 | 数据 | 结果 |
-|---|---|---|---|---|
-| A | CPU 解 | 联合训练（不冻结） | warm_data_cpp | **34.4%** |
-| D | GPU 解 | 联合训练（不冻结） | warm_data_cpp | **15.6%** |
-| F1 | CPU 解（冻结） | 重训 | warm_data_cpp | **25.0%** |
-| F2 | GPU 解（冻结） | 重训 | warm_data_cpp | **34.4%** |
+上一条发现"价值头联合训练对计算路径混沌敏感"，提出的修法是**冻结骨干、只训价值头**。
+本轮在两种数据上验证，并测了标签尺度。
 
-（A/D 是 `value_warmup` 全参训练；F1/F2 是 `--freeze-backbone`，只训 21K 参数）
+### 实验 A：gen 数据（`warm_data_cpp`，200 局）
 
-### 结论
+| arm | 冻结骨干来源 | 价值头 | vs rule_v4 |
+|-----|-------------|--------|-----------|
+| 不冻结 | — | 联合训练 | 34.4%（CPU）/ **15.6%**（GPU） |
+| `vw_frozen_cpubb` | CPU 解 | 重训 | **25.0%**（8W/24L） |
+| `vw_frozen_gpubb` | **GPU 解**（那个"坏"的） | 重训 | **34.4%**（11W/21L） |
 
-1. **冻结骨干后两个骨干都给出好结果**（25% / 34.4%），包括那个"坏"的 GPU 骨干
-2. **骨干本身不坏**——坏的是**联合训练**：骨干持续漂移，价值头在追移动靶，最终未收敛好
-3. 冻结后 trainable 从 220 万降到 **2.1 万**，混沌敏感度大降 → 结果稳定，换设备/换骨干都不再翻车
-4. 曾试图用"交叉互换"（换骨干/换头）定位，但**价值头与骨干是配套训练的**（§13 的策略-价值强耦合同理），换头必然失效 → 该设计被废弃，改用"冻结骨干 + 重训头"
+**结论**：冻结骨干后，**连 GPU 那条"坏"路径漂出来的骨干也能到 34.4%**（历史最好成绩）。
+说明骨干本身不坏，坏的是"价值头追漂移骨干"的联合训练过程。
+副产品：冻结后 CPU/GPU 训练结果一致（value_state corr 1.00000 vs 不冻结时的 0.72）→ 可复现。
 
-### 工程解
+### 实验 B：az 数据（`az_fixed/data`，160 局）+ 真实程序 `az_train.py`
 
-价值头训练改用 `value_warmup.py --freeze-backbone`。
+命令（照搬 run_az_batches.sh 的配方 + `--freeze-backbone`）：
+
+```bash
+az_train.py --init az_fixed/gen0120_bn_init.pt --policy-dir az_fixed/data/batch1 \
+    --data-dir az_fixed/data --epochs 5 --split --max-value-batches 16 \
+    --value-passes 3 --label-mode {abs --label-scale 6 | terminal} --freeze-backbone
+```
+
+| arm | 标签 | vs rule_v4 |
+|-----|------|-----------|
+| `az_frozen_gpu` | abs, scale 6 | **6.2%**（2W/30L） |
+| `az_frozen_terminal_gpu` | terminal | ~4.5%（23/32, 1W） |
+| 对照：az 数据不冻结 | abs, scale 6 | 9.4% |
+
+**结论：冻结骨干救不了 az 数据**——两个标签模式都更差。
+
+### 价值头输出尺度分析（同一批 az 数据，label std = 0.222）
+
+| 价值头 | 原始输出 std | tanh 后 | 饱和比例 |
+|--------|-------------|---------|---------|
+| 原版 `gen0120_warm_cpp`（34.4%） | **0.2118** | 0.2050 | 0% |
+| 冻结 + abs scale6 | 0.7655 | 0.5327 | 1.7% |
+| 冻结 + terminal | 0.0897 | 0.0886 | 0% |
+
+原版好头的输出 std ≈ 标签 std（0.21 ≈ 0.22）——完美匹配；abs×6 过大（3.6×）、
+terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状态信号弱）。
+
+### 总体结论
+
+1. **冻结骨干**是"训练稳定性"的正解（gen 数据 25-34%、跨设备可复现），但**不是"数据没信号"的解**。
+2. **az 自对弈数据是瓶颈**（§26 结论成立）：标签弱、胶着局多、决定性局仅 36%。
+   在 az 数据上，不冻结 9.4%、冻结 6.2%/4.5%——怎么训都差。
+3. 冻结骨干用的是 **gen 数据的骨干**，没有机会适配 az 状态分布，可能是它在 az 数据上更差的原因之一。
+4. 下一步方向应回到**数据侧**（对手池 / 更多对局 / 混合数据），而不是继续调价值头训练。

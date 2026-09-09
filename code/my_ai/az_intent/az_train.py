@@ -345,8 +345,10 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
     much larger, so tying its steps to the policy pool under-trains it).
     ``value_only`` freezes the policy net (no policy/anchor step).
     """
-    opt_p = torch.optim.AdamW(policy_model.parameters(), lr=lr, weight_decay=1e-4)
-    opt_v = torch.optim.AdamW(value_model.parameters(), lr=lr, weight_decay=1e-4)
+    opt_p = torch.optim.AdamW([p for p in policy_model.parameters() if p.requires_grad],
+                              lr=lr, weight_decay=1e-4)
+    opt_v = torch.optim.AdamW([p for p in value_model.parameters() if p.requires_grad],
+                              lr=lr, weight_decay=1e-4)
     rng = random.Random(seed)
     n = len(policy_samples)
     nv = len(value_samples)
@@ -480,6 +482,10 @@ def main() -> None:
                         help="how many full passes over the VALUE pool per epoch "
                              "(decoupled from the policy pool size; value pool is "
                              "much larger so default 1 under-trains it — use 3)")
+    parser.add_argument("--freeze-backbone", action="store_true",
+                        help="freeze initial_conv + resblocks on both nets; only the heads "
+                             "train (removes the under-constrained backbone drift that makes "
+                             "joint training land in arbitrary solutions)")
     parser.add_argument("--pos-single", action="store_true",
                         help="collapse each class's position target to its argmax "
                              "position (single-point); multi-position targets are often "
@@ -503,6 +509,17 @@ def main() -> None:
     else:
         model = load_model_from_ckpt(args.init)
         model.train().to(device)
+
+    if args.freeze_backbone:
+        nets = ([("policy", policy_model), ("value", value_model)] if args.split
+                else [("model", model)])
+        for tag, m in nets:
+            n_frozen = 0
+            for name, p in m.named_parameters():
+                if name.startswith("initial_conv") or name.startswith("resblocks"):
+                    p.requires_grad = False
+                    n_frozen += p.numel()
+            print(f"[train] {tag} backbone frozen: {n_frozen:,} params", flush=True)
 
     policy_dir = args.policy_dir or args.data_dir
     policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
