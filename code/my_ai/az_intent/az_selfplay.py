@@ -129,15 +129,53 @@ def _fmt_op(t: int, a0: int, a1: int) -> str:
     return name
 
 
+def _random_legal_bundle(model, out, state, player, rng, pm, cm, n_samples: int = 12):
+    """A uniformly-random LEGAL bundle: uniform class dist per head (position
+    sampling made ~uniform via a huge t_pos), then one bundle picked at random.
+    """
+    from my_ai.az_intent.bundle_mcts import sample_bundle
+
+    head_logits = np.stack([out[f"head{i + 1}_logits"].squeeze(0).numpy()
+                            for i in range(model.num_heads)])
+    net_out = {"action_map": out["action_map"].squeeze(0).numpy(),
+               "head_logits": head_logits}
+    uni = []
+    for h in range(model.num_heads):
+        n_cls = head_logits[h].shape[-1]
+        uni.append(np.ones(n_cls, dtype=np.float32) / n_cls)
+    class_ids = [rng.choice(len(p), size=n_samples, p=p).tolist() for p in uni]
+    bundles = []
+    for j in range(n_samples):
+        ops_j, _ = sample_bundle(
+            net_out, state, player, t_class=1.0, t_pos=1e6, rng=rng,
+            position_mask=pm, class_mask=cm,
+            class_probs=uni, class_ids=[ci[j] for ci in class_ids])
+        if ops_j:
+            bundles.append(tuple((int(o.op_type), o.arg0, o.arg1) for o in ops_j))
+    if not bundles:
+        return None
+    return bundles[int(rng.integers(len(bundles)))]
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None,
-                 native_engine: bool = False) -> list[dict]:
+                 native_engine: bool = False,
+                 random_action_prob: float = 0.0) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
 
     If ``progress_path`` is given, a per-round text log (round index + each
     player's chosen operations) is written there and flushed every round, so the
     game's progress can be watched while it runs (games take ~2h at 128/depth4).
+
+    ``random_action_prob`` (x): with probability x a decision ignores the
+    search's choice and plays a UNIFORMLY random legal bundle (uniform over
+    class + position within the legal masks).  Purpose: break the
+    two-equal-searchers grind so games end with larger HP differences.  Keep x
+    small (~0.05): random blunders are symmetric, so a small rate adds decisive
+    outcomes without destroying the state->outcome signal.  The recorded policy
+    target (visit distribution) is still the search's, so only the played move
+    and the resulting states change.
     """
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
@@ -184,9 +222,14 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     "recorded_head_logits": recorded_hl,
                 }
             )
+            chosen = res.chosen_bundle
+            if random_action_prob > 0.0 and mcts.rng.random() < random_action_prob:
+                rb = _random_legal_bundle(model, out, state, player, mcts.rng, pm, cm)
+                if rb:
+                    chosen = rb
             ops = [
                 Operation(OperationType(int(k[0])), int(k[1]), int(k[2]))
-                for k in res.chosen_bundle
+                for k in chosen
             ]
             round_ops[player] = [(int(o.op_type), o.arg0, o.arg1) for o in ops]
             state.apply_operation_list(player, ops)
@@ -221,7 +264,8 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
 def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       max_depth_rounds: int, t_class: float, t_pos: float,
                       k: int, sample_mult: int, max_rounds: int, temp_rounds: int,
-                      native_engine: bool = False, c_puct: float = 1.25) -> dict:
+                      native_engine: bool = False, c_puct: float = 1.25,
+                      random_action_prob: float = 0.0) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -234,7 +278,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
-                           native_engine=native_engine)
+                           native_engine=native_engine,
+                           random_action_prob=random_action_prob)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as f:
@@ -247,10 +292,12 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            iterations: int, max_depth_rounds: int, t_class: float,
                            t_pos: float, k: int, sample_mult: int, max_rounds: int,
                            temp_rounds: int, native_engine: bool = False,
-                           c_puct: float = 1.25) -> list[Path]:
+                           c_puct: float = 1.25,
+                           random_action_prob: float = 0.0) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
-             k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct) for s in seeds]
+             k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
+             random_action_prob) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -278,6 +325,10 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--native-engine", action="store_true",
                         help="use the C++ engine (native_game) instead of the Python SDK engine")
+    parser.add_argument("--random-action-prob", type=float, default=0.0,
+                        help="x: with probability x a decision plays a uniformly random "
+                             "LEGAL bundle instead of the search's choice (diversity / "
+                             "decisive-game injection; keep small, e.g. 0.05)")
     parser.add_argument("--c-puct", type=float, default=1.25,
                         help="MCTS PUCT exploration constant (higher = more exploration)")
     args = parser.parse_args()
@@ -285,12 +336,14 @@ def main() -> None:
     seeds = [args.seed * 10000 + g for g in range(args.games)]
     print(f"[selfplay] collecting {args.games} games ({args.workers} workers, "
           f"{args.iterations} iters / depth {args.max_depth_rounds}) "
-          f"[engine={'C++' if args.native_engine else 'python'}, c_puct={args.c_puct}]...", flush=True)
+          f"[engine={'C++' if args.native_engine else 'python'}, c_puct={args.c_puct}, "
+          f"random_action_prob={args.random_action_prob}]...", flush=True)
     paths = collect_games_parallel(
         args.checkpoint, seeds, args.out_dir, args.workers,
         args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
         args.k, args.sample_mult, args.max_rounds, args.temp_rounds,
         native_engine=args.native_engine, c_puct=args.c_puct,
+        random_action_prob=args.random_action_prob,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 
