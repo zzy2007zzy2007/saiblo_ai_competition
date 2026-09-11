@@ -105,7 +105,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp2 --checkpoint training_history/az_fixed/gen0120_warm_cpp2_gpu.pt --epochs 10 --skip-collect --device auto
   ```
 - **output**: `training_history/runs/20260909_170752_vw_wcpp2_gpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成。warm_data_cpp2 ≡ warm_data_cpp（逐位相同的数据）；同配置两次 GPU 训练逐位相同 → GPU 路径自身可复现
 
 ## 2026-09-09 17:08:24 — vw_cpu_faithful
 
@@ -116,7 +116,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_cpu.pt --epochs 10 --skip-collect --device cpu
   ```
 - **output**: `training_history/runs/20260909_170824_vw_cpu_faithful/output.log`
-- **result**: _待填_
+- **result**: **CPU 复现与历史好头逐位相同（w_corr 1.00000）** → 34.4% 是 CPU/默认线程路径的确定解
 
 ## 2026-09-09 17:43:02 — vw_gpu_no_tf32
 
@@ -127,7 +127,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_gpu_notf32.pt --epochs 10 --skip-collect --device auto --no-tf32
   ```
 - **output**: `training_history/runs/20260909_174302_vw_gpu_no_tf32/output.log`
-- **result**: _待填_
+- **result**: GPU+no-TF32 权重 corr 0.7156 ≈ GPU+TF32 的 0.7176 → **TF32 排除**（不是精度模式问题）
 
 ---
 
@@ -175,7 +175,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/gen0120_warm_cpp_cpu8.pt --epochs 10 --skip-collect --device cpu --threads 8
   ```
 - **output**: `training_history/runs/20260909_191352_vw_cpu_8threads/output.log`
-- **result**: _待填_
+- **result**: **CPU 8 线程 vs CPU 默认 32 线程：骨干 corr 0.568** → 同一设备换线程数也训出不同解 → 与设备无关，是"对计算路径敏感"
 
 ## 2026-09-09 19:44:07 — eval_hyb_gpub_cpuh
 
@@ -186,7 +186,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_hyb_gpubackbone_cpuhead.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
   ```
 - **output**: `training_history/runs/20260909_194407_eval_hyb_gpub_cpuh/output.log`
-- **result**: _待填_
+- **result**: 中途停止：用户指出交叉互换设计有缺陷（价值头与自己的骨干共适应，换骨干必然失败，证明不了骨干好坏）
 
 ## 2026-09-09 19:44:10 — eval_hyb_cpub_gpuh
 
@@ -197,7 +197,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_hyb_cpubackbone_gpuhead.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
   ```
 - **output**: `training_history/runs/20260909_194410_eval_hyb_cpub_gpuh/output.log`
-- **result**: _待填_
+- **result**: 同上，中途停止
 
 ## 2026-09-09 19:56:31 — vw_frozen_cpu_bb
 
@@ -208,7 +208,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/az_fixed/gen0120_warm_cpp_cpu.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/vw_frozen_cpubb.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_195631_vw_frozen_cpu_bb/output.log`
-- **result**: _待填_
+- **result**: 训练完成（冻结 CPU 骨干 + 重训价值头，value loss 0.0564）
 
 ## 2026-09-09 19:56:38 — vw_frozen_gpu_bb
 
@@ -219,7 +219,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/az_fixed/gen0120_warm_cpp_gpu.pt --data-dir training_history/az_intent/warm_data_cpp --checkpoint training_history/az_fixed/vw_frozen_gpubb.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_195638_vw_frozen_gpu_bb/output.log`
-- **result**: _待填_
+- **result**: 训练完成（冻结 GPU 骨干，value loss 0.0582）
 
 ## 2026-09-09 20:08:29 — eval_frozen_cpubb
 
@@ -230,7 +230,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_frozen_cpubb.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
   ```
 - **output**: `training_history/runs/20260909_200829_eval_frozen_cpubb/output.log`
-- **result**: _待填_
+- **result**: **8W/24L = 25.0%**（冻结 CPU 骨干 + 重训头）
 
 ## 2026-09-09 20:08:32 — eval_frozen_gpubb
 
@@ -241,7 +241,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_frozen_gpubb.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
   ```
 - **output**: `training_history/runs/20260909_200832_eval_frozen_gpubb/output.log`
-- **result**: _待填_
+- **result**: **11W/21L = 34.4%**（冻结 GPU 骨干 + 重训头）→ 冻结骨干后连"坏"的 GPU 骨干也能到 34.4%：骨干本身不坏，坏的是联合训练
 
 ## 2026-09-09 21:17:49 — vw_azdata_frozen_gpu
 
@@ -252,7 +252,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_fixed/warm_from_pkl --checkpoint training_history/az_fixed/vw_azdata_frozen_gpu.pt --epochs 10 --skip-collect --device auto --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_211749_vw_azdata_frozen_gpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成（旧 az 数据 + 冻结，输出 std 0.039 —— 价值饿死）
 
 ## 2026-09-09 21:17:51 — vw_azdata_frozen_cpu
 
@@ -263,7 +263,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/value_warmup.py --hotstart training_history/ga_ss_20260730_093908/gen_0120.pt --data-dir training_history/az_fixed/warm_from_pkl --checkpoint training_history/az_fixed/vw_azdata_frozen_cpu.pt --epochs 10 --skip-collect --device cpu --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_211751_vw_azdata_frozen_cpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成（输出 std 0.018 —— 饿死更严重）
 
 ## 2026-09-09 21:19:12 — az_frozen_gpu
 
@@ -274,7 +274,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_gpu.pt --epochs 5 --tau 50 --label-scale 6 --split --max-value-batches 16 --device auto --value-passes 3 --label-mode abs --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_211912_az_frozen_gpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成（az_train + BN init + 冻结骨干 + abs×6 标签）
 
 ## 2026-09-09 21:19:26 — az_frozen_cpu
 
@@ -285,7 +285,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_cpu.pt --epochs 5 --tau 50 --label-scale 6 --split --max-value-batches 16 --device cpu --value-passes 3 --label-mode abs --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_211926_az_frozen_cpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成
 
 ## 2026-09-09 21:47:27 — az_frozen_terminal_gpu
 
@@ -296,7 +296,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/gen0120_bn_init.pt --policy-dir training_history/az_fixed/data/batch1 --data-dir training_history/az_fixed/data --checkpoint training_history/az_fixed/az_frozen_terminal_gpu.pt --epochs 5 --split --max-value-batches 16 --device auto --value-passes 3 --label-mode terminal --freeze-backbone
   ```
 - **output**: `training_history/runs/20260909_214727_az_frozen_terminal_gpu/output.log`
-- **result**: _待填_
+- **result**: 训练完成（同上但 terminal 标签；标签 std 0.208/±0.8）
 
 ## 2026-09-09 21:47:27 — eval_azfrozen_gpu
 
@@ -307,7 +307,7 @@ bash code/run_logged.sh <实验名> <命令...>
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_azfrozen_gpu.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 10
   ```
 - **output**: `training_history/runs/20260909_214727_eval_azfrozen_gpu/output.log`
-- **result**: _待填_
+- **result**: **2W/30L = 6.2%**（az 数据 + 冻结 + BN init + abs×6）
 
 ---
 
@@ -376,7 +376,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_azfrozen_term.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 8
   ```
 - **output**: `training_history/runs/20260909_220949_eval_azfrozen_term/output.log`
-- **result**: _待填_
+- **result**: **1W/31L = 3.1%**（az 数据 + 冻结 + BN init + terminal）→ 旧数据上怎么训都差
 
 ## 2026-09-09 23:08:47 — collect_p1_batch1
 
@@ -387,7 +387,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/az_fixed/mix_r10p_bn0v.pt --games 16 --workers 16 --iterations 256 --max-depth-rounds 4 --max-rounds 512 --out-dir training_history/az_fixed/data_polonly/batch1 --seed 40000 --native-engine --t-class 0.5 --t-pos 0.3 --k 24
   ```
 - **output**: `training_history/runs/20260909_230847_collect_p1_batch1/output.log`
-- **result**: _待填_
+- **result**: 16 局采集完成，用时 **46.3 分钟**（256 迭代/深度4/C++/16 workers）
 
 ## 2026-09-09 23:55:15 — train_p1_batch1
 
@@ -398,7 +398,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/mix_r10p_bn0v.pt --policy-dir training_history/az_fixed/data_polonly/batch1 --data-dir training_history/az_fixed/data_polonly --checkpoint training_history/az_fixed/az_p1.pt --epochs 5 --split --policy-only --max-value-batches 1 --device auto
   ```
 - **output**: `training_history/runs/20260909_235515_train_p1_batch1/output.log`
-- **result**: _待填_
+- **result**: 策略-only 训练 5 分钟（policy loss 0.5103→0.3711，value loss 恒 0 = 价值网未动）→ az_p1.pt
 
 ## 2026-09-10 09:16:10 — polonly_resume
 
@@ -409,7 +409,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   bash code/resume_polonly.sh
   ```
 - **output**: `training_history/runs/20260910_091610_polonly_resume/output.log`
-- **result**: _待填_
+- **result**: 补训 batch4（用已采数据）+ 继续到 batch5；产出 az_p4/az_p5
 
 ## 2026-09-10 10:50:03 — eval_azp6_vs_rulev4
 
@@ -420,7 +420,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
   ```
 - **output**: `training_history/runs/20260910_105003_eval_azp6_vs_rulev4/output.log`
-- **result**: _待填_
+- **result**: **9W/23L = 28.1%**（基准 mix_r10p_bn0v = 34.4%）
 
 ## 2026-09-10 11:34:21 — svs_azp6_vs_init
 
@@ -431,7 +431,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_search_vs_search.py --a training_history/az_fixed/az_p6.pt --b training_history/az_fixed/mix_r10p_bn0v.pt --games 32 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 0.3 --native-engine
   ```
 - **output**: `training_history/runs/20260910_113421_svs_azp6_vs_init/output.log`
-- **result**: _待填_
+- **result**: **16W/16L = 50.0%**（精确平手 → 6 个 batch 策略没变）
 
 ## 2026-09-10 18:36:26 — eval_azp6_rand005
 
@@ -442,7 +442,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --random-action-prob 0.05 --games 32 --workers 16
   ```
 - **output**: `training_history/runs/20260910_183626_eval_azp6_rand005/output.log`
-- **result**: _待填_
+- **result**: **3W/29L = 9.4%**；配对（x=0→0.05）6 局单向从赢变输、0 反向 → **5% 随机动作代价 ≈ -19pp**
 
 ## 2026-09-10 19:11:14 — eval_azp6_rand002
 
@@ -453,7 +453,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --random-action-prob 0.02 --games 32 --workers 16
   ```
 - **output**: `training_history/runs/20260910_191114_eval_azp6_rand002/output.log`
-- **result**: _待填_
+- **result**: **13W/19L = 40.6%**；配对 6 输/10 赢（p≈0.45 不显著）→ **2% 的代价测不出来**
 
 ## 2026-09-10 19:48:49 — polonly_to21_rand002
 
@@ -464,7 +464,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   bash code/resume_polonly.sh 0.02 21
   ```
 - **output**: `training_history/runs/20260910_194849_polonly_to21_rand002/output.log`
-- **result**: _待填_
+- **result**: 15 个 batch（batch7-21，含 2% 注入）全部完成，耗时 **10.6 小时** → az_p7..az_p21
 
 ## 2026-09-11 06:22:20 — eval_azp21_vs_rulev4
 
@@ -475,7 +475,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p21.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 64 --workers 16
   ```
 - **output**: `training_history/runs/20260911_062220_eval_azp21_vs_rulev4/output.log`
-- **result**: _待填_
+- **result**: **11W/53L = 17.2%**（64 局）；seed0-31 子集 5W/27L = 15.6%；配对（vs az_p6）8 输/4 赢不显著
 
 ## 2026-09-11 09:27:30 — conv_polonly_npz
 
@@ -486,7 +486,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/convert_pkl_to_warm_npz.py --data-dir training_history/az_fixed/data_polonly --out-dir training_history/az_fixed/warm_polonly --workers 4
   ```
 - **output**: `training_history/runs/20260911_092730_conv_polonly_npz/output.log`
-- **result**: _待填_
+- **result**: 336 局 pkl → npz：**287,546 样本，决定性 62%，|label| 均值 0.250**（旧 az 数据是 28%/0.17）
 
 ## 2026-09-11 07:24:41 — svs_azp21_vs_init
 
@@ -497,7 +497,7 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_search_vs_search.py --a training_history/az_fixed/az_p21.pt --b training_history/az_fixed/mix_r10p_bn0v.pt --games 64 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 0.3 --native-engine
   ```
 - **output**: `training_history/runs/20260911_072441_svs_azp21_vs_init/output.log`
-- **result**: _待填_
+- **result**: **31W/33L = 48.4%**；配对（vs az_p6）9 输/8 赢完全对称 → **21 个 batch 后策略仍是平台**
 
 ---
 
@@ -575,3 +575,126 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
 （主要是 LIGHTNING，t_class=0.5 放大所致，见 §17）。训练 `_sample_policy_loss`
 会把非法类别跳过，所以有效目标只剩 18%（以 HOLD 为主）。
 这不影响正确性（用户确认高手也是 80-90% HOLD），但意味着**有效目标信息量小**。
+
+## 2026-09-11 09:51:17 — train3_vheads_newdata
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 1512s
+- **cmd**:
+  ```bash
+  bash _tmp_train3.sh
+  ```
+- **output**: `training_history/runs/20260911_095117_train3_vheads_newdata/output.log`
+- **result**: 三个价值头训练完成：A(vw+冻结) value loss 0.0526 / B(vw 不冻结) 0.0481 / C(az_train terminal, BN init)
+
+## 2026-09-11 11:35:21 — train2_tau_newdata
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 1990s
+- **cmd**:
+  ```bash
+  bash _tmp_train_tau.sh
+  ```
+- **output**: `training_history/runs/20260911_113521_train2_tau_newdata/output.log`
+- **result**: D(tau-abs scale2, BN init) / E(scale6) 训练完成（标签 std 0.425 / 1.274）
+
+## 2026-09-11 10:18:19 — eval3_newdata_vheads
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 6977s
+- **cmd**:
+  ```bash
+  bash _tmp_eval3.sh
+  ```
+- **output**: `training_history/runs/20260911_101819_eval3_newdata_vheads/output.log`
+- **result**: **A(vw+冻结) 10W/22L = 31.2%**；B(vw 不冻结) 4W/28L = 12.5%；C(az_train terminal) 3W/29L = 9.4%
+
+## 2026-09-11 12:14:40 — eval2_tau_vheads
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 4301s
+- **cmd**:
+  ```bash
+  bash _tmp_eval_tau.sh
+  ```
+- **output**: `training_history/runs/20260911_121440_eval2_tau_vheads/output.log`
+- **result**: **D(tau s2) 4W/28L = 12.5%；E(tau s6) 3W/29L = 9.4%**（两者都是 BN init）
+
+## 2026-09-11 13:26:36 — c2_aztrain_nonbn
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 2368s
+- **cmd**:
+  ```bash
+  bash _tmp_c2.sh
+  ```
+- **output**: `training_history/runs/20260911_132636_c2_aztrain_nonbn/output.log`
+- **result**: **9W/23L = 28.1%**（az_train + **no_bn** init + 冻结 + terminal）vs C 的 9.4% → **BN 是 az_train 路径的病根**（requires_grad=False 不冻结 running 统计）
+
+## 2026-09-11 14:13:45 — svs_newval_vs_genval
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 9022s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_search_vs_search.py --a training_history/az_fixed/mix_r10p_pol_vonly_term_nonbn.pt --b training_history/az_fixed/mix_r10p_bn0v.pt --games 64 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 0.3 --native-engine
+  ```
+- **output**: `training_history/runs/20260911_141345_svs_newval_vs_genval/output.log`
+- **result**: **34W/30L = 53.1%**（控制策略变量，只比价值头）→ 自对弈训的头与 gen 原版头**等价**，"28.1% vs 34.4%"是噪声
+
+## 2026-09-11 16:49:14 — combined_data_2arms
+
+- **commit**: `4daace4` (dirty: 17 files)
+- **exit**: 0，用时 2493s
+- **cmd**:
+  ```bash
+  bash _tmp_combined.sh
+  ```
+- **output**: `training_history/runs/20260911_164914_combined_data_2arms/output.log`
+- **result**: F: vw 从零 + 冻结，在合并 536 局（gen 200 + 自对弈 336）上训练完成
+
+## 2026-09-11 17:00:04 — eval_combined_head
+
+- **commit**: `4daace4` (dirty: 21 files)
+- **exit**: 0，用时 5882s
+- **cmd**:
+  ```bash
+  bash _tmp_evalF.sh
+  ```
+- **output**: `training_history/runs/20260911_170004_eval_combined_head/output.log`
+- **result**: **8W/24L = 25.0%**；配对（vs A=31.2%）7 输/5 赢不显著 → **合并 gen 数据没有帮助**
+
+## 2026-09-11 16:59:54 — gn_2arms
+
+- **commit**: `4daace4` (dirty: 21 files)
+- **exit**: 0，用时 5958s
+- **cmd**:
+  ```bash
+  bash _tmp_gn.sh
+  ```
+- **output**: `training_history/runs/20260911_165954_gn_2arms/output.log`
+- **result**: GroupNorm 转换成功；H(GN+**解冻骨干**) value loss 0.0478 / I(GN+冻结) 0.0575 → 解冻拟合更好
+
+---
+
+## 2026-09-11 18:39:21 — eval_gn_free_H（补录：自动条目被并发写入覆盖）
+
+- **commit**: 见 `training_history/runs/20260911_183921_eval_gn_free_H/meta.txt`
+- **cmd**: `eval.py --checkpoint training_history/az_fixed/mix_r10p_gn_free.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16`
+- **output**: `training_history/runs/20260911_183921_eval_gn_free_H/output.log`
+- **result**: 见下方 §GroupNorm 小结（Arm H：GN + 解冻骨干）
+
+## 2026-09-11 19:12:16 — tau_nonbn_2arms（补录）
+
+- **cmd**: `az_train.py --init training_history/az_intent/gen0120_warm_cpp.pt（no_bn）--value-only --label-mode abs --label-scale {2,1} --tau 50 --freeze-backbone --device auto`（新数据 336 局）→ 转 BN → 合成
+- **output**: `training_history/runs/20260911_191216_tau_nonbn_2arms/output.log`
+- **result**: J(tau-abs scale2) / K(scale1) 两个价值头训练完成，**待对战测试**
+
+## 2026-09-11 19:17:08 — tau_nonbn_s4（补录）
+
+- **cmd**: 同 J/K 但 `--label-scale 4`
+- **output**: `training_history/runs/20260911_191708_tau_nonbn_s4/output.log`
+- **result**: L(tau-abs scale4) 训练完成，**待对战测试**
+
+> 注意：`run_logged.sh` 用追加写入，若日志文件同时被编辑器/linter 重写，条目会丢失
+> （这 3 条就是这样丢的）。以后可从 `training_history/runs/<ts>_<name>/cmd.txt` 恢复。
