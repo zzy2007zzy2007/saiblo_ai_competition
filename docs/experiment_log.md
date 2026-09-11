@@ -377,3 +377,201 @@ terminal 过小（0.42×，R² 仅 0.32，因为终局标签每局共享、状�
   ```
 - **output**: `training_history/runs/20260909_220949_eval_azfrozen_term/output.log`
 - **result**: _待填_
+
+## 2026-09-09 23:08:47 — collect_p1_batch1
+
+- **commit**: `4cb014f` (dirty: 15 files)
+- **exit**: 0，用时 2780s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/az_fixed/mix_r10p_bn0v.pt --games 16 --workers 16 --iterations 256 --max-depth-rounds 4 --max-rounds 512 --out-dir training_history/az_fixed/data_polonly/batch1 --seed 40000 --native-engine --t-class 0.5 --t-pos 0.3 --k 24
+  ```
+- **output**: `training_history/runs/20260909_230847_collect_p1_batch1/output.log`
+- **result**: _待填_
+
+## 2026-09-09 23:55:15 — train_p1_batch1
+
+- **commit**: `4cb014f` (dirty: 16 files)
+- **exit**: 0，用时 302s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_train.py --init training_history/az_fixed/mix_r10p_bn0v.pt --policy-dir training_history/az_fixed/data_polonly/batch1 --data-dir training_history/az_fixed/data_polonly --checkpoint training_history/az_fixed/az_p1.pt --epochs 5 --split --policy-only --max-value-batches 1 --device auto
+  ```
+- **output**: `training_history/runs/20260909_235515_train_p1_batch1/output.log`
+- **result**: _待填_
+
+## 2026-09-10 09:16:10 — polonly_resume
+
+- **commit**: `4cb014f` (dirty: 16 files)
+- **exit**: 0，用时 5618s
+- **cmd**:
+  ```bash
+  bash code/resume_polonly.sh
+  ```
+- **output**: `training_history/runs/20260910_091610_polonly_resume/output.log`
+- **result**: _待填_
+
+## 2026-09-10 10:50:03 — eval_azp6_vs_rulev4
+
+- **commit**: `28aec25` (dirty: 16 files)
+- **exit**: 0，用时 2490s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260910_105003_eval_azp6_vs_rulev4/output.log`
+- **result**: _待填_
+
+## 2026-09-10 11:34:21 — svs_azp6_vs_init
+
+- **commit**: `28aec25` (dirty: 16 files)
+- **exit**: 0，用时 4722s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_search_vs_search.py --a training_history/az_fixed/az_p6.pt --b training_history/az_fixed/mix_r10p_bn0v.pt --games 32 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 0.3 --native-engine
+  ```
+- **output**: `training_history/runs/20260910_113421_svs_azp6_vs_init/output.log`
+- **result**: _待填_
+
+## 2026-09-10 18:36:26 — eval_azp6_rand005
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 1988s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --random-action-prob 0.05 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260910_183626_eval_azp6_rand005/output.log`
+- **result**: _待填_
+
+## 2026-09-10 19:11:14 — eval_azp6_rand002
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 1978s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p6.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --random-action-prob 0.02 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260910_191114_eval_azp6_rand002/output.log`
+- **result**: _待填_
+
+## 2026-09-10 19:48:49 — polonly_to21_rand002
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 37998s
+- **cmd**:
+  ```bash
+  bash code/resume_polonly.sh 0.02 21
+  ```
+- **output**: `training_history/runs/20260910_194849_polonly_to21_rand002/output.log`
+- **result**: _待填_
+
+## 2026-09-11 06:22:20 — eval_azp21_vs_rulev4
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 3727s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/az_p21.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 64 --workers 16
+  ```
+- **output**: `training_history/runs/20260911_062220_eval_azp21_vs_rulev4/output.log`
+- **result**: _待填_
+
+## 2026-09-11 09:27:30 — conv_polonly_npz
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 1401s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/convert_pkl_to_warm_npz.py --data-dir training_history/az_fixed/data_polonly --out-dir training_history/az_fixed/warm_polonly --workers 4
+  ```
+- **output**: `training_history/runs/20260911_092730_conv_polonly_npz/output.log`
+- **result**: _待填_
+
+## 2026-09-11 07:24:41 — svs_azp21_vs_init
+
+- **commit**: `28aec25` (dirty: 17 files)
+- **exit**: 0，用时 8829s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/az_search_vs_search.py --a training_history/az_fixed/az_p21.pt --b training_history/az_fixed/mix_r10p_bn0v.pt --games 64 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 0.3 --native-engine
+  ```
+- **output**: `training_history/runs/20260911_072441_svs_azp21_vs_init/output.log`
+- **result**: _待填_
+
+---
+
+## 2026-09-11 — 策略-only 循环（冻结价值头）到顶 + 2% 随机注入消融
+
+### 背景
+
+前面（09-09/09-10）确定了：价值头训练对计算路径敏感、az 数据标签弱、
+"冻结骨干"能稳定训练但对弱数据无效。本轮测试另一条路线——
+**冻结一个好价值头，只训策略**（把 AlphaZero 的自动价值训练改成手动+验证）。
+
+### 实验 1：策略-only 循环（冻结 gen0120_bn_init 价值头）
+
+每 batch：采集 16 局 @256 迭代/C++/16 workers（~45 min）+ `az_train --split --policy-only`
+5 epochs（~5 min）。价值网逐位不变（已验 corr 1.000000）。
+
+| 模型 | batch 数 | vs rule_v4 (seed0-31) | svs vs `mix_r10p_bn0v` |
+|------|---------|----------------------|----------------------|
+| `mix_r10p_bn0v`（起点） | 0 | **34.4%** (11W/21L) | — |
+| `az_p6` | 6 | 28.1% (9W/23L) | **50.0%** (16W/16L) |
+| `az_p21` | 21（含 2% 注入） | 17.2% (64 局)；seed0-31 = 15.6% | **48.4%** (31W/33L, 64 局)；seed0-31 = 46.9% |
+
+**配对分析（az_p6 → az_p21，同 seed 0-31）**：
+- svs：9 局输 / 8 局赢（p≈1.0）→ **完全对称，策略没变**
+- vs rule_v4：8 局输 / 4 局赢（p≈0.39）→ 不显著
+
+**结论**：
+1. **"冻结价值头 + 只训策略"到顶了**——21 个 batch 后策略在 svs 上仍是 parity。
+   原因：搜索的目标对策略已无新信息（策略和搜索的合法偏好一致率 99.9%）。
+2. 唯一疑点：vs rule_v4 点估计 28.1% → 17.2%（64 局 σ≈±9.5pp，上界 ~27% 擦到 28.1%），
+   而 svs 说"没变"。可能的解释：策略自我一致性原地踏步，但泛化到 rule_v4 略有损失
+   （在自对弈风格里收窄）。幅度在噪声边缘，不下定论。
+3. **瓶颈确认在价值头**：策略只在"搜索比它强"时才能学到东西，而搜索质量由价值头决定。
+
+### 实验 2：2% / 5% 随机动作注入消融
+
+`--random-action-prob x`（az_selfplay 采集侧 + eval.py 推理侧）：以概率 x 忽略搜索，
+玩一个均匀随机的合法 bundle。
+
+**采集侧效果**（决定性，是注入的目的）：
+
+| 数据 | \|标签\|均值 | 决定性 |
+|------|-------------|--------|
+| batch1-6（无注入，96 局） | 0.218 | 45% |
+| batch7-14（2% 注入，128 局） | 0.259 | **55%** |
+| 全部 21 batch（336 局） | 0.250 | 62% |
+| （参考）gen 裸策略 200 局 | 0.321 | 71% |
+
+方向对，幅度有限。**训练损失在 batch7（注入开始）出现结构性跳变**：
+起始 policy loss 0.54→0.65、末 0.37→0.44（注入让对局进入策略没见过的状态，
+搜索目标更难拟合；是预期行为不是 bug）。对局长度不变（409-450 回合）。
+
+**推理侧代价**（az_p6 vs rule_v4，同 seed 0-31 配对）：
+
+| x | 战绩 | 胜率 |
+|---|------|------|
+| 0 | 9W/23L | 28.1% |
+| **0.02** | 13W/19L | **40.6%**（6 输 / 10 赢，p≈0.45 不显著） |
+| 0.05 | 3W/29L | 9.4%（6 局单向翻转，显著有害） |
+
+**结论**：5% 明确有害（-19pp）；2% 的代价测不出来（点估计反而更好），
+可以用于采集。但注意每 20 步 1 次乱走就能让 5% 的配置掉 19pp，
+说明这个游戏的容错极低（对局在濒死血量上拉锯）。
+
+### 方法论发现（重要）
+
+**评估是完全确定性的**（temperature=0、固定 seed、注入 rng 按 seed 定死）——
+**重复跑不会有任何变化**，要降噪只能**增加 seed 数量**（更多不同初始局面），不能靠重跑。
+所以判断差异必须用**同 seed 配对**，而不是比较不同局数的总胜率。
+
+### 数据侧观察（记录备查）
+
+`_marginalize` 记录的是"网络采样的原始 intent"，**包含非法类别**（采样先按完整
+softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 质量落在非法类别上**
+（主要是 LIGHTNING，t_class=0.5 放大所致，见 §17）。训练 `_sample_policy_loss`
+会把非法类别跳过，所以有效目标只剩 18%（以 HOLD 为主）。
+这不影响正确性（用户确认高手也是 80-90% HOLD），但意味着**有效目标信息量小**。
