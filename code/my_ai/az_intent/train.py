@@ -166,7 +166,8 @@ def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True) -> Non
     sd = {k: v for k, v in sd.items() if not k.startswith("value_head.")}
     _res = model.load_state_dict(sd, strict=False)
     _unexpected = [k for k in _res.unexpected_keys]
-    _missing = [k for k in _res.missing_keys if not k.startswith("value_head.")]
+    _missing = [k for k in _res.missing_keys
+                if not (k.startswith("value_head.") or k.startswith("value_attn."))]
     if _unexpected or _missing:
         raise RuntimeError(f"hot-start state_dict mismatch: unexpected={_unexpected} "
                            f"missing(non-value-head)={_missing}")

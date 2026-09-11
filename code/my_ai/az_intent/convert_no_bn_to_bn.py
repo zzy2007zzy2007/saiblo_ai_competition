@@ -97,7 +97,8 @@ def main() -> None:
         return create_model(num_resblocks=ckpt.get("num_resblocks", 6),
                             num_heads=ckpt.get("num_heads", 3),
                             latent_dim=ckpt.get("latent_dim", 64),
-                            no_bn=False)
+                            no_bn=False,
+                            value_pool=ckpt.get("value_pool", "gap"))
 
     def _migrate_net(src_sd, net):
         new_sd = _migrate_state(src_sd)
