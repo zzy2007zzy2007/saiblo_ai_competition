@@ -268,6 +268,9 @@ def train(model, policy_samples: list[dict], value_samples: list[dict], *,
                 "model_state": model.state_dict(),
                 "num_heads": model.num_heads,
                 "no_bn": model.no_bn,
+                "gn": getattr(model, "gn", False),
+                "gn_groups": getattr(model, "gn_groups", 8),
+                "value_pool": getattr(model, "value_pool", "gap"),
                 "latent_dim": model.LATENT_DIM,
                 "num_resblocks": model.num_resblocks,
                 "completed_batches": 1,
@@ -333,6 +336,7 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 lambda_anchor: float = 1.0, seed: int = 0,
                 checkpoint: str = "", device: str = "cpu",
                 value_only: bool = False, value_passes: int = 1,
+                policy_only: bool = False,
                 pos_single: bool = False,
                 value_anchor: float = 0.0) -> dict:
     """Independent training: policy net (CE + anchor) and value net (weighted MSE).
@@ -384,6 +388,20 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
         if value_only:
             for _ in range(max(value_passes, 1)):
                 tl, tv, n_v, n_steps = _value_pass(tl, tv, n_v, n_steps)
+        elif policy_only:
+            # policy only: 1 pass over the policy pool, value net untouched
+            order = list(range(n))
+            rng.shuffle(order)
+            for start in range(0, n, batch_size):
+                p_batch = [policy_samples[i] for i in order[start:start + batch_size]]
+                loss_p, policy_loss, anchor_loss = _policy_step(
+                    policy_model, p_batch, opt_p, t_class, t_pos, lambda_anchor, device,
+                    pos_single=pos_single)
+                tl += loss_p.detach().item()
+                tp += policy_loss.detach().item()
+                ta += anchor_loss.detach().item()
+                n_p += 1
+                n_steps += 1
         else:
             # policy: 1 pass over the policy pool (with one interleaved value batch each)
             order = list(range(n))
@@ -423,6 +441,9 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
                 "value_state": value_model.state_dict(),
                 "num_heads": policy_model.num_heads,
                 "no_bn": policy_model.no_bn,
+                "gn": getattr(policy_model, "gn", False),
+                "gn_groups": getattr(policy_model, "gn_groups", 8),
+                "value_pool": getattr(policy_model, "value_pool", "gap"),
                 "latent_dim": policy_model.LATENT_DIM,
                 "num_resblocks": policy_model.num_resblocks,
                 "completed_batches": 1,
@@ -470,6 +491,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=str, default="auto",
                         help="'auto' (cuda if available), 'cuda', or 'cpu'")
+    parser.add_argument("--policy-only", action="store_true",
+                        help="train only the policy net; the value net is left untouched "
+                             "(freeze a good value head and let the policy learn from search)")
     parser.add_argument("--value-only", action="store_true",
                         help="freeze the policy net, train only the value head "
                              "(e.g. re-calibrate on a different tau)")
@@ -572,6 +596,7 @@ def main() -> None:
             lambda_anchor=args.lambda_anchor,
             seed=args.seed, checkpoint=args.checkpoint, device=device,
             value_only=args.value_only, value_passes=args.value_passes,
+            policy_only=args.policy_only,
             pos_single=args.pos_single,
             value_anchor=args.value_anchor,
         )

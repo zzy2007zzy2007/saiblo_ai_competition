@@ -27,14 +27,9 @@ for p in (_REPO, _CODE):
 
 
 def load_model_from_ckpt(ckpt_path: str):
-    from my_ai.network import create_model
+    from my_ai.network import create_model, model_kwargs_from_ckpt
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-    model = create_model(
-        num_resblocks=ckpt.get("num_resblocks", 6),
-        num_heads=ckpt.get("num_heads", 3),
-        latent_dim=ckpt.get("latent_dim", 64),
-        no_bn=ckpt.get("no_bn", True),
-    )
+    model = create_model(**model_kwargs_from_ckpt(ckpt))
     model.load_state_dict(ckpt["model_state"])
     model.eval()
     return model
@@ -47,20 +42,28 @@ def load_split_models(ckpt_path: str):
     (model_state only, e.g. gen0120_warm) both nets warm-start from the same
     weights; for a split checkpoint (has ``value_state``) each loads its own.
     """
-    from my_ai.network import create_model
+    from my_ai.network import create_model, model_kwargs_from_ckpt
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    _kw = model_kwargs_from_ckpt(ckpt)
+    # A mixed checkpoint may record a separate normalization for the value net
+    # (e.g. GroupNorm value + BatchNorm policy); older checkpoints omit these
+    # keys and both nets share the policy's config.
+    _vkw = dict(_kw)
+    if "value_no_bn" in ckpt or "value_gn" in ckpt:
+        _vkw["no_bn"] = bool(ckpt.get("value_no_bn", False))
+        _vkw["gn"] = bool(ckpt.get("value_gn", False))
+        _vkw["gn_groups"] = int(ckpt.get("value_gn_groups", 8))
+    _vkw["value_pool"] = str(ckpt.get("value_value_pool", _kw.get("value_pool", "gap")))
 
     def _build():
-        return create_model(
-            num_resblocks=ckpt.get("num_resblocks", 6),
-            num_heads=ckpt.get("num_heads", 3),
-            latent_dim=ckpt.get("latent_dim", 64),
-            no_bn=ckpt.get("no_bn", True),
-        )
+        return create_model(**_kw)
+
+    def _build_value():
+        return create_model(**_vkw)
 
     policy_model = _build()
     policy_model.load_state_dict(ckpt["model_state"])
-    value_model = _build()
+    value_model = _build_value() if "value_state" in ckpt else _build()
     value_model.load_state_dict(ckpt.get("value_state", ckpt["model_state"]))
     policy_model.eval()
     value_model.eval()

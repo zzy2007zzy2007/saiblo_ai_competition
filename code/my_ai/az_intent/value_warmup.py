@@ -298,6 +298,10 @@ def main() -> None:
     parser.add_argument("--no-tf32", action="store_true",
                         help="disable TF32 for matmul+cuDNN (GPU trains in full FP32; "
                              "TF32's 10-bit mantissa can send training to a different basin)")
+    parser.add_argument("--value-pool", type=str, default="gap",
+                        choices=["gap", "gapmask", "gapmax", "region", "grid", "attn"],
+                        help="value-head spatial pooling (default 'gap' = original "
+                             "global average over all 361 grid cells)")
     parser.add_argument("--freeze-backbone", action="store_true",
                         help="freeze initial_conv + resblocks and train only the heads "
                              "(removes the under-constrained backbone drift; the value head "
@@ -321,7 +325,8 @@ def main() -> None:
           f"cudnn={torch.backends.cudnn.allow_tf32}) threads={torch.get_num_threads()}", flush=True)
 
     torch.manual_seed(args.seed)
-    model = build_model(args.hotstart, keep_bn=args.keep_bn)
+    model = build_model(args.hotstart, keep_bn=args.keep_bn,
+                        value_pool=args.value_pool)
     model.eval()
     if args.freeze_backbone:
         n_frozen = 0
@@ -360,6 +365,9 @@ def main() -> None:
             "model_state": model.state_dict(),
             "num_heads": model.num_heads,
             "no_bn": model.no_bn,
+            "gn": getattr(model, "gn", False),
+            "gn_groups": getattr(model, "gn_groups", 8),
+            "value_pool": getattr(model, "value_pool", "gap"),
             "latent_dim": model.LATENT_DIM,
             "num_resblocks": model.num_resblocks,
             "completed_batches": 0,

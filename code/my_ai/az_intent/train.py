@@ -88,8 +88,19 @@ def infer_model_config(ckpt: dict) -> dict:
     cfg: dict = {"num_heads": int(ckpt.get("num_heads", 1)), "latent_dim": 64, "num_resblocks": 6}
     if sd is None:
         cfg["no_bn"] = bool(ckpt.get("no_bn", False))
+        cfg["gn"] = bool(ckpt.get("gn", False))
+        cfg["gn_groups"] = int(ckpt.get("gn_groups", 8))
+        cfg["value_pool"] = str(ckpt.get("value_pool", "gap"))
         return cfg
-    cfg["no_bn"] = "initial_conv.1.running_mean" not in sd  # has BN iff running keys present
+    # initial_conv = [Conv, <norm>, ReLU]: BN has running stats, GroupNorm has
+    # weight/bias only, no_bn has a parameter-free ReLU at index 1.
+    has_bn = "initial_conv.1.running_mean" in sd
+    has_gn = (not has_bn) and ("initial_conv.1.weight" in sd)
+    cfg["gn"] = bool(ckpt.get("gn", has_gn))
+    cfg["gn_groups"] = int(ckpt.get("gn_groups", 8))
+    cfg["no_bn"] = (not has_bn) and (not has_gn)
+    # value_pool cannot be inferred from shapes (128 vs 192 collide) -> metadata.
+    cfg["value_pool"] = str(ckpt.get("value_pool", "gap"))
     w = sd.get("initial_conv.0.weight")
     if w is not None:
         cfg["latent_dim"] = int(w.shape[0])
@@ -150,7 +161,15 @@ def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True) -> Non
             sd[f"policy_heads.{i}.bias"] = b
         print(f"[train] hot-start: expanded {ck_heads} head(s) -> {model.num_heads} heads")
 
-    model.load_state_dict(sd)
+    # The value head is re-initialised below, so its keys are dropped first:
+    # a different value_pool changes their shapes.  Everything else stays strict.
+    sd = {k: v for k, v in sd.items() if not k.startswith("value_head.")}
+    _res = model.load_state_dict(sd, strict=False)
+    _unexpected = [k for k in _res.unexpected_keys]
+    _missing = [k for k in _res.missing_keys if not k.startswith("value_head.")]
+    if _unexpected or _missing:
+        raise RuntimeError(f"hot-start state_dict mismatch: unexpected={_unexpected} "
+                           f"missing(non-value-head)={_missing}")
     with torch.no_grad():
         for module in model.value_head:
             if isinstance(module, nn.Linear):
@@ -284,22 +303,42 @@ class AZTrainer:
         print(f"[train] checkpoint saved -> {path}", flush=True)
 
 
-def build_model(ckpt_path: str | None, keep_bn: bool = False) -> nn.Module:
+def build_model(ckpt_path: str | None, keep_bn: bool = False,
+                value_pool: str | None = None) -> nn.Module:
+    """Build a model from a checkpoint.
+
+    ``value_pool`` overrides the checkpoint's value-head pooling (None = keep
+    it).  The value head is re-initialised by load_hotstart in either case, so
+    changing the pool only changes the backbone-carrying inputs' widths.
+    """
     from my_ai.network import create_model
 
     if ckpt_path is not None:
         ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         cfg = infer_model_config(ckpt)
+        vp = value_pool if value_pool is not None else cfg.get("value_pool", "gap")
         target_heads = max(cfg["num_heads"], 3)  # our intent tree needs 3 heads
+        if cfg.get("gn"):
+            # GroupNorm cannot be folded away (per-sample stats) — keep it as-is.
+            model = create_model(
+                num_resblocks=cfg["num_resblocks"], num_heads=target_heads,
+                latent_dim=cfg["latent_dim"], no_bn=False, gn=True,
+                gn_groups=cfg.get("gn_groups", 8),
+                value_pool=vp,
+            )
+            load_hotstart(model, ckpt_path, fold_bn=False)
+            return model
         model = create_model(
             num_resblocks=cfg["num_resblocks"],
             num_heads=target_heads,
             latent_dim=cfg["latent_dim"],
             no_bn=not keep_bn,  # default: fold BN checkpoints, train without BN
+            value_pool=vp,
         )
         load_hotstart(model, ckpt_path, fold_bn=not keep_bn)
     else:
-        model = create_model(num_heads=3, no_bn=not keep_bn)
+        model = create_model(num_heads=3, no_bn=not keep_bn,
+                             value_pool=value_pool or "gap")
     return model
 
 

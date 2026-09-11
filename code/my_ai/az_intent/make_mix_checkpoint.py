@@ -43,6 +43,13 @@ def main() -> None:
     for k in _META:
         if k in p:
             mix[k] = p[k]
+    # The value net may use a DIFFERENT normalization than the policy (e.g. a
+    # GroupNorm value net with a BatchNorm policy) — record it so the loaders
+    # build each net with its own config (see load_split_models).
+    mix["value_no_bn"] = bool(v.get("no_bn", False))
+    mix["value_gn"] = bool(v.get("gn", False))
+    mix["value_gn_groups"] = int(v.get("gn_groups", p.get("gn_groups", 8)))
+    mix["value_value_pool"] = str(v.get("value_pool", "gap"))
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

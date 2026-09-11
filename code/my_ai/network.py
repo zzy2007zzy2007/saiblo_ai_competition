@@ -18,15 +18,88 @@ import torch.nn.functional as F
 import numpy as np
 
 
+def _spatial_masks() -> dict:
+    """Fixed 19×19 masks for the value head's pooling variants.
+
+    The map is a hexagon (radius 9 around (9,9)): 271 cells, of which 90 are
+    VOID and 240 are legally usable (VALID_CELLS = paths + highlands + bases).
+    The plain global average averages over all 361 grid cells, i.e. ~1/3 of the
+    signal is dead space — the masked variants only pool over legal cells.
+    """
+    import torch
+    mask = torch.zeros(19, 19)
+    try:
+        from SDK.utils.constants import VALID_CELLS
+        for (x, y) in VALID_CELLS:
+            mask[x, y] = 1.0
+    except Exception:
+        mask[:] = 1.0  # fall back to "everything valid"
+    reg = {}
+    for name, sel in (
+        ("left", lambda x: x < 10),
+        ("right", lambda x: x >= 10),
+    ):
+        m = torch.zeros(19, 19)
+        m[(mask > 0) & torch.tensor([[sel(x) for _ in range(19)] for x in range(19)])] = 1.0
+        reg[name] = m
+    grid = torch.zeros(4, 4, 19, 19)
+    for i in range(4):
+        for j in range(4):
+            lo_x, hi_x = i * 5, (i + 1) * 5
+            lo_y, hi_y = j * 5, (j + 1) * 5
+            g = torch.zeros(19, 19)
+            g[lo_x:hi_x, lo_y:hi_y] = 1.0
+            grid[i, j] = g * mask
+    return {"mask": mask, "region": reg, "grid": grid}
+
+
+_MASKS = None
+
+
+def masks() -> dict:
+    global _MASKS
+    if _MASKS is None:
+        _MASKS = _spatial_masks()
+    return _MASKS
+
+
+def _masked_mean(feat, mask):
+    m = mask.to(feat.device).unsqueeze(0).unsqueeze(0)
+    return (feat * m).sum(dim=[2, 3]) / m.sum().clamp(min=1.0)
+
+
+def _make_norm(channels: int, no_bn: bool, gn: bool, gn_groups: int) -> nn.Module:
+    """Normalization used after each conv.
+
+    Priority: ``gn`` > ``no_bn`` > BatchNorm.
+      gn=True      → GroupNorm (per-sample stats, no running buffers → train==eval)
+      no_bn=True   → Identity (no normalization; activation scale uncontrolled)
+      otherwise    → BatchNorm2d (running stats → train/eval can diverge)
+    """
+    if gn:
+        return nn.GroupNorm(gn_groups, channels)
+    if no_bn:
+        return nn.Identity()
+    return nn.BatchNorm2d(channels)
+
+
+def _conv_bias(no_bn: bool, gn: bool) -> bool:
+    """Conv bias is only used when there is no normalization layer at all
+    (a norm layer's beta already provides the bias)."""
+    return bool(no_bn) and not bool(gn)
+
+
 class ResBlock(nn.Module):
     """Residual block with two Conv3×3 layers."""
 
-    def __init__(self, channels: int, no_bn: bool = False):
+    def __init__(self, channels: int, no_bn: bool = False,
+                 gn: bool = False, gn_groups: int = 8):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=no_bn)
-        self.bn1 = nn.Identity() if no_bn else nn.BatchNorm2d(channels)
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=no_bn)
-        self.bn2 = nn.Identity() if no_bn else nn.BatchNorm2d(channels)
+        bias = _conv_bias(no_bn, gn)
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=bias)
+        self.bn1 = _make_norm(channels, no_bn, gn, gn_groups)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=bias)
+        self.bn2 = _make_norm(channels, no_bn, gn, gn_groups)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
@@ -60,28 +133,29 @@ class AntWarNetwork(nn.Module):
     STATS_DIM = 42
 
     def __init__(self, num_resblocks: int = 6, num_heads: int = 3,
-                 latent_dim: int = 64, no_bn: bool = False):
+                 latent_dim: int = 64, no_bn: bool = False,
+                 gn: bool = False, gn_groups: int = 8,
+                 value_pool: str = "gap"):
         super().__init__()
         self.LATENT_DIM = latent_dim
         self.num_resblocks = num_resblocks
         self.num_heads = num_heads
         self.no_bn = no_bn
+        self.gn = gn
+        self.gn_groups = gn_groups
+        self.value_pool = value_pool
 
         # Board encoder
-        if no_bn:
-            self.initial_conv = nn.Sequential(
-                nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3, bias=True),
-                nn.ReLU(),
-            )
-        else:
-            self.initial_conv = nn.Sequential(
-                nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3, bias=False),
-                nn.BatchNorm2d(self.LATENT_DIM),
-                nn.ReLU(),
-            )
+        self.initial_conv = nn.Sequential(
+            nn.Conv2d(self.BOARD_CHANNELS, self.LATENT_DIM, kernel_size=7, padding=3,
+                      bias=_conv_bias(no_bn, gn)),
+            _make_norm(self.LATENT_DIM, no_bn, gn, gn_groups),
+            nn.ReLU(),
+        )
 
         self.resblocks = nn.ModuleList([
-            ResBlock(self.LATENT_DIM, no_bn=no_bn) for _ in range(num_resblocks)
+            ResBlock(self.LATENT_DIM, no_bn=no_bn, gn=gn, gn_groups=gn_groups)
+            for _ in range(num_resblocks)
         ])
 
         # Stats encoder
@@ -110,8 +184,28 @@ class AntWarNetwork(nn.Module):
         # Value head — bare linear output (no Tanh).  The value target
         # (discounted sum of HP differences) can exceed [-1, 1], so Tanh
         # would cap the value network's range and inflate GAE error.
+        #
+        # ``value_pool`` selects how the spatial feature map is summarised for
+        # the value head ("gap" = the original global average over all 361 grid
+        # cells — the default, bit-identical to the previous behaviour).
+        #   gap      : global mean over all cells              (64)  [default]
+        #   gapmask  : mean over the 240 legal cells only      (64)
+        #   gapmax   : max over legal cells                    (64)
+        #   region   : mean over the left / right halves       (128)
+        #   grid     : means over a 4×4 coarse grid            (1024)
+        #   attn     : learned 1×1-conv attention pooling      (64)
+        # Number of LATENT_DIM blocks the value's spatial summary contributes:
+        #   gap/gapmask : 1 block  -> value input 2L (L board + L stats)
+        #   gapmax      : 2 blocks (mean + max)
+        #   region      : 2 blocks (left/right halves)
+        #   grid        : 16 blocks (4×4 coarse grid)
+        #   attn        : 1 block  (learned attention pooling)
+        self.value_mult = {"gap": 1, "gapmask": 1, "gapmax": 2,
+                           "region": 2, "grid": 16, "attn": 1}[value_pool]
+        if value_pool == "attn":
+            self.value_attn = nn.Conv2d(self.LATENT_DIM, 1, kernel_size=1)
         self.value_head = nn.Sequential(
-            nn.Linear(self.LATENT_DIM * 2, self.LATENT_DIM),  # state_emb = board_emb(64) + stats_emb(64)
+            nn.Linear(self.LATENT_DIM * (self.value_mult + 1), self.LATENT_DIM),
             nn.ReLU(),
             nn.Linear(self.LATENT_DIM, 1),
         )
@@ -134,7 +228,8 @@ class AntWarNetwork(nn.Module):
             x = block(x)  # (B, 64, 19, 19)
         spatial_feat = x  # keep for action map
 
-        # Global average pooling → board embedding
+        # Global average pooling → board embedding (used by the POLICY heads;
+        # unchanged in every value_pool variant).
         board_emb = spatial_feat.mean(dim=[2, 3])  # (B, 64)
 
         # No LayerNorm — board_emb retains its natural variance
@@ -142,8 +237,30 @@ class AntWarNetwork(nn.Module):
         # Stats encoder
         stats_emb = self.stats_mlp(stats)  # (B, 64)
 
+        # Value-head spatial summary (``gap`` = board_emb, i.e. unchanged).
+        if self.value_pool == "gap":
+            value_spatial = [board_emb]
+        elif self.value_pool == "gapmask":
+            value_spatial = [_masked_mean(spatial_feat, masks()["mask"])]
+        elif self.value_pool == "gapmax":
+            mk = masks()["mask"].to(spatial_feat.device)
+            value_spatial = [board_emb, (spatial_feat * mk).amax(dim=[2, 3])]
+        elif self.value_pool == "region":
+            value_spatial = [_masked_mean(spatial_feat, masks()["region"][k])
+                             for k in ("left", "right")]
+        elif self.value_pool == "grid":
+            g = masks()["grid"].to(spatial_feat.device)
+            value_spatial = [_masked_mean(spatial_feat, g[i, j])
+                             for i in range(4) for j in range(4)]
+        else:  # attn
+            score = self.value_attn(spatial_feat)                       # (B,1,19,19)
+            mk = masks()["mask"].to(spatial_feat.device).view(1, 1, 19, 19)
+            neg = torch.finfo(score.dtype).min
+            w = torch.softmax(score.masked_fill(mk < 0.5, neg).flatten(2), dim=2)
+            value_spatial = [(w @ spatial_feat.flatten(2).transpose(1, 2)).squeeze(1)]
+
         # State embedding
-        state_emb = torch.cat([board_emb, stats_emb], dim=1)  # (B, 128)
+        state_emb = torch.cat(value_spatial + [stats_emb], dim=1)
 
         # --- Policy head ---
         # Spatial: action map (shared)
@@ -230,7 +347,8 @@ class AntWarNetwork(nn.Module):
 
 def create_model(num_resblocks: int = 6, num_heads: int = 3,
                  latent_dim: int = 64, small: bool = False,
-                 no_bn: bool = False) -> AntWarNetwork:
+                 no_bn: bool = False, gn: bool = False,
+                 gn_groups: int = 8, value_pool: str = "gap") -> AntWarNetwork:
     """Create a model.
 
     Args:
@@ -239,14 +357,36 @@ def create_model(num_resblocks: int = 6, num_heads: int = 3,
         latent_dim: Latent dimension (ignored if small=True).
         small: If True, creates a smaller model (latent_dim=32,
                num_resblocks=2, 1 head) suitable for limited data.
+        no_bn: legacy flag — normalize with Identity (see _make_norm).
+        gn: use GroupNorm instead (per-sample stats, no running buffers).
+        gn_groups: number of channel groups for GroupNorm (default 8).
+        value_pool: how the spatial map is summarised for the VALUE head
+            ("gap" = original global average, default; see AntWarNetwork).
     """
     if small:
         latent_dim = 32
         num_resblocks = 2
         num_heads = 1
     model = AntWarNetwork(num_resblocks=num_resblocks, num_heads=num_heads,
-                          latent_dim=latent_dim, no_bn=no_bn)
+                          latent_dim=latent_dim, no_bn=no_bn, gn=gn,
+                          gn_groups=gn_groups, value_pool=value_pool)
     return model
+
+
+def model_kwargs_from_ckpt(ckpt: dict) -> dict:
+    """Architecture kwargs recorded in a checkpoint (shared by all loaders).
+
+    Older checkpoints have no ``gn``/``gn_groups`` → defaults keep them working.
+    """
+    return {
+        "num_resblocks": ckpt.get("num_resblocks", 6),
+        "num_heads": ckpt.get("num_heads", 3),
+        "latent_dim": ckpt.get("latent_dim", 64),
+        "no_bn": ckpt.get("no_bn", True),
+        "gn": ckpt.get("gn", False),
+        "gn_groups": ckpt.get("gn_groups", 8),
+        "value_pool": ckpt.get("value_pool", "gap"),
+    }
 
 
 def create_zero_model(num_resblocks: int = 6, num_heads: int = 3) -> AntWarNetwork:
