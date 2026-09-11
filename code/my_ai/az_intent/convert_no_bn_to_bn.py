@@ -114,7 +114,8 @@ def main() -> None:
         out_ckpt["value_state"] = _migrate_net(vm.state_dict(), _build()).state_dict()
     else:
         out_ckpt["model_state"] = _migrate_net(ckpt["model_state"], _build()).state_dict()
-    for k in ("num_heads", "no_bn", "latent_dim", "num_resblocks", "completed_batches", "warmup"):
+    for k in ("num_heads", "no_bn", "latent_dim", "num_resblocks", "completed_batches",
+              "warmup", "value_pool"):
         if k in ckpt:
             out_ckpt[k] = ckpt[k]
     out_ckpt["no_bn"] = False
