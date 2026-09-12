@@ -950,3 +950,36 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - → 60.9% 实为"执后手 +28pp、执先手 −3pp"的混合；已排配对补测 `_tmp_svs_kgeo_flip.sh`
     （同种子先后手取反，合成 64 对，配对分析抵消先后手效应）
   - 首轮 svs 结论：**方向有利但未定论**；真伪取决于配对补测
+
+## 2026-09-13 00:05:19 — gen120rep_kgeo
+
+- **commit**: `31e78c7` (dirty: 16 files)
+- **exit**: 0，用时 4288s
+- **cmd**:
+  ```bash
+  bash _tmp_gen120rep.sh
+  ```
+- **output**: `training_history/runs/20260913_000519_gen120rep_kgeo/output.log`
+- **result**: 2 臂（gen120 200 局，32 局 vs rule_v4）：**kgeo_gen120 15.6%（5W/27L）、term_gen120 15.6%（5W/27L）**。
+  - **同数据下 kgeo 与 terminal 完全相同** → kgeo 在 gen120 上**没有复现**（对照 polonly 上 kgeo 46.9% vs terminal 29.7%）
+  - 且 gen120 数据在**当前冻结配方**下整体只有 15.6%，远低于 polonly 的 29.7% → 与历史上"gen120→34.4%"相反（那个是**不冻结 + CPU**配方）
+  - 含义：**kgeo 的效果是数据依赖的**，不是通用改进（两臂 value loss 不同 0.0138 vs 0.0483，确认头确实训得不同，5W/27L 相同属 32 局巧合）
+
+## 2026-09-13 01:17:33 — refeval_bn0v_64
+
+- **commit**: `2d13259` (dirty: 16 files)
+- **exit**: 0，用时 11657s
+- **cmd**:
+  ```bash
+  bash _tmp_eval_bn0v_ref.sh
+  ```
+- **output**: `training_history/runs/20260913_011733_refeval_bn0v_64/output.log`
+- **result**: 3 个价值头在**同一 64 局协议**下重测（策略全部逐位相同 = az_r10，只差价值头）：
+  | 价值头 | vs rule_v4 |
+  |---|---|
+  | `mix_r10p_bn0v`（**历史"34.4%"最佳头**）| **28.1%（18W/46L）** |
+  | `mix_r10p_vw_pol_frozen`（当前基线）| **29.7%（19W/45L）** |
+  | `mix_r10p_kgeo_gap`（候选）| **50.0%（32W/32L）** |
+  - ✅ **历史"34.4%"头并不更强**（28.1% ≈ 基线 29.7%）→ 历史 43-47%/34.4% 是**小样本产物**（32 局），**我们没有退步**，H3（评估漂移）成立
+  - ✅ **kgeo_gap 在同协议下 +20.3pp**（50.0% vs 29.7%），两独立比例检验 z≈2.35、**p≈0.019**；与 svs 的 60.9%（p=0.052）方向一致 → **kgeo 有效信号得到两个判据的支持**
+  - 判据状态：svs 未达显著但方向一致；vs rule_v4 64 局达 p≈0.019（但该判据历史上曾给假阳性，故仍需配对补测确认）
