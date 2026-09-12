@@ -916,3 +916,18 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - `kgeo_gap` 46.9% 是粗筛历史最高（terminal 基线 29.7%），且**全部臂都冻结骨干** → 不是"计算路径幸运盆地"那类不可复现产物
   - 但同一标签下 `kgeo_gapmax` 只有 12.5%（差 34pp）→ 32 局仍然是噪声主导，单臂不能读；判据待 svs（`svs_kgeo_gap_vs_term`）
   - `rel`（唯一把"抄当前血量差"捷径清零的模式）两臂 21.9/25.0%，**没有优于** terminal 基线
+
+## 2026-09-12 20:30:26 — value_stats_only
+
+- **commit**: `c78a68f` (dirty: 16 files)
+- **exit**: 0，用时 4290s
+- **cmd**:
+  ```bash
+  bash _tmp_statsonly.sh
+  ```
+- **output**: `training_history/runs/20260912_203026_value_stats_only/output.log`
+- **result**: 2 臂（32 局 vs rule_v4）：**stats_term 15.6%（5W/27L）、stats_tau50 0.0%（0W/32L）**。
+  - **棋盘输入对价值头是必要的**：`stats_term` 15.6% 明显低于同协议下 terminal 各池化臂的均值 ≈27.8%（gapmask 28.1/gapmax 40.6/region 25.0/grid 18.8/attn 26.6）→ 拿掉棋盘掉约 12pp
+  - **`stats_tau50` 32 局全败 = 项目最差**，且可解释：stats-only（只剩 state）+ tau-abs（88% 方差可由 `stats[1]` 解释）叠加 → 价值头退化成"血量差复读机"（value≈2×stats[1]）→ 搜索变短视贪心、看不见威胁 → 全败
+  - 对照：同标签配棋盘输入（`gap`+tau50）是 15.6% → **棋盘输入是防止价值头退化的关键**
+  - 修正前一条对"棋盘无贡献"的错误解读（见 `docs/az_value_stats_only_plan.md`）
