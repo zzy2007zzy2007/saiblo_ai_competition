@@ -140,14 +140,65 @@ def collect_games_parallel(hotstart: str | None, seeds: list[int], out_dir: str,
     return [Path(r["path"]) for r in results]
 
 
-def load_all_data(npz_paths: list[Path]) -> dict:
+def _exp_weighted_labels(stats: np.ndarray, player: np.ndarray, *,
+                         tau: float, label_scale: float,
+                         label_mode: str = "abs",
+                         mix_alpha: float = 0.5) -> np.ndarray:
+    """Per-frame exp-weighted future HP-diff label for ONE game's frames.
+
+    Exact re-implementation of ``az_train.add_weighted_labels`` — same gamma, same
+    unified-P0 view, same clip/scale, same per-player sign flip — so the two code
+    paths produce identical labels.  Reads the per-frame HP difference from
+    ``stats[:, 1]`` (``hp_delta`` = player.hp - enemy.hp; features.py's `named`
+    dict puts round_ratio at 0 and hp_delta at 1).  ``player`` (n,) is used both
+    to unify the view and to re-sign the label.
+    """
+    from my_ai.az_intent.mcts import HP_SCALE
+
+    n = int(stats.shape[0])
+    if n == 0:
+        return np.zeros(0, dtype=np.float32)
+    hp = stats[:, 1].astype(np.float64)
+    d = np.where(player == 0, hp, -hp)  # unified P0 view
+    gamma = float(np.exp(-1.0 / tau))
+    suffix = wsum = 0.0
+    out = np.empty(n, dtype=np.float64)
+    for t in range(n - 1, -1, -1):
+        suffix = d[t] + gamma * suffix
+        wsum = 1.0 + gamma * wsum
+        raw = suffix / wsum
+        if label_mode == "abs":
+            lab = raw
+        elif label_mode == "mix":
+            lab = mix_alpha * d[t] + (1.0 - mix_alpha) * raw
+        else:  # "rel"
+            lab = raw - d[t]
+        label = float(np.clip(lab / HP_SCALE, -1.0, 1.0)) * label_scale
+        out[t] = label if player[t] == 0 else -label
+    return out.astype(np.float32)
+
+
+def load_all_data(npz_paths: list[Path], label_cfg: dict | None = None) -> dict:
     """Load all collected games into memory as float16 stacked arrays.
 
     ~37.5 KB/sample float16 (board + action_map + head_logits + stats + value).
     200 games x ~480 samples = ~96K samples ≈ 3.6 GB — fits comfortably in RAM
     (machine has 15 GB), so training runs in memory instead of re-reading disk
     every epoch (10 epochs of streaming would be ~36 GB of disk I/O).
+
+    ``label_cfg`` selects the value label.  Default (None or mode "terminal")
+    uses the terminal HP-difference stored in each npz — the original behaviour.
+    Any other mode ("abs"/"rel"/"mix") RECOMPUTES a tau-weighted future HP-diff
+    label offline from the stored per-frame stats (no re-collection needed),
+    matching az_train.add_weighted_labels exactly.
     """
+    cfg = dict(label_cfg or {})
+    mode = str(cfg.get("mode", "terminal"))
+    recompute = mode != "terminal"
+    if recompute:
+        print(f"  [label] recomputing tau-weighted labels from stats: mode={mode} "
+              f"tau={cfg.get('tau')} scale={cfg.get('label_scale')} "
+              f"mix_alpha={cfg.get('mix_alpha')}", flush=True)
     boards, stats, a_maps, h_logits, v_targets = [], [], [], [], []
     for i, path in enumerate(npz_paths):
         if not path.exists():
@@ -157,7 +208,16 @@ def load_all_data(npz_paths: list[Path]) -> dict:
         stats.append(d["stats"])
         a_maps.append(d["action_map"])
         h_logits.append(d["head_logits"])
-        v_targets.append(d["value_target"])
+        if recompute:
+            v_targets.append(_exp_weighted_labels(
+                d["stats"], d["player"],
+                tau=float(cfg.get("tau", 20.0)),
+                label_scale=float(cfg.get("label_scale", 1.0)),
+                label_mode=mode,
+                mix_alpha=float(cfg.get("mix_alpha", 0.5)),
+            ))
+        else:
+            v_targets.append(d["value_target"])
         d.close()
         if (i + 1) % 25 == 0 or i == len(npz_paths) - 1:
             print(f"  [load] {i+1}/{len(npz_paths)} files", flush=True)
@@ -205,6 +265,10 @@ def train_in_memory(
     print(f"  [train] value targets: min={v_t.min():.3f} max={v_t.max():.3f} "
           f"mean={v_t.mean():.3f} std={v_t.std():.3f} "
           f"positive={100*(v_t>0).mean():.1f}% negative={100*(v_t<0).mean():.1f}%", flush=True)
+    absv = np.abs(v_t)
+    print("  [label] |label| deciles: "
+          + " ".join(f"p{p}={np.percentile(absv, p):.3f}" for p in (10, 25, 50, 75, 90))
+          + f"  frac<0.05={float((absv < 0.05).mean()):.3f}", flush=True)
 
     model.to(device)
     print(f"  [train] model on {next(model.parameters()).device}", flush=True)
@@ -306,6 +370,21 @@ def main() -> None:
                         help="freeze initial_conv + resblocks and train only the heads "
                              "(removes the under-constrained backbone drift; the value head "
                              "then fits a fixed feature space)")
+    parser.add_argument("--label-mode", type=str, default="terminal",
+                        choices=["terminal", "abs", "rel", "mix"],
+                        help="value label form. 'terminal' (default) = the per-game HP-diff "
+                             "stored in the npz (original behaviour). 'abs'/'rel'/'mix' "
+                             "RECOMPUTE an exp-weighted future HP-diff label from the stored "
+                             "per-frame stats (mirrors az_train.add_weighted_labels)")
+    parser.add_argument("--tau", type=float, default=50.0,
+                        help="time constant for the exp-weighted future HP-diff labels "
+                             "(view distance; only used when --label-mode != terminal)")
+    parser.add_argument("--label-scale", type=float, default=2.0,
+                        help="amplify recomputed labels so the value head's output magnitude "
+                             "matches what the search expects (only for non-terminal modes)")
+    parser.add_argument("--label-mix-alpha", type=float, default=0.5,
+                        help="for --label-mode mix: weight of the current HP-diff (rest goes "
+                             "to the weighted future average)")
     args = parser.parse_args()
 
     if args.device == "auto":
@@ -349,7 +428,12 @@ def main() -> None:
                                            native_engine=args.native_engine)
 
     print("[warmup] loading all data into memory...", flush=True)
-    data = load_all_data(npz_paths)
+    data = load_all_data(npz_paths, label_cfg={
+        "mode": args.label_mode,
+        "tau": args.tau,
+        "label_scale": args.label_scale,
+        "mix_alpha": args.label_mix_alpha,
+    })
     print(f"[warmup] {data['board'].shape[0]} samples in memory "
           f"(~{data['board'].nbytes // (1 << 20)} MB f16)", flush=True)
 
@@ -372,6 +456,10 @@ def main() -> None:
             "num_resblocks": model.num_resblocks,
             "completed_batches": 0,
             "warmup": True,
+            "label_mode": args.label_mode,
+            "tau": args.tau,
+            "label_scale": args.label_scale,
+            "label_mix_alpha": args.label_mix_alpha,
         },
         args.checkpoint,
     )
