@@ -874,3 +874,17 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
 
 **唯一剩下的方向是改变数据的性质**——对手池（打不同强度的对手 → 强度不对称 →
 对局一边倒 → 血量差大 → 标签清晰），而不是继续调训练/架构。
+
+## 2026-09-12 09:45:04 — pooltau_6arms
+
+- **commit**: `87a5512` (dirty: 15 files)
+- **exit**: 0，用时 15171s
+- **cmd**:
+  ```bash
+  bash _tmp_pooltau.sh
+  ```
+- **output**: `training_history/runs/20260912_094504_pooltau_6arms/output.log`
+- **result**: 6 臂（tau=50/scale=2/abs，32 局 vs rule_v4）：**gap 15.6%、gapmask 21.9%、gapmax 31.2%、region 15.6%、grid 9.4%、attn 18.8%**。对照 terminal 基线 29.7%（gap，64 局）。
+  - ⚠️ 注意这不是单变量对比：`gap`+tau50(15.6%) 相对 `gap`+terminal(29.7%) 掉了 14pp，但 `gapmax`+tau50 反而到 31.2%。32 局的标准误 ≈8.8pp，15.6 vs 31.2 只差 1.8 SE → **不能下结论**，需 svs
+  - 另外 tau-abs 有"抄 stats[1]"捷径（corr 0.937，见 plan 文档），label 线本身存疑
+  - 判据待做：svs 64 局 `gapmax+tau50` vs terminal 基线
