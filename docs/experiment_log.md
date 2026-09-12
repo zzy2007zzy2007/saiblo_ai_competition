@@ -931,3 +931,22 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - **`stats_tau50` 32 局全败 = 项目最差**，且可解释：stats-only（只剩 state）+ tau-abs（88% 方差可由 `stats[1]` 解释）叠加 → 价值头退化成"血量差复读机"（value≈2×stats[1]）→ 搜索变短视贪心、看不见威胁 → 全败
   - 对照：同标签配棋盘输入（`gap`+tau50）是 15.6% → **棋盘输入是防止价值头退化的关键**
   - 修正前一条对"棋盘无贡献"的错误解读（见 `docs/az_value_stats_only_plan.md`）
+
+## 2026-09-12 21:42:50 — svs_kgeo_gap_vs_term
+
+- **commit**: `e84694e` (dirty: 16 files)
+- **exit**: 0，用时 8542s
+- **cmd**:
+  ```bash
+  bash _tmp_svs_kgeo.sh
+  ```
+- **output**: `training_history/runs/20260912_214250_svs_kgeo_gap_vs_term/output.log`
+- **result**: search-vs-search 64 局（`mix_r10p_kgeo_gap` A vs `mix_r10p_vw_pol_frozen` B）：
+  **A = 60.9%（39W/0D/25L）**。两者策略逐位相同（az_r10）、池化相同（gap），
+  唯一差别是价值头标签（`k·γ^k` tau50/abs/s1.5 vs terminal）→ 单变量。
+  - **显著性：单侧 p = 0.052、双侧 0.103 → 未达显著**（64 局分辨不了 60% 的效应；要 p<0.05 需 ≥68 局、p<0.01 需 ~136 局）
+  - ⚠️ **强先后手不对称**：A=P0 时 **46.9%**（15W/17L）、A=P1 时 **75.0%**（24W/8L），差 28.1pp（交互 z≈2.30、p≈0.021，但属事后拆分）
+  - 对局整体后手 P1 胜率 41/64 = **64%**（后手优势明显）
+  - → 60.9% 实为"执后手 +28pp、执先手 −3pp"的混合；已排配对补测 `_tmp_svs_kgeo_flip.sh`
+    （同种子先后手取反，合成 64 对，配对分析抵消先后手效应）
+  - 首轮 svs 结论：**方向有利但未定论**；真伪取决于配对补测
