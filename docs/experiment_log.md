@@ -888,3 +888,17 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - ⚠️ 注意这不是单变量对比：`gap`+tau50(15.6%) 相对 `gap`+terminal(29.7%) 掉了 14pp，但 `gapmax`+tau50 反而到 31.2%。32 局的标准误 ≈8.8pp，15.6 vs 31.2 只差 1.8 SE → **不能下结论**，需 svs
   - 另外 tau-abs 有"抄 stats[1]"捷径（corr 0.937，见 plan 文档），label 线本身存疑
   - 判据待做：svs 64 局 `gapmax+tau50` vs terminal 基线
+
+## 2026-09-12 13:57:55 — pooltau100_6arms
+
+- **commit**: `b09c3c0` (dirty: 16 files)
+- **exit**: 0，用时 14216s
+- **cmd**:
+  ```bash
+  bash _tmp_pooltau100.sh
+  ```
+- **output**: `training_history/runs/20260912_135755_pooltau100_6arms/output.log`
+- **result**: 6 臂（tau=100/scale=2/abs，32 局 vs rule_v4）：**gap 12.5%、gapmask 25.0%、gapmax 18.8%、region 18.8%、grid 21.9%、attn 9.4%**。
+  - ⚠️ **臂间排名完全不稳**：tau50 里最好的 gapmax(31.2%) 在 tau100 掉到 18.8%；tau50 里最差的 grid(9.4%) 在 tau100 升到 21.9% → 再次印证 32 局粗筛是噪声主导，**单臂不能读**
+  - ✅ **但聚合一（各池化均值）是稳的**：terminal 5 臂均值 ≈27.8%、tau50 6 臂均值 ≈18.8%、tau100 6 臂均值 ≈17.7% → **tau 标签整体比 terminal 低约 10pp，且两个 tau 值一致**
+  - 与"tau-abs 有抄 stats[1] 捷径（corr 0.937）"的机制分析一致
