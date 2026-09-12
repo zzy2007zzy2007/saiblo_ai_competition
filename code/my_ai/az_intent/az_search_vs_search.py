@@ -26,7 +26,8 @@ for p in (_REPO, _CODE):
 
 
 def _worker(args: tuple) -> dict:
-    a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos, native_engine = args
+    (a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos,
+     native_engine, flip) = args
     import torch
     torch.set_num_threads(1)
 
@@ -46,8 +47,10 @@ def _worker(args: tuple) -> dict:
                         max_depth_rounds=max_depth_rounds,
                         t_class=t_class, t_pos=t_pos, seed=seed + 1)
 
-    # alternate which model is P0
-    mcts = [mcts_a, mcts_b] if seed % 2 == 0 else [mcts_b, mcts_a]
+    # alternate which model is P0; --flip-sides inverts the assignment so the SAME
+    # seed can be replayed with swapped sides -> pairs with the unflipped run
+    a_is_p0 = (seed % 2 == 0) != bool(flip)
+    mcts = [mcts_a, mcts_b] if a_is_p0 else [mcts_b, mcts_a]
     state = make_initial_state(seed, native_engine)
     for _ in range(512):
         if state.terminal:
@@ -65,7 +68,7 @@ def _worker(args: tuple) -> dict:
             state.advance_round()
 
     # score from model_a's perspective
-    a_player = 0 if seed % 2 == 0 else 1
+    a_player = 0 if a_is_p0 else 1
     if state.terminal and state.winner is not None:
         if state.winner == a_player:
             score = 1.0
@@ -78,7 +81,7 @@ def _worker(args: tuple) -> dict:
         hp_b = state.bases[1 - a_player].hp
         score = 0.5 if hp_a == hp_b else (1.0 if hp_a > hp_b else 0.0)
     tag = {1.0: "WIN", 0.5: "DRAW", 0.0: "LOSS"}[score]
-    print(f"  seed={seed:3d} {tag} ({'A=P0' if seed % 2 == 0 else 'A=P1'}) "
+    print(f"  seed={seed:3d} {tag} ({'A=P0' if a_is_p0 else 'A=P1'}) "
           f"hp={[b.hp for b in state.bases]} rounds={state.round_index}", flush=True)
     return {"score": score}
 
@@ -96,10 +99,16 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--native-engine", action="store_true",
                         help="use the C++ engine (native_game) for the game simulation")
+    parser.add_argument("--flip-sides", action="store_true",
+                        help="invert the seed%%2 side assignment. Running the SAME "
+                             "seeds with this flag replays every game with swapped "
+                             "sides, turning the two runs into 64 matched PAIRS "
+                             "(cancels the P0/P1 asymmetry within each pair)")
     args = parser.parse_args()
 
     jobs = [(args.a, args.b, args.seed + s, args.iterations, args.max_depth_rounds,
-             args.t_class, args.t_pos, args.native_engine) for s in range(args.games)]
+             args.t_class, args.t_pos, args.native_engine, args.flip_sides)
+            for s in range(args.games)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
