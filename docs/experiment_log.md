@@ -708,7 +708,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_gn_free.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
   ```
 - **output**: `training_history/runs/20260911_183921_eval_gn_free_H/output.log`
-- **result**: _待填_
+- **result**: `mix_r10p_gn_free.pt` vs rule_v4 32 局 = **18.8%（6W/0D/26L）** → GroupNorm 骨干解冻仍远低于基线 29.7%
 
 ## 2026-09-11 19:17:08 — tau_nonbn_s4
 
@@ -719,7 +719,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_tau4.sh
   ```
 - **output**: `training_history/runs/20260911_191708_tau_nonbn_s4/output.log`
-- **result**: _待填_
+- **result**: L(tau-abs scale4) 价值头训练完成（value_loss 0.0481），`mix_r10p_tau4_nonbn.pt` 32 局 vs rule_v4 = **12.5%**（见下方 eval_tau4_L）
 
 ## 2026-09-11 19:12:16 — tau_nonbn_2arms
 
@@ -730,7 +730,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_tau_nonbn.sh
   ```
 - **output**: `training_history/runs/20260911_191216_tau_nonbn_2arms/output.log`
-- **result**: _待填_
+- **result**: J(tau-abs scale2) / K(scale1) 两个价值头训练完成，产出 `mix_r10p_tau2_nonbn.pt` / `mix_r10p_tau1_nonbn.pt`；之后 eval_ijk 测得 vs rule_v4：**tau2 = 21.9%、tau1 = 9.4%**
 
 ## 2026-09-11 19:21:01 — eval_ijk
 
@@ -741,7 +741,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_eval_ijk.sh
   ```
 - **output**: `training_history/runs/20260911_192101_eval_ijk/output.log`
-- **result**: _待填_
+- **result**: 三个价值头各 32 局 vs rule_v4：`gn_frozen` **6.2%**（2W/30L）、`tau2_nonbn` **21.9%**（7W/25L）、`tau1_nonbn` **9.4%**（3W/29L）→ 全部低于基线 29.7%，标签格式杠杆无效
 
 ## 2026-09-11 21:32:00 — eval_tau4_L
 
@@ -752,7 +752,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_tau4_nonbn.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
   ```
 - **output**: `training_history/runs/20260911_213200_eval_tau4_L/output.log`
-- **result**: _待填_
+- **result**: `mix_r10p_tau4_nonbn.pt` vs rule_v4 32 局 = **12.5%（4W/0D/28L）**
 
 ## 2026-09-11 21:53:46 — pool_arms_5_retry
 
@@ -763,7 +763,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_pool_arms.sh
   ```
 - **output**: `training_history/runs/20260911_215346_pool_arms_5_retry/output.log`
-- **result**: _待填_
+- **result**: 5 种池化价值头训练完成，产出 `vw_pool_{gapmask,gapmax,region,grid,attn}.pt`（grid 最后一次 epoch loss=0.0614 anchor=0.0099 value=0.0516）
 
 ## 2026-09-11 23:35:16 — pool_arms_finish
 
@@ -774,7 +774,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_pool_finish.sh
   ```
 - **output**: `training_history/runs/20260911_233516_pool_arms_finish/output.log`
-- **result**: _待填_
+- **result**: region/grid/attn 价值头转换 + mix 完成 → `mix_r10p_pool_{region,grid,attn}.pt`
 
 ## 2026-09-11 23:43:37 — pool_arms_finish2
 
@@ -785,7 +785,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_pool_finish2.sh
   ```
 - **output**: `training_history/runs/20260911_234337_pool_arms_finish2/output.log`
-- **result**: _待填_
+- **result**: gapmax 价值头转换 + mix 完成 → `mix_r10p_pool_gapmax.pt`
 
 ## 2026-09-11 23:45:29 — pool64
 
@@ -796,7 +796,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_pool64.sh
   ```
 - **output**: `training_history/runs/20260911_234529_pool64/output.log`
-- **result**: _待填_
+- **result**: 64 局 vs rule_v4：`vw_pol_frozen`（基线）**29.7%**（19W/45L）、`pool_gapmax` **40.6%**（26W/38L）→ gapmax 看着 +11pp，但随后 svs 判定为噪声
 
 ## 2026-09-12 01:00:07 — svs_followup
 
@@ -807,7 +807,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_svs_followup.sh
   ```
 - **output**: `training_history/runs/20260912_010007_svs_followup/output.log`
-- **result**: _待填_
+- **result**: search-vs-search（gapmax vs 基线，256/4）：**A win rate = 48.4%（31W/0D/33L）** → 与 50% 无差异，**否决 gapmax 的 +11pp 优势**（第二次验证 vs rule_v4 小局数会出假阳性）
 
 ## 2026-09-12 01:55:35 — validate_gapmax
 
@@ -818,7 +818,7 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
   bash _tmp_validate.sh
   ```
 - **output**: `training_history/runs/20260912_015535_validate_gapmax/output.log`
-- **result**: _待填_
+- **result**: 补齐 grid/attn 两臂 64 局 vs rule_v4：`pool_grid` **18.8%**（12W/52L）、`pool_attn` **26.6%**（17W/47L）→ 均低于基线 29.7%，池化杠杆全线无效
 
 ---
 
