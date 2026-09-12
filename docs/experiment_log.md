@@ -698,3 +698,179 @@ softmax 选类、之后才降级成合法操作）：实测搜索目标的**82% 
 
 > 注意：`run_logged.sh` 用追加写入，若日志文件同时被编辑器/linter 重写，条目会丢失
 > （这 3 条就是这样丢的）。以后可从 `training_history/runs/<ts>_<name>/cmd.txt` 恢复。
+
+## 2026-09-11 18:39:21 — eval_gn_free_H
+
+- **commit**: `4daace4` (dirty: 22 files)
+- **exit**: 0，用时 2495s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_gn_free.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260911_183921_eval_gn_free_H/output.log`
+- **result**: _待填_
+
+## 2026-09-11 19:17:08 — tau_nonbn_s4
+
+- **commit**: `4daace4` (dirty: 22 files)
+- **exit**: 0，用时 868s
+- **cmd**:
+  ```bash
+  bash _tmp_tau4.sh
+  ```
+- **output**: `training_history/runs/20260911_191708_tau_nonbn_s4/output.log`
+- **result**: _待填_
+
+## 2026-09-11 19:12:16 — tau_nonbn_2arms
+
+- **commit**: `4daace4` (dirty: 22 files)
+- **exit**: 0，用时 1475s
+- **cmd**:
+  ```bash
+  bash _tmp_tau_nonbn.sh
+  ```
+- **output**: `training_history/runs/20260911_191216_tau_nonbn_2arms/output.log`
+- **result**: _待填_
+
+## 2026-09-11 19:21:01 — eval_ijk
+
+- **commit**: `e78fb0e` (dirty: 22 files)
+- **exit**: 0，用时 7855s
+- **cmd**:
+  ```bash
+  bash _tmp_eval_ijk.sh
+  ```
+- **output**: `training_history/runs/20260911_192101_eval_ijk/output.log`
+- **result**: _待填_
+
+## 2026-09-11 21:32:00 — eval_tau4_L
+
+- **commit**: `e78fb0e` (dirty: 22 files)
+- **exit**: 0，用时 3217s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/mix_r10p_tau4_nonbn.pt --opponent rule_v4 --bundle-mcts --iterations 256 --max-depth-rounds 4 --native-engine --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260911_213200_eval_tau4_L/output.log`
+- **result**: _待填_
+
+## 2026-09-11 21:53:46 — pool_arms_5_retry
+
+- **commit**: `953e4fe` (dirty: 16 files)
+- **exit**: 0，用时 6047s
+- **cmd**:
+  ```bash
+  bash _tmp_pool_arms.sh
+  ```
+- **output**: `training_history/runs/20260911_215346_pool_arms_5_retry/output.log`
+- **result**: _待填_
+
+## 2026-09-11 23:35:16 — pool_arms_finish
+
+- **commit**: `953e4fe` (dirty: 18 files)
+- **exit**: 0，用时 479s
+- **cmd**:
+  ```bash
+  bash _tmp_pool_finish.sh
+  ```
+- **output**: `training_history/runs/20260911_233516_pool_arms_finish/output.log`
+- **result**: _待填_
+
+## 2026-09-11 23:43:37 — pool_arms_finish2
+
+- **commit**: `18dce3b` (dirty: 17 files)
+- **exit**: 0，用时 111s
+- **cmd**:
+  ```bash
+  bash _tmp_pool_finish2.sh
+  ```
+- **output**: `training_history/runs/20260911_234337_pool_arms_finish2/output.log`
+- **result**: _待填_
+
+## 2026-09-11 23:45:29 — pool64
+
+- **commit**: `2b22086` (dirty: 16 files)
+- **exit**: 0，用时 7757s
+- **cmd**:
+  ```bash
+  bash _tmp_pool64.sh
+  ```
+- **output**: `training_history/runs/20260911_234529_pool64/output.log`
+- **result**: _待填_
+
+## 2026-09-12 01:00:07 — svs_followup
+
+- **commit**: `2b22086` (dirty: 16 files)
+- **exit**: 0，用时 18521s
+- **cmd**:
+  ```bash
+  bash _tmp_svs_followup.sh
+  ```
+- **output**: `training_history/runs/20260912_010007_svs_followup/output.log`
+- **result**: _待填_
+
+## 2026-09-12 01:55:35 — validate_gapmax
+
+- **commit**: `2b22086` (dirty: 16 files)
+- **exit**: 0，用时 26859s
+- **cmd**:
+  ```bash
+  bash _tmp_validate.sh
+  ```
+- **output**: `training_history/runs/20260912_015535_validate_gapmax/output.log`
+- **result**: _待填_
+
+---
+
+## 2026-09-12 — 价值头空间池化消融：无效（架构杠杆试完）
+
+### 背景
+
+价值头输入曾是 `spatial_feat.mean(dim=[2,3])`（全局平均 → 64 维）。地图是边长 10 的
+正六边形（271 格，其中 90 格 VOID），全局平均约 1/3 是死空间；且位置信息被压掉。
+
+### 实现
+
+`network.py` 新增 `value_pool`（默认 `gap` = 原行为，**逐位向后兼容**，已用改动前的
+network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / attn`。
+掩码由 `VALID_CELLS` 固定生成，不进 state_dict、不参与训练。
+
+### 结果（数据 336 局、冻结骨干、no_bn、terminal 标签；策略全部逐位相同 = az_r10）
+
+| pool | 价值头输入 | 64 局 vs rule_v4 | svs（对基线）|
+|------|-----------|-----------------|--------------|
+| **gap（基线）** | 128 | **29.7%** | — |
+| gapmax（平均+最大）| 192 | 40.6% | **48.4%（平手）** |
+| gapmask | 128 | 28.1%（32 局）| — |
+| attn | 128 | 26.6% | — |
+| region（左右半场）| 192 | 25.0% | — |
+| grid（4×4）| 1088 | 18.8% | — |
+
+**结论**：**没有一种池化可靠地优于基线**。
+- `gapmax` 在 vs rule_v4 上是 40.6%（看着 +11pp），但**配对分析 p≈0.30、svs 48.4% 平手**
+  → 判为噪声。
+- 空间信息越多越差（grid 1088 维最差 18.8%）：**骨干冻结时，价值头可训参数越多越容易
+  过拟合噪声标签**。
+- 仅"死区掩码"（gapmask）无用 → 死空间稀释不是瓶颈。
+
+### ⚠️ 方法论结论（第二次验证）
+
+**vs rule_v4 在小局数（32-64）上不可信**（对手是固定规则 AI，方差大，多次出现 +10pp
+级别的假阳性)；**search-vs-search 是灵敏判据**（策略锁死、对打配对、方差小）。
+之前 C2 头 vs 原版头也是同样情况（svs 53.1% 平手，而 vs rule_v4 差异被误读）。
+
+### 六杠杆总结（全部在同一份自对弈数据上测过）
+
+| 杠杆 | 最好结果 | 是否超越基线 29.7~31.2% |
+|------|---------|----------------------|
+| **数据质量**（旧 160 局/28% 决定性 → 新 336 局/62%）| **3.1% → 31.2%** | ✅ **唯一有效（10 倍）** |
+| 数据量（336 → 536 局）| 25.0% | ❌ |
+| 归一化（GroupNorm，冻结/解冻）| 6.2% / 18.8% | ❌ |
+| 骨干解冻（no_bn / GN）| 12.5% / 18.8% | ❌ |
+| 标签格式（tau-abs s1/2/4/6）| 9.4 / 21.9 / 12.5 / 9.4% | ❌ |
+| 池化（5 种）| 18.8% ~ 40.6%（svs 平手）| ❌ |
+
+### 下一步
+
+**唯一剩下的方向是改变数据的性质**——对手池（打不同强度的对手 → 强度不对称 →
+对局一边倒 → 血量差大 → 标签清晰），而不是继续调训练/架构。
