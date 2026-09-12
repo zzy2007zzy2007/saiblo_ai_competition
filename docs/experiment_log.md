@@ -902,3 +902,17 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - ⚠️ **臂间排名完全不稳**：tau50 里最好的 gapmax(31.2%) 在 tau100 掉到 18.8%；tau50 里最差的 grid(9.4%) 在 tau100 升到 21.9% → 再次印证 32 局粗筛是噪声主导，**单臂不能读**
   - ✅ **但聚合一（各池化均值）是稳的**：terminal 5 臂均值 ≈27.8%、tau50 6 臂均值 ≈18.8%、tau100 6 臂均值 ≈17.7% → **tau 标签整体比 terminal 低约 10pp，且两个 tau 值一致**
   - 与"tau-abs 有抄 stats[1] 捷径（corr 0.937）"的机制分析一致
+
+## 2026-09-12 17:55:04 — poolweight_kgeo_rel
+
+- **commit**: `6900bfd` (dirty: 16 files)
+- **exit**: 0，用时 9312s
+- **cmd**:
+  ```bash
+  bash _tmp_poolweight.sh
+  ```
+- **output**: `training_history/runs/20260912_175504_poolweight_kgeo_rel/output.log`
+- **result**: 4 臂（32 局 vs rule_v4）：**kgeo_gap 46.9%（15W/17L）、kgeo_gapmax 12.5%、rel_gap 21.9%、rel_gapmax 25.0%**。
+  - `kgeo_gap` 46.9% 是粗筛历史最高（terminal 基线 29.7%），且**全部臂都冻结骨干** → 不是"计算路径幸运盆地"那类不可复现产物
+  - 但同一标签下 `kgeo_gapmax` 只有 12.5%（差 34pp）→ 32 局仍然是噪声主导，单臂不能读；判据待 svs（`svs_kgeo_gap_vs_term`）
+  - `rel`（唯一把"抄当前血量差"捷径清零的模式）两臂 21.9/25.0%，**没有优于** terminal 基线
