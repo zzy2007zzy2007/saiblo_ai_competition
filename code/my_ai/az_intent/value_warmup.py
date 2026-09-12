@@ -143,15 +143,32 @@ def collect_games_parallel(hotstart: str | None, seeds: list[int], out_dir: str,
 def _exp_weighted_labels(stats: np.ndarray, player: np.ndarray, *,
                          tau: float, label_scale: float,
                          label_mode: str = "abs",
-                         mix_alpha: float = 0.5) -> np.ndarray:
+                         mix_alpha: float = 0.5,
+                         label_weight: str = "geo") -> np.ndarray:
     """Per-frame exp-weighted future HP-diff label for ONE game's frames.
 
-    Exact re-implementation of ``az_train.add_weighted_labels`` — same gamma, same
-    unified-P0 view, same clip/scale, same per-player sign flip — so the two code
-    paths produce identical labels.  Reads the per-frame HP difference from
-    ``stats[:, 1]`` (``hp_delta`` = player.hp - enemy.hp; features.py's `named`
-    dict puts round_ratio at 0 and hp_delta at 1).  ``player`` (n,) is used both
-    to unify the view and to re-sign the label.
+    With ``label_weight="geo"`` this is an exact re-implementation of
+    ``az_train.add_weighted_labels`` — same gamma, same unified-P0 view, same
+    clip/scale, same per-player sign flip — so the two code paths produce
+    identical labels.  Reads the per-frame HP difference from ``stats[:, 1]``
+    (``hp_delta`` = player.hp - enemy.hp; features.py's `named` dict puts
+    round_ratio at 0 and hp_delta at 1).  ``player`` (n,) is used both to unify
+    the view and to re-sign the label.
+
+    ``label_weight`` selects the weight on the future offset k (d is the unified
+    P0-view HP diff, the label is then re-signed per player):
+
+      geo  : w_k = gamma^k      — peak at k=0, i.e. the current frame has the
+                                  largest weight.  Highly correlated with the
+                                  CURRENT HP diff, which the net reads straight
+                                  off ``stats[1]`` (measured corr 0.937 at tau=50)
+                                  -> the value head can "copy the input".
+      kgeo : w_k = k * gamma^k  — w_0 = 0, so the current frame is EXCLUDED and
+                                  the peak moves to k~tau.  Same shortcut at a
+                                  lower level (corr 0.863 / R^2 0.72 at tau=50)
+                                  while keeping more per-frame variation than
+                                  simply raising tau (see
+                                  docs/az_pool_tau_label_plan.md).
     """
     from my_ai.az_intent.mcts import HP_SCALE
 
@@ -161,20 +178,37 @@ def _exp_weighted_labels(stats: np.ndarray, player: np.ndarray, *,
     hp = stats[:, 1].astype(np.float64)
     d = np.where(player == 0, hp, -hp)  # unified P0 view
     gamma = float(np.exp(-1.0 / tau))
-    suffix = wsum = 0.0
-    out = np.empty(n, dtype=np.float64)
-    for t in range(n - 1, -1, -1):
-        suffix = d[t] + gamma * suffix
-        wsum = 1.0 + gamma * wsum
-        raw = suffix / wsum
+
+    def finish(raw: float, d_t: float, p: int) -> float:
         if label_mode == "abs":
             lab = raw
         elif label_mode == "mix":
-            lab = mix_alpha * d[t] + (1.0 - mix_alpha) * raw
+            lab = mix_alpha * d_t + (1.0 - mix_alpha) * raw
         else:  # "rel"
-            lab = raw - d[t]
+            lab = raw - d_t
         label = float(np.clip(lab / HP_SCALE, -1.0, 1.0)) * label_scale
-        out[t] = label if player[t] == 0 else -label
+        return label if p == 0 else -label
+
+    out = np.empty(n, dtype=np.float64)
+    if label_weight == "kgeo":
+        # B_t = sum_{k>=0} k g^k d_{t+k};  splitting off k=0 (which is 0) gives
+        # B_t = g (B_{t+1} + A_{t+1}) where A is the plain geometric suffix sum.
+        A = B = WA = WB = 0.0
+        for t in range(n - 1, -1, -1):
+            B = gamma * (B + A)
+            WB = gamma * (WB + WA)
+            A = d[t] + gamma * A
+            WA = 1.0 + gamma * WA
+            # WB -> 0 on the final frame (only k=0 contributes, weight 0): fall
+            # back to the current frame so the label is still defined.
+            raw = (B / WB) if WB > 1e-9 else d[t]
+            out[t] = finish(raw, d[t], int(player[t]))
+    else:
+        suffix = wsum = 0.0
+        for t in range(n - 1, -1, -1):
+            suffix = d[t] + gamma * suffix
+            wsum = 1.0 + gamma * wsum
+            out[t] = finish(suffix / wsum, d[t], int(player[t]))
     return out.astype(np.float32)
 
 
@@ -197,8 +231,8 @@ def load_all_data(npz_paths: list[Path], label_cfg: dict | None = None) -> dict:
     recompute = mode != "terminal"
     if recompute:
         print(f"  [label] recomputing tau-weighted labels from stats: mode={mode} "
-              f"tau={cfg.get('tau')} scale={cfg.get('label_scale')} "
-              f"mix_alpha={cfg.get('mix_alpha')}", flush=True)
+              f"weight={cfg.get('weight', 'geo')} tau={cfg.get('tau')} "
+              f"scale={cfg.get('label_scale')} mix_alpha={cfg.get('mix_alpha')}", flush=True)
     boards, stats, a_maps, h_logits, v_targets = [], [], [], [], []
     for i, path in enumerate(npz_paths):
         if not path.exists():
@@ -215,6 +249,7 @@ def load_all_data(npz_paths: list[Path], label_cfg: dict | None = None) -> dict:
                 label_scale=float(cfg.get("label_scale", 1.0)),
                 label_mode=mode,
                 mix_alpha=float(cfg.get("mix_alpha", 0.5)),
+                label_weight=str(cfg.get("weight", "geo")),
             ))
         else:
             v_targets.append(d["value_target"])
@@ -385,6 +420,12 @@ def main() -> None:
     parser.add_argument("--label-mix-alpha", type=float, default=0.5,
                         help="for --label-mode mix: weight of the current HP-diff (rest goes "
                              "to the weighted future average)")
+    parser.add_argument("--label-weight", type=str, default="geo",
+                        choices=["geo", "kgeo"],
+                        help="weight on the future offset k: 'geo' = gamma^k (peak at the "
+                             "current frame, the original behaviour) or 'kgeo' = k*gamma^k "
+                             "(current frame excluded, peak at k~tau — cuts the 'copy the "
+                             "current HP diff' shortcut, see docs/az_pool_tau_label_plan.md)")
     args = parser.parse_args()
 
     if args.device == "auto":
@@ -430,6 +471,7 @@ def main() -> None:
     print("[warmup] loading all data into memory...", flush=True)
     data = load_all_data(npz_paths, label_cfg={
         "mode": args.label_mode,
+        "weight": args.label_weight,
         "tau": args.tau,
         "label_scale": args.label_scale,
         "mix_alpha": args.label_mix_alpha,
@@ -457,6 +499,7 @@ def main() -> None:
             "completed_batches": 0,
             "warmup": True,
             "label_mode": args.label_mode,
+            "label_weight": args.label_weight,
             "tau": args.tau,
             "label_scale": args.label_scale,
             "label_mix_alpha": args.label_mix_alpha,

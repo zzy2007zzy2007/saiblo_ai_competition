@@ -160,6 +160,25 @@
 ⚠️ **注意 R² 是捷径的下界**：这里只用"当前血量差"一个 predictor，而价值头输入里还有
 coin_ratio / tower_level_sum 等一堆非空间 stats，实际可抄比例更高。
 
+### 已实现的第二个轴：`--label-weight {geo,kgeo}` + 4 臂安排
+
+`value_warmup.py` 加了 `--label-weight`（默认 `geo` = 原行为，逐位兼容；已验证
+geo 仍与 `az_train` 一致 6e-8，kgeo 与独立公式一致 0.0）。按幅度匹配 terminal 基线
+（std 0.2945 / |label| 0.2454）定 scale：
+
+| 标签 | scale | std | \|label\|mean | max\|lab\| | 越界(>1) |
+|------|-------|-----|--------------|-----------|---------|
+| terminal 基线 | — | 0.2945 | 0.2454 | 0.85 | 0 |
+| kgeo tau50 abs | **1.5** | 0.3230 | 0.2545 | 1.32 | 0.26% |
+| rel tau50 | **4.0** | 0.3050 | 0.2399 | 1.42 | 0.13% |
+
+**4 臂**（`_tmp_poolweight.sh`，排在 tau50/tau100 两轮之后）：
+`kgeo×gap`、`kgeo×gapmax`、`rel×gap`、`rel×gapmax`
+（池化取 gap = 控制，gapmax = terminal 消融里唯一看着不差的臂）。
+
+冒烟印证方向：kgeo 训练时 value loss 明显**高于** geo-abs（batch2000 时 0.0284，
+geo-abs 更低且终值 0.0120）→ kgeo 确实更难被"抄"。
+
 ### 局内逐帧信号对比（支持"terminal 无逐帧信号"的原假设）
 
 | 标签 | 全局 std | 局内(P0)逐帧 std |
