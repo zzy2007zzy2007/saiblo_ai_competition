@@ -398,9 +398,11 @@ def main() -> None:
                         help="disable TF32 for matmul+cuDNN (GPU trains in full FP32; "
                              "TF32's 10-bit mantissa can send training to a different basin)")
     parser.add_argument("--value-pool", type=str, default="gap",
-                        choices=["gap", "gapmask", "gapmax", "region", "grid", "attn"],
+                        choices=["gap", "gapmask", "gapmax", "region", "grid", "attn", "stats"],
                         help="value-head spatial pooling (default 'gap' = original "
-                             "global average over all 361 grid cells)")
+                             "global average over all 361 grid cells). 'stats' = no "
+                             "spatial path at all (value sees only the 42-dim stats) — "
+                             "control for whether board features help the value head")
     parser.add_argument("--freeze-backbone", action="store_true",
                         help="freeze initial_conv + resblocks and train only the heads "
                              "(removes the under-constrained backbone drift; the value head "

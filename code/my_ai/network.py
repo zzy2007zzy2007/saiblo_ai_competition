@@ -194,6 +194,8 @@ class AntWarNetwork(nn.Module):
         #   region   : mean over the left / right halves       (128)
         #   grid     : means over a 4×4 coarse grid            (1024)
         #   attn     : learned 1×1-conv attention pooling      (64)
+        #   stats    : NO spatial path — value sees only the 42-dim stats (64);
+        #              state_emb shrinks to LATENT_DIM (control experiment)
         # Number of LATENT_DIM blocks the value's spatial summary contributes:
         #   gap/gapmask : 1 block  -> value input 2L (L board + L stats)
         #   gapmax      : 2 blocks (mean + max)
@@ -201,7 +203,8 @@ class AntWarNetwork(nn.Module):
         #   grid        : 16 blocks (4×4 coarse grid)
         #   attn        : 1 block  (learned attention pooling)
         self.value_mult = {"gap": 1, "gapmask": 1, "gapmax": 2,
-                           "region": 2, "grid": 16, "attn": 1}[value_pool]
+                           "region": 2, "grid": 16, "attn": 1,
+                           "stats": 0}[value_pool]
         if value_pool == "attn":
             self.value_attn = nn.Conv2d(self.LATENT_DIM, 1, kernel_size=1)
         self.value_head = nn.Sequential(
@@ -252,6 +255,12 @@ class AntWarNetwork(nn.Module):
             g = masks()["grid"].to(spatial_feat.device)
             value_spatial = [_masked_mean(spatial_feat, g[i, j])
                              for i in range(4) for j in range(4)]
+        elif self.value_pool == "stats":
+            # Control: the value head sees ONLY the 42-dim stats (via stats_mlp) —
+            # no spatial path at all, so state_emb shrinks to LATENT_DIM.  Used to
+            # test whether board features contribute anything to the value
+            # (docs/az_value_stats_only_plan.md).
+            value_spatial = []
         else:  # attn
             score = self.value_attn(spatial_feat)                       # (B,1,19,19)
             mk = masks()["mask"].to(spatial_feat.device).view(1, 1, 19, 19)
