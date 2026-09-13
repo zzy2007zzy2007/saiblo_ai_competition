@@ -56,7 +56,8 @@ def load_samples(pkl_paths: list[Path]) -> list[dict]:
 def add_weighted_labels(samples: list[dict], tau: float = 20.0,
                         label_scale: float = 1.0,
                         label_mode: str = "rel",
-                        mix_alpha: float = 0.5) -> None:
+                        mix_alpha: float = 0.5,
+                        label_weight: str = "geo") -> None:
     """In-place: set ``value_label`` = exp-weighted future HP-diff (player view, /HP_SCALE).
 
     Per-frame instantaneous HP diff d_t is taken from stats[1] (``hp_delta`` =
@@ -81,6 +82,12 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
     ``label_scale`` amplifies the labels so the trained value head's output
     magnitude matches the terminal-scale values the search expects (else the
     PUCT explore term dominates and search starves).
+    ``label_weight`` selects the weight on the future offset k (mirrors
+    value_warmup._exp_weighted_labels):
+      "geo"  : w_k = gamma^k    — peak at k=0 (current frame), the original form.
+      "kgeo" : w_k = k*gamma^k  — w_0 = 0, so the current frame is EXCLUDED and the
+               peak moves to k~tau.  Cuts the "copy the current HP diff from
+               stats[1]" shortcut (see docs/az_pool_tau_label_plan.md).
     Backward O(n) recurrence.
     """
     gamma = float(np.exp(-1.0 / tau))
@@ -96,21 +103,36 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
     for t, s in enumerate(samples):
         hp = float(s["stats"][1])  # hp_delta = player.hp - enemy.hp (player view)
         d[t] = hp if s["player"] == 0 else -hp
+
+    def finish(raw: float, d_t: float, p: int) -> float:
+        if label_mode == "abs":
+            lab = raw
+        elif label_mode == "mix":
+            lab = mix_alpha * d_t + (1.0 - mix_alpha) * raw
+        else:
+            lab = raw - d_t
+        label = float(np.clip(lab / HP_SCALE, -1.0, 1.0)) * label_scale
+        # value must be from the SAMPLE's player perspective (features are
+        # player-perspective; the search reads it as the current player's value)
+        return label if p == 0 else -label
+
+    if label_weight == "kgeo":
+        # B_t = sum k g^k d_{t+k} = g (B_{t+1} + A_{t+1}); WB analogous.
+        A = B = WA = WB = 0.0
+        for t in range(n - 1, -1, -1):
+            B = gamma * (B + A)
+            WB = gamma * (WB + WA)
+            A = d[t] + gamma * A
+            WA = 1.0 + gamma * WA
+            raw = (B / WB) if WB > 1e-9 else d[t]  # last frame: fall back to d_t
+            samples[t]["value_label"] = finish(raw, d[t], int(samples[t]["player"]))
+        return
+
     suffix = wsum = 0.0
     for t in range(n - 1, -1, -1):
         suffix = d[t] + gamma * suffix
         wsum = 1.0 + gamma * wsum
-        raw = suffix / wsum
-        if label_mode == "abs":
-            lab = raw
-        elif label_mode == "mix":
-            lab = mix_alpha * d[t] + (1.0 - mix_alpha) * raw
-        else:
-            lab = raw - d[t]
-        label = float(np.clip(lab / HP_SCALE, -1.0, 1.0)) * label_scale
-        # value must be from the SAMPLE's player perspective (features are
-        # player-perspective; the search reads it as the current player's value)
-        samples[t]["value_label"] = label if samples[t]["player"] == 0 else -label
+        samples[t]["value_label"] = finish(suffix / wsum, d[t], int(samples[t]["player"]))
 
 
 def _marginalize(s: dict, head: int) -> dict:
@@ -482,6 +504,11 @@ def main() -> None:
     parser.add_argument("--label-mix-alpha", type=float, default=0.5,
                         help="for label_mode='mix': weight of current HP-diff d_t "
                              "(1-alpha weights the future average)")
+    parser.add_argument("--label-weight", type=str, default="geo",
+                        choices=["geo", "kgeo"],
+                        help="future-offset weight: 'geo' = gamma^k (original) or "
+                             "'kgeo' = k*gamma^k (excludes the current frame, cuts the "
+                             "copy-stats[1] shortcut; mirrors value_warmup)")
     parser.add_argument("--split", action="store_true",
                         help="train policy and value as two independent networks "
                              "(docs/az_split_policy_value_plan.md)")
@@ -580,7 +607,8 @@ def main() -> None:
         else:
             add_weighted_labels(game, tau=args.tau, label_scale=args.label_scale,
                                 label_mode=args.label_mode,
-                                mix_alpha=args.label_mix_alpha)
+                                mix_alpha=args.label_mix_alpha,
+                                label_weight=args.label_weight)
         value_samples.extend(game)
     labels = np.asarray([s["value_label"] for s in value_samples])
     print(f"[train] policy {len(policy_samples)} samples, value {len(value_samples)} samples; "
