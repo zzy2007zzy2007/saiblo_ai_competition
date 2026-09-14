@@ -1023,3 +1023,145 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   - ⚠️ **首轮那个"强先后手不对称"（46.9% vs 75.0%）在补测中消失**（53.1% vs 53.1%）
     → 当时事后拆分的 p≈0.021 是小样本噪声，**再次印证小样本事后分层不能当证据**
   - **结论：kgeo_gap 的 svs 效应未获确立**（方向为正但不显著）；vs rule_v4 的 +20.3pp（p≈0.019）与它方向一致，但该判据历史上有假阳性记录
+
+## 2026-09-13 10:08:34 — pv_2x2
+
+- **commit**: `9f10b03` (dirty: 15 files)
+- **exit**: 0，用时 1165s
+- **cmd**:
+  ```bash
+  bash _tmp_policy_value_2x2.sh
+  ```
+- **output**: `training_history/runs/20260913_100834_pv_2x2/output.log`
+- **result**: _待填_
+
+## 2026-09-13 10:29:11 — continue_serial
+
+- **commit**: `9420a5b` (dirty: 16 files)
+- **exit**: 0，用时 10129s
+- **cmd**:
+  ```bash
+  bash _tmp_continue_serial.sh
+  ```
+- **output**: `training_history/runs/20260913_102911_continue_serial/output.log`
+- **result**: _待填_
+
+## 2026-09-13 14:03:45 — v50pool_npz
+
+- **commit**: `9420a5b` (dirty: 16 files)
+- **exit**: 0，用时 12127s
+- **cmd**:
+  ```bash
+  bash _tmp_v50pool_npz.sh
+  ```
+- **output**: `training_history/runs/20260913_140345_v50pool_npz/output.log`
+- **result**: _待填_
+
+## 2026-09-13 17:26:41 — v50label_2x2
+
+- **commit**: `9420a5b` (dirty: 16 files)
+- **exit**: 0，用时 10891s
+- **cmd**:
+  ```bash
+  bash _tmp_v50label_2x2.sh
+  ```
+- **output**: `training_history/runs/20260913_172641_v50label_2x2/output.log`
+- **result**: _待填_
+
+## 2026-09-13 20:28:22 — polpool_kgeo_arm
+
+- **commit**: `9420a5b` (dirty: 16 files)
+- **exit**: 0，用时 4373s
+- **cmd**:
+  ```bash
+  bash _tmp_polpool_kgeo.sh
+  ```
+- **output**: `training_history/runs/20260913_202822_polpool_kgeo_arm/output.log`
+- **result**: _待填_
+
+## 2026-09-13 22:13:07 — v50pool336_kgeo
+
+- **commit**: `9420a5b` (dirty: 16 files)
+- **exit**: 0，用时 5091s
+- **cmd**:
+  ```bash
+  bash _tmp_v50pool336_kgeo.sh
+  ```
+- **output**: `training_history/runs/20260913_221307_v50pool336_kgeo/output.log`
+- **result**: _待填_
+
+## 2026-09-13 23:38:05 — seed_rep_kgeo
+
+- **commit**: `558b23e` (dirty: 16 files)
+- **exit**: 0，用时 9184s
+- **cmd**:
+  ```bash
+  bash _tmp_seed_rep.sh
+  ```
+- **output**: `training_history/runs/20260913_233805_seed_rep_kgeo/output.log`
+- **result**: _待填_
+
+## 2026-09-14 02:12:07 — noise_floor_extra
+
+- **commit**: `558b23e` (dirty: 16 files)
+- **exit**: 0，用时 8379s
+- **cmd**:
+  ```bash
+  bash _tmp_noise_floor_extra.sh
+  ```
+- **output**: `training_history/runs/20260914_021207_noise_floor_extra/output.log`
+- **result**: _待填_
+
+## 2026-09-14 08:41:52 — sraw_sweep
+
+- **commit**: `ded55c9` (dirty: 17 files)
+- **exit**: 0，用时 9350s
+- **cmd**:
+  ```bash
+  bash _tmp_sraw_sweep.sh
+  ```
+- **output**: `training_history/runs/20260914_084152_sraw_sweep/output.log`
+- **result**: _待填_
+
+## 2026-09-14 — search-vs-raw 扫描：迭代/k/深度 的成本曲线（判据仪表定）
+
+### 背景
+
+用户提议：我们不需要"便宜的搜索与完整搜索一致"，只需要它**仍然打得过 raw**
+（同一个模型不搜索的那一侧）——把"保真判据"换成"效果判据"。
+台账显示该判据动态范围 50%（坏价值头）→ 90%（好价值头）。见
+`docs/az_action_factorization_idea.md`。
+
+### 结果（`mix_r10p_vw_pol_frozen`，32 局，每局是"同一模型搜索侧 vs raw 侧"→ 天然配对）
+
+| 配置 | search-vs-raw |
+|------|--------------|
+| **256/4（基线）** | **93.8%（30W/2L）** |
+| 128/4 | 78.1%（25W/7L） |
+| 64/4 | 62.5%（20W/12L） |
+| **32/4** | **25.0%（8W/24L）** ⚠️ |
+| k=8 @256/4 | 75.0%（24W/8L） |
+| **depth=2 @256** | **90.6%（29W/3L）** |
+
+### 结论
+
+1. **迭代数不能砍**：32 迭代下 search **比裸策略还差（25%）**——意味着
+   "浅搜索 32/2"采集出来的数据，其标签质量是**负的**。
+   → 之前计划文档里推荐的浅搜索采集配置**被实测否掉**。（要 ~80% 需 128 迭代，~90% 需 256。）
+2. **k 不要动**：k=8 → 75.0%（-18.8pp）。这与"测量①：k=24 时实际只有 ~6 个不同候选"
+   的推论矛盾 → 采样行为随模型而变，**该测量不具普适性**。
+3. **✅ 深度是唯一免费的速度**：depth 2 → 90.6%（vs 93.8%），几乎无损而成本减半。
+
+### 采集配置（修正后）
+
+```
+256 迭代 / **depth 2**（保持强度）+ `--skip-hold-search`（6.8×）
+→ ~2.2 分钟/局 → 1000 局 ≈ 2.3 小时
+```
+
+**不用退到浅搜索也能上量**——这是"体量"路线上最关键的一个解锁。
+
+### 方法论
+
+`search-vs-raw` 作为"训练是否生效"的判据**经受住了检验**：同一模型、局内配对、
+动态范围 50→94%，且循环里策略固定 ⇒ 该指标的变化只来自价值头。
