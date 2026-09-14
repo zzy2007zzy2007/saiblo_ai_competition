@@ -37,8 +37,10 @@ echo "[loop] work=$WORK pool(blocks)=${SUBGAMES}局  vs_rule_every=$VS_RULE_EVER
 # ── 0) 用现有 336 局 polonly 给池子做种（只做一次）─────────────────────────
 if [ ! -f "$WORK/.seeded" ]; then
   echo "########## SEED POOL：合并 $SEED_SRC ##########"
+  # 只有合并**成功**才写 .seeded —— 否则中断后会留下"半个池子"且下次不再补种
   "$PY" code/my_ai/az_intent/merge_az_batches.py \
-      --src "$SEED_SRC" --out "$POOL" --layout flat --seed-div 10000000
+      --src "$SEED_SRC" --out "$POOL" --layout flat --seed-div 10000000 \
+      || { echo "[loop] !! SEED FAILED —— 池子不完整，不写 .seeded（下次会重做）"; exit 1; }
   touch "$WORK/.seeded"
 fi
 
@@ -70,7 +72,8 @@ for k in $(seq 1 "$ROUNDS"); do
 
   # 3) 本轮 -> 累积池（每子目录一个 merged_*.npz）
   "$PY" code/my_ai/az_intent/merge_az_batches.py \
-      --src "$ROUND_DIR" --out "$POOL" --layout dirs --name-tag "r${k}_"
+      --src "$ROUND_DIR" --out "$POOL" --layout dirs --name-tag "r${k}_" \
+      || { echo "[loop] !! ROUND $k 合并失败 —— 中止（否则池子会静默缺这一轮）"; exit 1; }
 
   # 4) warm-start 续训（流式）
   VW_NEW="$WORK/vw_round$k.pt"
@@ -79,7 +82,8 @@ for k in $(seq 1 "$ROUNDS"); do
       --hotstart "$VW" --keep-value --stream \
       --data-dir "$POOL" --checkpoint "$VW_NEW" \
       --epochs "$EPOCHS" --skip-collect --freeze-backbone --device auto \
-      --label-mode abs --label-weight kgeo --tau 50 --label-scale 1.5
+      --label-mode abs --label-weight kgeo --tau 50 --label-scale 1.5 \
+      || { echo "[loop] !! ROUND $k 训练失败 —— 中止"; exit 1; }
   VW="$VW_NEW"
 
   # 5) 指标：search-vs-raw（配对、灵敏）
