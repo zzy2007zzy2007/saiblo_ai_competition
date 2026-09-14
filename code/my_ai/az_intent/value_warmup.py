@@ -212,57 +212,58 @@ def _exp_weighted_labels(stats: np.ndarray, player: np.ndarray, *,
     return out.astype(np.float32)
 
 
-def load_all_data(npz_paths: list[Path], label_cfg: dict | None = None) -> dict:
-    """Load all collected games into memory as float16 stacked arrays.
+def _load_chunk(path: Path, label_cfg: dict | None = None) -> dict:
+    """Load ONE npz (a per-game file or a merged chunk) into float16 arrays.
 
-    ~37.5 KB/sample float16 (board + action_map + head_logits + stats + value).
-    200 games x ~480 samples = ~96K samples ≈ 3.6 GB — fits comfortably in RAM
-    (machine has 15 GB), so training runs in memory instead of re-reading disk
-    every epoch (10 epochs of streaming would be ~36 GB of disk I/O).
-
-    ``label_cfg`` selects the value label.  Default (None or mode "terminal")
-    uses the terminal HP-difference stored in each npz — the original behaviour.
-    Any other mode ("abs"/"rel"/"mix") RECOMPUTES a tau-weighted future HP-diff
-    label offline from the stored per-frame stats (no re-collection needed),
-    matching az_train.add_weighted_labels exactly.
+    Shared by the all-in-memory and the streaming trainers so both paths produce
+    identical labels.  ``label_cfg`` as in ``load_all_data``.
     """
     cfg = dict(label_cfg or {})
     mode = str(cfg.get("mode", "terminal"))
-    recompute = mode != "terminal"
-    if recompute:
-        print(f"  [label] recomputing tau-weighted labels from stats: mode={mode} "
+    d = np.load(path)
+    out = {
+        "board": d["board"],
+        "stats": d["stats"],
+        "action_map": d["action_map"],
+        "head_logits": d["head_logits"],
+    }
+    if mode == "terminal":
+        out["value_target"] = d["value_target"].astype(np.float32)
+    else:
+        out["value_target"] = _exp_weighted_labels(
+            d["stats"], d["player"],
+            tau=float(cfg.get("tau", 20.0)),
+            label_scale=float(cfg.get("label_scale", 1.0)),
+            label_mode=mode,
+            mix_alpha=float(cfg.get("mix_alpha", 0.5)),
+            label_weight=str(cfg.get("weight", "geo")),
+        )
+    d.close()
+    return out
+
+
+def load_all_data(npz_paths: list[Path], label_cfg: dict | None = None) -> dict:
+    """Load ALL games into memory as float16 stacked arrays (non-streaming path).
+
+    ~32 MB per game decompressed (board 17 MB + action_map 15 MB), so this caps
+    the pool at a few hundred games on a 15 GB machine.  For larger pools use
+    ``--stream`` (merged_*.npz chunks loaded one at a time).
+    """
+    cfg = dict(label_cfg or {})
+    if str(cfg.get("mode", "terminal")) != "terminal":
+        print(f"  [label] recomputing tau-weighted labels from stats: mode={cfg.get('mode')} "
               f"weight={cfg.get('weight', 'geo')} tau={cfg.get('tau')} "
               f"scale={cfg.get('label_scale')} mix_alpha={cfg.get('mix_alpha')}", flush=True)
-    boards, stats, a_maps, h_logits, v_targets = [], [], [], [], []
+    parts = []
     for i, path in enumerate(npz_paths):
         if not path.exists():
             continue
-        d = np.load(path)
-        boards.append(d["board"])
-        stats.append(d["stats"])
-        a_maps.append(d["action_map"])
-        h_logits.append(d["head_logits"])
-        if recompute:
-            v_targets.append(_exp_weighted_labels(
-                d["stats"], d["player"],
-                tau=float(cfg.get("tau", 20.0)),
-                label_scale=float(cfg.get("label_scale", 1.0)),
-                label_mode=mode,
-                mix_alpha=float(cfg.get("mix_alpha", 0.5)),
-                label_weight=str(cfg.get("weight", "geo")),
-            ))
-        else:
-            v_targets.append(d["value_target"])
-        d.close()
+        parts.append(_load_chunk(path, cfg))
         if (i + 1) % 25 == 0 or i == len(npz_paths) - 1:
             print(f"  [load] {i+1}/{len(npz_paths)} files", flush=True)
-    return {
-        "board": np.concatenate(boards),
-        "stats": np.concatenate(stats),
-        "action_map": np.concatenate(a_maps),
-        "head_logits": np.concatenate(h_logits),
-        "value_target": np.concatenate(v_targets),
-    }
+    if not parts:
+        raise SystemExit("[warmup] no data loaded")
+    return {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
 
 
 def _train_batch(model, optimizer, board, stats, a_map, h_logits, v_tgt, lambda_value):
@@ -368,6 +369,73 @@ def train_in_memory(
     return {"samples": n, "epochs": epochs, "steps": n_steps}
 
 
+def train_streaming(model, chunk_paths: list[Path], label_cfg: dict | None = None, *,
+                    epochs: int = 10, batch_size: int = 32, lr: float = 1e-3,
+                    lambda_value: float = 1.0, seed: int = 0,
+                    log_interval: int = 200, device: str = "cpu") -> dict:
+    """Value training that never holds more than ONE merged chunk in memory.
+
+    Each epoch shuffles the chunk order, loads a chunk (one batch group, produced
+    by ``merge_az_batches.py``), shuffles its rows, trains batches, then frees it.
+    Peak memory = one chunk (~1.6 GB for 50 games), independent of pool size —
+    this is what lets the pool grow to thousands of games.
+
+    Chunk order is reshuffled every epoch, so batches still mix during training.
+    """
+    import time
+
+    rng = random.Random(seed)
+    model.to(device)
+    model.train()
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    print(f"  [stream] device={device} chunks={len(chunk_paths)} "
+          f"trainable={len(trainable)} ({sum(p.numel() for p in trainable):,} params)",
+          flush=True)
+    optimizer = torch.optim.AdamW(trainable, lr=lr, weight_decay=1e-4)
+    epoch_start = time.perf_counter()
+    rows_total = 0
+    n_steps = 0
+    for epoch in range(epochs):
+        order = list(chunk_paths)
+        rng.shuffle(order)
+        el = ea = ev = 0.0
+        ns = 0
+        for path in order:
+            d = _load_chunk(path, label_cfg)
+            n = int(d["board"].shape[0])
+            rows_total += n
+            if epoch == 0 and ns == 0:
+                vt = d["value_target"]
+                print(f"  [stream] first chunk {path.name}: {n} rows  "
+                      f"label mean={vt.mean():+.3f} std={vt.std():.3f} "
+                      f"range=[{vt.min():.3f},{vt.max():.3f}]", flush=True)
+            idx = list(range(n))
+            rng.shuffle(idx)
+            for start in range(0, n, batch_size):
+                b = idx[start:start + batch_size]
+                board = torch.from_numpy(d["board"][b]).float().to(device)
+                stats = torch.from_numpy(d["stats"][b]).float().to(device)
+                a_map = torch.from_numpy(d["action_map"][b]).float().to(device)
+                h_logits = torch.from_numpy(d["head_logits"][b]).float().to(device)
+                v_tgt = torch.from_numpy(d["value_target"][b]).float().to(device)
+                loss, a, v = _train_batch(model, optimizer, board, stats, a_map,
+                                          h_logits, v_tgt, lambda_value)
+                el += loss
+                ea += a
+                ev += v
+                ns += 1
+                n_steps += 1
+                if log_interval and n_steps % log_interval == 0:
+                    print(f"    [stream] epoch {epoch} step {n_steps}: "
+                          f"loss={el/ns:.4f} anchor={ea/ns:.4f} value={ev/ns:.4f}", flush=True)
+            del d
+        print(f"  epoch {epoch} DONE: loss={el/max(ns,1):.4f} anchor={ea/max(ns,1):.4f} "
+              f"value={ev/max(ns,1):.4f} ({time.perf_counter()-epoch_start:.0f}s total)", flush=True)
+    model.eval()
+    return {"samples": rows_total, "epochs": epochs, "steps": n_steps,
+            "chunks": len(chunk_paths)}
+
+
 def main() -> None:
     from my_ai.az_intent.train import build_model
 
@@ -386,6 +454,11 @@ def main() -> None:
                         help="collect on the C++ engine (official rules) instead of the Python SDK engine")
     parser.add_argument("--skip-collect", action="store_true",
                         help="reuse existing npz files in --data-dir instead of collecting new games")
+    parser.add_argument("--stream", action="store_true",
+                        help="stream training over merged_*.npz chunks (one chunk resident at a "
+                             "time) instead of loading the whole pool into memory.  Required for "
+                             "pools beyond a few hundred games; build the chunks with "
+                             "merge_az_batches.py")
     parser.add_argument("--keep-bn", action="store_true",
                         help="keep BatchNorm from the hotstart checkpoint instead of folding it "
                              "into no_bn (hotstart must be a BN checkpoint)")
@@ -470,22 +543,34 @@ def main() -> None:
         npz_paths = collect_games_parallel(args.hotstart, seeds, args.data_dir, args.workers,
                                            native_engine=args.native_engine)
 
-    print("[warmup] loading all data into memory...", flush=True)
-    data = load_all_data(npz_paths, label_cfg={
+    label_cfg = {
         "mode": args.label_mode,
         "weight": args.label_weight,
         "tau": args.tau,
         "label_scale": args.label_scale,
         "mix_alpha": args.label_mix_alpha,
-    })
-    print(f"[warmup] {data['board'].shape[0]} samples in memory "
-          f"(~{data['board'].nbytes // (1 << 20)} MB f16)", flush=True)
-
-    metrics = train_in_memory(
-        model, data,
-        epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
-        lambda_value=args.lambda_value, seed=args.seed, device=device,
-    )
+    }
+    if args.stream:
+        chunks = sorted(Path(args.data_dir).glob("merged_*.npz"))
+        print(f"[warmup] stream mode: {len(chunks)} merged chunks in {args.data_dir}", flush=True)
+        if not chunks:
+            raise SystemExit(f"[warmup] no merged_*.npz in {args.data_dir} — "
+                             f"run merge_az_batches.py first")
+        metrics = train_streaming(
+            model, chunks, label_cfg,
+            epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+            lambda_value=args.lambda_value, seed=args.seed, device=device,
+        )
+    else:
+        print("[warmup] loading all data into memory...", flush=True)
+        data = load_all_data(npz_paths, label_cfg=label_cfg)
+        print(f"[warmup] {data['board'].shape[0]} samples in memory "
+              f"(~{data['board'].nbytes // (1 << 20)} MB f16)", flush=True)
+        metrics = train_in_memory(
+            model, data,
+            epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+            lambda_value=args.lambda_value, seed=args.seed, device=device,
+        )
     Path(args.checkpoint).parent.mkdir(parents=True, exist_ok=True)
     model.cpu()  # save CPU tensors regardless of training device
     torch.save(
