@@ -108,7 +108,8 @@ def infer_model_config(ckpt: dict) -> dict:
     return cfg
 
 
-def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True) -> None:
+def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True,
+                  reinit_value: bool = True) -> None:
     """Load encoder + policy heads from a checkpoint; re-init the value head.
 
     Parameter source priority matches eval_checkpoint.py: top2_params[0] (TOP1)
@@ -119,6 +120,9 @@ def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True) -> Non
       the strong ES/GA models and avoiding BN mode issues in the search).
     - Checkpoints with fewer policy heads than the model are expanded by copying
       the single head — heads start identical and differentiate through training.
+    - ``reinit_value=False`` (``--keep-value``) KEEPS the checkpoint's value head
+      instead of re-initialising it — needed to warm-start a value head across
+      rounds of the iterative loop instead of retraining it from scratch.
     """
     from my_ai.network import AntWarNetwork, create_model
 
@@ -161,22 +165,25 @@ def load_hotstart(model: nn.Module, ckpt_path: str, fold_bn: bool = True) -> Non
             sd[f"policy_heads.{i}.bias"] = b
         print(f"[train] hot-start: expanded {ck_heads} head(s) -> {model.num_heads} heads")
 
-    # The value head is re-initialised below, so its keys are dropped first:
-    # a different value_pool changes their shapes.  Everything else stays strict.
-    sd = {k: v for k, v in sd.items() if not k.startswith("value_head.")}
+    if reinit_value:
+        # The value head is re-initialised below, so its keys are dropped first:
+        # a different value_pool changes their shapes.  Everything else stays strict.
+        sd = {k: v for k, v in sd.items() if not k.startswith("value_head.")}
     _res = model.load_state_dict(sd, strict=False)
     _unexpected = [k for k in _res.unexpected_keys]
-    _missing = [k for k in _res.missing_keys
-                if not (k.startswith("value_head.") or k.startswith("value_attn."))]
+    _ignorable = ("value_head.", "value_attn.") if reinit_value else ()
+    _missing = [k for k in _res.missing_keys if not k.startswith(_ignorable)]
     if _unexpected or _missing:
         raise RuntimeError(f"hot-start state_dict mismatch: unexpected={_unexpected} "
                            f"missing(non-value-head)={_missing}")
-    with torch.no_grad():
-        for module in model.value_head:
-            if isinstance(module, nn.Linear):
-                nn.init.xavier_uniform_(module.weight)
-                nn.init.zeros_(module.bias)
-    print(f"[train] hot-start loaded {Path(ckpt_path).name} (source: {source}); value head re-initialized")
+    if reinit_value:
+        with torch.no_grad():
+            for module in model.value_head:
+                if isinstance(module, nn.Linear):
+                    nn.init.xavier_uniform_(module.weight)
+                    nn.init.zeros_(module.bias)
+    print(f"[train] hot-start loaded {Path(ckpt_path).name} (source: {source}); "
+          f"value head {'re-initialized' if reinit_value else 'KEPT (warm-start)'}")
 
 
 class AZTrainer:
@@ -305,12 +312,13 @@ class AZTrainer:
 
 
 def build_model(ckpt_path: str | None, keep_bn: bool = False,
-                value_pool: str | None = None) -> nn.Module:
+                value_pool: str | None = None,
+                reinit_value: bool = True) -> nn.Module:
     """Build a model from a checkpoint.
 
     ``value_pool`` overrides the checkpoint's value-head pooling (None = keep
-    it).  The value head is re-initialised by load_hotstart in either case, so
-    changing the pool only changes the backbone-carrying inputs' widths.
+    it).  ``reinit_value=False`` keeps the checkpoint's value head (warm-start)
+    instead of re-initialising it.
     """
     from my_ai.network import create_model
 
@@ -327,7 +335,7 @@ def build_model(ckpt_path: str | None, keep_bn: bool = False,
                 gn_groups=cfg.get("gn_groups", 8),
                 value_pool=vp,
             )
-            load_hotstart(model, ckpt_path, fold_bn=False)
+            load_hotstart(model, ckpt_path, fold_bn=False, reinit_value=reinit_value)
             return model
         model = create_model(
             num_resblocks=cfg["num_resblocks"],
@@ -336,7 +344,7 @@ def build_model(ckpt_path: str | None, keep_bn: bool = False,
             no_bn=not keep_bn,  # default: fold BN checkpoints, train without BN
             value_pool=vp,
         )
-        load_hotstart(model, ckpt_path, fold_bn=not keep_bn)
+        load_hotstart(model, ckpt_path, fold_bn=not keep_bn, reinit_value=reinit_value)
     else:
         model = create_model(num_heads=3, no_bn=not keep_bn,
                              value_pool=value_pool or "gap")

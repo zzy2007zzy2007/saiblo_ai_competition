@@ -164,7 +164,8 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None,
                  native_engine: bool = False,
-                 random_action_prob: float = 0.0) -> list[dict]:
+                 random_action_prob: float = 0.0,
+                 skip_hold_search: bool = False) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
 
     If ``progress_path`` is given, a per-round text log (round index + each
@@ -210,7 +211,32 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
             pm = make_position_masks(state, player, intent_decoding=True)
             cm = make_class_mask(state, player, position_mask=pm, intent_decoding=True)
 
-            res = mcts.search(state, player, temperature=temperature)
+            # HOLD-skip optimisation: the MCTS is the bottleneck (advance_round), and
+            # ~91% of decisions end up HOLD — almost always because every action class
+            # is masked out (cooldown / no valid position / unaffordable).  When the
+            # *legal* class argmax is HOLD for every head the search can only pick HOLD
+            # too (measured agreement: 2 wrong skips in 10,002 decisions), so skip it.
+            skip = False
+            if skip_hold_search:
+                votes = []
+                for i in range(model.num_heads):
+                    lg = out[f"head{i + 1}_logits"].squeeze(0).numpy().astype(np.float64)
+                    lg = np.where(cm, lg, -1e9)
+                    votes.append(int(np.argmax(lg)))
+                skip = all(v == 23 for v in votes)  # 23 = HOLD
+            if skip:
+                res = None
+                chosen = ()
+                bundles, intent_counts, visit = [()], None, np.ones(1, dtype=np.float32)
+            else:
+                res = mcts.search(state, player, temperature=temperature)
+                chosen = res.chosen_bundle
+                bundles, intent_counts, visit = (list(res.bundles), res.intent_counts,
+                                                 res.visit_policy.astype(np.float32))
+                if random_action_prob > 0.0 and mcts.rng.random() < random_action_prob:
+                    rb = _random_legal_bundle(model, out, state, player, mcts.rng, pm, cm)
+                    if rb:
+                        chosen = rb
             samples.append(
                 {
                     "board": obs["board"].astype(np.float16),
@@ -218,18 +244,14 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     "player": player,
                     "class_mask": cm,
                     "position_mask": pm,
-                    "bundles": list(res.bundles),
-                    "intent_counts": res.intent_counts,
-                    "visit": res.visit_policy.astype(np.float32),
+                    "bundles": bundles,
+                    "intent_counts": intent_counts,
+                    "visit": visit,
                     "recorded_action_map": recorded_am,
                     "recorded_head_logits": recorded_hl,
+                    "search_skipped": skip,
                 }
             )
-            chosen = res.chosen_bundle
-            if random_action_prob > 0.0 and mcts.rng.random() < random_action_prob:
-                rb = _random_legal_bundle(model, out, state, player, mcts.rng, pm, cm)
-                if rb:
-                    chosen = rb
             ops = [
                 Operation(OperationType(int(k[0])), int(k[1]), int(k[2]))
                 for k in chosen
@@ -268,7 +290,9 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       max_depth_rounds: int, t_class: float, t_pos: float,
                       k: int, sample_mult: int, max_rounds: int, temp_rounds: int,
                       native_engine: bool = False, c_puct: float = 1.25,
-                      random_action_prob: float = 0.0) -> dict:
+                      random_action_prob: float = 0.0,
+                      skip_hold_search: bool = False,
+                      write_npz: bool = False) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -282,11 +306,31 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
                            native_engine=native_engine,
-                           random_action_prob=random_action_prob)
+                           random_action_prob=random_action_prob,
+                           skip_hold_search=skip_hold_search)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        pickle.dump({"seed": seed, "samples": samples}, f)
+    if write_npz:
+        # Light value-only format: drop bundles/visit/intent_counts/masks (heavy,
+        # only needed for policy training).  The recorded anchors are kept AS-IS —
+        # no re-forwarding — because they come from THIS collection model, which
+        # for the iterative loop is the (fixed) policy we keep.
+        import numpy as _np
+        npz = path.with_suffix(".npz")
+        if samples:
+            _np.savez_compressed(
+                npz,
+                board=_np.stack([s["board"] for s in samples], axis=0),
+                stats=_np.stack([s["stats"] for s in samples], axis=0),
+                action_map=_np.stack([s["recorded_action_map"] for s in samples], axis=0),
+                head_logits=_np.stack([s["recorded_head_logits"] for s in samples], axis=0),
+                player=_np.asarray([s["player"] for s in samples], dtype=_np.int8),
+                value_target=_np.asarray([s["value_target"] for s in samples], dtype=_np.float32),
+            )
+        path = npz
+    else:
+        with open(path, "wb") as f:
+            pickle.dump({"seed": seed, "samples": samples}, f)
     print(f"  [collect] seed={seed} samples={len(samples)} -> {path.name}", flush=True)
     return {"seed": seed, "samples": len(samples)}
 
@@ -296,11 +340,13 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            t_pos: float, k: int, sample_mult: int, max_rounds: int,
                            temp_rounds: int, native_engine: bool = False,
                            c_puct: float = 1.25,
-                           random_action_prob: float = 0.0) -> list[Path]:
+                           random_action_prob: float = 0.0,
+                           skip_hold_search: bool = False,
+                           write_npz: bool = False) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
              k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
-             random_action_prob) for s in seeds]
+             random_action_prob, skip_hold_search, write_npz) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -334,6 +380,15 @@ def main() -> None:
                              "decisive-game injection; keep small, e.g. 0.05)")
     parser.add_argument("--c-puct", type=float, default=1.25,
                         help="MCTS PUCT exploration constant (higher = more exploration)")
+    parser.add_argument("--write-npz", action="store_true",
+                        help="write a light value-only npz per game instead of the heavy pkl "
+                             "(drops bundles/visit/masks; keeps the recorded anchors AS-IS). "
+                             "Used by the iterative loop: az_selfplay npz -> merge -> train")
+    parser.add_argument("--skip-hold-search", action="store_true",
+                        help="skip the MCTS at decisions where the LEGAL class argmax is "
+                             "HOLD for every head (the search can only pick HOLD there too; "
+                             "measured 2 wrong skips in 10,002 decisions).  ~91%% of decisions "
+                             "qualify, cutting collection cost by ~10x.  Value-only use.")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -347,6 +402,8 @@ def main() -> None:
         args.k, args.sample_mult, args.max_rounds, args.temp_rounds,
         native_engine=args.native_engine, c_puct=args.c_puct,
         random_action_prob=args.random_action_prob,
+        skip_hold_search=args.skip_hold_search,
+        write_npz=args.write_npz,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 

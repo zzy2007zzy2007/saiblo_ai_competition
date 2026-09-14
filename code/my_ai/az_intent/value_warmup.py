@@ -462,6 +462,10 @@ def main() -> None:
     parser.add_argument("--keep-bn", action="store_true",
                         help="keep BatchNorm from the hotstart checkpoint instead of folding it "
                              "into no_bn (hotstart must be a BN checkpoint)")
+    parser.add_argument("--keep-value", action="store_true",
+                        help="KEEP the checkpoint's value head instead of re-initialising it "
+                             "(warm-start).  Used by the iterative loop to continue training the "
+                             "value head across rounds instead of restarting from scratch each round")
     parser.add_argument("--device", type=str, default="auto",
                         help="'auto' picks cuda when available; use 'cpu' to force CPU")
     parser.add_argument("--threads", type=int, default=-1,
@@ -521,7 +525,8 @@ def main() -> None:
 
     torch.manual_seed(args.seed)
     model = build_model(args.hotstart, keep_bn=args.keep_bn,
-                        value_pool=args.value_pool)
+                        value_pool=args.value_pool,
+                        reinit_value=not args.keep_value)
     model.eval()
     if args.freeze_backbone:
         n_frozen = 0

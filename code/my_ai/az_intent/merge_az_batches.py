@@ -59,6 +59,10 @@ def main() -> None:
                     help="flat layout: group = seed // this (default 1e7)")
     ap.add_argument("--min-games", type=int, default=1,
                     help="skip groups with fewer games (default 1)")
+    ap.add_argument("--name-tag", default="",
+                    help="prefix for the group name, so successive runs (e.g. loop "
+                         "rounds) land in distinct merged_<tag><group>.npz files "
+                         "instead of overwriting each other")
     args = ap.parse_args()
 
     src = Path(args.src)
@@ -88,7 +92,7 @@ def main() -> None:
                     acc[k].append(d[k])
             n_frames += int(d["board"].shape[0])
             d.close()
-        out_path = out / f"merged_{gname}.npz"
+        out_path = out / f"merged_{args.name_tag}{gname}.npz"
         np.savez_compressed(out_path, **{k: np.concatenate(v, axis=0) for k, v in acc.items() if v})
         mib = out_path.stat().st_size / 1024 / 1024
         total_games += len(gps)
