@@ -33,7 +33,7 @@ import numpy as np
 
 
 def _worker(args: tuple) -> dict:
-    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin = args
+    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin, skip_single_candidate = args
     import torch
     torch.set_num_threads(1)
 
@@ -113,7 +113,8 @@ def _worker(args: tuple) -> dict:
         else:
             bmcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                                k=k, c_puct=c_puct, t_class=t_class, t_pos=t_pos, seed=seed,
-                               search_mode=search_mode, pos_pin=pos_pin)
+                               search_mode=search_mode, pos_pin=pos_pin,
+                               skip_single_candidate=skip_single_candidate)
         ra_rng = np.random.default_rng(seed + 7777)
 
         # Per-turn diagnostics for the class/position ablation: how often does the
@@ -282,6 +283,15 @@ def main() -> None:
                              "argmax (literal reading; collapses to raw whenever that class "
                              "is HOLD/unaffordable); playable = highest-logit class that "
                              "actually executes, which keeps the position axis searchable.")
+    parser.add_argument("--skip-single-candidate", action="store_true",
+                        help="OPT-IN forced-move shortcut: when the root has a single candidate, "
+                             "skip the result-irrelevant iterations.  Per-search bit-identical "
+                             "chosen_bundle/bundles/visit_policy/intent_counts and ~150x cheaper "
+                             "on those turns; pairs with --search-mode pos-only (~97%% of turns "
+                             "are single-candidate there).  It shifts which draws mcts.rng takes "
+                             "afterwards, so realized games are not reproducible across it "
+                             "(decision distribution unchanged).  "
+                             "See docs/az_forced_move_skip_plan.md")
     args = parser.parse_args()
 
     if args.checkpoint is None and args.baseline_hotstart is None:
@@ -296,7 +306,8 @@ def main() -> None:
          not args.no_value_tanh, args.value_rel_to_abs, args.k, args.c_puct,
          args.t_class, args.t_pos,
          args.self_raw_opponent, args.max_rounds, args.native_engine,
-         args.random_action_prob, args.search_mode, args.pos_pin)
+         args.random_action_prob, args.search_mode, args.pos_pin,
+         args.skip_single_candidate)
         for s in range(args.games)
     ]
     if args.workers > 1:

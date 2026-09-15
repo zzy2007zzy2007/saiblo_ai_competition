@@ -70,21 +70,26 @@ def load_split_models(ckpt_path: str):
     return policy_model, value_model
 
 
-def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True):
+def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True,
+                          value_rel_to_abs: float = 0.0):
     """Build (anchor_model, net_fn) for a checkpoint — single or split.
 
     ``anchor_model`` is the policy network (used to record the anchor outputs
     during self-play); ``net_fn`` is the search interface (one or two forwards).
+    ``value_rel_to_abs`` (0 = off): reconstruct an absolute value from a head
+    trained on relative labels (see ``train.make_net_fn``).
     """
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if "value_state" in ckpt:
         from my_ai.az_intent.train import make_split_net_fn
         policy_model, value_model = load_split_models(ckpt_path)
         return policy_model, make_split_net_fn(policy_model, value_model, feature_extractor,
-                                               value_tanh=value_tanh)
+                                               value_tanh=value_tanh,
+                                               value_rel_to_abs=value_rel_to_abs)
     from my_ai.az_intent.train import make_net_fn
     model = load_model_from_ckpt(ckpt_path)
-    return model, make_net_fn(model, feature_extractor, value_tanh=value_tanh)
+    return model, make_net_fn(model, feature_extractor, value_tanh=value_tanh,
+                              value_rel_to_abs=value_rel_to_abs)
 
 
 def make_initial_state(seed: int, native_engine: bool = False):
@@ -292,7 +297,9 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       native_engine: bool = False, c_puct: float = 1.25,
                       random_action_prob: float = 0.0,
                       skip_hold_search: bool = False,
-                      write_npz: bool = False) -> dict:
+                      write_npz: bool = False,
+                      search_mode: str = "joint", pos_pin: str = "argmax",
+                      skip_single_candidate: bool = False) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -301,7 +308,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
     mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
-                      c_puct=c_puct, seed=seed)
+                      c_puct=c_puct, seed=seed, search_mode=search_mode,
+                      pos_pin=pos_pin, skip_single_candidate=skip_single_candidate)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
@@ -342,11 +350,14 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            c_puct: float = 1.25,
                            random_action_prob: float = 0.0,
                            skip_hold_search: bool = False,
-                           write_npz: bool = False) -> list[Path]:
+                           write_npz: bool = False,
+                           search_mode: str = "joint", pos_pin: str = "argmax",
+                           skip_single_candidate: bool = False) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
              k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
-             random_action_prob, skip_hold_search, write_npz) for s in seeds]
+             random_action_prob, skip_hold_search, write_npz, search_mode, pos_pin,
+             skip_single_candidate) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -389,6 +400,28 @@ def main() -> None:
                              "HOLD for every head (the search can only pick HOLD there too; "
                              "measured 2 wrong skips in 10,002 decisions).  ~91%% of decisions "
                              "qualify, cutting collection cost by ~10x.  Value-only use.")
+    parser.add_argument("--search-mode", type=str, default="joint",
+                        choices=["joint", "class-only", "pos-only"],
+                        help="bundle-MCTS candidate axis.  pos-only (pin the class to its "
+                             "argmax, sample only positions) reproduces joint's strength "
+                             "exactly (93.8% vs raw, same 30W/2L) while giving the search a "
+                             "single candidate on ~97%% of turns -> pairs with "
+                             "skip_single_candidate for ~26x cheaper collection.  See "
+                             "docs/az_forced_move_skip_plan.md")
+    parser.add_argument("--pos-pin", type=str, default="argmax",
+                        choices=["argmax", "playable"],
+                        help="pos-only: which class to pin (argmax = raw argmax; "
+                             "playable = highest-logit class that actually executes)")
+    parser.add_argument("--skip-single-candidate", action="store_true",
+                        help="OPT-IN forced-move shortcut: when the root has a single candidate, "
+                             "skip the (result-irrelevant) iterations.  Per-search bit-identical "
+                             "chosen_bundle/bundles/visit_policy/intent_counts (verified on 660 "
+                             "comparisons) and ~150x cheaper on those turns; in pos-only mode that "
+                             "is ~97%% of turns => ~26x cheaper collection overall.  No effect in "
+                             "joint mode (~3%% of turns).  NOTE: it changes which draws are taken "
+                             "from mcts.rng afterwards, so realized games are NOT reproducible "
+                             "across this flag (the decision distribution is unchanged).  See "
+                             "docs/az_forced_move_skip_plan.md")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -404,6 +437,9 @@ def main() -> None:
         random_action_prob=args.random_action_prob,
         skip_hold_search=args.skip_hold_search,
         write_npz=args.write_npz,
+        search_mode=args.search_mode,
+        pos_pin=args.pos_pin,
+        skip_single_candidate=args.skip_single_candidate,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 

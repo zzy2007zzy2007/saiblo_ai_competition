@@ -200,6 +200,7 @@ class BundleMCTS:
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
+        skip_single_candidate: bool = False,
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
@@ -215,6 +216,7 @@ class BundleMCTS:
         self.sample_mult = sample_mult  # sample k*sample_mult times, keep top-k by count
         self.search_mode = search_mode
         self.pos_pin = pos_pin
+        self.skip_single_candidate = skip_single_candidate
         self.rng = np.random.default_rng(seed)
         self.last_root: BundleNode | None = None
 
@@ -338,6 +340,42 @@ class BundleMCTS:
         root = BundleNode(state=state.clone(), player=player)
         self.last_root = root
         self._expand(root, self.k)
+
+        # Forced-move shortcut (see docs/az_forced_move_skip_plan.md), OPT-IN: with a
+        # single candidate the visit distribution is [1.0] no matter how many iterations
+        # we run, so the 256 iterations only produce node visits nothing reads.  Measured
+        # cost split: 256 iterations = 256 net_fn calls = ~85% of a search's wall time
+        # (2.54ms each), while one expansion (1 forward + 360 sample_bundle calls) is
+        # ~3.7ms.  The class head being collapsed means the argmax class is frequently
+        # unexecutable, so in pos-only mode ~97% of turns have exactly one candidate ->
+        # there the iterations are pure waste (measured 25.8x overall, 748ms->5ms/turn).
+        # In joint mode only ~3% of turns qualify, so the win is negligible while the
+        # rng-stream side effect below still bites -> keep the default OFF.
+        #
+        # chosen_bundle / bundles / visit_policy / intent_counts are bit-identical to the
+        # un-skipped path; only root_value changes (visit mean -> root network value) and
+        # last_root has no expanded subtree.
+        #
+        # CAVEAT: that identity is per-search, given the SAME rng state.  Across a whole
+        # game the stream diverges, because the skipped iterations used to consume
+        # self.rng (each expansion samples candidates) -- so realized games are NOT
+        # reproducible across this flag and az_selfplay's random_action_prob (which
+        # draws from mcts.rng) shifts too.  The decision rule/distribution is unchanged;
+        # only the sampled realization is.  Verify strength with an N-game comparison,
+        # never by comparing individual games.
+        if self.skip_single_candidate and len(root.bundles) <= 1:
+            if root.bundles:
+                policy = np.ones(1, dtype=np.float32)
+            else:
+                policy = np.zeros(0, dtype=np.float32)
+            return BundleSearchResult(
+                bundles=list(root.bundles),
+                visit_policy=policy,
+                chosen_index=0,
+                chosen_bundle=root.bundles[0] if root.bundles else (),
+                root_value=float(root.net_value),
+                intent_counts=list(root.intent_counts),
+            )
 
         for _ in range(self.iterations):
             node = root
