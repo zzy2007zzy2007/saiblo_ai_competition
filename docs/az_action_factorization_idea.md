@@ -115,3 +115,55 @@
 - 两个模型 = 两套数据管线、两套超参。
 - 采集用的搜索若过弱，**价值标签本身会变差** → "效果判据"适合判定训练生效，
   但采集配置还要另看数据质量（决定性率、HOLD 率）。
+
+## 八、先行消融：搜索增益落在"类"还是"位置"（2026-09-15 用户提出，已实现）
+
+### 问法与实现
+
+用户问：**搜索起作用主要是靠"换一个动作类"还是"换一个位置"？**
+把两维各固定一维、只搜另一维，用 search-vs-raw 看谁还打得过 raw：
+
+- `--search-mode class-only`：位置固定为 `action_map` 的 argmax，**只采样动作类**；
+- `--search-mode pos-only`：动作类固定（见下），**只采样位置**；
+- `--search-mode joint`（默认）：两维都采样，作参照。
+
+实现落在 `bundle_mcts.BundleMCTS(search_mode=...)`：`pos-only` 把三个头的
+`class_ids` 全部钉成同一个常数类（位置仍按 `t_pos` 采样）；`class-only` 把
+`eff_t_pos` 强制为 0（`_sample_position` 走 argmax 分支）。
+
+### 实现时发现的坑（重要，决定了要加第 4 个 arm）
+
+按字面把类钉成 **原始 logits 的 argmax** 时，`pos-only` 会**退化成 raw**：
+
+- 实测 `mix_r10p_vw_pol_frozen` 在中局某状态三头 argmax 都是 **类 17（超武/闪电）**，
+  `class_mask[17]=True`（intent_decoding 不按金币屏蔽），但金币不够 → 走降级路径 →
+  没有可降级塔 → `decode_head` 返回 `None`。
+- 于是 pos-only 的全部 360 个候选都塌成同一个**空 bundle** → 与 raw 完全一致，
+  该 arm 变成恒等对照（诊断里 `room(>=2 cands) ≈ 3%`）。
+- 这是**模型的性质不是 bug**：策略类头坍缩到闪电（§三②），raw argmax 类经常不可执行。
+
+因此加了 `--pos-pin {argmax,playable}`：`playable` = 按 logit 降序找第一个
+**真能解出非 None 操作**的类（最多探 8 个），再只搜位置。这样位置维才有空间。
+
+### 每个 arm 附带的诊断（顺手回答"差在哪"）
+
+`eval.py --self-raw-opponent --bundle-mcts` 现在逐回合记录并汇总：
+
+- `room`：候选数 ≥2 的回合占比（搜索**有没有**空间）；
+- `chosen==raw`：搜索最终选择与 raw 解码完全相同的占比；
+- 不同时按"每个头采到的意图"归因到 `class` / `pos` / `both`。
+
+这样一次跑同时给出"谁更强"（胜率）和"差在哪一维"（诊断），不用只靠胜率反推。
+
+### 预期与读法（跑之前先写下）
+
+- 若 ②class-only ≈ ①joint ≫ 50%、③④ ≈ raw → 增益在**类**；
+- 若 ④pos-only(playable) ≈ ①joint ≫ 50%、② ≈ raw → 增益在**位置**；
+- ②③都 ≫50% → 两维都贡献，需看诊断里的占比分主次。
+
+脚本：`_tmp_search_axis_ablation.sh`（4 arm × 32 局 @256/4，同 seed 配对，
+`run_logged` 名 `search_axis_ablation`）。**跑之前先看 smoke 结果**：
+4 迭代/深度 1 的极小配置下 joint 的 `chosen==raw` 已高达 97%、
+且只差在位置维（`pos=2.8%`）——但这只是"搜索太弱 ≈ 先验 argmax"的假象，
+必须用 256/4 的真实配置复测该比例。
+

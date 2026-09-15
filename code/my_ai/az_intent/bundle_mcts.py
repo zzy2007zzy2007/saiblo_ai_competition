@@ -49,6 +49,37 @@ def head_class_probs(head_logits: np.ndarray, t_class: float) -> np.ndarray:
     return probs
 
 
+def playable_class(
+    head_logits: np.ndarray,
+    action_map: np.ndarray,
+    class_mask: np.ndarray,
+    position_mask: np.ndarray,
+    state: BackendState,
+    player: int,
+    *,
+    intent_decoding: bool = True,
+    max_probe: int = 8,
+) -> int:
+    """Highest-logit class that decodes to a real (non-None) operation.
+
+    "The class the policy prefers, restricted to those that can actually be
+    executed."  Used as the pinned class for the ``pos-only`` ablation when the
+    raw argmax class is HOLD/unaffordable — otherwise pinning it would leave the
+    position axis with no room at all and the arm would collapse to raw.
+    """
+    from my_ai.decoder import decode_head
+
+    head_logits = np.asarray(head_logits, dtype=np.float32)
+    for cid in np.argsort(-head_logits)[:max_probe]:
+        op = decode_head(head_logits, action_map, class_mask.copy(),
+                         position_mask.copy(), state, player,
+                         class_id=int(cid), temperature=0.0,
+                         pos_temperature=0.0, intent_decoding=intent_decoding)
+        if op is not None:
+            return int(cid)
+    return 23  # HOLD — nothing executable
+
+
 def sample_bundle(
     net_out: dict,
     state: BackendState,
@@ -167,7 +198,13 @@ class BundleMCTS:
         t_pos: float = 1.0,
         sample_mult: int = 15,
         seed: int = 0,
+        search_mode: str = "joint",
+        pos_pin: str = "argmax",
     ) -> None:
+        if search_mode not in ("joint", "class-only", "pos-only"):
+            raise ValueError(f"unknown search_mode: {search_mode}")
+        if pos_pin not in ("argmax", "playable"):
+            raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
         self.max_depth_rounds = max_depth_rounds
@@ -176,6 +213,8 @@ class BundleMCTS:
         self.t_class = t_class
         self.t_pos = t_pos
         self.sample_mult = sample_mult  # sample k*sample_mult times, keep top-k by count
+        self.search_mode = search_mode
+        self.pos_pin = pos_pin
         self.rng = np.random.default_rng(seed)
         self.last_root: BundleNode | None = None
 
@@ -215,16 +254,33 @@ class BundleMCTS:
         n_samples = k * self.sample_mult
         head_logits_list = [np.asarray(net_out["head_logits"][h], dtype=np.float32)
                             for h in range(3)]
-        class_probs = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
-        class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
-                     for p in class_probs]
+        # ── class/position factorization ablation (see docs/az_action_factorization_idea.md §8)
+        #   joint      : classes sampled (t_class), positions sampled (t_pos) — the default
+        #   pos-only   : class pinned to the decoder's own argmax (= raw's class choice),
+        #                so candidates differ ONLY in position → isolates position search
+        #   class-only : positions pinned to argmax (t_pos<=0), so candidates differ
+        #                ONLY in class → isolates class search
+        if self.search_mode == "pos-only":
+            class_probs_arg = None
+            if self.pos_pin == "playable":
+                pinned = [playable_class(hl, net_out["action_map"], base_cls_mask,
+                                         base_pos_mask, node.state, node.player)
+                          for hl in head_logits_list]
+            else:
+                pinned = [int(np.argmax(hl)) for hl in head_logits_list]
+            class_ids = [[c] * n_samples for c in pinned]
+        else:
+            class_probs_arg = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
+            class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
+                         for p in class_probs_arg]
+        eff_t_pos = 0.0 if self.search_mode == "class-only" else self.t_pos
         agg: dict[tuple, dict] = {}
         for idx in range(n_samples):
             ops, intents = sample_bundle(
                 net_out, node.state, node.player,
-                t_class=self.t_class, t_pos=self.t_pos, rng=self.rng,
+                t_class=self.t_class, t_pos=eff_t_pos, rng=self.rng,
                 position_mask=base_pos_mask, class_mask=base_cls_mask,
-                class_probs=class_probs,
+                class_probs=class_probs_arg,
                 class_ids=[cid[idx] for cid in class_ids],
             )
             key = tuple((int(o.op_type), o.arg0, o.arg1) for o in ops)
