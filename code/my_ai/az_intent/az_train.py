@@ -564,10 +564,10 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
         # HOLD 回合在 CE 上严格为 0；anchor 也只锚有目标的样本 ⇒ 它们对训练完全无用，
         # 直接从数据集里去掉（等价于"只训出招回合"，也让 CE 的归一化天然是 per-贡献样本）。
         samples = contrib
-        print(f"[pos-only] anchor_scope=contrib ⇒ 只训这 {len(samples)} 个出招回合"
+        print(f"[pos-only] anchor_scope=contrib -> 只训这 {len(samples)} 个出招回合"
               f"（HOLD 回合 CE/anchor 都跳过）", flush=True)
     else:
-        print("[pos-only] anchor_scope=all ⇒ 全样本参与（HOLD 回合只贡献 anchor，"
+        print("[pos-only] anchor_scope=all -> 全样本参与（HOLD 回合只贡献 anchor，"
               "用于限制泛化泄漏）", flush=True)
     if not samples:
         raise SystemExit("[pos-only] 没有带位置目标的样本，无从训练")

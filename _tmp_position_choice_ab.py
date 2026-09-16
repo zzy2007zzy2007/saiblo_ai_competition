@@ -34,7 +34,7 @@ MAX_ROUNDS = 600
 
 
 def _worker(job):
-    seed, mode, ckpt = job
+    seed, mode, ckpt, opp_ckpt = job
     import torch
     torch.set_num_threads(1)
     from SDK.backend.model import Operation
@@ -48,6 +48,10 @@ def _worker(job):
     feat = FeatureExtractor(max_actions=96)
     # 自动分支：二网 / 三网 / 单网（anchor_model 提供 action_map + head_logits）
     policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
+    # 对手用另一个 ckpt（None = 同一个）：判据"raw 新 vs raw 旧"需要两边不同
+    opp_model = policy_model
+    if opp_ckpt and opp_ckpt != ckpt:
+        opp_model, _ = make_net_fn_from_ckpt(opp_ckpt, feat)
     rng = np.random.default_rng(seed + 999)
     stats = {"ours_turns": 0, "ours_acted": 0, "cands_hist": {}, "chosen_idx": {}}
 
@@ -57,9 +61,19 @@ def _worker(job):
             return policy_model(torch.from_numpy(obs["board"]).unsqueeze(0).float(),
                                 torch.from_numpy(obs["stats"]).unsqueeze(0).float())
 
+    def _out_with(m, st, pl):
+        obs = feat.encode_observation(st, pl, np.zeros(96))
+        with torch.no_grad():
+            return m(torch.from_numpy(obs["board"]).unsqueeze(0).float(),
+                     torch.from_numpy(obs["stats"]).unsqueeze(0).float())
+
     def raw_ops(st, pl):
         return decode_network_output(policy_out(st, pl), st, pl, temperature=0.0,
                                      intent_decoding=True)
+
+    def opp_ops(st, pl):
+        return decode_network_output(_out_with(opp_model, st, pl), st, pl,
+                                     temperature=0.0, intent_decoding=True)
 
     def to_ops(bundle):
         return [Operation(OperationType(int(a)), int(b), int(c)) for a, b, c in bundle]
@@ -107,7 +121,7 @@ def _worker(job):
                     turn += 1
                     ops = our_ops(st, pl, turn)
                 else:
-                    ops = raw_ops(st, pl)
+                    ops = opp_ops(st, pl)
                 st.apply_operation_list(pl, ops)
             if pl == 1 and not st.terminal:
                 st.advance_round()
@@ -124,6 +138,7 @@ def _worker(job):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", default=CK)
+    ap.add_argument("--opponent-checkpoint", type=str, default=None)
     ap.add_argument("--mode", default="search",
                     choices=["raw", "search", "random", "prior"])
     ap.add_argument("--pairs", type=int, default=16)
@@ -131,7 +146,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    jobs = [(args.seed + i, args.mode, args.checkpoint) for i in range(args.pairs)]
+    jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint)
+            for i in range(args.pairs)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:

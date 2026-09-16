@@ -44,10 +44,10 @@ def _worker(args: tuple) -> dict:
         from my_ai.az_intent.train import build_model
         model = build_model(hotstart)
     else:
-        from my_ai.network import create_model, model_kwargs_from_ckpt
-        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        model = create_model(**model_kwargs_from_ckpt(ckpt))
-        model.load_state_dict(ckpt["model_state"])
+        # 走统一加载器，兼容 单网 / 二网 / 三网（三网没有 model_state，直接读会报错）
+        from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
+        from SDK.utils.features import FeatureExtractor as _FE
+        model, _ = make_net_fn_from_ckpt(ckpt_path, _FE(max_actions=96))
     model.eval()
 
     feat = FeatureExtractor(max_actions=96)
