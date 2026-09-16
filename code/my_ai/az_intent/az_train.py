@@ -574,9 +574,14 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
             torch.nn.utils.clip_grad_norm_(pos_model.parameters(), 5.0)
             opt.step()
             tot += loss.item(); tc += ce.item(); ta += anc.item(); ns += 1; n_steps += 1
+        ce_m = tc / max(ns, 1)
+        an_m = ta / max(ns, 1)
+        an_w = lambda_anchor * an_m
+        ratio = (an_w / ce_m) if ce_m > 0 else float("inf")
         print(f"[pos-only] epoch {epoch+1}/{epochs}: loss={tot/max(ns,1):.4f} "
-              f"pos_ce={tc/max(ns,1):.4f} anchor={ta/max(ns,1):.6f} "
-              f"(anchor weight {lambda_anchor}, pos_single={pos_single})", flush=True)
+              f"pos_ce={ce_m:.4f} anchor(加权)={an_w:.6f} "
+              f"[有效 anchor/CE = {ratio:.4f}]  "
+              f"(λ={lambda_anchor}, pos_single={pos_single})", flush=True)
         save_three_net(out_path, class_model, pos_model, value_model, meta)
     return {"epochs": epochs, "steps": n_steps, "pos_signal": n_pos_signal}
 
