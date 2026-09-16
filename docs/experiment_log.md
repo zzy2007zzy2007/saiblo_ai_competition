@@ -1791,3 +1791,63 @@ t=1.5 买到的是"**分布更分散的目标**"（空过从 98% 降到 51%，�
 三件都成立的轴，因此**值得投资**。
 仍待定：价值网**是否一起训**（§23 记"训过的价值头有害" 12.5%/9.4% vs 原版价值 34.4%，
 另有今天 kgeo+rel 与迭代循环的负面结果 ⇒ 倾向先冻住，做单变量）。
+
+## 2026-09-16 08:47:53 — phase2_posnet
+
+- **commit**: `aa3b556` (dirty: 18 files)
+- **exit**: 0，用时 2194s
+- **cmd**:
+  ```bash
+  bash _tmp_phase2_posnet.sh
+  ```
+- **output**: `training_history/runs/20260916_084753_phase2_posnet/output.log`
+- **result**: _待填_
+
+## 2026-09-16 09:26:11 — phase2_posnet_b
+
+- **commit**: `aa3b556` (dirty: 20 files)
+- **exit**: 0，用时 1541s
+- **cmd**:
+  ```bash
+  bash _tmp_phase2_posnet_b.sh
+  ```
+- **output**: `training_history/runs/20260916_092611_phase2_posnet_b/output.log`
+- **result**: _待填_
+
+## 2026-09-16 10:55:39 — posnet_loop
+
+- **commit**: `f2ca786` (dirty: 17 files)
+- **exit**: 0，用时 16951s
+- **cmd**:
+  ```bash
+  bash code/run_posnet_loop.sh 5
+  ```
+- **output**: `training_history/runs/20260916_105539_posnet_loop/output.log`
+- **result**: _待填_
+
+## 2026-09-16 17:19:44 — posnet_loop_svs
+
+- **commit**: `c745731` (dirty: 18 files)
+- **exit**: 0，用时 5089s
+- **cmd**:
+  ```bash
+  bash _tmp_posnet_loop_svs.sh
+  ```
+- **output**: `training_history/runs/20260916_171944_posnet_loop_svs/output.log`
+- **result**: 用**搜索对搜索**镜像重测 5 个 ckpt（第 k 轮搜索 vs 第 0 轮搜索，同 seed 配对）。
+  该台 null 臂实测 **1.0000 / SE=0**（两侧用同一全局回合号定 seed ⇒ 对局逐位相同），
+  所以它像 raw 镜像一样有零方差对照、但测的是**部署时真正跑的搜索**。
+
+  | 轮 | 搜索镜像 | t | （对照）raw 镜像 |
+  |---|---|---|---|
+  | null | **1.0000（SE=0）** | — | 1.0000（SE=0）|
+  | 1 | 1.0312 | +0.39 | 1.1406 |
+  | 2 | **1.1094** | **+1.19** | **1.2969 (t=3.6)** |
+  | 3 | 1.0781 | +1.00 | 1.0000 |
+  | 4 | 1.0469 | +0.60 | 1.0469 |
+  | 5 | **0.9688** | **−0.35** | 1.0312 |
+
+  **结论**：两个判据**同向** ⇒ "raw 镜像测错东西（只看 argmax）"这个假设**作废**
+  （第 1 轮搜索侧 1.0312 比 raw 侧 1.1406 还低）。两条曲线都**在第 2 轮见顶后衰减**，
+  搜索侧无一显著点（最大 t=1.19）；第 5 轮搜索侧掉到 1.0 以下。
+  第 4 轮那个 rule_v4=31.2%（p=0.13）随之可判为**噪声**。
