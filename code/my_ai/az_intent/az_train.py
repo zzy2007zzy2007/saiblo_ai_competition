@@ -524,14 +524,23 @@ def save_three_net(path: str, class_model, pos_model, value_model, meta: dict,
 def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
                    epochs: int, batch_size: int, lr: float, t_class: float, t_pos: float,
                    lambda_anchor: float, pos_single: bool, device: str,
-                   out_path: str, meta: dict) -> dict:
+                   out_path: str, meta: dict, anchor_scope: str = "contrib") -> dict:
     """位置-only 阶段：只训位置网的 action_map（docs/az_three_net_split_plan.md §5）。
 
-        L = 位置 CE（lambda_class_ce=0，所以不碰 head_logits） +  λ_anchor · MSE(action_map, 记录值)
+        L = 位置 CE（lambda_class_ce=0，不碰 head_logits） + λ_anchor · MSE(action_map, 记录值)
 
     - **类网 / 价值网冻结**，连前向都不做（位置 CE 只需要 action_map）⇒ 类网输出逐位不变；
-    - 位置 CE 只在"有位置目标"的回合（约 2.7%）上存在；其余回合 **anchor 是唯一约束**，
-      这正是 anchor 当初的设计用途（§3.2）。
+    - **HOLD 回合在位置 CE 上严格为 0**（实测：HOLD 样本 `requires_grad=False`）——它的目标里
+      没有位置。所以位置网只被"出招回合"（约 2.8%）的 CE 训练。
+
+    ``anchor_scope``：
+      - ``contrib``（默认）: 只对**有位置目标**的样本施加 anchor ⇒ HOLD 回合 CE 与 anchor
+        都跳过，λ 的语义就是"每个出招回合允许改多少"（纯信任域，作用在 CE 真正发力处）；
+      - ``all``: 全样本都锚 ⇒ 额外限制"2.8% 的拟合结果泛化泄漏到其余 97% 状态空间"的量。
+
+    归一化：CE 与 anchor **都除以"本 batch 贡献样本数"**（不是 ``len(batch)``）。因为
+    batch 里平均只有 ~0.9 个样本带目标，按 ``len(batch)`` 平均会把 CE 稀释 ~36×，
+    使 λ 失去可解释性。日志会打出有效 anchor/CE 比。
     """
     for m in (class_model, value_model):
         for p in m.parameters():
@@ -542,14 +551,26 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
     pos_model.train().to(device)
     opt = torch.optim.Adam([p for p in pos_model.parameters() if p.requires_grad], lr=lr)
 
-    # 先量一次"有位置信号的样本占比"，作为日志基线
-    n_pos_signal = 0
+    # 预计算"该样本是否有位置目标"（只算一次）
+    n_all = len(samples)
+    contrib = []
     for s in samples:
-        if any((x >= 0) for (c, x, y) in
-               (k for h in range(pos_model.num_heads) for k in _marginalize(s, h))):
-            n_pos_signal += 1
-    print(f"[pos-only] {len(samples)} 样本中带位置目标的占 {n_pos_signal / max(len(samples),1):.1%}"
-          f"（其余只有 anchor 约束）", flush=True)
+        if any(x >= 0 for h in range(pos_model.num_heads)
+               for (_c, x, _y) in _marginalize(s, h)):
+            contrib.append(s)
+    print(f"[pos-only] {n_all} 样本中带位置目标的 {len(contrib)} 个 "
+          f"({len(contrib) / max(n_all, 1):.1%})", flush=True)
+    if anchor_scope == "contrib":
+        # HOLD 回合在 CE 上严格为 0；anchor 也只锚有目标的样本 ⇒ 它们对训练完全无用，
+        # 直接从数据集里去掉（等价于"只训出招回合"，也让 CE 的归一化天然是 per-贡献样本）。
+        samples = contrib
+        print(f"[pos-only] anchor_scope=contrib ⇒ 只训这 {len(samples)} 个出招回合"
+              f"（HOLD 回合 CE/anchor 都跳过）", flush=True)
+    else:
+        print("[pos-only] anchor_scope=all ⇒ 全样本参与（HOLD 回合只贡献 anchor，"
+              "用于限制泛化泄漏）", flush=True)
+    if not samples:
+        raise SystemExit("[pos-only] 没有带位置目标的样本，无从训练")
 
     n_steps = 0
     for epoch in range(epochs):
@@ -581,9 +602,11 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
         print(f"[pos-only] epoch {epoch+1}/{epochs}: loss={tot/max(ns,1):.4f} "
               f"pos_ce={ce_m:.4f} anchor(加权)={an_w:.6f} "
               f"[有效 anchor/CE = {ratio:.4f}]  "
-              f"(λ={lambda_anchor}, pos_single={pos_single})", flush=True)
+              f"({ns} 步/batch {batch_size}; λ={lambda_anchor}, "
+              f"anchor_scope={anchor_scope}, pos_single={pos_single})", flush=True)
         save_three_net(out_path, class_model, pos_model, value_model, meta)
-    return {"epochs": epochs, "steps": n_steps, "pos_signal": n_pos_signal}
+    return {"epochs": epochs, "steps": n_steps, "n_samples_used": len(samples),
+            "n_samples_all": n_all}
 
 
 def main() -> None:
@@ -658,6 +681,11 @@ def main() -> None:
                         help="位置-only 阶段（三网 ckpt）：只训位置网，类网与价值网冻结且"
                              "不参与前向；损失 = 位置 CE + λ_anchor·MSE(action_map, 记录值)。"
                              "见 docs/az_three_net_split_plan.md §5")
+    parser.add_argument("--anchor-scope", type=str, default="contrib",
+                        choices=["contrib", "all"],
+                        help="位置-only：anchor 作用范围。contrib=只锚有位置目标的样本"
+                             "（HOLD 回合 CE 与 anchor 都跳过，λ 语义为'每个出招回合允许改多少'）；"
+                             "all=全样本都锚（额外限制泛化泄漏）")
     parser.add_argument("--lambda-class-ce", type=float, default=1.0,
                         help="class CE 的权重；0 = 完全关掉（位置-only 阶段必须为 0，"
                              "否则会加重类头的闪电坍缩）")
@@ -723,7 +751,8 @@ def main() -> None:
             epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_anchor=args.lambda_anchor, pos_single=args.pos_single,
-            device=device, out_path=args.checkpoint, meta=three_meta)
+            device=device, out_path=args.checkpoint, meta=three_meta,
+            anchor_scope=args.anchor_scope)
         print(f"[train] pos-only done: {metrics}", flush=True)
         return
 
