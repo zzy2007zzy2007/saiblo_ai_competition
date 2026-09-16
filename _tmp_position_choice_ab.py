@@ -40,16 +40,14 @@ def _worker(job):
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import load_split_models, make_initial_state
+    from my_ai.az_intent.az_selfplay import (make_initial_state,
+                                             make_net_fn_from_ckpt)
     from my_ai.az_intent.bundle_mcts import BundleMCTS
-    from my_ai.az_intent.train import make_split_net_fn
     from my_ai.decoder import decode_network_output
 
     feat = FeatureExtractor(max_actions=96)
-    policy_model, value_model = load_split_models(ckpt)
-    policy_model.eval()
-    value_model.eval()
-    net_fn = make_split_net_fn(policy_model, value_model, feat)
+    # 自动分支：二网 / 三网 / 单网（anchor_model 提供 action_map + head_logits）
+    policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
     rng = np.random.default_rng(seed + 999)
     stats = {"ours_turns": 0, "ours_acted": 0, "cands_hist": {}, "chosen_idx": {}}
 

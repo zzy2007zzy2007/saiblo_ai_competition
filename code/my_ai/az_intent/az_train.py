@@ -136,9 +136,20 @@ def add_weighted_labels(samples: list[dict], tau: float = 20.0,
 
 
 def _marginalize(s: dict, head: int) -> dict:
-    """Count-weighted marginalization: bundle visit -> per-intent target mass."""
+    """Count-weighted marginalization: bundle visit -> per-intent target mass.
+
+    ``intent_counts`` is ``None`` for decisions the collector SKIPPED
+    (``--skip-hold-search``: no search was run, so there is no visit distribution to
+    marginalize).  Such samples carry no policy target — they only keep the anchor
+    term — so return an empty target instead of crashing.  (Previously a None here
+    would raise on the pkl path, i.e. skip-hold collection was silently unusable
+    with any policy training.)
+    """
+    ic = s.get("intent_counts")
+    if not ic:
+        return {}
     target: dict = {}
-    for counts, visit in zip(s["intent_counts"], s["visit"]):
+    for counts, visit in zip(ic, s["visit"]):
         heads = counts[head]
         total = sum(heads.values())
         if total <= 0:
@@ -149,7 +160,8 @@ def _marginalize(s: dict, head: int) -> dict:
 
 
 def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float,
-                        num_heads: int, pos_single: bool = False) -> torch.Tensor:
+                        num_heads: int, pos_single: bool = False,
+                        lambda_class_ce: float = 1.0) -> torch.Tensor:
     """Decomposed CE for one sample (all heads): class CE + position CE.
 
     ``pos_single`` collapses each class's position target to its argmax
@@ -158,6 +170,12 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
     action_map conv cannot match simultaneously — their gradients cancel.
     Collapsing to one position removes the conflict; loss/divergence tests
     show action_map then develops position discrimination much faster.
+
+    ``lambda_class_ce=0`` drops the class term (used by the position-only phase,
+    docs/az_three_net_split_plan.md §5): on pos-only data the class target is a
+    one-hot on the head's OWN argmax, so its gradient only sharpens whatever the head
+    already prefers — i.e. it would deepen the lightning collapse.  With it at 0 the
+    head logits are never touched, so ``out`` only needs ``action_map``.
     """
     cm = torch.from_numpy(s["class_mask"]).bool()
     pm = torch.from_numpy(s["position_mask"]).bool()
@@ -169,11 +187,6 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
         target = _marginalize(s, h)
         if not target:
             continue
-        head_logits = out[f"head{h + 1}_logits"][b]
-        z = (head_logits - head_logits.mean()) / (head_logits.std() + 1e-8)
-        logits = z / t_class
-        lse = torch.logsumexp(logits[legal], dim=0)
-
         target_class: dict = {}
         target_pos: dict = {}
         for intent, mass in target.items():
@@ -182,11 +195,16 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
             if x >= 0:
                 target_pos.setdefault(c, {})[(x, y)] = target_pos.get(c, {}).get((x, y), 0.0) + mass
 
-        # class CE over the class marginal
-        for c, m in target_class.items():
-            if c in legal_list:
-                idx = legal_list.index(c)
-                total = total + m * -(logits[legal[idx]] - lse)
+        # class CE over the class marginal (skipped entirely when lambda_class_ce == 0)
+        if lambda_class_ce > 0:
+            head_logits = out[f"head{h + 1}_logits"][b]
+            z = (head_logits - head_logits.mean()) / (head_logits.std() + 1e-8)
+            logits = z / t_class
+            lse = torch.logsumexp(logits[legal], dim=0)
+            for c, m in target_class.items():
+                if c in legal_list:
+                    idx = legal_list.index(c)
+                    total = total + lambda_class_ce * m * -(logits[legal[idx]] - lse)
 
         # per-class weighted position CE
         for c, pos_mass in target_pos.items():
@@ -476,10 +494,99 @@ def train_split(policy_model, value_model, policy_samples: list[dict],
     return {"policy": n, "value": nv, "epochs": epochs, "steps": n_steps}
 
 
+def save_three_net(path: str, class_model, pos_model, value_model, meta: dict,
+                   completed_batches: int = 1) -> None:
+    """Write a 3-net checkpoint (class/pos/value) — deliberately NO ``model_state``.
+
+    Writing a stale/untrained ``model_state`` would let the old 1-/2-net loaders read
+    the wrong action_map silently; see docs/az_three_net_split_plan.md §3.
+    """
+    out = {k: v for k, v in meta.items()
+           if k not in ("model_state", "value_state", "class_state", "pos_state")}
+    out.update({
+        "class_state": class_model.state_dict(),
+        "pos_state": pos_model.state_dict(),
+        "value_state": value_model.state_dict(),
+        "three_net": True,
+        "num_heads": class_model.num_heads,
+        "no_bn": class_model.no_bn,
+        "gn": getattr(class_model, "gn", False),
+        "gn_groups": getattr(class_model, "gn_groups", 8),
+        "latent_dim": class_model.LATENT_DIM,
+        "num_resblocks": class_model.num_resblocks,
+        "completed_batches": completed_batches,
+    })
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    torch.save(out, path)
+    print(f"[pos-only] saved -> {path}", flush=True)
+
+
+def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
+                   epochs: int, batch_size: int, lr: float, t_class: float, t_pos: float,
+                   lambda_anchor: float, pos_single: bool, device: str,
+                   out_path: str, meta: dict) -> dict:
+    """位置-only 阶段：只训位置网的 action_map（docs/az_three_net_split_plan.md §5）。
+
+        L = 位置 CE（lambda_class_ce=0，所以不碰 head_logits） +  λ_anchor · MSE(action_map, 记录值)
+
+    - **类网 / 价值网冻结**，连前向都不做（位置 CE 只需要 action_map）⇒ 类网输出逐位不变；
+    - 位置 CE 只在"有位置目标"的回合（约 2.7%）上存在；其余回合 **anchor 是唯一约束**，
+      这正是 anchor 当初的设计用途（§3.2）。
+    """
+    for m in (class_model, value_model):
+        for p in m.parameters():
+            p.requires_grad = False
+        m.eval()
+    for p in pos_model.parameters():
+        p.requires_grad = True
+    pos_model.train().to(device)
+    opt = torch.optim.Adam([p for p in pos_model.parameters() if p.requires_grad], lr=lr)
+
+    # 先量一次"有位置信号的样本占比"，作为日志基线
+    n_pos_signal = 0
+    for s in samples:
+        if any((x >= 0) for (c, x, y) in
+               (k for h in range(pos_model.num_heads) for k in _marginalize(s, h))):
+            n_pos_signal += 1
+    print(f"[pos-only] {len(samples)} 样本中带位置目标的占 {n_pos_signal / max(len(samples),1):.1%}"
+          f"（其余只有 anchor 约束）", flush=True)
+
+    n_steps = 0
+    for epoch in range(epochs):
+        random.shuffle(samples)
+        tot = tc = ta = 0.0
+        ns = 0
+        for i in range(0, len(samples), batch_size):
+            batch = samples[i:i + batch_size]
+            boards = torch.stack([torch.from_numpy(s["board"]).float() for s in batch]).to(device)
+            stats = torch.stack([torch.from_numpy(s["stats"]).float() for s in batch]).to(device)
+            out = pos_model(boards, stats)                      # 只需位置网前向
+            ce = sum(_sample_policy_loss({"action_map": out["action_map"]}, b, s,
+                                         t_class, t_pos, pos_model.num_heads,
+                                         pos_single, lambda_class_ce=0.0)
+                     for b, s in enumerate(batch)) / len(batch)
+            am_tgt = torch.stack([torch.from_numpy(s["recorded_action_map"]).float()
+                                  for s in batch]).to(device)
+            anc = F.mse_loss(out["action_map"], am_tgt)
+            loss = ce + lambda_anchor * anc
+            opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(pos_model.parameters(), 5.0)
+            opt.step()
+            tot += loss.item(); tc += ce.item(); ta += anc.item(); ns += 1; n_steps += 1
+        print(f"[pos-only] epoch {epoch+1}/{epochs}: loss={tot/max(ns,1):.4f} "
+              f"pos_ce={tc/max(ns,1):.4f} anchor={ta/max(ns,1):.6f} "
+              f"(anchor weight {lambda_anchor}, pos_single={pos_single})", flush=True)
+        save_three_net(out_path, class_model, pos_model, value_model, meta)
+    return {"epochs": epochs, "steps": n_steps, "pos_signal": n_pos_signal}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Bundle-MCTS AlphaZero training (T2, round 2)")
     parser.add_argument("--init", required=True, help="initial checkpoint (gen0120_warm)")
-    parser.add_argument("--data-dir", required=True, help="accumulated self-play data dir (value pool)")
+    parser.add_argument("--data-dir", type=str, default=None,
+                        help="accumulated self-play data dir (value pool); "
+                             "位置-only 模式不需要")
     parser.add_argument("--policy-dir", type=str, default=None,
                         help="current-batch data dir (policy pool); default = --data-dir")
     parser.add_argument("--checkpoint", type=str, default="training_history/az_intent/az_az0.pt")
@@ -542,9 +649,17 @@ def main() -> None:
                              "position (single-point); multi-position targets are often "
                              "spread across non-adjacent cells whose gradients cancel, "
                              "making position CE unlearnable at practical step counts")
+    parser.add_argument("--pos-only-net", action="store_true",
+                        help="位置-only 阶段（三网 ckpt）：只训位置网，类网与价值网冻结且"
+                             "不参与前向；损失 = 位置 CE + λ_anchor·MSE(action_map, 记录值)。"
+                             "见 docs/az_three_net_split_plan.md §5")
+    parser.add_argument("--lambda-class-ce", type=float, default=1.0,
+                        help="class CE 的权重；0 = 完全关掉（位置-only 阶段必须为 0，"
+                             "否则会加重类头的闪电坍缩）")
     args = parser.parse_args()
 
-    from my_ai.az_intent.az_selfplay import load_model_from_ckpt, load_split_models
+    from my_ai.az_intent.az_selfplay import (load_model_from_ckpt, load_split_models,
+                                             load_three_models)
 
     if args.device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -553,7 +668,17 @@ def main() -> None:
     print(f"[train] device={device}", flush=True)
 
     torch.manual_seed(args.seed)
-    if args.split:
+    three_meta: dict = {}
+    if args.pos_only_net:
+        _src = torch.load(args.init, map_location="cpu", weights_only=False)
+        if "pos_state" not in _src:
+            raise SystemExit("--pos-only-net 需要三网 ckpt（含 pos_state）；"
+                             "先用 make_three_net_ckpt.py 拆一份")
+        class_model, pos_model, value_model = load_three_models(args.init)
+        three_meta = {k: v for k, v in _src.items()
+                      if k not in ("model_state", "value_state", "class_state", "pos_state")}
+        print(f"[train] pos-only 模式：三网 ckpt，类网/价值网冻结", flush=True)
+    elif args.split:
         policy_model, value_model = load_split_models(args.init)
         policy_model.train().to(device)
         value_model.train().to(device)
@@ -561,7 +686,7 @@ def main() -> None:
         model = load_model_from_ckpt(args.init)
         model.train().to(device)
 
-    if args.freeze_backbone:
+    if args.freeze_backbone and not args.pos_only_net:
         nets = ([("policy", policy_model), ("value", value_model)] if args.split
                 else [("model", model)])
         for tag, m in nets:
@@ -572,8 +697,31 @@ def main() -> None:
                     n_frozen += p.numel()
             print(f"[train] {tag} backbone frozen: {n_frozen:,} params", flush=True)
 
+    if args.policy_dir is None and args.data_dir is None:
+        raise SystemExit("至少给一个 --policy-dir 或 --data-dir")
     policy_dir = args.policy_dir or args.data_dir
     policy_paths = sorted(Path(policy_dir).rglob("az_selfplay_seed*.pkl"))
+
+    if args.pos_only_net:
+        # 位置-only：不需要价值池（价值网冻结），直接进位置训练
+        if args.lambda_class_ce != 0.0:
+            print(f"[train] 注意：pos-only 模式强制 lambda_class_ce=0"
+                  f"（传入的 {args.lambda_class_ce} 被忽略）——pos-only 的类目标是"
+                  f"该头自己的 argmax，照训会加重闪电坍缩", flush=True)
+        policy_samples = load_samples(policy_paths)
+        print(f"[train] pos-only: policy pool {len(policy_samples)} samples from "
+              f"{policy_dir}", flush=True)
+        if not policy_samples:
+            raise SystemExit(f"policy pool 为空（{policy_dir} 下没有 az_selfplay_seed*.pkl）")
+        metrics = train_pos_only(
+            class_model, pos_model, value_model, policy_samples,
+            epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+            t_class=args.t_class, t_pos=args.t_pos,
+            lambda_anchor=args.lambda_anchor, pos_single=args.pos_single,
+            device=device, out_path=args.checkpoint, meta=three_meta)
+        print(f"[train] pos-only done: {metrics}", flush=True)
+        return
+
     value_paths = sorted(Path(args.data_dir).rglob("az_selfplay_seed*.pkl"))
     if args.max_value_batches:
         from collections import defaultdict

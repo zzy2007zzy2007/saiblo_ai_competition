@@ -133,3 +133,45 @@ L = λ_class_ce(=0) · L_class  +  1.0 · L_pos  +  λ_anchor · MSE(action_map,
 - **"改进"必须在不搜索时也成立**（判据 2），否则只是把搜索行为复制进策略，绝对水平未变。
 - **待定**：λ_anchor 的具体值与退火策略；`--pos-single` 开不开；是否同时给位置网喂
   "类选择"的显式输入（现在靠 action_map 的通道索引隐式表达，第一版不动）。
+
+---
+
+## 执行状态
+
+### ✅ Phase 0 —— 管线等价性（已通过）
+
+三项独立检查（`_tmp_verify_three_net.py` + `_tmp_position_choice_ab.py`）：
+
+| 检查 | 结果 |
+|---|---|
+| A 加载器守卫 | 三网 ckpt 喂给 `load_model_from_ckpt` / `load_split_models` **均正确报错**；二网 ckpt 仍可正常加载（未破坏向后兼容） |
+| B 输出层逐位 | 80 个真实局面：`action_map` **80/80**、`head_logits` **80/80**、`value` **80/80**，最大差 **0.000e+00** |
+| C 对局层（独立复核）| 两网 vs 三网各自跑 `raw` / `search` 两臂：**每一个统计量精确一致** —— raw 双 1.0000(SE=0)；search 双 1.8125(SE=0.1008, t=+8.06)、候选数分布双 `{1:12261, 24:352}`、所选序号分布双 `12342/29/24/18/17`、出招率双 2.8% |
+
+产物：`training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt`（94/94 张量三处逐位同源、
+**无 `model_state` 键**）。
+
+### ✅ Phase 1 —— 位置-only 训练模式（已实现并冒烟验证）
+
+- `az_train.py`：新增 `--pos-only-net`、`--lambda-class-ce`、`save_three_net()`、
+  `train_pos_only()`；`_sample_policy_loss` 加 `lambda_class_ce`（=0 时**完全不碰 head_logits**，
+  因此位置 CE 只需位置网一次前向）。
+- 冒烟（8 局采集 + 3 epoch）：**带位置目标的样本占 2.8%**（与预测的 ~2.7% 吻合）；
+  **pos_ce 0.4929 → 0.4165 → 0.3392 在降**（§15 记过它曾卡在 0.85 不动 ⇒ 这一条初步通过，
+  但只有 184 个带信号样本，属"过拟合级"验证）。
+- **隔离性是构造性的**：训完 `class_state` **94/94 逐位相同（最大差 0）**、
+  `value_state` **94/94 逐位相同**；`pos_state` 中 80/94 个张量变化，权重幅度 0.1-0.4
+  （最大 3.75e-01 在 `resblocks.5.conv2.weight` ⇒ **位置网自己的骨干确实在学**，
+  这正是共用骨干给不了的）。6.15e+02 那个数是 BN 的 `num_batches_tracked`（=615 步），非权重。
+
+### 🐛 顺带修掉一个潜在 bug
+
+`--skip-hold-search` 的样本把 `intent_counts` 存成 `None`，而 `_marginalize` 直接迭代它
+⇒ **pkl 路径 + skip-hold 一直是不兼容的**（任何策略 CE 都会崩）。之前没人这么组合过
+（value 循环走 npz，npz 路径丢掉 intent_counts）。已在 `_marginalize` 里守卫为"无目标"，
+语义上正确：被跳过的决策没有搜索、因而没有策略目标，只保留 anchor。
+
+### 待做
+
+**Phase 2** —— 300-500 局小规模实跑，按 §7 判据读（判据跑前写死）。
+**Phase 3** —— 网络瘦身。

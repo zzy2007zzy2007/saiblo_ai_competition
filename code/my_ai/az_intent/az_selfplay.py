@@ -26,9 +26,24 @@ for p in (_REPO, _CODE):
         sys.path.insert(0, str(p))
 
 
+def _guard_no_three_net(ckpt: dict, caller: str) -> None:
+    """Fail loudly if a 3-net checkpoint is fed to a 1-/2-net loader.
+
+    A 3-net checkpoint deliberately has NO ``model_state`` (so a stale, untrained
+    action_map can never be read silently) — see docs/az_three_net_split_plan.md.
+    """
+    if "pos_state" in ckpt or ("class_state" in ckpt and "model_state" not in ckpt):
+        raise ValueError(
+            f"{caller}: this checkpoint is a 3-net (class/pos/value) checkpoint; "
+            "use load_three_models() / make_net_fn_from_ckpt() instead. "
+            "Reading it with a 1-/2-net loader would silently return an untrained "
+            "action_map.")
+
+
 def load_model_from_ckpt(ckpt_path: str):
     from my_ai.network import create_model, model_kwargs_from_ckpt
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    _guard_no_three_net(ckpt, "load_model_from_ckpt")
     model = create_model(**model_kwargs_from_ckpt(ckpt))
     model.load_state_dict(ckpt["model_state"])
     model.eval()
@@ -44,6 +59,7 @@ def load_split_models(ckpt_path: str):
     """
     from my_ai.network import create_model, model_kwargs_from_ckpt
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    _guard_no_three_net(ckpt, "load_split_models")
     _kw = model_kwargs_from_ckpt(ckpt)
     # A mixed checkpoint may record a separate normalization for the value net
     # (e.g. GroupNorm value + BatchNorm policy); older checkpoints omit these
@@ -70,6 +86,99 @@ def load_split_models(ckpt_path: str):
     return policy_model, value_model
 
 
+def load_three_models(ckpt_path: str):
+    """Load a 3-net checkpoint into (class_model, pos_model, value_model).
+
+    Class net  -> ``head_logits`` (the class distribution; the frozen/anchored half)
+    Pos net    -> ``action_map``  (per-class position maps; the half we train)
+    Value net  -> ``value``
+
+    All three are plain ``AntWarNetwork`` instances (which always build every head);
+    only the head each one is responsible for is read.  Slimming them is a later step
+    (docs/az_three_net_split_plan.md §3).
+    """
+    from my_ai.network import create_model, model_kwargs_from_ckpt
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    if "class_state" not in ckpt or "pos_state" not in ckpt:
+        raise ValueError("load_three_models: checkpoint lacks class_state/pos_state")
+    _kw = model_kwargs_from_ckpt(ckpt)
+    _vkw = dict(_kw)
+    if "value_no_bn" in ckpt or "value_gn" in ckpt:
+        _vkw["no_bn"] = bool(ckpt.get("value_no_bn", False))
+        _vkw["gn"] = bool(ckpt.get("value_gn", False))
+        _vkw["gn_groups"] = int(ckpt.get("value_gn_groups", 8))
+    _vkw["value_pool"] = str(ckpt.get("value_value_pool", _kw.get("value_pool", "gap")))
+
+    class_model = create_model(**_kw)
+    class_model.load_state_dict(ckpt["class_state"])
+    pos_model = create_model(**_kw)
+    pos_model.load_state_dict(ckpt["pos_state"])
+    value_model = create_model(**_vkw)
+    value_model.load_state_dict(ckpt.get("value_state", ckpt["pos_state"]))
+    for m in (class_model, pos_model, value_model):
+        m.eval()
+    return class_model, pos_model, value_model
+
+
+class ThreeNetPolicy:
+    """Anchor-recording façade for 3-net checkpoints.
+
+    ``collect_game`` only needs ``num_heads`` and ``__call__(board, stats) ->
+    {action_map, head1..N_logits}``; this forwards the class net for the logits and
+    the pos net for the action map, so the collection code path stays unchanged.
+    """
+
+    def __init__(self, class_model, pos_model):
+        self.class_model = class_model
+        self.pos_model = pos_model
+        self.num_heads = class_model.num_heads
+
+    def __call__(self, board, stats):
+        with torch.no_grad():
+            c_out = self.class_model(board, stats)
+            p_out = self.pos_model(board, stats)
+        out = {"action_map": p_out["action_map"]}
+        for i in range(self.num_heads):
+            out[f"head{i + 1}_logits"] = c_out[f"head{i + 1}_logits"]
+        return out
+
+    def eval(self):  # parity with nn.Module call sites
+        return self
+
+
+def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
+                      max_actions: int = 96, value_tanh: bool = True,
+                      value_rel_to_abs: float = 0.0):
+    """net_fn over three independent networks — same interface as make_split_net_fn.
+
+    ``action_map`` comes from the POS net, ``head_logits`` from the CLASS net,
+    ``value`` from the VALUE net (3 forwards instead of 2).
+    """
+    from my_ai.az_intent.mcts import HP_SCALE
+
+    def net_fn(state, player):
+        obs = feature_extractor.encode_observation(state, player, np.zeros(max_actions))
+        board = torch.from_numpy(obs["board"]).unsqueeze(0).float()
+        stats = torch.from_numpy(obs["stats"]).unsqueeze(0).float()
+        with torch.no_grad():
+            c_out = class_model(board, stats)
+            p_out = pos_model(board, stats)
+            v_out = value_model(board, stats)
+        heads = [c_out[f"head{i + 1}_logits"].squeeze(0).numpy()
+                 for i in range(class_model.num_heads)]
+        v_t = v_out["value"].squeeze(0)
+        value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
+        if value_rel_to_abs > 0.0:
+            value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
+        return {
+            "action_map": p_out["action_map"].squeeze(0).numpy(),
+            "head_logits": heads,
+            "value": value,
+        }
+
+    return net_fn
+
+
 def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True,
                           value_rel_to_abs: float = 0.0):
     """Build (anchor_model, net_fn) for a checkpoint — single or split.
@@ -80,6 +189,12 @@ def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = 
     trained on relative labels (see ``train.make_net_fn``).
     """
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    if "class_state" in ckpt and "pos_state" in ckpt:
+        class_model, pos_model, value_model = load_three_models(ckpt_path)
+        return (ThreeNetPolicy(class_model, pos_model),
+                make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
+                                  value_tanh=value_tanh,
+                                  value_rel_to_abs=value_rel_to_abs))
     if "value_state" in ckpt:
         from my_ai.az_intent.train import make_split_net_fn
         policy_model, value_model = load_split_models(ckpt_path)
