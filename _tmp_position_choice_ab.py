@@ -158,8 +158,9 @@ def main() -> None:
     ap.add_argument("--pairs", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--t-pos", type=float, default=0.3,
-                    help="位置采样温度（z-score 归一化后）；两侧共用，保证镜像对称")
+    ap.add_argument("--t-pos", type=float, default=1.0,
+                    help="位置采样温度（z-score 归一化后）；两侧共用，保证镜像对称。"
+                         "默认 1.0（强度平台起点）；0.3 是极尖档，见 docs/az_t_pos_default_fix.md")
     args = ap.parse_args()
 
     jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint,

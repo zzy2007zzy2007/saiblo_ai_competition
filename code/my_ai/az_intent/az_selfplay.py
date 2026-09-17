@@ -492,7 +492,11 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=128)
     parser.add_argument("--max-depth-rounds", type=int, default=4)
     parser.add_argument("--t-class", type=float, default=0.5)
-    parser.add_argument("--t-pos", type=float, default=0.3)
+    parser.add_argument("--t-pos", type=float, default=1.0,
+                        help="position sampling temperature (after z-scoring over legal "
+                             "cells).  Default 1.0 = start of the strength plateau; "
+                             "0.3 is a very sharp prior that measures only 1.6%% vs rule_v4 "
+                             "(vs 20.3%% at 1.0).  See docs/az_t_pos_default_fix.md")
     parser.add_argument("--k", type=int, default=24)
     parser.add_argument("--sample-mult", type=int, default=15)
     parser.add_argument("--max-rounds", type=int, default=512)

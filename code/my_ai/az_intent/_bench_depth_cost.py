@@ -36,7 +36,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--k", type=int, default=24)
     parser.add_argument("--t-class", type=float, default=0.5)
-    parser.add_argument("--t-pos", type=float, default=0.3)
+    parser.add_argument("--t-pos", type=float, default=1.0)
     args = parser.parse_args()
 
     torch.set_num_threads(1)

@@ -270,7 +270,7 @@ def compute_loss(model, policy_batch: list[dict], value_batch: list[dict], *,
 
 def train(model, policy_samples: list[dict], value_samples: list[dict], *,
           epochs: int = 5, batch_size: int = 32, lr: float = 1e-3,
-          t_class: float = 0.5, t_pos: float = 0.3,
+          t_class: float = 0.5, t_pos: float = 1.0,
           lambda_value: float = 1.0, lambda_anchor: float = 1.0,
           seed: int = 0, checkpoint: str = "", device: str = "cpu",
           pos_single: bool = False) -> dict:
@@ -378,7 +378,7 @@ def _value_step(value_model, v_batch, opt_v, device,
 
 def train_split(policy_model, value_model, policy_samples: list[dict],
                 value_samples: list[dict], *, epochs: int = 5, batch_size: int = 32,
-                lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 0.3,
+                lr: float = 1e-3, t_class: float = 0.5, t_pos: float = 1.0,
                 lambda_anchor: float = 1.0, seed: int = 0,
                 checkpoint: str = "", device: str = "cpu",
                 value_only: bool = False, value_passes: int = 1,
@@ -655,7 +655,10 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--t-class", type=float, default=0.5)
-    parser.add_argument("--t-pos", type=float, default=0.3)
+    parser.add_argument("--t-pos", type=float, default=1.0,
+                        help="position CE temperature (after z-scoring over legal cells). "
+                             "Should match the sampler's --t-pos in az_selfplay; "
+                             "see docs/az_t_pos_default_fix.md")
     parser.add_argument("--lambda-value", type=float, default=1.0)
     parser.add_argument("--lambda-anchor", type=float, default=1.0)
     parser.add_argument("--tau", type=float, default=20.0,

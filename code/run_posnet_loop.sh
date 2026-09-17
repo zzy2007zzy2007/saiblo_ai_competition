@@ -35,7 +35,7 @@ for r in $(seq 1 "$ROUNDS"); do
   "$PY" code/my_ai/az_intent/az_selfplay.py --checkpoint "$PREV" --games "$GAMES" \
       --workers 16 --iterations 256 --max-depth-rounds 2 --max-rounds 512 --native-engine \
       --skip-hold-search --search-mode pos-only --skip-single-candidate \
-      --out-dir "$RAW" --seed "$SEED" --t-class 0.5 --t-pos 0.3 --k 24 \
+      --out-dir "$RAW" --seed "$SEED" --t-class 0.5 --t-pos 1.0 --k 24 \
       || { echo "!! 第 $r 轮采集失败"; exit 1; }
 
   echo "--- 过滤成紧凑数据集 ---"
@@ -62,7 +62,7 @@ for r in $(seq 1 "$ROUNDS"); do
     echo "--- 粗锚：第 $r 轮 vs rule_v4（带廉价搜索，64 局）---"
     "$PY" code/my_ai/az_intent/eval.py --checkpoint "$PREV" --opponent rule_v4 \
         --bundle-mcts --native-engine --iterations 256 --max-depth-rounds 4 --k 24 \
-        --t-class 0.5 --t-pos 0.3 --search-mode pos-only --skip-single-candidate \
+        --t-class 0.5 --t-pos 1.0 --search-mode pos-only --skip-single-candidate \
         --games 64 --workers 16
   fi
 done

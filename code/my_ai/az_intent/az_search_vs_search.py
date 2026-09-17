@@ -27,7 +27,7 @@ for p in (_REPO, _CODE):
 
 def _worker(args: tuple) -> dict:
     (a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos,
-     native_engine, flip) = args
+     native_engine, flip, a_rel_abs, b_rel_abs, a_tanh, b_tanh) = args
     import torch
     torch.set_num_threads(1)
 
@@ -38,8 +38,13 @@ def _worker(args: tuple) -> dict:
     from my_ai.az_intent.bundle_mcts import BundleMCTS
 
     feat = FeatureExtractor(max_actions=96)
-    _, net_fn_a = make_net_fn_from_ckpt(a_path, feat)
-    _, net_fn_b = make_net_fn_from_ckpt(b_path, feat)
+    # Each side gets its OWN value-readout config: a head trained on RELATIVE
+    # labels needs raw/scale + d_t/HP_SCALE (and tanh off), while an absolute-label
+    # head is used as-is.  Without this the comparison would be unfair.
+    _, net_fn_a = make_net_fn_from_ckpt(a_path, feat, value_tanh=a_tanh,
+                                        value_rel_to_abs=a_rel_abs)
+    _, net_fn_b = make_net_fn_from_ckpt(b_path, feat, value_tanh=b_tanh,
+                                        value_rel_to_abs=b_rel_abs)
     mcts_a = BundleMCTS(net_fn_a, iterations=iterations,
                         max_depth_rounds=max_depth_rounds,
                         t_class=t_class, t_pos=t_pos, seed=seed)
@@ -95,10 +100,18 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=128)
     parser.add_argument("--max-depth-rounds", type=int, default=4)
     parser.add_argument("--t-class", type=float, default=0.5)
-    parser.add_argument("--t-pos", type=float, default=0.3)
+    parser.add_argument("--t-pos", type=float, default=1.0,
+                        help="position sampling temperature (z-scored over legal cells); "
+                             "see docs/az_t_pos_default_fix.md")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--native-engine", action="store_true",
                         help="use the C++ engine (native_game) for the game simulation")
+    parser.add_argument("--a-rel-to-abs", type=float, default=0.0,
+                        help="A: if A's value head was trained on RELATIVE labels, pass its "
+                             "label_scale here (value = raw/scale + d_t/HP_SCALE)")
+    parser.add_argument("--b-rel-to-abs", type=float, default=0.0, help="same, for B")
+    parser.add_argument("--a-no-tanh", action="store_true", help="A: keep raw value (no tanh)")
+    parser.add_argument("--b-no-tanh", action="store_true", help="B: keep raw value (no tanh)")
     parser.add_argument("--flip-sides", action="store_true",
                         help="invert the seed%%2 side assignment. Running the SAME "
                              "seeds with this flag replays every game with swapped "
@@ -107,7 +120,9 @@ def main() -> None:
     args = parser.parse_args()
 
     jobs = [(args.a, args.b, args.seed + s, args.iterations, args.max_depth_rounds,
-             args.t_class, args.t_pos, args.native_engine, args.flip_sides)
+             args.t_class, args.t_pos, args.native_engine, args.flip_sides,
+             args.a_rel_to_abs, args.b_rel_to_abs,
+             not args.a_no_tanh, not args.b_no_tanh)
             for s in range(args.games)]
     if args.workers > 1:
         import multiprocessing as mp

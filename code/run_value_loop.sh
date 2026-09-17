@@ -67,7 +67,7 @@ for k in $(seq 1 "$ROUNDS"); do
         --iterations "$ITERS" --max-depth-rounds "$DEPTH" --max-rounds 512 \
         --out-dir "$ROUND_DIR/sub$s" --seed $((900000 + k*100 + s)) \
         --native-engine --skip-hold-search --write-npz \
-        --t-class 0.5 --t-pos 0.3 --k 24
+        --t-class 0.5 --t-pos 1.0 --k 24
   done
 
   # 3) 本轮 -> 累积池（每子目录一个 merged_*.npz）
@@ -91,7 +91,7 @@ for k in $(seq 1 "$ROUNDS"); do
   "$PY" code/my_ai/az_intent/eval.py \
       --checkpoint "$WORK/mix_collect.pt" --self-raw-opponent --bundle-mcts --native-engine \
       --iterations "$ITERS" --max-depth-rounds "$DEPTH" \
-      --t-class 0.5 --t-pos 0.3 --k 24 --games 32 --workers 16
+      --t-class 0.5 --t-pos 1.0 --k 24 --games 32 --workers 16
 
   # 5b) 绝对水平：每 VS_RULE_EVERY 轮
   if [ $(( k % VS_RULE_EVERY )) -eq 0 ]; then
@@ -99,7 +99,7 @@ for k in $(seq 1 "$ROUNDS"); do
     "$PY" code/my_ai/az_intent/eval.py \
         --checkpoint "$WORK/mix_collect.pt" --opponent rule_v4 --bundle-mcts --native-engine \
         --iterations "$ITERS" --max-depth-rounds "$DEPTH" \
-        --t-class 0.5 --t-pos 0.3 --k 24 --games 64 --workers 16
+        --t-class 0.5 --t-pos 1.0 --k 24 --games 64 --workers 16
   fi
 done
 echo "############ 价值头迭代循环完成（$ROUNDS 轮）############"

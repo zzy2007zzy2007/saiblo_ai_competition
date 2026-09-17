@@ -19,7 +19,7 @@ echo "########## 1) 采集 $GAMES 局（pos-only + skip-single + skip-hold）###
 "$PY" code/my_ai/az_intent/az_selfplay.py --checkpoint "$CK2" --games "$GAMES" \
     --workers 16 --iterations 256 --max-depth-rounds 2 --max-rounds 512 --native-engine \
     --skip-hold-search --search-mode pos-only --skip-single-candidate \
-    --out-dir "$RAW" --seed 910101 --t-class 0.5 --t-pos 0.3 --k 24
+    --out-dir "$RAW" --seed 910101 --t-class 0.5 --t-pos 1.0 --k 24
 
 echo "########## 2) 过滤成紧凑数据集 ##########"
 "$PY" code/my_ai/az_intent/filter_pos_samples.py --src "$RAW" --out "$CMP"

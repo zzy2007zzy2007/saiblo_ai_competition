@@ -41,7 +41,7 @@ for b in $(seq 1 "$ROUNDS"); do
       --iterations 256 --max-depth-rounds 4 --max-rounds 512 \
       --out-dir "$DATA/batch$b" --seed $((80000 + b * 1000)) \
       --native-engine --random-action-prob "$INJECT" \
-      --t-class 0.5 --t-pos 0.3 --k 24
+      --t-class 0.5 --t-pos 1.0 --k 24
 
   echo "--- 训练（split：策略+价值，BN，kgeo 标签，$EPOCHS epochs，value-passes 3）---"
   "$PY" code/my_ai/az_intent/az_train.py \
@@ -56,5 +56,5 @@ echo "--- 全部批次的最终评价：64 局 vs rule_v4 ---"
 "$PY" code/my_ai/az_intent/eval.py \
     --checkpoint "$prev" --opponent rule_v4 --bundle-mcts --native-engine \
     --iterations 256 --max-depth-rounds 4 \
-    --t-class 0.5 --t-pos 0.3 --k 24 --games 64 --workers 16
+    --t-class 0.5 --t-pos 1.0 --k 24 --games 64 --workers 16
 echo "############ az_bn_kgeo 全部 $ROUNDS 个 batch 完成 ############"
