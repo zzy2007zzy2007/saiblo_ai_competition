@@ -34,7 +34,7 @@ MAX_ROUNDS = 600
 
 
 def _worker(job):
-    seed, mode, ckpt, opp_ckpt, opp_mode = job
+    seed, mode, ckpt, opp_ckpt, opp_mode, t_pos = job
     import torch
     torch.set_num_threads(1)
     from SDK.backend.model import Operation
@@ -75,7 +75,7 @@ def _worker(job):
     def search_bundle(nf, st, pl, gturn):
         """一次 pos-only 搜索，返回 chosen_bundle（两侧共用同一构造，保证对称）。"""
         m = BundleMCTS(nf, iterations=256, max_depth_rounds=4, k=24,
-                       t_class=0.5, t_pos=0.3, seed=seed * 1000 + gturn,
+                       t_class=0.5, t_pos=t_pos, seed=seed * 1000 + gturn,
                        search_mode="pos-only", skip_single_candidate=True)
         return m.search(st, pl, temperature=0.0).chosen_bundle
 
@@ -98,7 +98,7 @@ def _worker(job):
             stats["ours_acted"] += int(bool(ops))
             return ops
         m = BundleMCTS(net_fn, iterations=256, max_depth_rounds=4, k=24,
-                       t_class=0.5, t_pos=0.3, seed=seed * 1000 + turn_idx,
+                       t_class=0.5, t_pos=t_pos, seed=seed * 1000 + turn_idx,
                        search_mode="pos-only", skip_single_candidate=True)
         res = m.search(st, pl, temperature=0.0)
         cands = list(res.bundles)
@@ -158,10 +158,12 @@ def main() -> None:
     ap.add_argument("--pairs", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--t-pos", type=float, default=0.3,
+                    help="位置采样温度（z-score 归一化后）；两侧共用，保证镜像对称")
     args = ap.parse_args()
 
     jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint,
-             args.opp_mode) for i in range(args.pairs)]
+             args.opp_mode, args.t_pos) for i in range(args.pairs)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
@@ -183,7 +185,8 @@ def main() -> None:
         for k, v in r["chosen_idx"].items():
             idx_hist[k] = idx_hist.get(k, 0) + v
     t_str = "  (SE=0：镜像严格抵消)" if se == 0 else f"  t = {(ps.mean() - 1.0) / se:+.2f}"
-    print(f"\n=== mode={args.mode}  {n} pairs ({2 * n} games) seed={args.seed} ===")
+    print(f"\n=== mode={args.mode}  t_pos={args.t_pos}  {n} pairs ({2 * n} games) "
+          f"seed={args.seed} ===")
     print(f"  配对得分均值 = {ps.mean():.4f}  (1.0 = 与对手持平)   SE = {se:.4f}{t_str}")
     print(f"  偏离 1.0 的 pair 数 = {int((ps != 1.0).sum())}/{n}   净增分 = {ps.sum() - n:+.1f}")
     print(f"  分布: 2分(双杀)={int((ps == 2).sum())}  1.5={int((ps == 1.5).sum())}  "

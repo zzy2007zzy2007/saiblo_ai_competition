@@ -52,7 +52,10 @@ def _run(job):
                        skip_single_candidate=True)
         return m.search(st, pl, temperature=0.0), m
 
-    # 参照局面（基线配置，确定性重建）
+    # 参照局面：**按被测配置自己筛**（该配置下搜索候选数 >= 2 的回合 = 它真的有得选的地方）。
+    # 对局推演只用 raw 策略（下面的 decode_network_output），与搜索配置无关 ⇒ 各配置走的是
+    # **同一批轨迹**，只有"记哪些回合"不同。用基线配置去筛是不行的：z-score 修复后尖先验
+    # 下 98% 的回合只剩 1 个候选，那样筛出来的参照集对别的配置几乎全退化。
     refs = []
     for g in range(ref_games):
         seed = 31 + g
@@ -65,7 +68,7 @@ def _run(job):
                 if st.terminal or len(refs) >= max_ref:
                     break
                 gturn += 1
-                r, _ = search(st, pl, seed + 100, gturn, "base")
+                r, _ = search(st, pl, seed + 100, gturn, "cfg")
                 if len(set(r.bundles)) >= 2:
                     refs.append((st.clone(), pl, seed + 100, seed + 500, gturn))
                 obs = feat.encode_observation(st, pl, np.zeros(96))
@@ -141,15 +144,23 @@ def main() -> None:
     ap.add_argument("--max-ref", type=int, default=60)
     ap.add_argument("--num-heads", type=int, default=3)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--t-pos-list", type=str, default=None,
+                    help="逗号分隔；给了就生成 k24/it256 的 t_pos 扫描配置")
     args = ap.parse_args()
-    jobs = [(cfg, args.ckpt, args.ref_games, args.max_ref, args.num_heads) for cfg in CONFIGS]
+    cfgs = CONFIGS
+    if args.t_pos_list:
+        cfgs = [("tp%-5g k24 it256" % tp, 24, tp, 256, 15)
+                for tp in (float(x) for x in args.t_pos_list.split(",") if x.strip())]
+    jobs = [(cfg, args.ckpt, args.ref_games, args.max_ref, args.num_heads) for cfg in cfgs]
     import multiprocessing as mp
     with mp.Pool(args.workers) as pool:
         res = pool.map(_run, jobs)
-    print(f"\n{'配置':22s} {'bundle同%':>9s} {'目标余弦':>9s} {'top5重叠':>9s} {'选中格份额':>10s}  n")
+    print(f"\n{'配置':22s} {'参照':>5s} {'可用':>5s} {'bundle同%':>9s} {'目标余弦':>9s} "
+          f"{'top5重叠':>9s} {'选中格份额':>10s}")
     for r in res:
-        print(f"{r['label']:22s} {r['bundle']/max(r['n_eff'],1):9.1%} {r['cos']:9.3f} "
-              f"{r['ov']:9.1%} {r['share']:10.1%}  {r['n_eff']}", flush=True)
+        print(f"{r['label']:22s} {r['n']:5d} {r['n_eff']:5d} "
+              f"{r['bundle']/max(r['n_eff'],1):9.1%} {r['cos']:9.3f} "
+              f"{r['ov']:9.1%} {r['share']:10.1%}", flush=True)
     print("\n[sim] 完成")
 
 
