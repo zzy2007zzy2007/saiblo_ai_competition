@@ -219,8 +219,14 @@ def _sample_policy_loss(out: dict, b: int, s: dict, t_class: float, t_pos: float
             xs, ys = torch.where(pm[c])
             if len(xs) == 0:
                 continue
-            am_c = out["action_map"][b, c] / t_pos
-            pos_logits = am_c[xs, ys]
+            # 位置 logits：**在合法格上做 z-score 再 /t_pos** —— 与采样器
+            # (decoder._sample_position) 完全同一套变换。原来 CE 用原始值
+            # (action_map / t_pos)、采样器用固定 /100 ⇒ 两边尺度差 100 倍，
+            # 导致采样分布实际近乎均匀（实测 271 个有效候选 / 271 合法格），
+            # 先验与搜索在推理侧脱节。
+            am_c = out["action_map"][b, c][xs, ys]
+            am_c = (am_c - am_c.mean()) / (am_c.std() + 1e-8)
+            pos_logits = am_c / t_pos
             pos_lse = torch.logsumexp(pos_logits, dim=0)
             pos_map = {(int(x), int(y)): i for i, (x, y) in enumerate(zip(xs.tolist(), ys.tolist()))}
             for (x, y), m in pos_mass.items():
@@ -524,28 +530,33 @@ def save_three_net(path: str, class_model, pos_model, value_model, meta: dict,
 def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
                    epochs: int, batch_size: int, lr: float, t_class: float, t_pos: float,
                    lambda_anchor: float, pos_single: bool, device: str,
-                   out_path: str, meta: dict, anchor_scope: str = "contrib") -> dict:
-    """位置-only 阶段：只训位置网的 action_map（docs/az_three_net_split_plan.md §5）。
-
-        L = 位置 CE（lambda_class_ce=0，不碰 head_logits） + λ_anchor · MSE(action_map, 记录值)
-
-    - **类网 / 价值网冻结**，连前向都不做（位置 CE 只需要 action_map）⇒ 类网输出逐位不变；
-    - **HOLD 回合在位置 CE 上严格为 0**（实测：HOLD 样本 `requires_grad=False`）——它的目标里
-      没有位置。所以位置网只被"出招回合"（约 2.8%）的 CE 训练。
-
-    ``anchor_scope``：
-      - ``contrib``（默认）: 只对**有位置目标**的样本施加 anchor ⇒ HOLD 回合 CE 与 anchor
-        都跳过，λ 的语义就是"每个出招回合允许改多少"（纯信任域，作用在 CE 真正发力处）；
-      - ``all``: 全样本都锚 ⇒ 额外限制"2.8% 的拟合结果泛化泄漏到其余 97% 状态空间"的量。
-
-    归一化：CE 与 anchor **都除以"本 batch 贡献样本数"**（不是 ``len(batch)``）。因为
-    batch 里平均只有 ~0.9 个样本带目标，按 ``len(batch)`` 平均会把 CE 稀释 ~36×，
-    使 λ 失去可解释性。日志会打出有效 anchor/CE 比。
-    """
+                   out_path: str, meta: dict, anchor_scope: str = "contrib",
+                   train_value: bool = False, value_from: str | None = None,
+                   value_stride: int = 4, lr_value: float = 1e-3) -> dict:
     for m in (class_model, value_model):
         for p in m.parameters():
             p.requires_grad = False
         m.eval()
+    opt_v = None
+    value_paths: list[Path] = []
+    if train_value:
+        # A+V 分支：同时训价值网（标准 AZ 那样）。用于检验"冻结 V ⇒ 循环有不动点"这个假设。
+        #
+        # ⚠️ 价值数据必须覆盖**它实际会遇到的状态**（97% 是空过回合），而紧凑数据集只有
+        # 2.8% 的出招回合 ⇒ 只拿它训价值网会得到"没见过空过局面"的价值网，结论不可信。
+        # 所以：**价值数据跨轮累积**（价值标签是事实，可积累——项目自家规则），
+        # 并**逐局流式读原始 pkl**（每局~30MB，临时提取 board/stats/value_target 后释放）。
+        if not value_from:
+            raise SystemExit("--train-value 需要 --value-from <原始 pkl 目录>")
+        all_v = sorted(Path(value_from).rglob("az_selfplay_seed*.pkl"))
+        value_paths = all_v[::max(value_stride, 1)]
+        for p in value_model.parameters():
+            p.requires_grad = True
+        value_model.train().to(device)
+        opt_v = torch.optim.Adam([p for p in value_model.parameters() if p.requires_grad],
+                                 lr=lr_value)
+        print(f"[pos-only] A+V：同时训价值网。价值数据 {len(value_paths)}/{len(all_v)} 局"
+              f"（stride={value_stride}，累积自 {value_from}，逐局流式）", flush=True)
     for p in pos_model.parameters():
         p.requires_grad = True
     pos_model.train().to(device)
@@ -595,6 +606,28 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
             torch.nn.utils.clip_grad_norm_(pos_model.parameters(), 5.0)
             opt.step()
             tot += loss.item(); tc += ce.item(); ta += anc.item(); ns += 1; n_steps += 1
+        # ── A+V：价值步（流式，逐局读，不常驻内存）────────────────────────────
+        v_msg = ""
+        if opt_v is not None and value_paths:
+            random.shuffle(value_paths)
+            vtot = vn = 0.0
+            for vp in value_paths:
+                with open(vp, "rb") as fh:
+                    vs = pickle.load(fh)["samples"]
+                for i in range(0, len(vs), batch_size):
+                    vb = vs[i:i + batch_size]
+                    b_v = torch.stack([torch.from_numpy(s["board"]).float() for s in vb]).to(device)
+                    s_v = torch.stack([torch.from_numpy(s["stats"]).float() for s in vb]).to(device)
+                    t_v = torch.tensor([float(s["value_target"]) for s in vb], device=device)
+                    v_out = value_model(b_v, s_v)["value"].squeeze(-1)
+                    v_loss = F.mse_loss(v_out, t_v)
+                    opt_v.zero_grad()
+                    v_loss.backward()
+                    torch.nn.utils.clip_grad_norm_(value_model.parameters(), 5.0)
+                    opt_v.step()
+                    vtot += v_loss.item(); vn += 1
+                del vs
+            v_msg = f" value_mse={vtot/max(vn,1):.5f}({vn} 步)"
         ce_m = tc / max(ns, 1)
         an_m = ta / max(ns, 1)
         an_w = lambda_anchor * an_m
@@ -603,7 +636,7 @@ def train_pos_only(class_model, pos_model, value_model, samples: list[dict], *,
               f"pos_ce={ce_m:.4f} anchor(加权)={an_w:.6f} "
               f"[有效 anchor/CE = {ratio:.4f}]  "
               f"({ns} 步/batch {batch_size}; λ={lambda_anchor}, "
-              f"anchor_scope={anchor_scope}, pos_single={pos_single})", flush=True)
+              f"anchor_scope={anchor_scope}, pos_single={pos_single}){v_msg}", flush=True)
         save_three_net(out_path, class_model, pos_model, value_model, meta)
     return {"epochs": epochs, "steps": n_steps, "n_samples_used": len(samples),
             "n_samples_all": n_all}
@@ -686,6 +719,14 @@ def main() -> None:
                         help="位置-only：anchor 作用范围。contrib=只锚有位置目标的样本"
                              "（HOLD 回合 CE 与 anchor 都跳过，λ 语义为'每个出招回合允许改多少'）；"
                              "all=全样本都锚（额外限制泛化泄漏）")
+    parser.add_argument("--train-value", action="store_true",
+                        help="A+V 分支：位置-only 的同时**也训价值网**（标准 AZ 那样）。"
+                             "用于检验'冻结 V ⇒ 循环有不动点'这个假设。需要 --value-from")
+    parser.add_argument("--value-from", type=str, default=None,
+                        help="A+V 的价值数据来源（原始 pkl 目录，逐局流式读取；跨轮累积）")
+    parser.add_argument("--value-stride", type=int, default=4,
+                        help="A+V：价值数据每 N 局取 1（原始 pkl 很大，降低读盘量）")
+    parser.add_argument("--lr-value", type=float, default=1e-3, help="A+V：价值网的 lr")
     parser.add_argument("--lambda-class-ce", type=float, default=1.0,
                         help="class CE 的权重；0 = 完全关掉（位置-only 阶段必须为 0，"
                              "否则会加重类头的闪电坍缩）")
@@ -752,7 +793,9 @@ def main() -> None:
             t_class=args.t_class, t_pos=args.t_pos,
             lambda_anchor=args.lambda_anchor, pos_single=args.pos_single,
             device=device, out_path=args.checkpoint, meta=three_meta,
-            anchor_scope=args.anchor_scope)
+            anchor_scope=args.anchor_scope, train_value=args.train_value,
+            value_from=args.value_from, value_stride=args.value_stride,
+            lr_value=args.lr_value)
         print(f"[train] pos-only done: {metrics}", flush=True)
         return
 

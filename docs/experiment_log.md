@@ -1862,3 +1862,187 @@ t=1.5 买到的是"**分布更分散的目标**"（空过从 98% 降到 51%，�
   （第 1 轮搜索侧 1.0312 比 raw 侧 1.1406 还低）。两条曲线都**在第 2 轮见顶后衰减**，
   搜索侧无一显著点（最大 t=1.19）；第 5 轮搜索侧掉到 1.0 以下。
   第 4 轮那个 rule_v4=31.2%（p=0.13）随之可判为**噪声**。
+
+## 2026-09-16 20:07:21 — posnet_convergence
+
+- **commit**: `9cf9aed` (dirty: 19 files)
+- **exit**: 0，用时 3004s
+- **cmd**:
+  ```bash
+  bash _tmp_posnet_convergence.sh
+  ```
+- **output**: `training_history/runs/20260916_200721_posnet_convergence/output.log`
+- **result**: 位置网（pos-only）30 epoch × 2 轮：pos_ce 7.117 → 6.290（uniform 基线 ln361 = 5.894）。
+  **重要**：pos_ce 全程**高于均匀分布**，即位置网基本没学到东西。原因往下看——同一批数据上
+  "网络 argmax vs 搜索选择"一致率：raw(未训) 0.63% / e8 15.62% / e30 28.11% / e80 28.04% /
+  e30lr3 27.81%。参考面里**只涉及 1 个动作类（class 17 闪电，100%）** ⇒ 位置目标=闪电落点。
+  一致率 28% 是**噪声上限**（同一局面重抽样只有 1.7% 自一致，见 `search_consistency_scaled2`），
+  所以网络学到的所谓"28%"其实是把目标记成了数据集的众数/条件均值，不是局面的函数。
+  ⇒ 位置线当时**没有合法前提**（目标不可复现）；这一结论在 z-score 修复后被推翻，见 `zscore_agreement`。
+
+## 2026-09-17 07:48:25 — depth0_vs_raw
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 0，用时 100s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/az_intent/eval.py --checkpoint training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --depth0 --self-raw-opponent --bundle-mcts --native-engine --iterations 256 --max-depth-rounds 4 --k 24 --t-class 0.5 --t-pos 0.3 --games 32 --workers 16
+  ```
+- **output**: `training_history/runs/20260917_074825_depth0_vs_raw/output.log`
+- **result**: `three_mix_r10p_vw_pol_frozen.pt` **depth0（不搜索，直接用网络） vs raw-self：0W/0D/32L，胜率 0.0%**。
+  诊断：our-turns=8976，room(>=2 候选)=86.4%，chosen==raw=36.1%，差异归因 class=19.2% /
+  pos=1.0% / both=43.6%。⇒ depth0 的差异**绝大部分来自类别轴**，而类别轴被证明是塌缩的
+  （见"搜索增益 100% 在位置轴"的消融），所以 depth0 输是意料之中；它同时也说明
+  **搜索的价值就在于救回类别轴/位置轴的坏 prior**，而不是锦上添花。
+
+## 2026-09-17 09:48:31 — pos_greedy_vs_raw
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 1，用时 171s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_pos_greedy_vs_raw.py --pairs 16 --workers 16
+  ```
+- **output**: `training_history/runs/20260917_094831_pos_greedy_vs_raw/output.log`
+- **result**: 崩溃，`KeyError: 'value'` —— 三网拆分后 `ThreeNetPolicy` **故意不返回 value**，
+  脚本里 `pol(b,s)["value"]` 的旧写法失效。修法：改用 `load_three_models` 的 vmodel 批量评估。
+
+## 2026-09-17 09:51:22 — pos_greedy_vs_raw
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 1，用时 21s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_pos_greedy_vs_raw.py --pairs 16 --workers 16
+  ```
+- **output**: `training_history/runs/20260917_095122_pos_greedy_vs_raw/output.log`
+- **result**: 同上，修完前重跑仍 `KeyError: 'value'`。
+
+## 2026-09-17 09:52:50 — pos_greedy_vs_raw
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 0，用时 73s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_pos_greedy_vs_raw.py --pairs 16 --workers 16
+  ```
+- **output**: `training_history/runs/20260917_095250_pos_greedy_vs_raw/output.log`
+- **result**: **位置维 1-ply 全局价值 argmax vs raw：1.3125（SE 0.1760）**；同台对照 pos-only MCTS = 1.8125。
+  即"用价值网在每个候选位置上贪心、完全不做树搜索"就已显著优于 raw ⇒ 位置维的增益主要来自
+  **价值网对的候选点排序**，而不是多次迭代的树展开。（后来 z-score 修复后重测降到 1.3750，见 `zscore_strength`。）
+
+## 2026-09-17 10:19:29 — search_consistency_scaled
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 127，用时 4887s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_search_consistency_sweep.py --workers 8 --chunks 2 --max-ref 40
+  ```
+- **output**: `training_history/runs/20260917_101929_search_consistency_scaled/output.log`
+- **result**: **无结果**（exit 127，用时 4887s；output.log 只有开头一行）。原因是我把每次搜索的
+  耗时按 61s 估，实际 k×sample_mult 使得扩展成本随候选数放大（k200/it8192 ≈ 5.5 min/搜索），
+  于是 10 个任务 ÷8 并行实际要 ~1.7 小时，我提前读了空结果并把它当成"还没跑完"。
+  教训：**开跑前先按 k×sample_mult 折算单位成本**再报时长。改用较小 max-ref 重跑见下条。
+
+## 2026-09-17 11:40:58 — search_consistency_scaled2
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 0，用时 934s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_search_consistency_sweep.py --workers 8 --chunks 2 --max-ref 16
+  ```
+- **output**: `training_history/runs/20260917_114058_search_consistency_scaled2/output.log`
+- **result**: 同一局面重抽样两遍（只换 rng seed）的"选中是否一致"（n=16 参照局面，参照集已过滤
+  掉 <2 候选的退化局面，退化率 0.0%）：
+
+  | 配置 | 候选数 | 访问/候选 | bundle 同% | 逐头一致% | 头0/1/2 |
+  |---|---|---|---|---|---|
+  | base k24 it256 tp0.3 | 24.0 | 11 | **0.0%** | **0.0%** | 0/0/0 |
+  | k64 it2048 tp0.3 | 64.0 | 32 | 6.2% | 2.1% | 6/0/0 |
+  | k64 it2048 tp1.0 | 64.0 | 32 | 6.2% | 2.1% | 6/0/0 |
+  | k128 it4096 tp1.0 | 128.0 | 32 | 12.5% | 4.2% | 12/0/0 |
+
+  ⇒ 用户假设方向正确：**k ↑ 一致率 ↑**（0→2.1→4.2%），但**温度 tp0.3→1.0 完全没变化**
+  （说明当时温度根本不起作用，因为尺度 bug 已经让分布接近均匀，见下条 `map_quality_effect`）。
+  但即使在 k128 下一致率也只有 4.2% ⇒ 目标基本是噪声。**位置线当时没有可学的目标。**
+
+## 2026-09-17 11:42:22 — search_consistency_k200
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 0，用时 1898s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_search_consistency_sweep.py --workers 2 --chunks 2 --max-ref 16 --labels k200
+  ```
+- **output**: `training_history/runs/20260917_114222_search_consistency_k200/output.log`
+- **result**: **k=200 / it=8192 / tp=1.0（访问/候选 41）：bundle 同 56.2%，逐头一致 18.8%（头0 56%，
+  头1/2 0%）。** 这是"候选数不够"假设的**决定性证据**：k 从 24 拉到 200，一致率 0% → 18.8%。
+  但成本墙：k200/it8192 ≈ **5.5 min / 次搜索**，无法用于批量采集（k200 这一条就跑了 1898s，
+  且只是 2 个 chunk × max-ref 16）。
+  ⇒ 结论：**"靠加大 k/迭代提高一致率"方向正确但不可行**；必须从**先验质量**入手
+  （当时先验塌成均匀，有效候选数 271，见下条）。头0 56% 而头1/2 0% 说明增益集中在闪电落点那一头。
+
+## 2026-09-17 19:47:19 — map_quality_effect
+
+- **commit**: `9cf9aed` (dirty: 20 files)
+- **exit**: 0，用时 1268s
+- **cmd**:
+  ```bash
+  bash _tmp_map_quality.sh
+  ```
+- **output**: `training_history/runs/20260917_194719_map_quality_effect/output.log`
+- **result**: 用**不同训练程度**的地图（three_mix 未训 / e8 / e30 / e80）跑同一套一致率诊断：
+
+  | 地图 | 候选数 | bundle 同% | 逐头一致% | 地图 top1 | 地图 top5 | n |
+  |---|---|---|---|---|---|---|
+  | three_mix(未训) | 24.0 | 2.5% | 0.8% | 0.4% | 1.9% | 40 |
+  | e8 | 24.0 | 2.5% | 0.8% | - | - | 40 |
+  | e30 | 24.0 | 5.0% | 1.7% | - | - | 40 |
+  | e80 | 24.0 | 0.0% | 0.0% | - | - | 40 |
+
+  **关键**：CE 从 16.7 训到 4.5（e80）、地图"变尖"了，但一致率**没有变好**（甚至 0.0%），
+  且候选数**恒等于 24.0**。这直接暴露尺度 bug：采样器用 `map/100/t_pos`，而 CE 用 `map/t_pos`，
+  两者差 100 倍 ⇒ **搜索里的采样器看到的是近似均匀的分布，地图训得多好都没用**
+  （有效候选数 271.0，且 e80 之后**仍精确为 271.0**）。同时"地图 top1/top5"列也显示未训地图
+  的 top1 只有 0.4%。⇒ 这就是 z-score 修复的动机。
+
+## 2026-09-17 22:24:53 — zscore_agreement
+
+- **commit**: `9cf9aed` (dirty: 21 files)
+- **exit**: 0，用时 110s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_search_consistency_sweep.py --workers 4 --chunks 2 --max-ref 16 --labels base
+  ```
+- **output**: `training_history/runs/20260917_222453_zscore_agreement/output.log`
+- **result**: **z-score 修复后同一套一致率诊断（base k24 it256 tp0.3，n=16）：bundle 同 87.5%，
+  逐头一致 83.3%（头0 88% / 头1 75% / 头2 88%），候选数 22.3，退化率 0.0%。**
+  对比修复前（`search_consistency_scaled2` 同一配置）：**bundle 0.0% / 逐头 0.0%**。
+  ⇒ **用户"z-score 归一化可能解决问题"的判断成立**：一致率 0% → 83.3%，搜索目标
+  **第一次**从"抽样运气"变成"局面的函数"，位置蒸馏这才有了合法前提。
+  注意候选数 22.3 只统计了"有得选"的参照局面（过滤后）；全体头槽位里 98% 已退化成单候选，
+  这正是下一条强度下降的原因。
+
+## 2026-09-17 22:24:53 — zscore_strength
+
+- **commit**: `9cf9aed` (dirty: 21 files)
+- **exit**: 0，用时 156s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe _tmp_position_choice_ab.py --checkpoint training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --mode search --pairs 16 --workers 8 --seed 0
+  ```
+- **output**: `training_history/runs/20260917_222453_zscore_strength/output.log`
+- **result**: **z-score 修复后同台配对强度（search vs raw，16 pairs / 32 局）：
+  配对得分 1.3750（SE 0.1250，t=+3.00），6/16 pair 偏离 1.0，净增 +6.0。**
+  修复前同脚本同参数 = **1.8125**。⇒ **修复让搜索变弱了（1.81 → 1.38）**，但仍显著优于 parity。
+
+  机制：`候选数分布(前5) = [(1, 11760), (24, 187), ...]` ⇒ 全体 ~12000 个头槽位里
+  **98% 只剩 1 个候选**，被 `skip_single_candidate` 短路成 argmax ⇒ 搜索基本等价于 raw；
+  1.375 的增益全部来自剩下 2% 真有得选的头槽位。修复前候选数 271（近均匀）时，
+  **100× 尺度错配实际上一直在扮演"最大探索"的角色**：搜索等价于"在 ~24 个近随机
+  候选里让价值网挑一个"（这正是 `pos_greedy_vs_raw` = 1.3125 测到的那种 1-ply 价值贪心），
+  所以修复把这个免费的探索一起去掉了。
+  ⇒ **修复本身是对的（目标首次可复现），但它不是终点**：`t_pos` 语义现在才第一次有意义
+  （单位方差 z-score ÷ t_pos），需要用**显式、可标定**的探索把它补回来，而不是继续依赖尺度 bug。

@@ -212,23 +212,30 @@ def _sample_position(
     rng: np.random.Generator | None,
     pos_temperature: float,
 ) -> tuple[int, int, float] | None:
-    """Sample (x, y) from a masked raw-value + temperature softmax.
+    """Sample (x, y) from a masked z-scored + temperature softmax.
 
-    Distribution is over LEGAL cells only (masked), using raw action_map
-    values (no z-score).  The recorded logprob is on this same masked
-    base.  Training-time new-policy logπ MUST use the same mask (stored
-    in npz) and raw values to keep the PPO ratio consistent.
+    Distribution is over LEGAL cells only (masked).  Logits are the raw values
+    **z-scored over the legal cells** (per channel), then divided by
+    ``pos_temperature`` — mirroring the class heads (``head_class_probs``) and
+    making the temperature's meaning independent of a net's output scale.
 
-    Returns (x, y, logprob) — logprob is log π_pos under the masked
-    distribution.  Returns None if no legal cells at all.
+    (2026-09-17: this replaced a fixed ``channel_map / 100``.  That fixed scale
+    was incompatible with the training CE, which used the RAW values
+    (``action_map / t_pos``) — a 100x mismatch that made the sampled position
+    distribution essentially uniform (measured: 271 effective candidates over
+    271 legal cells), so the prior was functionally disconnected from the
+    search.  The argmax path is scale-invariant, so raw decoding is unchanged.)
+
+    Returns (x, y, logprob) — logprob is log π_pos under this distribution.
+    Returns None if no legal cells at all.
     """
     if not pos_mask.any():
         return None
-    # Fixed-scale normalization (÷100): scale-independent like class heads
-    # want, but unlike z-score it doesn't depend on data statistics.
-    POS_SCALE = 100.0
-    scaled = channel_map / POS_SCALE
-    masked = np.where(pos_mask, scaled, -np.inf)
+    legal_vals = channel_map[pos_mask]
+    mu = float(legal_vals.mean())
+    sd = float(legal_vals.std()) + 1e-8
+    z = (channel_map - mu) / sd
+    masked = np.where(pos_mask, z, -np.inf)
     if pos_temperature > 0 and rng is not None:
         logits = masked / pos_temperature
     else:

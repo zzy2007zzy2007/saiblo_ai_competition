@@ -34,7 +34,7 @@ MAX_ROUNDS = 600
 
 
 def _worker(job):
-    seed, mode, ckpt, opp_ckpt = job
+    seed, mode, ckpt, opp_ckpt, opp_mode = job
     import torch
     torch.set_num_threads(1)
     from SDK.backend.model import Operation
@@ -50,8 +50,9 @@ def _worker(job):
     policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
     # 对手用另一个 ckpt（None = 同一个）：判据"raw 新 vs raw 旧"需要两边不同
     opp_model = policy_model
+    opp_net_fn = net_fn
     if opp_ckpt and opp_ckpt != ckpt:
-        opp_model, _ = make_net_fn_from_ckpt(opp_ckpt, feat)
+        opp_model, opp_net_fn = make_net_fn_from_ckpt(opp_ckpt, feat)
     rng = np.random.default_rng(seed + 999)
     stats = {"ours_turns": 0, "ours_acted": 0, "cands_hist": {}, "chosen_idx": {}}
 
@@ -71,7 +72,19 @@ def _worker(job):
         return decode_network_output(policy_out(st, pl), st, pl, temperature=0.0,
                                      intent_decoding=True)
 
-    def opp_ops(st, pl):
+    def search_bundle(nf, st, pl, gturn):
+        """一次 pos-only 搜索，返回 chosen_bundle（两侧共用同一构造，保证对称）。"""
+        m = BundleMCTS(nf, iterations=256, max_depth_rounds=4, k=24,
+                       t_class=0.5, t_pos=0.3, seed=seed * 1000 + gturn,
+                       search_mode="pos-only", skip_single_candidate=True)
+        return m.search(st, pl, temperature=0.0).chosen_bundle
+
+    def opp_search_ops(st, pl, gturn):
+        return to_ops(search_bundle(opp_net_fn, st, pl, gturn))
+
+    def opp_ops(st, pl, gturn=0):
+        if opp_mode == "search":
+            return opp_search_ops(st, pl, gturn)
         return decode_network_output(_out_with(opp_model, st, pl), st, pl,
                                      temperature=0.0, intent_decoding=True)
 
@@ -110,18 +123,18 @@ def _worker(job):
 
     def play(our_player: int) -> float:
         st = make_initial_state(seed, True)
-        turn = 0
+        gturn = 0
         for _ in range(MAX_ROUNDS):
             if st.terminal:
                 break
             for pl in (0, 1):
                 if st.terminal:
                     break
+                gturn += 1                      # 全局回合号：两侧都用它定 seed（对称）
                 if pl == our_player:
-                    turn += 1
-                    ops = our_ops(st, pl, turn)
+                    ops = our_ops(st, pl, gturn)
                 else:
-                    ops = opp_ops(st, pl)
+                    ops = opp_ops(st, pl, gturn)
                 st.apply_operation_list(pl, ops)
             if pl == 1 and not st.terminal:
                 st.advance_round()
@@ -139,6 +152,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", default=CK)
     ap.add_argument("--opponent-checkpoint", type=str, default=None)
+    ap.add_argument("--opp-mode", type=str, default="raw", choices=["raw", "search"])
     ap.add_argument("--mode", default="search",
                     choices=["raw", "search", "random", "prior"])
     ap.add_argument("--pairs", type=int, default=16)
@@ -146,8 +160,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint)
-            for i in range(args.pairs)]
+    jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint,
+             args.opp_mode) for i in range(args.pairs)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
