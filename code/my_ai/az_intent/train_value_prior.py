@@ -5,11 +5,20 @@
 
 损失 = 逐行的位置 CE，两侧都用**同一套 z-score**（在这些 cells 上）：
 
-    目标  p = softmax( z(adv) / tau )
+    目标  p = softmax( z(adv) / target_tau )
     预测  q = softmax( z(action_map[cls]) / t_pos )
     L = -Σ_x p_x · log q_x
 
 （两侧同尺度是 2026-09-17 那个 100× bug 的教训：采样器/解码器/损失必须逐字对齐。）
+
+⚠️ **`--target-tau` 近似是个重参数化、不是"锐度旋钮"**（2026-09-18 分析，用户提问引出）：
+令 ∂L/∂m = 0 得 q = p ⇒ `m/t_pos = z(adv)/tau + 常数` ⇒ **m ∝ z(adv)**，与 tau 无关；
+而采样时解码器**会重新 z-score**（`(m-mean)/std`），于是 `tau` 与地图的绝对尺度一起被约掉，
+抽出来的分布只剩 `softmax(单位方差的 z(adv) / t_pos)`。
+⇒ **部署侧的锐度旋钮只有 `t_pos`；tau 只在"网络容量有限时损失如何分配注意力"上起作用。**
+默认 `target_tau = t_pos = 1.0`（等价于"用单位方差的优势当目标"）。
+命名注意：**这个 tau 与价值标签的时间衰减 tau（`az_train.add_weighted_labels`，γ=exp(-1/tau)）
+完全无关**，故此处改名为 `--target-tau`。
 
 **锚定**（可选，`--anchor-lambda`）：参数空间 L2 `λ·‖θ_pos − θ_pos^init‖²`。
 因为目标只覆盖类 17（类头塌缩成闪电 ⇒ 三个头的 argmax 都是 17），其余通道拿不到梯度，
@@ -44,7 +53,9 @@ def main() -> None:
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch-size", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--tau", type=float, default=1.0, help="目标 softmax 的温度")
+    ap.add_argument("--target-tau", type=float, default=1.0,
+                    help="目标 softmax 的温度。⚠️ 近似重参数化、不是锐度旋钮（锐度是 t_pos）；"
+                         "见文件头注释的推导。与价值标签的时间衰减 tau 无关（故改名）。")
     ap.add_argument("--t-pos", type=float, default=1.0, help="预测 softmax 的温度（应=采样器的 t_pos）")
     ap.add_argument("--anchor-lambda", type=float, default=0.0,
                     help="参数空间 L2 锚定强度（0=关）。目标只覆盖类 17，其余通道无梯度")
@@ -55,7 +66,7 @@ def main() -> None:
     args = ap.parse_args()
 
     dev = args.device if (args.device != "cuda" or torch.cuda.is_available()) else "cpu"
-    print(f"[vprior] device={dev}  tau={args.tau}  t_pos={args.t_pos}  "
+    print(f"[vprior] device={dev}  target_tau={args.target_tau}  t_pos={args.t_pos}  "
           f"anchor_lambda={args.anchor_lambda}", flush=True)
 
     from my_ai.az_intent.az_selfplay import load_three_models
@@ -123,7 +134,7 @@ def main() -> None:
                 NEG = -1e9
                 logq = torch.log_softmax(torch.where(vv, (vals - m_v) / s_v / args.t_pos,
                                                      torch.full_like(vals, NEG)), dim=1)
-                p = torch.softmax(torch.where(vv, (aa - m_a) / s_a / args.tau,
+                p = torch.softmax(torch.where(vv, (aa - m_a) / s_a / args.target_tau,
                                               torch.full_like(aa, NEG)), dim=1) * vv
                 p = p / p.sum(dim=1, keepdim=True).clamp(min=1e-12)
                 ce = -(p * logq).sum(dim=1)
@@ -157,7 +168,7 @@ def main() -> None:
         if va_ce < best[0]:
             best = (va_ce, ep)
             save_three_net(args.out, class_model, pos_model, value_model,
-                           {"num_heads": 3, "vprior_tau": args.tau, "vprior_tpos": args.t_pos,
+                           {"num_heads": 3, "vprior_target_tau": args.target_tau, "vprior_tpos": args.t_pos,
                             "vprior_anchor": args.anchor_lambda, "vprior_epoch": ep,
                             "vprior_data": args.data})
             flag = "  ← 保存"
