@@ -2438,3 +2438,72 @@ t=1.5 买到的是"**分布更分散的目标**"（空过从 98% 降到 51%，�
   ```
 - **output**: `training_history/runs/20260918_163745_valprior_similarity/output.log`
 - **result**: _待填_
+
+## 2026-09-18 17:35:00 — vprior_collect400
+
+- **commit**: `0d398d6` (dirty: 20 files)
+- **exit**: 0，用时 3540s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_value_prior.py --checkpoint training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --games 400 --workers 16 --seed 910301 --out training_history/vprior/vp_400.npz
+  ```
+- **output**: `training_history/runs/20260918_173500_vprior_collect400/output.log`
+- **result**: 400 局 → **24972 个决策点**（62.4/局）、300934 回合，用时 3540s（比估的 35 分钟久），
+  产物 `training_history/vprior/vp_400.npz` **19.3 MB**（压缩后约 0.8 KB/决策点）。
+  **目标内容**：类分布 `[(17, 24972)]`（**全部是类 17 闪电**）、三头各 1/3、每行恒 271 格、
+  目标内 adv 的 (极差/std) = 4.66 ⇒ 目标本身有信息。
+  ⚠️ **通道覆盖仍只有类 17** —— 因为类头塌缩成闪电，三个头的 argmax 都是 17；
+  这与"随机钉类"那个方案想解决的问题是同一个，但本方案**没有**触碰类轴。
+
+## 2026-09-18 18:34:49 — vprior_train_r1
+
+- **commit**: `cd50a65` (dirty: 19 files)
+- **exit**: 0，用时 325s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_prior.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --data training_history/vprior/vp_400.npz --epochs 60 --batch-size 256 --lr 1e-3 --tau 1.0 --t-pos 1.0 --out training_history/vprior/posnet_r1.pt
+  ```
+- **output**: `training_history/runs/20260918_183449_vprior_train_r1/output.log`
+- **result**: 只训位置网（类网/价值网冻结），目标 `p=softmax(z(adv)/tau=1.0)`、
+  预测 `q=softmax(z(action_map[c])/t_pos=1.0)`，两侧同一套合法格 z-score。60 epoch × 5s。
+
+  | | val CE | val top1 命中 |
+  |---|---|---|
+  | 训练前 | **6.1264** | 0.72% |
+  | 训练后（epoch 59，最佳）| **5.1983（−15.1%）** | **32.96%** |
+
+  判据1 通过：CE 降到 5.1983，**已低于均匀基线 ln(271) = 5.60**（训练前 6.13 **高于**它——
+  说明旧位置网又尖又偏、比均匀还差）。判据2 通过：top1 0.72% → 32.96%（随机的 89 倍）。
+  ⇒ `training_history/vprior/posnet_r1.pt`。
+
+## 2026-09-18 18:41:49 — vprior_r1_eval
+
+- **commit**: `cd50a65` (dirty: 19 files)
+- **exit**: 0，用时 885s
+- **cmd**:
+  ```bash
+  bash _tmp_vprior_r1_eval.sh
+  ```
+- **output**: `training_history/runs/20260918_184149_vprior_r1_eval/output.log`
+- **result**: 🔴 **本项目对 rule_v4 的第一次可复现绝对提升，而且成本与基线相同（一次前向）。**
+
+  把 `posnet_r1.pt`（位置网已训成"价值偏好"）当先验，k=24 打 rule_v4，128 局（两批 seed）：
+
+  | 位置先验 | 128 局胜率 | 95% CI | W/D/L |
+  |---|---|---|---|
+  | 未训练（基线）| **21.1%** | 14.9–29.0 | 27/0/101 |
+  | **posnet_r1（训练后）** | **35.2%** | 27.4–43.8 | 45/0/83 |
+  | 价值 oracle（暴力算）| 37.5% | 29.6–46.1 | 48/0/80 |
+
+  * **训练后 vs 基线：+14.1pp，z = 2.53**（配对：seed0-63 翻转 10:18 p=0.185；
+    seed64-127 翻转 10:20 p=0.099，两批**同向同量级**）。
+  * **训练后 vs oracle：−2.3pp，z = −0.39 ⇒ 分不出来** ⇒ 网络把 oracle 的收益
+    **复现了约 86%（14.1/16.4pp）**。
+  * 呼应先验质量的软指标（`_tmp_prior_quality.py`，n=24）：
+    **峰的价值分位 30.3% → 8.8%**（随机 50）、top5 重叠 5% → **23%**、
+    质量落在价值 top10(tp0.3) 13% → 28%、有效候选 10.0 → 36.4（图更平了）。
+
+  **关键点：oracle 需要每个出招回合暴力跑 ~270 次价值前向；训练后的位置网只要 1 次
+  （与基线相同）⇒ 这 +14.1pp 是"免费"的。** 这正是计划的形态（§0 目标：同成本 +16.4pp）。
+  ⚠️ 待独立复核（`vprior_verify`）：raw 镜像、复训（--seed 1）、换 128 个没见过的 seed。
+  ⚠️ 交代清楚的口径：本评测 t_pos=1.0、k=24、pos-only + skip-single，与基线的那些臂逐字相同。

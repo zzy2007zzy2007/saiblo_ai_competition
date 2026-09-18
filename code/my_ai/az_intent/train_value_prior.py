@@ -137,9 +137,10 @@ def main() -> None:
                     loss.backward()
                     opt.step()
             ok = (vv.sum(dim=1) > 1)
-            tot_ce += float(ce[ok].sum())
-            tot_hit += float(((logq.argmax(1) == p.argmax(1)) & ok).sum())
-            tot_n += float(ok.sum())
+            with torch.no_grad():
+                tot_ce += float(ce[ok].sum())
+                tot_hit += float(((logq.argmax(1) == p.argmax(1)) & ok).sum())
+                tot_n += float(ok.sum())
         return tot_ce / max(tot_n, 1), tot_hit / max(tot_n, 1), tot_n
 
     print("[vprior] 均匀基线 CE = ln(271) = %.3f ；随机 top1 = 1/271 = %.2f%%"
