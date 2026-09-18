@@ -103,6 +103,7 @@ for ck in a.ckpts:
 
     for tp in TPS:
         t1, t5, eff, align = [], [], [], 0
+        peak_pct, ov5, good_mass, mass_frac = [], [], [], []
         for rc in recs:
             cells = rc["cells"]
             lv = rc["am"][rc["c"]][cells[:,0], cells[:,1]]
@@ -112,8 +113,21 @@ for ck in a.ckpts:
             order = np.argsort(-pr)
             t1.append(float(pr[order[0]])); t5.append(float(pr[order[:5]].sum()))
             eff.append(float(np.exp(-(pr*np.log(pr+1e-12)).sum())))
-            # 峰是否落在 1-ply 全格价值 argmax 上
             align += int(int(order[0]) == int(np.argmax(rc["vcell"])))
-        print("%-26s t_pos=%-5.2f top1=%.2f top5=%.2f 有效候选=%5.1f  峰对齐价值=%s (%d)"
-              % (Path(ck).name, tp, np.mean(t1), np.mean(t5), np.mean(eff),
-                 ("%.0f%%" % (100.0*align/max(len(recs),1))), len(recs)), flush=True)
+            # ── 软指标（逐格精确匹配检验力太弱：价值前 ~20 格近乎并列，
+            #    即使先验方向完全正确，精确命中率也只有 ~1/20）。三把尺子：
+            # ① 地图峰的**价值分位**（0=落在价值最好的格上，50=随机）
+            # ② 地图 top5 与价值 top5 的**集合重叠**
+            # ③ 地图的概率质量落在价值 top10 里的**占比**（随机期望 = 10/格数）
+            vo = np.argsort(-rc["vcell"])
+            rank = int(np.where(vo == int(order[0]))[0][0])
+            peak_pct.append(100.0 * rank / max(len(vo) - 1, 1))
+            ov5.append(len(set(order[:5].tolist()) & set(vo[:5].tolist())) / 5.0)
+            k10 = min(10, len(vo))
+            good_mass.append(float(pr[vo[:k10]].sum()))
+            mass_frac.append(k10 / len(vo))
+        print("%-30s tp=%-5.2f top1=%.2f 有效候选=%5.1f | 峰价值分位=%4.1f%% "
+              "(随机50)  top5重叠=%.0f%%  质量in价值top10=%.0f%% (随机%.0f%%)  精确命中=%d/%d"
+              % (Path(ck).name, tp, np.mean(t1), np.mean(eff), np.mean(peak_pct),
+                100.0 * np.mean(ov5), 100.0 * np.mean(good_mass),
+                100.0 * np.mean(mass_frac), align, len(recs)), flush=True)
