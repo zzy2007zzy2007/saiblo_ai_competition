@@ -37,8 +37,33 @@ CONFIGS = [
     ("k200 it8192 tp1.0", 200, 1.0, 8192, 15),       # 41（最贵，单独跑）
 ]
 
+# 2026-09-18 新增：k 与迭代数的**二维**扫描（全部 t_pos=1.0 = 强度最优档），
+# 用来分离"一致率被哪一件事卡住"（用户 2026-09-18 提出的问题）：
+#   k24 it256/it1024/it4096 → 固定 k，只加迭代数（若一致率上升 ⇒ 卡在访问噪声 ⇒ 多付算力可解）
+#   k96 it1024              → 与 k24 it256 同为 ~11 访问/候选，只加大 k（若只有它上升
+#                             ⇒ 卡在"两遍候选集重叠度" ⇒ 要修的是让候选集确定）
+# 注意：修复前那组（k24→k200、it256→it8192，一致率 0%→18.8%）把两者一起放大了，分不清。
+CONFIGS_GRID2D = [
+    ("k24  it256  tp1", 24, 1.0, 256, 15),
+    ("k24  it1024 tp1", 24, 1.0, 1024, 15),
+    ("k24  it4096 tp1", 24, 1.0, 4096, 15),
+    ("k96  it1024 tp1", 96, 1.0, 1024, 15),
+]
 
-def _refs(net_fn, policy_model, feat, ref_games: int, max_ref: int):
+# 2026-09-18：**价值先验下**的一致率，配 `--pos-prior value`。判据的判据 = 候选数：
+# 低温时如果采样全落在先验的几个峰上、候选数远小于 k，那"一致率高"就是平凡的
+# （不是"搜索找到了局面的答案"，而是"采样器在读价值网的 argmax"）。
+# 各配置之间比一致率必须同时看候选数，否则会被峰度混淆（见日志 valprior_similarity）。
+CONFIGS_VALPRIOR = [
+    ("k24 tp0.5", 24, 0.5, 256, 15),
+    ("k48 tp0.5", 48, 0.5, 256, 15),
+    ("k24 tp1.0", 24, 1.0, 256, 15),
+    ("k48 tp1.0", 48, 1.0, 256, 15),
+]
+
+
+def _refs(net_fn, policy_model, feat, ref_games: int, max_ref: int,
+          ref_k: int, ref_t_pos: float, ref_iters: int, ref_sm: int, ppf=None):
     from my_ai.az_intent.az_selfplay import make_initial_state
     from my_ai.az_intent.bundle_mcts import BundleMCTS
     from my_ai.decoder import decode_network_output
@@ -46,7 +71,8 @@ def _refs(net_fn, policy_model, feat, ref_games: int, max_ref: int):
     def search(st, pl, seed, gturn, k, t_pos, iters, sm):
         m = BundleMCTS(net_fn, iterations=iters, max_depth_rounds=4, k=k, sample_mult=sm,
                        t_class=0.5, t_pos=t_pos, seed=seed * 1000 + gturn,
-                       search_mode="pos-only", skip_single_candidate=True)
+                       search_mode="pos-only", skip_single_candidate=True,
+                       pos_prior_fn=ppf)
         return m.search(st, pl, temperature=0.0)
 
     out = []
@@ -61,7 +87,7 @@ def _refs(net_fn, policy_model, feat, ref_games: int, max_ref: int):
                 if st.terminal or len(out) >= max_ref:
                     break
                 gturn += 1
-                r = search(st, pl, seed + 100, gturn, 24, 0.3, 256, 15)
+                r = search(st, pl, seed + 100, gturn, ref_k, ref_t_pos, ref_iters, ref_sm)
                 if len(set(r.bundles)) >= 2:
                     out.append((st.clone(), pl, seed + 100, seed + 500, gturn))
                 obs = feat.encode_observation(st, pl, np.zeros(96))
@@ -76,22 +102,30 @@ def _refs(net_fn, policy_model, feat, ref_games: int, max_ref: int):
 
 
 def _run(job):
-    (label, k, t_pos, iters, sm), chunk, nchunk, ckpt, ref_games, max_ref, nh = job
+    (label, k, t_pos, iters, sm), chunk, nchunk, ckpt, ref_games, max_ref, nh, pos_prior = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
+    from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt, load_three_models
     from my_ai.az_intent.bundle_mcts import BundleMCTS
+    from my_ai.az_intent.eval import _make_value_pos_prior
 
     feat = FeatureExtractor(max_actions=96)
     policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
-    refs = _refs(net_fn, policy_model, feat, ref_games, max_ref)
+    ppf = None
+    if pos_prior == "value":
+        _, _, _vm = load_three_models(ckpt)
+        ppf = _make_value_pos_prior(feat, _vm)
+    # 参照集按**被测配置自己**筛（该配置下有 >=2 个候选的回合 = 它真的有得选的地方）。
+    # 不能用固定基线去筛：那会系统性偏向某个配置。
+    refs = _refs(net_fn, policy_model, feat, ref_games, max_ref, k, t_pos, iters, sm, ppf)
     lo, hi = chunk * len(refs) // nchunk, (chunk + 1) * len(refs) // nchunk
 
     def search(st, pl, seed, gturn):
         m = BundleMCTS(net_fn, iterations=iters, max_depth_rounds=4, k=k, sample_mult=sm,
                        t_class=0.5, t_pos=t_pos, seed=seed * 1000 + gturn,
-                       search_mode="pos-only", skip_single_candidate=True)
+                       search_mode="pos-only", skip_single_candidate=True,
+                       pos_prior_fn=ppf)
         return m.search(st, pl, temperature=0.0)
 
     def intents(res):
@@ -134,16 +168,26 @@ def main() -> None:
     ap.add_argument("--chunks", type=int, default=2)
     ap.add_argument("--labels", type=str, default=None,
                     help="只跑标签里含该子串的配置（逗号分隔）")
+    ap.add_argument("--grid2d", action="store_true",
+                    help="改用 k×迭代数 二维扫描配置（t_pos=1.0），见 CONFIGS_GRID2D")
+    ap.add_argument("--valprior-grid", action="store_true",
+                    help="改用 k∈{24,48}×t_pos∈{0.5,1.0} 配置（配 --pos-prior）")
+    ap.add_argument("--pos-prior", type=str, default="policy", choices=["policy", "value"],
+                    help="位置采样分布的来源：policy=位置网；value=价值网 1-ply z-score（仅根节点）")
     args = ap.parse_args()
 
-    cfgs = CONFIGS
+    base = CONFIGS_VALPRIOR if args.valprior_grid else (
+        CONFIGS_GRID2D if args.grid2d else CONFIGS)
+    cfgs = base
     if args.labels:
         keys = [x.strip() for x in args.labels.split(",") if x.strip()]
-        cfgs = [c for c in CONFIGS if any(k in c[0] for k in keys)]
+        cfgs = [c for c in base if any(k in c[0] for k in keys)]
         print("[sweep] 只跑这些配置: " + str([c[0] for c in cfgs]), flush=True)
-    jobs = [(cfg, c, args.chunks, args.ckpt, args.ref_games, args.max_ref, args.num_heads)
+    print("[sweep] pos_prior=%s" % args.pos_prior, flush=True)
+    jobs = [(cfg, c, args.chunks, args.ckpt, args.ref_games, args.max_ref, args.num_heads,
+             args.pos_prior)
             for cfg in cfgs for c in range(args.chunks)]
-    print(f"[sweep] {len(CONFIGS)} 配置 × {args.chunks} 块 = {len(jobs)} 任务，"
+    print(f"[sweep] {len(cfgs)} 配置 × {args.chunks} 块 = {len(jobs)} 任务，"
           f"{args.workers} 进程并行（脚本原本单核，机器 32 核）", flush=True)
     import multiprocessing as mp
     if args.workers > 1:
@@ -164,14 +208,14 @@ def main() -> None:
 
     print(f"\n{'配置':22s} {'候选数':>7s} {'访问/候选':>9s} {'退化%':>7s} {'bundle同%':>9s} "
           f"{'逐头一致%':>9s} {'头0/1/2':>14s}   n")
-    for label, *_ in (cfgs if args.labels else CONFIGS):
+    for label, *_ in cfgs:
         a = agg[label]
         n_eff = a["n"] - a["deg"]
         agree = sum(a["hit"]) / max(sum(a["tot"]), 1)
         ph = "/".join(f"{(a['hit'][h]/a['tot'][h]):.0%}" if a["tot"][h] else "-"
                       for h in range(args.num_heads))
-        vpc = float([c for c in CONFIGS if c[0] == label][0][3]) / float(
-            [c for c in CONFIGS if c[0] == label][0][1])
+        vpc = float([c for c in cfgs if c[0] == label][0][3]) / float(
+            [c for c in cfgs if c[0] == label][0][1])
         print(f"{label:22s} {np.mean(a['nc']):7.1f} {vpc:9.0f} {a['deg']/max(a['n'],1):7.1%} "
               f"{a['nb']/max(n_eff,1):9.1%} {agree:9.1%} {ph:>14s}   {a['n']}", flush=True)
     print("\n[sweep] 完成")

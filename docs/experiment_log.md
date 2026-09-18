@@ -2427,3 +2427,14 @@ t=1.5 买到的是"**分布更分散的目标**"（空过从 98% 降到 51%，�
   **"把 270 次暴力前向换成 1 次网络前向，k 保持 24"** ⇒ 成本回到基线水平、期望 +16.4pp
   （这是上限；真实值取决于网络逼近 oracle 的程度）。"缩 k"是**另一个**问题，而且现有证据说明
   8 个候选不够用（很可能又是"候选挤在同一片区域"那个多样性塌缩，只是这次区域由价值挑）。
+
+## 2026-09-18 16:37:45 — valprior_similarity
+
+- **commit**: `0d398d6` (dirty: 18 files)
+- **exit**: 0，用时 669s
+- **cmd**:
+  ```bash
+  bash _tmp_valprior_similarity.sh
+  ```
+- **output**: `training_history/runs/20260918_163745_valprior_similarity/output.log`
+- **result**: _待填_
