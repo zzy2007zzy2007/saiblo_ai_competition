@@ -201,6 +201,7 @@ class BundleMCTS:
         search_mode: str = "joint",
         pos_pin: str = "argmax",
         skip_single_candidate: bool = False,
+        pos_prior_fn=None,
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
@@ -217,6 +218,12 @@ class BundleMCTS:
         self.search_mode = search_mode
         self.pos_pin = pos_pin
         self.skip_single_candidate = skip_single_candidate
+        # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
+        # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
+        # 这类问题（见 _tmp_position_choice_ab.py 的 --pos-prior value）。签名：
+        #   pos_prior_fn(state, player, net_out, pinned_classes, is_root) -> action_map | None
+        # 返回 None 表示不覆盖。只碰被钉的类那几条通道 ⇒ 类轴与解码器的降级逻辑都不受影响。
+        self.pos_prior_fn = pos_prior_fn
         self.rng = np.random.default_rng(seed)
         self.last_root: BundleNode | None = None
 
@@ -272,9 +279,18 @@ class BundleMCTS:
                 pinned = [int(np.argmax(hl)) for hl in head_logits_list]
             class_ids = [[c] * n_samples for c in pinned]
         else:
+            pinned = None
             class_probs_arg = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
             class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
                          for p in class_probs_arg]
+
+        # 可选的外部位置先验：只改被钉类那几条通道上的 action_map 值（= 改位置采样分布）。
+        if self.pos_prior_fn is not None and pinned is not None:
+            am2 = self.pos_prior_fn(node.state, node.player, net_out,
+                                    [int(c) for c in pinned], node is self.last_root)
+            if am2 is not None:
+                net_out = {**net_out, "action_map": am2}
+
         eff_t_pos = 0.0 if self.search_mode == "class-only" else self.t_pos
         agg: dict[tuple, dict] = {}
         for idx in range(n_samples):

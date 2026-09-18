@@ -34,20 +34,42 @@ MAX_ROUNDS = 600
 
 
 def _worker(job):
-    seed, mode, ckpt, opp_ckpt, opp_mode, t_pos = job
+    seed, mode, ckpt, opp_ckpt, opp_mode, t_pos, k, pos_prior = job
     import torch
     torch.set_num_threads(1)
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
     from SDK.utils.features import FeatureExtractor
-    from my_ai.az_intent.az_selfplay import (make_initial_state,
+    from my_ai.az_intent.az_selfplay import (load_three_models, make_initial_state,
                                              make_net_fn_from_ckpt)
     from my_ai.az_intent.bundle_mcts import BundleMCTS
-    from my_ai.decoder import decode_network_output
+    from my_ai.decoder import (decode_head, decode_network_output, make_class_mask,
+                               make_position_masks)
 
     feat = FeatureExtractor(max_actions=96)
     # 自动分支：二网 / 三网 / 单网（anchor_model 提供 action_map + head_logits）
     policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
+    # 价值查询：三网 ckpt 走价值网本身（anchor 三网策略故意不含 value）；否则策略网自带 value
+    _ck = torch.load(ckpt, map_location="cpu", weights_only=False)
+    if "pos_state" in _ck or "class_state" in _ck:
+        _, _, vmodel = load_three_models(ckpt)
+    else:
+        vmodel = policy_model
+
+    def _value_of(posts, pl):
+        """对一串 post-state 批量查价值网，返回**我方优势** = -(对手视角价值)。"""
+        boards, statss = [], []
+        for post in posts:
+            ob = feat.encode_observation(post, 1 - pl, np.zeros(96))
+            boards.append(ob["board"]); statss.append(ob["stats"])
+        out = []
+        for i in range(0, len(boards), 128):
+            with torch.no_grad():
+                v = vmodel(torch.from_numpy(np.stack(boards[i:i + 128])).float(),
+                           torch.from_numpy(np.stack(statss[i:i + 128])).float())["value"]
+            out.extend((-v.squeeze(-1).numpy()).tolist())
+        return np.asarray(out, dtype=np.float64)
+
     # 对手用另一个 ckpt（None = 同一个）：判据"raw 新 vs raw 旧"需要两边不同
     opp_model = policy_model
     opp_net_fn = net_fn
@@ -72,9 +94,50 @@ def _worker(job):
         return decode_network_output(policy_out(st, pl), st, pl, temperature=0.0,
                                      intent_decoding=True)
 
+    def _value_prior(st, pl, net_out, pinned, is_root):
+        """把每个钉类的 action_map 通道换成"该类合法格上 1-ply 我方优势"的 z-score。
+
+        只在**根节点**生效（更深的节点维持网络自己的先验）——根节点的候选集才是决定最终
+        选择的那个；若每层都算，每个扩展要 ~270 次价值前向 × 256 次迭代，成本不可接受。
+        z-score 只取该类合法格（与采样器同一套），所以 t_pos 的语义与平时一致。
+        """
+        if not is_root:
+            return None
+        am = np.asarray(net_out["action_map"], dtype=np.float32)
+        pm = make_position_masks(st, pl, intent_decoding=True)
+        cm = make_class_mask(st, pl, position_mask=pm, intent_decoding=True)
+        hl0 = np.asarray(net_out["head_logits"][0], dtype=np.float32)
+        am2 = am.copy()
+        for c in pinned:
+            if c < 0 or c >= len(cm) or not cm[c]:
+                continue
+            cells = np.argwhere(pm[c])
+            if len(cells) < 2:
+                continue
+            posts, keep = [], []
+            for (x, y) in cells:
+                am3 = am.copy(); am3[c] = -1e9; am3[c, x, y] = 1e9
+                op = decode_head(hl0, am3, cm.copy(), pm.copy(), st, pl, class_id=int(c),
+                                 temperature=0.0, pos_temperature=0.0, intent_decoding=True)
+                if op is None or not st.can_apply_operation(pl, op, ()):
+                    continue
+                post = st.clone(); post.apply_operation_list(pl, [op])
+                posts.append(post); keep.append((int(x), int(y)))
+            if len(keep) < 2:
+                continue
+            a = _value_of(posts, pl)
+            z = (a - a.mean()) / (a.std() + 1e-8)
+            am2[c] = -1e9
+            for (x, y), zz in zip(keep, z):
+                am2[c, x, y] = float(zz)
+        return am2
+
+    ppf = _value_prior if pos_prior == "value" else None
+
     def search_bundle(nf, st, pl, gturn):
         """一次 pos-only 搜索，返回 chosen_bundle（两侧共用同一构造，保证对称）。"""
-        m = BundleMCTS(nf, iterations=256, max_depth_rounds=4, k=24,
+        # 注意：外部位置先验是**我方**的机制，对手侧（跑 raw）不用
+        m = BundleMCTS(nf, iterations=256, max_depth_rounds=4, k=k,
                        t_class=0.5, t_pos=t_pos, seed=seed * 1000 + gturn,
                        search_mode="pos-only", skip_single_candidate=True)
         return m.search(st, pl, temperature=0.0).chosen_bundle
@@ -97,9 +160,44 @@ def _worker(job):
             ops = raw_ops(st, pl)
             stats["ours_acted"] += int(bool(ops))
             return ops
-        m = BundleMCTS(net_fn, iterations=256, max_depth_rounds=4, k=24,
+
+        if mode == "valueargmax":
+            # 臂 C：完全不搜索 —— 钉类固定，在**全部**合法格上做 1-ply 价值 argmax。
+            # 即 _tmp_pos_greedy_vs_raw.py 的规则，但现在跑在同一个台子里（消除口径差）。
+            o = policy_out(st, pl)
+            am = o["action_map"][0].numpy()
+            hl = [o[f"head{h}_logits"].squeeze(0).numpy() for h in (1, 2, 3)]
+            pm = make_position_masks(st, pl, intent_decoding=True)
+            cm = make_class_mask(st, pl, position_mask=pm, intent_decoding=True)
+            ops, pending = [], ()
+            for h in range(3):
+                c = int(np.argmax(hl[h]))
+                if not cm[c] or c == 23:
+                    continue
+                cells = np.argwhere(pm[c])
+                if len(cells) == 0:
+                    continue
+                posts, cand = [], []
+                for (x, y) in cells:
+                    am3 = am.copy(); am3[c] = -1e9; am3[c, x, y] = 1e9
+                    op = decode_head(hl[h], am3, cm.copy(), pm.copy(), st, pl, class_id=c,
+                                     temperature=0.0, pos_temperature=0.0, intent_decoding=True)
+                    if op is None or not st.can_apply_operation(pl, op, pending):
+                        continue
+                    post = st.clone(); post.apply_operation_list(pl, [op])
+                    posts.append(post); cand.append(op)
+                if not posts:
+                    continue
+                op = cand[int(np.argmax(_value_of(posts, pl)))]
+                ops.append(op); pending = pending + (op,)
+            stats["ours_acted"] += int(bool(ops))
+            stats["cands_hist"][len(ops)] = stats["cands_hist"].get(len(ops), 0) + 1
+            return ops
+
+        m = BundleMCTS(net_fn, iterations=256, max_depth_rounds=4, k=k,
                        t_class=0.5, t_pos=t_pos, seed=seed * 1000 + turn_idx,
-                       search_mode="pos-only", skip_single_candidate=True)
+                       search_mode="pos-only", skip_single_candidate=True,
+                       pos_prior_fn=ppf)
         res = m.search(st, pl, temperature=0.0)
         cands = list(res.bundles)
         stats["cands_hist"][len(cands)] = stats["cands_hist"].get(len(cands), 0) + 1
@@ -107,6 +205,15 @@ def _worker(job):
             return []
         if mode == "search":
             chosen, idx = res.chosen_bundle, res.chosen_index
+        elif mode == "valuepick":
+            # 臂 D：同一个候选集，但**不看访问次数**，直接用价值网选
+            posts = []
+            for bundle in cands:
+                post = st.clone()
+                post.apply_operation_list(pl, to_ops(bundle))
+                posts.append(post)
+            idx = int(np.argmax(_value_of(posts, pl)))
+            chosen = cands[idx]
         elif mode == "random":
             idx = int(rng.integers(len(cands)))
             chosen = cands[idx]
@@ -154,17 +261,24 @@ def main() -> None:
     ap.add_argument("--opponent-checkpoint", type=str, default=None)
     ap.add_argument("--opp-mode", type=str, default="raw", choices=["raw", "search"])
     ap.add_argument("--mode", default="search",
-                    choices=["raw", "search", "random", "prior"])
+                    choices=["raw", "search", "random", "prior", "valuepick", "valueargmax"],
+                    help="search=采样候选+按访问次数选（现有）；valuepick=**同一候选集**但直接"
+                         "按价值选（隔离'访问累积 vs 价值直接选'）；valueargmax=不搜索，"
+                         "在全部合法格上做 1-ply 价值 argmax（= pos_greedy 规则，但同台）")
     ap.add_argument("--pairs", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--k", type=int, default=24, help="候选数（用于测缩 k）")
+    ap.add_argument("--pos-prior", type=str, default="policy", choices=["policy", "value"],
+                    help="位置采样分布的来源：policy=位置网（现状）；value=价值网在钉类合法格上"
+                         "的 1-ply z-score（只在根节点生效）⇒ 测'让价值网决定候选菜单'")
     ap.add_argument("--t-pos", type=float, default=1.0,
                     help="位置采样温度（z-score 归一化后）；两侧共用，保证镜像对称。"
                          "默认 1.0（强度平台起点）；0.3 是极尖档，见 docs/az_t_pos_default_fix.md")
     args = ap.parse_args()
 
     jobs = [(args.seed + i, args.mode, args.checkpoint, args.opponent_checkpoint,
-             args.opp_mode, args.t_pos) for i in range(args.pairs)]
+             args.opp_mode, args.t_pos, args.k, args.pos_prior) for i in range(args.pairs)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
@@ -186,8 +300,8 @@ def main() -> None:
         for k, v in r["chosen_idx"].items():
             idx_hist[k] = idx_hist.get(k, 0) + v
     t_str = "  (SE=0：镜像严格抵消)" if se == 0 else f"  t = {(ps.mean() - 1.0) / se:+.2f}"
-    print(f"\n=== mode={args.mode}  t_pos={args.t_pos}  {n} pairs ({2 * n} games) "
-          f"seed={args.seed} ===")
+    print(f"\n=== mode={args.mode}  t_pos={args.t_pos}  k={args.k}  "
+          f"pos_prior={args.pos_prior}  {n} pairs ({2 * n} games) seed={args.seed} ===")
     print(f"  配对得分均值 = {ps.mean():.4f}  (1.0 = 与对手持平)   SE = {se:.4f}{t_str}")
     print(f"  偏离 1.0 的 pair 数 = {int((ps != 1.0).sum())}/{n}   净增分 = {ps.sum() - n:+.1f}")
     print(f"  分布: 2分(双杀)={int((ps == 2).sum())}  1.5={int((ps == 1.5).sum())}  "
