@@ -32,8 +32,76 @@ for p in (_REPO, _CODE):
 import numpy as np
 
 
+def _make_value_pos_prior(feat, vmodel, mode="value"):
+    """位置先验 = **价值网在钉类合法格上的 1-ply z-score**（只在根节点算）。
+
+    动机（docs/az_value_prior_plan.md）：让"价值网"而不是"位置网"决定候选菜单，用来测
+    "好先验能不能让 k 缩小"。与 `_tmp_position_choice_ab.py --pos-prior value` 的实现一致。
+
+    只在**根节点**生效：根节点的候选集才是决定最终选择的那个；若每层都算，每次扩展要
+    枚举钉类全部合法格（~270 次价值前向）× 迭代数，成本不可接受。
+
+    ``mode="uniform"`` = **对照臂**：走完全一样的枚举与"可执行性过滤"，但权重全取 0
+    （= 在筛过的格子上均匀采样）⇒ 用来分离"价值信息"与"过滤掉不可执行格"这两个效果。
+    若过滤本身去掉了不少格子，uniform 臂就会明显强于位置网先验；否则两者应该接近基线。
+    """
+    import numpy as np
+    import torch
+    from my_ai.decoder import decode_head, make_class_mask, make_position_masks
+
+    def _value_of(posts, pl):
+        boards, statss = [], []
+        for post in posts:
+            ob = feat.encode_observation(post, 1 - pl, np.zeros(96))
+            boards.append(ob["board"]); statss.append(ob["stats"])
+        out = []
+        for i in range(0, len(boards), 128):
+            with torch.no_grad():
+                v = vmodel(torch.from_numpy(np.stack(boards[i:i + 128])).float(),
+                           torch.from_numpy(np.stack(statss[i:i + 128])).float())["value"]
+            out.extend((-v.squeeze(-1).numpy()).tolist())
+        return np.asarray(out, dtype=np.float64)
+
+    def fn(st, pl, net_out, pinned, is_root):
+        if not is_root:
+            return None
+        am = np.asarray(net_out["action_map"], dtype=np.float32)
+        pm = make_position_masks(st, pl, intent_decoding=True)
+        cm = make_class_mask(st, pl, position_mask=pm, intent_decoding=True)
+        hl0 = np.asarray(net_out["head_logits"][0], dtype=np.float32)
+        am2 = am.copy()
+        for c in pinned:
+            if c < 0 or c >= len(cm) or not cm[c]:
+                continue
+            cells = np.argwhere(pm[c])
+            if len(cells) < 2:
+                continue
+            posts, keep = [], []
+            for (x, y) in cells:
+                am3 = am.copy(); am3[c] = -1e9; am3[c, x, y] = 1e9
+                op = decode_head(hl0, am3, cm.copy(), pm.copy(), st, pl, class_id=int(c),
+                                 temperature=0.0, pos_temperature=0.0, intent_decoding=True)
+                if op is None or not st.can_apply_operation(pl, op, ()):
+                    continue
+                post = st.clone(); post.apply_operation_list(pl, [op])
+                posts.append(post); keep.append((int(x), int(y)))
+            if len(keep) < 2:
+                continue
+            if mode == "uniform":
+                z = np.zeros(len(keep), dtype=np.float64)
+            else:
+                a = _value_of(posts, pl)
+                z = (a - a.mean()) / (a.std() + 1e-8)
+            am2[c] = -1e9
+            for (x, y), zz in zip(keep, z):
+                am2[c, x, y] = float(zz)
+        return am2
+
+    return fn
+
+
 def _worker(args: tuple) -> dict:
-    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin, skip_single_candidate = args
+    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin, skip_single_candidate, pos_prior = args
     import torch
     torch.set_num_threads(1)
 
@@ -111,10 +179,18 @@ def _worker(args: tuple) -> dict:
             bmcts = Depth0Greedy(net_fn, iterations=iterations, k=k,
                                  c_puct=c_puct, t_class=t_class, t_pos=t_pos, seed=seed)
         else:
+            _ppf = None
+            if pos_prior in ("value", "uniform"):
+                from my_ai.az_intent.az_selfplay import load_three_models
+                _vm = None
+                if pos_prior == "value":
+                    _, _, _vm = load_three_models(ckpt_path)
+                _ppf = _make_value_pos_prior(feat, _vm, mode=pos_prior)
             bmcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                                k=k, c_puct=c_puct, t_class=t_class, t_pos=t_pos, seed=seed,
                                search_mode=search_mode, pos_pin=pos_pin,
-                               skip_single_candidate=skip_single_candidate)
+                               skip_single_candidate=skip_single_candidate,
+                               pos_prior_fn=_ppf)
         ra_rng = np.random.default_rng(seed + 7777)
 
         # Per-turn diagnostics for the class/position ablation: how often does the
@@ -259,6 +335,13 @@ def main() -> None:
                         help="MCTS exploration constant (explore = c_puct * prior * ...)")
     parser.add_argument("--t-class", type=float, default=1.0, help="bundle sampling class temperature")
     parser.add_argument("--t-pos", type=float, default=1.0, help="bundle sampling position temperature")
+    parser.add_argument("--pos-prior", type=str, default="policy",
+                        choices=["policy", "value", "uniform"],
+                        help="位置采样分布的来源：policy=位置网（现状）；value=价值网在钉类合法格上"
+                             "的 1-ply z-score（只在根节点算）⇒ 测'让价值网决定候选菜单'；"
+                             "uniform=走同样的枚举与可执行性过滤但权重全相同（**对照臂**，"
+                             "用来分离'价值信息'与'过滤掉不可执行格'）。"
+                             "成本：value 每出招回合约 270 次额外价值前向。见 docs/az_value_prior_plan.md")
     parser.add_argument("--self-raw-opponent", action="store_true",
                         help="opponent = raw (no-search) decode of the same model")
     parser.add_argument("--max-rounds", type=int, default=512)
@@ -307,7 +390,7 @@ def main() -> None:
          args.t_class, args.t_pos,
          args.self_raw_opponent, args.max_rounds, args.native_engine,
          args.random_action_prob, args.search_mode, args.pos_pin,
-         args.skip_single_candidate)
+         args.skip_single_candidate, args.pos_prior)
         for s in range(args.games)
     ]
     if args.workers > 1:
@@ -324,6 +407,8 @@ def main() -> None:
     label = "baseline-hotstart" if args.baseline_hotstart else Path(args.checkpoint).name
     opp_label = "raw-self" if args.self_raw_opponent else args.opponent
     mode_tag = "" if args.search_mode == "joint" else f" [search_mode={args.search_mode}]"
+    if args.pos_prior != "policy":
+        mode_tag += f" [pos_prior={args.pos_prior} tp={args.t_pos} k={args.k}]"
     if args.search_mode == "pos-only" and args.pos_pin != "argmax":
         mode_tag += f" [pos_pin={args.pos_pin}]"
     print(f"\n=== {label} vs {opp_label}{mode_tag}: {win}W/{draw}D/{loss}L "
