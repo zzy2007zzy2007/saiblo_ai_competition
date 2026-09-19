@@ -12,3 +12,7 @@ bc_checkpoint.pt
 baseline_*.pt
 default_baseline.pt
 zero_baseline.pt
+
+# rule_v4 每回合写决策日志，跑评测会把它撑到 GB 级（2026-09-19 实测 909MB）
+ai_decisions.log
+其他版本ai/*/ai_decisions.log
