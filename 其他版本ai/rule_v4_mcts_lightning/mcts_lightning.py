@@ -40,15 +40,24 @@ LIGHTNING_CLASS = 17          # 意图空间里的动作类 17 = 闪电（与 de
 class AI_LightningSearch(_RuleV4AI):
     def __init__(self, seed: int | None = None, pos_source: str | None = "net",
                  ckpt: str = "training_history/vprior/posnet_r1.pt",
-                 max_actions: int = 96) -> None:
+                 max_actions: int = 96, mode: str = "full") -> None:
+        """``mode``：
+          * ``"full"``           —— 完全照 rule_v4 的四条策略，只换闪电落点
+          * ``"lightning_only"`` —— **只放闪电**：冷却为 0 且金币够就放闪电，否则空过
+                                    （不建塔/不升级/不拆塔）。金币有被动收入（+1.5/轮），
+                                    所以不放塔也能攒到 90。这样"唯一的决策就是落点"，
+                                    是位置轴的干净隔离。
+        """
         super().__init__(seed=seed, max_actions=max_actions)
+        self.mode = mode
         self.pos_source = pos_source
         self.ckpt = ckpt
         self._feat = None
         self._net = None
         self._vmodel = None
         self.n_override = 0        # 统计：实际改过几次位置
-        self.n_lightning = 0       # 统计：见过几次闪电
+        self.n_lightning = 0       # 统计：见过几次闪电（full 模式下 = 原规则要放闪电的次数）
+        self.n_fired = 0           # 统计：lightning_only 模式下实际放出去的闪电次数
         if pos_source is not None:
             self._load()
 
@@ -147,7 +156,10 @@ class AI_LightningSearch(_RuleV4AI):
 
     # ── 唯一的改动点 ──────────────────────────────────────────────────────
     def choose_bundle(self, state, player, bundles=None) -> ActionBundle:
-        b = super().choose_bundle(state, player, bundles)
+        if self.mode == "lightning_only":
+            b = self._lightning_only_bundle(state, player, bundles)
+        else:
+            b = super().choose_bundle(state, player, bundles)
         if self.pos_source is None:
             return b
         idx = [i for i, op in enumerate(b.operations)
@@ -166,3 +178,16 @@ class AI_LightningSearch(_RuleV4AI):
         ops = list(b.operations)
         ops[i] = Operation(old.op_type, int(cell[0]), int(cell[1]))
         return ActionBundle(name=b.name + "+posnet", operations=tuple(ops), score=b.score)
+
+    def _lightning_only_bundle(self, state, player, bundles) -> ActionBundle:
+        """只放闪电：冷却 0 且金币够 ⇒ 按（启发式评分最高的）闪电 bundle；否则空过。"""
+        from SDK.utils.constants import SuperWeaponType
+        bundles = bundles or self.list_bundles(state, player)
+        cd = state.weapon_cooldowns[player, SuperWeaponType.LIGHTNING_STORM]
+        coins = state.coins[player]
+        if cd == 0 and coins >= self.LIGHTNING_COST:
+            lb = self.get_lightning_bundle(bundles)
+            if lb is not None:
+                self.n_fired += 1
+                return lb
+        return ActionBundle(name="hold", score=0.0, tags=("noop",))

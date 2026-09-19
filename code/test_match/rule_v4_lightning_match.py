@@ -46,20 +46,25 @@ def _orig_ai_class():
 
 
 def _worker(job):
-    seed, our_player, pos_source, ckpt, native, max_rounds = job
+    seed, our_player, pos_source, ckpt, native, max_rounds, mode, opp_mode, is_null = job
     import torch
     torch.set_num_threads(1)
     from my_ai.az_intent.az_selfplay import make_initial_state
 
     OrigAI = _orig_ai_class()
     import mcts_lightning                       # 拷贝目录里的子类
-    ours = mcts_lightning.AI_LightningSearch(seed=seed, pos_source=pos_source, ckpt=ckpt)
-    opp = OrigAI(seed=seed)
-    if pos_source is None:                      # --null 对照：我方也用原版
+    ours = mcts_lightning.AI_LightningSearch(seed=seed, pos_source=pos_source, ckpt=ckpt,
+                                             mode=mode)
+    if opp_mode == 'lightning_only':
+        opp = mcts_lightning.AI_LightningSearch(seed=seed, pos_source=None, mode='lightning_only')
+    else:
+        opp = OrigAI(seed=seed)
+    if is_null:                                 # --null 对照：我方也用原版
         ours = OrigAI(seed=seed)
 
     st = make_initial_state(seed, native)
-    for _ in range(max_rounds):
+    _rnd = 0
+    for _rnd in range(max_rounds):
         if st.terminal:
             break
         for pl in (0, 1):
@@ -76,8 +81,12 @@ def _worker(job):
     else:
         a, b = st.bases[our_player].hp, st.bases[1 - our_player].hp
         score = 0.5 if a == b else (1.0 if a > b else 0.0)
+    print("[game] seed=%d our_player=%d %s us=%d opp=%d rounds=%d"
+          % (seed, our_player, "WIN" if score == 1.0 else ("LOSS" if score == 0.0 else "DRAW"),
+             st.bases[our_player].hp, st.bases[1 - our_player].hp, _rnd), flush=True)
     return {"score": score,
             "n_lightning": getattr(ours, "n_lightning", 0),
+            "n_fired": getattr(ours, "n_fired", 0),
             "n_override": getattr(ours, "n_override", 0)}
 
 
@@ -86,6 +95,8 @@ def main() -> None:
     ap.add_argument("--pos-source", default="net", choices=["net", "value", "mcts", "none"])
     ap.add_argument("--null", action="store_true", help="零方差对照：我方也用原版 rule_v4")
     ap.add_argument("--ckpt", default="training_history/vprior/posnet_r1.pt")
+    ap.add_argument("--mode", default="full", choices=["full", "lightning_only"])
+    ap.add_argument("--opp-mode", default="full", choices=["full", "lightning_only"])
     ap.add_argument("--pairs", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
@@ -93,13 +104,15 @@ def main() -> None:
     ap.add_argument("--max-rounds", type=int, default=512)
     a = ap.parse_args()
     pos_source = None if a.null else (None if a.pos_source == "none" else a.pos_source)
-    tag = "NULL(原版 vs 原版)" if a.null else f"pos_source={pos_source}"
+    tag = ("NULL(原版 vs 原版)" if a.null else
+       f"mode={a.mode} opp={a.opp_mode} pos_source={pos_source}")
 
     jobs = []
     for i in range(a.pairs):
         s = a.seed + i
         for pl in (0, 1):
-            jobs.append((s, pl, pos_source, a.ckpt, a.native_engine, a.max_rounds))
+            jobs.append((s, pl, pos_source, a.ckpt, a.native_engine, a.max_rounds,
+                         a.mode, a.opp_mode, a.null))
 
     import multiprocessing as mp
     if a.workers > 1:
@@ -115,6 +128,7 @@ def main() -> None:
     se = ps.std(ddof=1) / np.sqrt(n) if n > 1 else 0.0
     nl = sum(r["n_lightning"] for r in res)
     no = sum(r["n_override"] for r in res)
+    nf = sum(r["n_fired"] for r in res)
     t_str = "  (SE=0：镜像严格抵消)" if se == 0 else f"  t = {(ps.mean() - 0.5) / se:+.2f}"
     print(f"\n=== {tag}  {n} pairs ({2 * n} games) seed={a.seed} ===")
     print(f"  配对胜率均值 = {ps.mean():.4f}   (0.5 = 与 rule_v4 持平, 1.0 = 全胜)  "
@@ -122,7 +136,8 @@ def main() -> None:
     print(f"  偏离 0.5 的 pair 数 = {int((np.abs(ps - 0.5) > 1e-9).sum())}/{n}   "
           f"净胜局 = {int(sc.sum() - n)}")
     print(f"  闪电决策次数 = {nl}   其中位置被改 = {no}"
-          f"（{100.0 * no / max(nl, 1):.1f}%）")
+          f"（{100.0 * no / max(nl, 1):.1f}%）"
+          + (f"   [lightning_only 实放闪电 = {nf}]" if a.mode == "lightning_only" else ""))
 
 
 if __name__ == "__main__":
