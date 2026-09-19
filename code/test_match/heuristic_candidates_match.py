@@ -68,7 +68,7 @@ def _worker(job):
     feat = FeatureExtractor(max_actions=96)
     catalog = ActionCatalog(max_actions=96, feature_extractor=feat)
     vmodel = None
-    if "value" in (our_mode, opp_mode):
+    if "value" in our_mode or "value" in opp_mode:
         _, _, vmodel = load_three_models(ckpt)
     OrigAI = None
     if "rule_v4" in (our_mode, opp_mode):
@@ -97,7 +97,48 @@ def _worker(job):
             for op in ops:
                 stats["cls"][who][OperationType(op.op_type).name] += 1
             return ops
-        cands = _candidates(state, player, catalog, k, no_lightning)
+        allb = sorted(catalog.build(state, player), key=lambda b: -b.score)
+        if mode == "hl_save":
+            # 启发式做非闪电决策 + rule_v4 的"攒钱"规则（冷却<=2 就先 hold 存钱）
+            from SDK.utils.constants import SuperWeaponType
+            cd = state.weapon_cooldowns[player, SuperWeaponType.LIGHTNING_STORM]
+            lb = next((b for b in allb if _is_lightning(b)), None)
+            if lb is not None and cd == 0 and state.coins[player] >= 90:
+                b = lb
+            elif cd <= 2:
+                return []                      # 攒钱：空过（= rule_v4 的策略3）
+            else:
+                b = allb[0] if allb else None
+            if b is None:
+                return []
+            for op in b.operations:
+                stats["cls"][who][OperationType(op.op_type).name] += 1
+            return list(b.operations)
+        if mode == "hl":
+            # 启发式做非闪电决策；能放闪电就放（= rule_v4 的"策略1 + 其余交给启发式"）
+            from SDK.utils.constants import SuperWeaponType
+            lb = next((b for b in allb if _is_lightning(b)), None)
+            cd = state.weapon_cooldowns[player, SuperWeaponType.LIGHTNING_STORM]
+            if lb is not None and cd == 0 and state.coins[player] >= 90:
+                b = lb
+            else:
+                b = allb[0] if allb else None
+            if b is None:
+                return []
+            for op in b.operations:
+                stats["cls"][who][OperationType(op.op_type).name] += 1
+            return list(b.operations)
+        if mode == "value_mix":
+            # 候选 = 启发式 top-K ∪ 评分最高的闪电候选，由价值网 1-ply 选
+            pool = allb[:k]
+            lb = next((b for b in allb if _is_lightning(b)), None)
+            if lb is not None and all(tuple((int(o.op_type), o.arg0, o.arg1) for o in lb.operations)
+                                      != tuple((int(o.op_type), o.arg0, o.arg1) for o in p.operations)
+                                      for p in pool):
+                pool = pool + [lb]
+            cands = pool
+        else:
+            cands = _candidates(state, player, catalog, k, no_lightning)
         stats["cands"].append(len(cands))
         if not cands:
             return []
@@ -147,8 +188,10 @@ def _worker(job):
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--our", default="value", choices=["random", "value", "first", "rule_v4"])
-    ap.add_argument("--opp", default="random", choices=["random", "value", "first", "rule_v4"])
+    ap.add_argument("--our", default="value",
+                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save", "value_mix"])
+    ap.add_argument("--opp", default="random",
+                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save", "value_mix"])
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--no-lightning", action="store_true", help="候选集里剔除含闪电的 bundle")
     ap.add_argument("--ckpt", default="training_history/vprior/posnet_r1.pt")
