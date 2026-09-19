@@ -3265,3 +3265,45 @@ $PY -u $S --our search --opp search --k 24 --menu-random 24 --search-iters 64 --
 - **result**: ❌ **启动失败（exit 127，0s）**——我把 `$PY`/`$S` 转义成了 `\$PY`，
   内层 `bash -c` 里这两个变量是空的（外层只 `PY=...` 没 `export`）⇒ 整条命令没跑。
   已用 `export` 重发为下面那条 `20:13:53` 的 run。**本条只作排错记录，无结果。**
+
+## 2026-09-19 20:06:35 — menu_lightning_arms
+
+- **commit**: `325966c` (dirty: 18 files)
+- **exit**: 0，用时 608s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 版本1 · 1-ply ##########'
+echo '#### 1A 菜单天花板：random over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our random --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 1B 价值网(旧) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our value --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 1C 价值网(新=A2) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our value --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/inject_ex02/valnet_A2.pt
+echo '########## 版本2 · 搜索（iters=64 depth=4）##########'
+echo '#### 2D 搜索(旧价值网) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --menu-lightning --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 2E 搜索(新价值网=A2) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --menu-lightning --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt training_history/inject_ex02/valnet_A2.pt
+  ```
+- **output**: `training_history/runs/20260919_200635_menu_lightning_arms/output.log`
+- **result**: 🛑 **作废（被用户叫停的半途 run）——不是结果，是事故记录。**
+
+  用户换掉菜单设计（改成"从合法动作里随机抽 24 个"，见下条 `random_menu24_arms`），
+  所以这条跑到一半被我停掉。**但"停"没停干净，这是本节要记的教训**：
+
+  * 我用 `TaskStop` 停的只是 `run_logged.sh` 那层 shell，**它下面的 `bash -c` → python 是孙进程，
+    变成孤儿继续跑**；而且 `bash -c` 的多行脚本**默认不会因为某一行失败就中止**，
+    所以它还继续往下跑了后面的臂（被发现时已经跑到 2D 臂）。
+  * 于是它和随后 20:13:53 重发的 `random_menu24_arms` **并行**，机器上出现
+    **34 个 python 进程（两套各 17 个）** —— 用户先看到的就是这个。
+  * 清理：用 `taskkill /PID <bash -c 的 pid> /T /F` 杀掉**整棵树**才对
+    （先误杀了 fork 出的子壳 44652，真正的根是 52632）。杀完确认只剩 17 个。
+
+  ⚠️ **对结果无影响**：本台子用固定 seed、不依赖时序 ⇒ 并行只是拖慢速度，不改变数值。
+  ⚠️ **教训**：这批台子的启动方式是 `run_logged.sh <name> bash -c "<多行脚本>"`，
+  停要用进程树级别的杀法（`taskkill /T /F` + 按 ppid 分组核对），别只依赖 `TaskStop`。
+
+  半途产出（**不可用**，仅存档）：1A 跑完、1B 中断、2D 刚起。
+  `20260919_200346_menu_lightning_arms` 那条是同一套臂的更早一次启动，
+  `--menu-lightning` 当时还没实现 ⇒ 5 个臂全部 argparse 报错（exit 2）。
