@@ -1,0 +1,90 @@
+# ============================================================
+# GA 进化训练 - 小参数冒烟测试配置 (v10)
+# 目的：在最短时间内验证 v10 完整流程（种群、benchmark、round_robin、baseline、checkpoint）
+# ============================================================
+
+# 系统配置
+system:
+  device: "cuda"
+  seed: 42
+
+# 网络结构配置
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 进化参数（缩小）
+evolution:
+  max_generations: 3        # 仅跑 3 代
+  population_size: 16       # 每代 16 个体
+  gen1_population_size: 16  # Gen 1 与常规一致
+  num_seeds: 4              # 选 4 个种子
+  elitism_count: 2
+  convergence_window: 20
+  convergence_threshold: 5.0
+
+# 杂交参数
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+# 变异参数
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+# 精英去重
+elite_dedup:
+  enabled: true
+  hard_threshold: 0.95
+  soft_threshold: 0.85
+  soft_max_per_family: 2
+
+# 剪枝（冒烟测试关闭，确保 touchstone 有足够个体运行）
+pruning:
+  enabled: false
+  n_battle: 1
+  opponent: "BasicRandomAI"
+  max_workers: 12
+
+# 二分种子（touchstone）参数 —— 基准筛选阶段（缩小）
+touchstone:
+  M: 8                      # 候选手打 8 个对手
+  max_seeds: 2
+  n_battle: 1
+  max_candidate_fails: 6
+  max_workers: 12
+  candidate_min_rank: 6     # 不能弱于第 6 名（要求 m > 6 即可判定）
+  candidate_max_rank: 2     # 不能强于第 2 名
+  next_candidate_rank: 4    # 选第 4 名作为下一个候选
+
+# 循环赛参数（缩小）
+round_robin:
+  top_n: 6                  # 对前 6 名做循环赛
+  n_battles: 2
+  max_workers: 12
+
+# 基线验证（缩小）
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 2
+  max_workers: 8
+  agents:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+    - "MediumRuleAI"
+
+# 环境参数
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+# 日志参数（每代都保存 checkpoint，便于验证）
+logging:
+  log_level: "INFO"
+  save_interval: 1
+  tensorboard: true

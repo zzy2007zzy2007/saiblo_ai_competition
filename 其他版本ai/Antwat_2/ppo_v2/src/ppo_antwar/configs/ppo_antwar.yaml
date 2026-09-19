@@ -1,0 +1,93 @@
+# ============================================================
+# PPO 模型训练配置文件 - AntWar v2
+# ============================================================
+
+# 系统配置
+system:
+  device: "cuda"
+
+# 网络结构配置
+network:
+  hidden_dim: 256
+  board_shape: [28, 19, 19]
+  global_dim: 33
+  action_dim: 119
+
+# PPO 训练参数
+ppo:
+  lr: 0.0003
+  lr_vf: 0.0002
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_eps: 0.15
+  clip_eps_vf: 0.2
+  ent_coef: 0.02
+  exploration_epsilon: 0.02
+  logit_noise_std: 0.0
+  vf_coef: 1.0
+  max_grad_norm: 2.5
+  max_grad_norm_vf: 20.0
+  ppo_epochs: 2
+  batch_size: 1024
+  target_kl: 0.05
+  lr_cosine_decay: true
+  enable_auxiliary: true
+  aux_tower_coef: 0.005
+  aux_gold_coef: 0.0001
+  aux_enemy_tower_coef: 0.005
+  aux_enemy_gold_coef: 0.0001
+  aux_base_dmg_coef: 0.0003
+  aux_enemy_base_dmg_coef: 0.01
+  # value encoder 辅助损失系数（设计公式：vf_aux_coef = aux_coef × vf_coef(0.1)）
+  vf_aux_tower_coef: 0.0005       # = aux_tower_coef(0.005) × vf_coef(0.1)
+  vf_aux_gold_coef: 0.00001       # = aux_gold_coef(0.0001) × vf_coef(0.1)
+  vf_aux_enemy_tower_coef: 0.0005 # = aux_enemy_tower_coef(0.005) × vf_coef(0.1)
+  vf_aux_enemy_gold_coef: 0.00001 # = aux_enemy_gold_coef(0.0001) × vf_coef(0.1)
+  vf_aux_base_dmg_coef: 0.00003  # = aux_base_dmg_coef(0.0003) × vf_coef(0.1)
+  vf_aux_enemy_base_dmg_coef: 0.001 # = aux_enemy_base_dmg_coef(0.01) × vf_coef(0.1)
+
+  clip_values:
+    logits_min: -20
+    logits_max: 20
+    values_min: -500
+    values_max: 500
+    returns_min: -1e6
+    returns_max: 1e6
+    advantages_min: -1e4
+    advantages_max: 1e4
+    prob_min: 1e-10
+    ratio_min: 0.01
+    ratio_max: 10.0
+    loss_max: 1e6
+    nan_threshold: 5
+
+# 训练循环配置
+training:
+  total_episodes: 2000
+  save_interval: 20
+  opponent_update_interval: 100
+  n_envs: 20
+  battle_interval: 20
+  n_battles: 12
+  max_steps_per_episode: 512
+
+# 自对弈配置
+selfplay:
+  opponent_pool_size: 10
+  min_opponent_games: 8
+  exploit_prob: 0.7
+  baseline_agents:
+    - "BasicTowerAI"
+    - "BasicRandomAI"
+    - "MediumRuleAI"
+
+# 联赛配置
+league:
+  decay: 0.99
+  min_win_rate_games: 8
+
+# 环境配置
+env:
+  player_id: 0
+  backend_type: "python"
+  prefer_native: false

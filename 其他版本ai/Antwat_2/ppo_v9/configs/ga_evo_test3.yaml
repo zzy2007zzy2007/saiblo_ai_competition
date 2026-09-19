@@ -1,0 +1,70 @@
+# ============================================================
+# GA 进化训练 - 测试配置 v3
+# 24代, 32个体, 5精英, 4锚定参照物(含sample)
+# ============================================================
+
+system:
+  device: "cuda"
+  seed: 42
+
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+evolution:
+  max_generations: 24
+  population_size: 32
+  num_seeds: 8
+  elitism_count: 5
+  convergence_window: 100
+  convergence_threshold: 5.0
+
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+selection:
+  method: "fixed_reference_elo"
+  anchor_references:
+    - "BasicRandomAI"
+    - "MediumRuleAI"
+    - "BasicTowerAI"
+    - "sample"
+  dynamic_references: 0
+  include_previous_champion: false
+  elo_k_factor: 64
+  elo_initial: 1200
+
+opponent_pool:
+  max_size: 10
+  min_games_threshold: 2
+  exploit_prob: 0.7
+  decay: 0.99
+  min_win_rate_games: 2
+
+# 基线验证：4个agent，每代12局
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 12
+  agents:
+    - "BasicRandomAI"
+    - "MediumRuleAI"
+    - "BasicTowerAI"
+    - "sample"
+
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+logging:
+  log_level: "INFO"
+  save_interval: 1
+  tensorboard: false

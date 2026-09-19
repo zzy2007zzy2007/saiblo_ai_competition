@@ -1,0 +1,70 @@
+# ============================================================
+# GA 进化训练 - 并行测试配置
+# 验证 ThreadPool 并行路径的正确性
+# ============================================================
+
+system:
+  device: "cuda"
+  seed: 42
+
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 极小规模：4个体，1代，快速验证
+evolution:
+  max_generations: 2
+  population_size: 4
+  num_seeds: 2
+  elitism_count: 1
+  convergence_window: 100
+  convergence_threshold: 5.0
+
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+selection:
+  method: "fixed_reference_elo"
+  anchor_references:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+  dynamic_references: 0
+  include_previous_champion: false
+  elo_k_factor: 64
+  elo_initial: 1200
+
+opponent_pool:
+  max_size: 10
+  min_games_threshold: 2
+  exploit_prob: 0.7
+  decay: 0.99
+  min_win_rate_games: 2
+
+# 开启基线验证（2个 baseline agent，2局）
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 2
+  agents:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+# debug 级别
+logging:
+  log_level: "DEBUG"
+  save_interval: 1
+  tensorboard: false
+
+

@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baseline Battle 模块详解 — AntWar PPO v2</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #fff; color: #1a1a2e; line-height: 1.75; font-size: 16px;
+}
+
+/* ── 侧边栏 ── */
+.sidebar {
+  position: fixed; top: 0; left: 0; width: 280px; height: 100vh;
+  background: #f8f9fb; border-right: 1px solid #e9ecef;
+  overflow-y: auto; padding: 28px 0; z-index: 100;
+}
+.sidebar h2 {
+  font-size: 15px; font-weight: 700; color: #1a1a2e;
+  padding: 0 22px 16px; border-bottom: 1px solid #e9ecef; margin-bottom: 12px;
+}
+.sidebar nav { padding: 0 10px; }
+.sidebar a {
+  display: block; padding: 6px 12px; font-size: 13.5px; color: #495057;
+  text-decoration: none; border-radius: 6px; transition: .15s;
+  border-left: 3px solid transparent; margin: 2px 0;
+}
+.sidebar a:hover { background: #e9ecef; color: #1a1a2e; }
+.sidebar a.active { background: #e7f0ff; color: #2563eb; border-left-color: #2563eb; font-weight: 600; }
+.sidebar .sec2 { padding-left: 28px; font-size: 13px; }
+
+/* ── 主内容 ── */
+.main { margin-left: 280px; max-width: 860px; padding: 40px 50px 80px; }
+.main h1 {
+  font-size: 30px; font-weight: 800; color: #0a0a23;
+  margin-bottom: 8px; letter-spacing: -0.5px;
+}
+.main .subtitle { font-size: 16px; color: #6c757d; margin-bottom: 40px; }
+.main h2 {
+  font-size: 22px; font-weight: 700; color: #1a1a2e;
+  margin-top: 48px; margin-bottom: 14px; padding-bottom: 6px;
+  border-bottom: 2px solid #e9ecef;
+}
+.main h3 {
+  font-size: 17px; font-weight: 600; color: #2d3748;
+  margin-top: 28px; margin-bottom: 10px;
+}
+.main h4 {
+  font-size: 15px; font-weight: 600; color: #4a5568;
+  margin-top: 20px; margin-bottom: 8px;
+}
+.main p { margin-bottom: 14px; color: #333; }
+.main ul, .main ol { margin: 8px 0 16px 22px; }
+.main li { margin-bottom: 4px; }
+
+/* ── 代码 ── */
+.main code {
+  font-family: "SF Mono", "Menlo", "Monaco", "Cascadia Code", Consolas, monospace;
+  font-size: 13.5px;
+}
+.main :not(pre) > code {
+  background: #f1f3f5; padding: 2px 6px; border-radius: 4px; color: #d63384;
+}
+.main pre {
+  background: #1e1e2e; color: #cdd6f4; border-radius: 10px;
+  padding: 18px 20px; overflow-x: auto; margin: 14px 0 20px;
+  font-size: 13px; line-height: 1.6; tab-size: 4;
+}
+.main pre .kw  { color: #cba6f7; }  /* keyword */
+.main pre .fn  { color: #89b4fa; }  /* function */
+.main pre .str { color: #a6e3a1; }  /* string */
+.main pre .cm  { color: #6c7086; }  /* comment */
+.main pre .num { color: #fab387; }  /* number */
+.main pre .dec { color: #89dceb; }  /* decorator */
+.main pre .tp  { color: #f9e2af; }  /* type */
+.main pre .op  { color: #94e2d5; }  /* operator */
+
+/* ── 表格 ── */
+.main table {
+  width: 100%; border-collapse: collapse; margin: 14px 0 20px;
+  font-size: 14px;
+}
+.main th, .main td {
+  padding: 10px 14px; text-align: left; border: 1px solid #dee2e6;
+}
+.main th { background: #f1f3f5; font-weight: 600; color: #1a1a2e; }
+.main tr:nth-child(even) { background: #fafbfc; }
+
+/* ── 提示框 ── */
+.callout {
+  padding: 14px 18px; border-radius: 8px; margin: 16px 0;
+  font-size: 14px; border-left: 4px solid;
+}
+.callout.info { background: #e7f0ff; border-color: #2563eb; color: #1e40af; }
+.callout.warn { background: #fff3cd; border-color: #ffc107; color: #856404; }
+.callout.tip  { background: #d4edda; border-color: #28a745; color: #155724; }
+
+/* ── 架构图 (纯 CSS) ── */
+.diagram {
+  background: #f8f9fb; border: 1px solid #e9ecef; border-radius: 10px;
+  padding: 24px; margin: 16px 0; font-family: "SF Mono", monospace;
+  font-size: 13px; line-height: 1.8; overflow-x: auto; white-space: pre;
+  text-align: center;
+}
+.diagram .box {
+  display: inline-block; background: #fff; border: 1.5px solid #adb5bd;
+  border-radius: 6px; padding: 4px 12px; margin: 2px 4px;
+  font-weight: 600; color: #1a1a2e;
+}
+.diagram .box.hl { border-color: #2563eb; background: #e7f0ff; }
+.diagram .arrow { color: #adb5bd; font-weight: 400; }
+
+/* ── 响应式 ── */
+@media (max-width: 768px) {
+  .sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e9ecef; padding: 16px 0; }
+  .sidebar nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 14px; }
+  .sidebar a { padding: 4px 10px; font-size: 12px; border-left: none; }
+  .sidebar h2 { padding: 0 14px 12px; }
+  .main { margin-left: 0; padding: 24px 18px 60px; }
+  .main h1 { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── 侧边栏 ─── -->
+<div class="sidebar">
+  <h2>📖 Baseline Battle</h2>
+  <nav>
+    <a href="#ch1">1. 模块概览与文件结构</a>
+    <a href="#ch2">2. 类的继承体系与职责</a>
+    <a href="#ch3">3. 工作流程</a>
+    <a href="#ch4">4. Agent 注册与动态加载</a>
+    <a href="#ch5">5. 跨进程对战执行</a>
+    <a href="#ch6">6. 单局对战模拟</a>
+    <a href="#ch7">7. 难点 / 细节专题</a>
+    <a href="#ch8">8. 配置项参考</a>
+  </nav>
+</div>
+
+<!-- ─── 主内容 ─── -->
+<div class="main">
+
+<h1>Baseline Battle 模块详解</h1>
+<p class="subtitle">PPO v2 训练中的对战评估子系统 — 从类设计到跨进程执行</p>
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch1">一、模块概览与文件结构</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p>Baseline Battle 是训练流程中定期触发的一个评估子系统。它的职责只有一个：<strong>让当前正在训练的 PPO 策略与预设的基线 AI（规则策略）对战若干局，然后统计胜率</strong>。结果用于跟踪训练进度、检测策略退化、辅助判断是否应该保存 checkpoint。</p>
+
+<h3>1.1 外部调用链</h3>
+
+<p>整个模块的触发路径是一条清晰的调用链：</p>
+
+<pre>
+<span class="cm"># train.py 启动时传入 battle 相关配置</span>
+train.py
+   → SelfPlayTrainer.__init__(config)          <span class="cm"># 存储 battle_interval 等参数</span>
+      → SelfPlayTrainer._run_periodic_tasks()   <span class="cm"># 每个 episode 后判断是否该评估</span>
+         → _run_battle_evaluation()             <span class="cm"># 创建 PPOWarAgent + BattleCoordinator</span>
+            → BattleCoordinator.run_ppo_evaluation_with_agent()
+               → AgentLoader.load(baseline_name)
+               → BattleSimulator.run_battles()
+               → aggregate_results()
+               → BattleReporter.generate_report()
+            → 结果写入 eval_battle_log.jsonl
+</pre>
+
+<h3>1.2 文件职责速览</h3>
+
+<table>
+<tr><th>文件</th><th>职责</th></tr>
+<tr><td>ant_war_agent.py</td><td>Agent 基类，定义 <code>choose_operations(state)</code> 接口</td></tr>
+<tr><td>rule_based_agents.py</td><td>3 个内置基线 AI：BasicRandomAI / BasicTowerAI / MediumRuleAI</td></tr>
+<tr><td>ppo_war_agent.py</td><td>PPO 模型到 AntWarAgent 的适配器，将 action_id 转为 Operation</td></tr>
+<tr><td>opponent_agent.py</td><td>从 checkpoint 加载模型并包装为统一的 act() 接口</td></tr>
+<tr><td>agent_loader.py</td><td>Agent 注册表 + 动态加载器，支持内置和外部 Agent</td></tr>
+<tr><td>battle_config.py</td><td>BaselineBattleConfig 数据类，承载所有配置项</td></tr>
+<tr><td>battle_simulator.py</td><td>对战执行引擎，含多进程调度、单局模拟、非法操作过滤</td></tr>
+<tr><td>battle_coordinator.py</td><td>顶层协调器，串联加载 → 模拟 → 汇总 → 报告全流程</td></tr>
+<tr><td>result_aggregator.py</td><td>胜率/平局/先手优势等统计量的计算</td></tr>
+<tr><td>report_generator.py</td><td>生成人类可读的对战报告文本</td></tr>
+</table>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch2">二、类的继承体系与职责</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p>Baseline Battle 模块中的类可以分成两大体系：<strong>Agent 继承线</strong>（谁在对战）和 <strong>协作者线</strong>（怎么执行对战）。</p>
+
+<h3>2.1 Agent 继承线</h3>
+
+<pre>
+AntWarAgent  <span class="cm"># 对战基类，定义 choose_operations(state) 接口</span>
+  │
+  ├── BasicRandomAI   <span class="cm"># 随机选择合法动作，最弱的基线</span>
+  │
+  ├── BasicTowerAI    <span class="cm"># 建塔 → 升级塔 → 科技升级，简单的规则策略</span>
+  │     └── MediumRuleAI  <span class="cm"># 在 Tower 基础上增加超级武器逻辑</span>
+  │
+  └── PPOWarAgent     <span class="cm"># PPO 适配器，内部持有 NeuralAgent</span>
+        <span class="cm"># 流程: ObservationEncoder → NeuralAgent.act() → action_id → Operation</span>
+
+OpponentAgent  <span class="cm"># 组合而非继承，包装 NeuralAgent 用于训练中对手</span>
+</pre>
+
+<h3>2.2 协作者线</h3>
+
+<pre>
+BattleCoordinator           <span class="cm"># 顶层入口，编排全流程</span>
+  ├── uses BattleSimulator  <span class="cm"># 执行具体对战（多进程或顺序）</span>
+  │     └── uses AgentLoader <span class="cm"># 序列化/反序列化 Agent 供跨进程传递</span>
+  ├── uses AgentLoader      <span class="cm"># 加载 baseline Agent 实例</span>
+  ├── uses aggregate_results <span class="cm"># 汇总多局对战结果</span>
+  └── uses BattleReporter   <span class="cm"># 生成可读报告字符串</span>
+</pre>
+
+<h3>2.3 职责边界</h3>
+
+<table>
+<tr><th>类</th><th>负责</th><th>不负责</th></tr>
+<tr><td>BattleCoordinator</td><td>调度编排、异常捕获、结果收集</td><td>具体的对战执行</td></tr>
+<tr><td>BattleSimulator</td><td>多进程管理、单局对战、超时控制</td><td>Agent 加载、结果统计</td></tr>
+<tr><td>AgentLoader</td><td>Agent 查找、实例化、序列化</td><td>对战逻辑</td></tr>
+<tr><td>AntWarAgent 子类</td><td>根据状态输出操作列表</td><td>对战环境管理</td></tr>
+</table>
+
+<div class="callout info">
+<strong>注意</strong>：<code>OpponentAgent</code> 和 <code>PPOWarAgent</code> 虽然都涉及加载模型，但角色不同。前者用于训练循环中的<strong>对手</strong>（从历史 checkpoint 加载），后者用于评估时的 <strong>PPO 方</strong>（使用当前正在训练的策略）。
+</div>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch3">三、工作流程——从触发到出报告</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p>本章完整走一遍 baseline battle 的执行流程。重点是理解「数据在每个环节如何变换形态」。</p>
+
+<h3>3.1 触发条件</h3>
+
+<p>在 <code>SelfPlayTrainer</code> 中，每次 episode 结束后都会调用 <code>_run_periodic_tasks(episode)</code>：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_run_periodic_tasks</span>(self, episode: <span class="tp">int</span>) -> <span class="tp">None</span>:
+    <span class="kw">if</span> episode % self._battle_interval == <span class="num">0</span>:
+        self._run_battle_evaluation()
+    <span class="cm"># ... 其他周期性任务（save, opponent update ...）</span>
+</pre>
+
+<p><code>battle_interval</code> 在配置中指定（默认 20），即每 N 个 episode 评估一次。</p>
+
+<h3>3.2 创建 PPOWarAgent</h3>
+
+<p><code>_run_battle_evaluation()</code> 首先将当前 PPO 策略包装为对战可用的 <code>PPOWarAgent</code>：</p>
+
+<pre>
+<span class="cm"># 当前策略</span>
+<span class="kw">import</span> copy
+policy_for_eval = copy.deepcopy(self._trainer.policy)
+policy_for_eval.eval()
+
+<span class="cm"># 包装为 PPOWarAgent</span>
+ppo_war_agent = PPOWarAgent(
+    player_id=<span class="num">0</span>,
+    ppo_agent=NeuralAgent(policy_for_eval, ...),
+    observation_encoder=...,
+    action_mask_handler=...,
+)
+
+<span class="cm"># 加载 baseline 列表</span>
+baseline_agents = self._config[<span class="str">"selfplay"</span>][<span class="str">"baseline_agents"</span>]
+<span class="cm"># 例如: ["BasicTowerAI", "BasicRandomAI"]</span>
+</pre>
+
+<h3>3.3 进入 BattleCoordinator</h3>
+
+<p>接下来创建 <code>V2BattleCoordinator</code> 并调用它的核心方法：</p>
+
+<pre>
+results: Dict[str, Dict[str, Any]] = coordinator.run_ppo_evaluation_with_agent(
+    ppo_agent=ppo_war_agent,
+    baseline_agents=baseline_agents,   <span class="cm"># list of str</span>
+)
+</pre>
+
+<p>在 <code>run_ppo_evaluation_with_agent</code> 内部，对每个 baseline 名称执行：</p>
+
+<pre>
+<span class="kw">for</span> baseline_name <span class="kw">in</span> baseline_agents:
+    <span class="cm"># ① 加载 baseline Agent</span>
+    baseline_agent = AgentLoader.load(baseline_name, player_id=<span class="num">1</span>)
+
+    <span class="cm"># ② 执行多局对战</span>
+    battle_results: List[Dict] = self._simulator.run_battles(
+        ppo_agent, baseline_agent, self._config.n_battles
+    )
+
+    <span class="cm"># ③ 汇总统计</span>
+    stats = aggregate_results(battle_results)
+
+    <span class="cm"># ④ 生成报告并打印</span>
+    report = self._reporter.generate_report(stats, <span class="str">"PPO"</span>, baseline_name)
+    print(report)
+
+    <span class="cm"># ⑤ 记录</span>
+    results[baseline_name] = stats
+</pre>
+
+<h3>3.4 数据变换链路</h3>
+
+<p>从输入到输出，数据经历了以下变换：</p>
+
+<table>
+<tr><th>步骤</th><th>数据形态</th><th>示例</th></tr>
+<tr><td>配置传入</td><td>List[str]</td><td><code>["BasicTowerAI", "BasicRandomAI"]</code></td></tr>
+<tr><td>AgentLoader.load()</td><td>AntWarAgent 实例</td><td><code>BasicTowerAI(player_id=1)</code></td></tr>
+<tr><td>BatteSimulator.run_battles()</td><td>List[Dict]</td><td><code>[{"result":"agent1_win","first_player":0,...}, {...}]</code></td></tr>
+<tr><td>aggregate_results()</td><td>Dict[str, Any]</td><td><code>{"agent1_wins":12, "agent2_wins":2, "draws":2, ...}</code></td></tr>
+<tr><td>BattleReporter</td><td>str</td><td>人类可读的多行报告文本</td></tr>
+<tr><td>返回给调用方</td><td>Dict[str, Dict]</td><td><code>{"BasicTowerAI":{...}, "BasicRandomAI":{...}}</code></td></tr>
+<tr><td>持久化</td><td>JSONL</td><td><code>eval_battle_log.jsonl</code> 每行一个 episode 的评估纪录</td></tr>
+</table>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch4">四、Agent 注册与动态加载机制</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p><code>AgentLoader</code> 是 battle 模块中容易被低估的组件。它的核心挑战是：<strong>如何同时支持内置 Agent 和第三方外部 Agent 的加载</strong>，并且保证加载过程不会造成 import 污染。</p>
+
+<h3>4.1 内置注册表</h3>
+
+<pre>
+KNOWN_BUILTIN_AGENTS: Dict[str, <span class="tp">type</span>] = {
+    <span class="str">"BasicRandomAI"</span>: BasicRandomAI,
+    <span class="str">"BasicTowerAI"</span>: BasicTowerAI,
+    <span class="str">"MediumRuleAI"</span>: MediumRuleAI,
+}
+</pre>
+
+<p><code>load(name)</code> 的逻辑：先查注册表，找到了直接实例化；找不到，尝试动态加载。</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">load</span>(name: <span class="tp">str</span>, player_id: <span class="tp">int</span> = <span class="num">0</span>) -> AntWarAgent:
+    <span class="kw">if</span> name <span class="kw">in</span> KNOWN_BUILTIN_AGENTS:
+        <span class="kw">return</span> KNOWN_BUILTIN_AGENTS[name](player_id)
+    <span class="cm"># 外部加载，见 4.2</span>
+    <span class="kw">return</span> load_external(name, player_id)
+</pre>
+
+<h3>4.2 外部 Agent 动态加载</h3>
+
+<p>外部 Agent 放在 <code>baselines/&lt;name&gt;/ai.py</code> 目录下，<code>load_external()</code> 需要在运行时导入它。但动态导入有陷阱：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">load_external</span>(name: <span class="tp">str</span>, player_id: <span class="tp">int</span> = <span class="num">0</span>) -> AntWarAgent:
+    <span class="cm"># ① 清除可能残留的模块缓存</span>
+    <span class="kw">for</span> mod <span class="kw">in</span> [<span class="str">"ai"</span>, <span class="str">"common"</span>, <span class="str">"SDK"</span>, <span class="str">"AI"</span>]:
+        sys.modules.pop(mod, <span class="tp">None</span>)
+
+    cwd, path, modules = os.getcwd(), sys.path.copy(), sys.modules.copy()
+    <span class="kw">try</span>:
+        <span class="cm"># ② 插入搜索路径</span>
+        ai_dir = os.path.join(baselines_path, name)
+        sys.path.insert(<span class="num">0</span>, ai_dir)
+        sys.path.insert(<span class="num">0</span>, parent_of_ant_game_sdk)
+        os.chdir(ai_dir)
+
+        <span class="cm"># ③ 动态导入</span>
+        spec = importlib.util.spec_from_file_location(<span class="str">"ai"</span>, os.path.join(ai_dir, <span class="str">"ai.py"</span>))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        <span class="cm"># ④ 尝试多种入口发现</span>
+        <span class="kw">if</span> hasattr(module, <span class="str">"create_agent"</span>):
+            agent = module.create_agent(player_id=player_id)
+        <span class="kw">elif</span> hasattr(module, <span class="str">"AI"</span>):
+            agent = module.AI(player_id=player_id)
+        <span class="cm"># ... 更多 fallback</span>
+    <span class="kw">finally</span>:
+        <span class="cm"># ⑤ 恢复现场</span>
+        sys.path, sys.modules = path, modules
+        os.chdir(cwd)
+</pre>
+
+<h3>4.3 为什么要这么麻烦？</h3>
+
+<p>三个设计考量：</p>
+
+<ul>
+  <li><strong>避免 import 污染</strong>：两个外部 Agent 可能各自依赖不同版本的 SDK，不清除缓存会导致版本冲突。用 <code>try/finally</code> 保证无论如何都恢复现场。</li>
+  <li><strong>入口兼容性</strong>：不同开发者习惯不同（函数 vs 类，有参 vs 无参），<code>load_external</code> 需要兼容多种入口约定。</li>
+  <li><strong>序列化依赖</strong>：<code>cloudpickle</code> 序列化 Agent 时，如果模块路径已发生变化，反序列化会失败。每次加载都是"干净的"。</li>
+</ul>
+
+<h3>4.4 序列化方法（供跨进程使用）</h3>
+
+<pre>
+<span class="kw">@staticmethod</span>
+<span class="kw">def</span> <span class="fn">serialize</span>(agent: AntWarAgent) -> bytes:
+    <span class="kw">return</span> cloudpickle.dumps(agent)
+
+<span class="kw">@staticmethod</span>
+<span class="kw">def</span> <span class="fn">deserialize</span>(data: bytes) -> AntWarAgent:
+    <span class="kw">return</span> cloudpickle.loads(data)
+</pre>
+
+<div class="callout tip">
+<strong>为什么用 cloudpickle 而不是 pickle？</strong> 
+<code>pickle</code> 需要类定义在 <code>__main__</code> 模块中才能序列化，且对嵌套函数、lambda 支持不好。baseline Agent 是动态导入的，其类定义不在 <code>__main__</code> 里，<code>cloudpickle</code> 可以处理这种情况。
+</div>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch5">五、跨进程对战执行</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p>本章是 battle 模块最核心也是最容易出问题的部分。核心问题：<strong>为什么一定要用子进程？如何在进程间传递 Agent？出了错怎么兜底？</strong></p>
+
+<h3>5.1 为什么必须用子进程？</h3>
+
+<p>如果直接在训练主进程中执行对战，会面临三个问题：</p>
+
+<ol>
+  <li><strong>CUDA 内存冲突</strong>：训练期间 GPU 已经被 batch 数据占满。在同一个进程中实例化第二个推理用的 <code>policy</code>、编码状态、执行推理，会显著增加显存压力，甚至 OOM。</li>
+  <li><strong>主进程阻塞</strong>：一局对战可能持续数百回合（每回合涉及 SDK 的 <code>resolve_turn</code>），主进程被堵住意味着无法响应回调、无法打印日志。</li>
+  <li><strong>状态泄露</strong>：如果对战过程中 SDK 修改了某个全局状态，可能污染训练环境。</li>
+</ol>
+
+<p>子进程隔离的方案：子进程有独立的 Python 解释器、独立的内存空间、独立的 CUDA context。对战结束后子进程退出，所有资源自动释放。</p>
+
+<h3>5.2 多进程调度</h3>
+
+<pre>
+<span class="kw">def</span> <span class="fn">run_battles</span>(self, agent1, agent2, num_episodes) -> List[Dict]:
+    total_tasks = num_episodes * <span class="num">2</span>  <span class="cm"># 每轮 2 局（先手 + 后手）</span>
+    tasks = [(i % <span class="num">2</span>) <span class="kw">for</span> i <span class="kw">in</span> range(total_tasks)]  <span class="cm"># [0,1,0,1,...]</span>
+
+    <span class="kw">try</span>:
+        <span class="kw">return</span> self._run_battles_parallel(agent1, agent2, tasks)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        logger.warning(<span class="str">f"并行失败: {e}，降级为顺序执行"</span>)
+        <span class="kw">return</span> self._run_battles_sequential(agent1, agent2, tasks)
+</pre>
+
+<h3>5.3 并行执行细节</h3>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_run_battles_parallel</span>(self, agent1, agent2, tasks):
+    <span class="cm"># 序列化 agent（跨进程传递必须）</span>
+    agent1_bytes = AgentLoader.serialize(agent1)
+    agent2_bytes = AgentLoader.serialize(agent2)
+
+    <span class="cm"># 使用 spawn 创建子进程</span>
+    <span class="kw">with</span> ProcessPoolExecutor(
+        max_workers=_DEFAULT_MAX_WORKERS,  <span class="cm"># = 12</span>
+        mp_context=multiprocessing.get_context(<span class="str">"spawn"</span>),
+    ) <span class="kw">as</span> executor:
+
+        futures = []
+        <span class="kw">for</span> i, first_player <span class="kw">in</span> enumerate(tasks):
+            future = executor.submit(
+                run_single_battle_process,
+                agent1_bytes, agent2_bytes,
+                first_player, self._config.max_rounds,
+            )
+            futures.append(future)
+
+        <span class="cm"># 收集结果（带超时）</span>
+        results = []
+        <span class="kw">for</span> future <span class="kw">in</span> as_completed(futures):
+            <span class="kw">try</span>:
+                result = future.result(timeout=_BATTLE_TIMEOUT_SECONDS)
+                results.append(result)
+            <span class="kw">except</span> TimeoutError:
+                results.append({<span class="str">"result"</span>: <span class="str">"error"</span>, <span class="str">"error"</span>: <span class="str">"timeout"</span>})
+
+        <span class="kw">return</span> results
+</pre>
+
+<h3>5.4 子进程入口函数</h3>
+
+<p><code>run_single_battle_process</code> 是子进程的起点 — 它必须是一个 <strong>模块级函数</strong>（不能是类方法或闭包），否则 <code>spawn</code> 无法序列化：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">run_single_battle_process</span>(
+    agent1_bytes: bytes,
+    agent2_bytes: bytes,
+    first_player: <span class="tp">int</span>,
+    max_rounds: <span class="tp">int</span>,
+) -> Dict:
+    <span class="cm"># 子进程中反序列化</span>
+    agent1 = AgentLoader.deserialize(agent1_bytes)
+    agent2 = AgentLoader.deserialize(agent2_bytes)
+    <span class="cm"># 执行单局对战</span>
+    <span class="kw">return</span> _execute_battle(agent1, agent2, first_player, max_rounds)
+</pre>
+
+<h3>5.5 优雅降级</h3>
+
+<p>如果并行执行全部失败（例如 CUDA 环境不支持 <code>spawn</code>），<code>run_battles</code> 捕获异常后降级为顺序执行：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_run_battles_sequential</span>(self, agent1, agent2, tasks):
+    results = []
+    <span class="kw">for</span> first_player <span class="kw">in</span> tasks:
+        result = _execute_battle(agent1, agent2, first_player, ...)
+        results.append(result)
+    <span class="kw">return</span> results
+</pre>
+
+<div class="callout warn">
+<strong>进程安全注意事项</strong>：<br>
+① <code>spawn</code> 不继承父进程的 <code>torch.Tensor</code>、CUDA context，子进程中必须重新 <code>model.to(device)</code> + <code>torch.no_grad()</code>。<br>
+② 被 <code>spawn</code> 调用的函数必须在模块顶层定义（不能在类内部或 <code>if __name__</code> 块中）。<br>
+③ <code>ProcessPoolExecutor</code> 的 max_workers 不宜过大（默认 12），否则 GPU 显存竞争反而更慢。
+</div>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch6">六、单局对战模拟</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<p><code>_execute_battle()</code> 是 battle 模块中最底层的函数，负责一局完整的对战模拟。它不关心谁是 PPO 谁是 baseline，只关心两个 <code>AntWarAgent</code> 实例谁输谁赢。</p>
+
+<h3>6.1 函数签名与返回值</h3>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_execute_battle</span>(
+    agent1: AntWarAgent,
+    agent2: AntWarAgent,
+    first_player: <span class="tp">int</span>,   <span class="cm"># 0 = agent1 先手, 1 = agent2 先手</span>
+    max_rounds: <span class="tp">int</span>,
+) -> Dict[str, Any]:
+</pre>
+
+<p>返回值格式：</p>
+
+<pre>
+{
+    <span class="str">"result"</span>: <span class="str">"agent1_win"</span> | <span class="str">"agent2_win"</span> | <span class="str">"draw"</span> | <span class="str">"error"</span>,
+    <span class="str">"first_player"</span>: <span class="num">0</span> | <span class="num">1</span>,       <span class="cm"># 0=agent1先手, 1=agent1后手</span>
+    <span class="str">"total_rounds"</span>: <span class="tp">int</span>,
+    <span class="str">"final_hp"</span>: {
+        <span class="str">"agent1_hp"</span>: <span class="tp">int</span>,        <span class="cm"># 始终指向 agent1 的 HP</span>
+        <span class="str">"agent2_hp"</span>: <span class="tp">int</span>,        <span class="cm"># 始终指向 agent2 的 HP</span>
+    },
+    <span class="str">"duration"</span>: <span class="tp">float</span>,            <span class="cm"># 耗时（秒）</span>
+    <span class="str">"error"</span>: <span class="tp">str</span>,                 <span class="cm"># 仅 error 时有</span>
+}
+</pre>
+
+<h3>6.2 主循环</h3>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_execute_battle</span>(...):
+    start = time.perf_counter()
+    <span class="kw">try</span>:
+        <span class="cm"># ① 创建环境</span>
+        backend = load_backend(prefer_native=<span class="tp">False</span>)  <span class="cm"># 纯 Python 后端</span>
+        state = PythonBackendState()
+
+        <span class="cm"># ② 回合循环</span>
+        <span class="kw">for</span> round_idx <span class="kw">in</span> range(max_rounds):
+            <span class="cm"># ③ 获取双方操作</span>
+            ops_0 = _get_ops(agent1, state, <span class="num">0</span>) <span class="kw">if</span> first_player == <span class="num">0</span> <span class="kw">else</span> _get_ops(agent2, state, <span class="num">1</span>)
+            ops_1 = _get_ops(agent2, state, <span class="num">1</span>) <span class="kw">if</span> first_player == <span class="num">0</span> <span class="kw">else</span> _get_ops(agent1, state, <span class="num">0</span>)
+
+            <span class="cm"># ④ 过滤非法操作</span>
+            ops_0 = _filter_valid_operations(ops_0, state, <span class="num">0</span>)
+            ops_1 = _filter_valid_operations(ops_1, state, <span class="num">1</span>)
+
+            <span class="cm"># ⑤ 结算回合</span>
+            state = backend.resolve_turn(state, ops_0, ops_1)
+
+            <span class="cm"># ⑥ 检查终局</span>
+            hp_0 = state.get_player_state(<span class="num">0</span>).health
+            hp_1 = state.get_player_state(<span class="num">1</span>).health
+            <span class="kw">if</span> hp_0 <= <span class="num">0</span> <span class="kw">or</span> hp_1 <= <span class="num">0</span>:
+                <span class="kw">break</span>
+
+        <span class="cm"># ⑦ 判定胜负</span>
+        result = ...
+</pre>
+
+<h3>6.3 _get_ops 的签名兼容</h3>
+
+<p>不同的 Agent 实现可能使用不同的方法签名。有的用 <code>choose_operations(state, player)</code>，有的用 <code>choose_operations(state)</code>。通过 <code>inspect.signature</code> 动态检测：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_get_ops</span>(agent, state, player_id) -> List:
+    method = agent.choose_operations
+    <span class="kw">if</span> len(inspect.signature(method).parameters) == <span class="num">2</span>:
+        <span class="kw">return</span> method(state, player_id)     <span class="cm"># signature: (state, player)</span>
+    <span class="kw">else</span>:
+        <span class="kw">return</span> method(state)                 <span class="cm"># signature: (state)</span>
+</pre>
+
+<h3>6.4 非法操作过滤</h3>
+
+<p><code>_filter_valid_operations</code> 不是简单的"能执行就执行"——它需要双重校验：</p>
+
+<pre>
+<span class="kw">def</span> <span class="fn">_filter_valid_operations</span>(ops, state, player) -> List:
+    valid = []
+    <span class="kw">for</span> op <span class="kw">in</span> ops:
+        <span class="cm"># 第一层：SDK 提供的快速校验</span>
+        <span class="kw">if</span> <span class="kw">not</span> state.can_apply_operation(player, op):
+            <span class="kw">continue</span>
+        <span class="cm"># 第二层：TowerType 预检（绕过 SDK 的限制）</span>
+        <span class="kw">if</span> is_upgrade_operation(op) <span class="kw">and</span> <span class="kw">not</span> _validate_upgrade_target(op, state, player):
+            <span class="kw">continue</span>
+        valid.append(op)
+    <span class="kw">return</span> valid[:MAX_OPERATIONS_PER_TURN]  <span class="cm"># 每回合最多 3 个操作</span>
+</pre>
+
+<p>为什么需要 TowerType 预检？因为 SDK 的 <code>can_apply_operation</code> 在某些升级场景下会返回 <code>True</code>，但实际执行升级时 SDK 内部会因为 tower type 不匹配抛出 <code>ValueError</code>。预检通过检查 <code>TOWER_UPGRADE_TREE</code> 来提前拦截这些非法升级。</p>
+
+<h3>6.5 胜负判定</h3>
+
+<pre>
+<span class="kw">if</span> hp_0 <= <span class="num">0</span> <span class="kw">and</span> hp_1 <= <span class="num">0</span>:
+    result = <span class="str">"draw"</span>
+<span class="kw">elif</span> hp_1 <= <span class="num">0</span>:
+    result = <span class="str">"agent1_win"</span>   <span class="cm"># agent1 始终代表 PPO</span>
+<span class="kw">elif</span> hp_0 <= <span class="num">0</span>:
+    result = <span class="str">"agent2_win"</span>
+<span class="kw">else</span>:
+    result = <span class="str">"draw"</span>          <span class="cm"># 超时双方都存活，算平局</span>
+</pre>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch7">七、难点 / 细节专题</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<h3>7.1 先手/后手的双局制</h3>
+
+<p>每一轮 <code>n_battles</code> 会产生 <code>n_battles × 2</code> 局对战，其中一半 agent1 先手、一半 agent1 后手。</p>
+
+<p><strong>为什么必须这样做？</strong></p>
+
+<p>先手有显著的天然优势（AI 对战中，先手可以更早建造防御设施、更早攻击）。如果不轮换先手，胜率统计会被先手偏差严重扭曲。</p>
+
+<pre>
+tasks = [(i % <span class="num">2</span>) <span class="kw">for</span> i <span class="kw">in</span> range(total_tasks)]
+<span class="cm"># n_battles=4 → tasks = [0,1, 0,1, 0,1, 0,1]</span>
+<span class="cm"># 0 = agent1 先手, 1 = agent1 后手</span>
+</pre>
+
+<p>注意：两次对战是完全独立的——各自创建新的 <code>PythonBackendState</code>，不是"同一局再打一次"，而是"重置后换先手再打一次"。</p>
+
+<h3>7.2 子进程中的 CUDA 问题</h3>
+
+<p>当 PPO 策略在 GPU 上时，序列化/反序列化 + 子进程会带来几个隐藏问题：</p>
+
+<table>
+<tr><th>问题</th><th>原因</th><th>解决方案</th></tr>
+<tr><td>反序列化后模型在 CPU 上</td><td><code>cloudpickle</code> 不保留 device 信息</td><td>子进程中反序列化后手动 <code>.to(device)</code></td></tr>
+<tr><td>spawn 子进程不能继承 CUDA context</td><td>spawn 不 fork，不继承 GPU 状态</td><td>子进程中重新 <code>torch.cuda.set_device()</code></td></tr>
+<tr><td>序列化 torch.Tensor 可能失败</td><td>某些 CUDA tensor 不支持 pickle</td><td>序列化前确保 tensor 在 CPU 上</td></tr>
+<tr><td>子进程不释放显存</td><td>子进程退出时 CUDA 资源可能滞留</td><td>设置 <code>torch.cuda.empty_cache()</code> 或在 <code>finally</code> 块中清理</td></tr>
+</table>
+
+<h3>7.3 cloudpickle 与非主模块序列化</h3>
+
+<p>Python 标准 <code>pickle</code> 序列化类实例时，要求类定义在 <code>__main__</code> 模块中，否则只序列化一个"引用"。反序列化时如果 <code>__main__</code> 没有这个类，就会报错。</p>
+
+<pre>
+<span class="cm"># pickle 对非 __main__ 模块的行为</span>
+<span class="kw">import</span> pickle
+data = pickle.dumps(BasicTowerAI(<span class="num">0</span>))
+<span class="cm"># AttributeError: Can't pickle local object 'BasicTowerAI...'</span>
+
+<span class="cm"># cloudpickle 可以正确处理</span>
+<span class="kw">import</span> cloudpickle
+data = cloudpickle.dumps(BasicTowerAI(<span class="num">0</span>))  <span class="cm"># ✅</span>
+agent = cloudpickle.loads(data)               <span class="cm"># ✅</span>
+</pre>
+
+<p><code>cloudpickle</code> 通过"序列化源代码 + 在目标解释器中重建类定义"的方式绕过了这个限制。代价是序列化体积比 <code>pickle</code> 大（包含源代码字符串），但在 battle 场景下 Agent 类通常很小，不是问题。</p>
+
+<h3>7.4 非法操作的双重校验</h3>
+
+<p>为什么 <code>_filter_valid_operations</code> 需要两轮校验？</p>
+
+<ol>
+  <li><strong><code>can_apply_operation</code></strong>：SDK 提供的方法，检查操作在游戏规则上是否合法（资源够不够、目标格子是否在范围内等）。但它在某些边界情况下不报错，却会导致后续 <code>resolve_turn</code> 抛出 <code>ValueError</code>。</li>
+  <li><strong>TowerType 预检</strong>：升级操作除了需要满足 <code>can_apply_operation</code>，还需要检查 <code>TOWER_UPGRADE_TREE</code> 中当前塔类型是否可以升级到目标类型。如果不做这个预检，<code>resolve_turn</code> 会因为 <code>TowerType</code> 不匹配而崩溃。</li>
+</ol>
+
+<p>双重校验确保：<strong>进入 <code>resolve_turn</code> 的每个操作都是 100% 安全的</strong>。这是 battle 模块经过多次"SDK 内部抛异常"的教训后累积的经验。</p>
+
+<h3>7.5 超时兜底</h3>
+
+<p>如果某个子进程卡住（死循环、SDK 内部 deadlock），主进程不能无限等待。</p>
+
+<pre>
+<span class="cm"># 方案一：as_completed + timeout</span>
+result = future.result(timeout=_BATTLE_TIMEOUT_SECONDS)  <span class="cm"># 300s</span>
+
+<span class="cm"># 方案二：超时后强制关闭并取消</span>
+<span class="kw">except</span> TimeoutError:
+    executor.shutdown(wait=<span class="tp">False</span>)    <span class="cm"># 不等待子进程</span>
+    future.cancel()                    <span class="cm"># 取消剩余任务</span>
+</pre>
+
+<p>超时的对战被标记为 <code>"error"</code>，在汇总时被计入 <code>error_battles</code> 但不会影响胜率计算。</p>
+
+
+<!-- ════════════════════════════════════════════ -->
+<h2 id="ch8">八、配置项参考</h2>
+<!-- ════════════════════════════════════════════ -->
+
+<h3>8.1 BaselineBattleConfig 字段</h3>
+
+<table>
+<tr><th>字段</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+<tr><td>max_rounds</td><td>int</td><td>（从配置读取）</td><td>单局最大回合数，超时判定平局</td></tr>
+<tr><td>n_battles</td><td>int</td><td>（从配置读取）</td><td>对战轮数，每轮产生 2 局（先手/后手）</td></tr>
+<tr><td>log_level</td><td>str</td><td>"INFO"</td><td>日志级别</td></tr>
+<tr><td>log_dir</td><td>Optional[str]</td><td>None</td><td>日志输出目录</td></tr>
+<tr><td>log_to_console</td><td>bool</td><td>True</td><td>是否输出到控制台</td></tr>
+<tr><td>enable_timing</td><td>bool</td><td>True</td><td>是否记录每局耗时</td></tr>
+<tr><td>timing_warning_threshold</td><td>float</td><td>2.0</td><td>单步超时警告阈值（秒）</td></tr>
+<tr><td>ppo_checkpoint_path</td><td>Optional[str]</td><td>None</td><td>PPO 模型检查点路径</td></tr>
+<tr><td>baseline_agents</td><td>List[str]</td><td>[]</td><td>要评估的 baseline 名称列表</td></tr>
+<tr><td>device</td><td>str</td><td>"auto"</td><td>推理设备（cpu / cuda / auto）</td></tr>
+</table>
+
+<h3>8.2 YAML 配置示例</h3>
+
+<pre>
+<span class="cm"># configs/custom_antwar.yaml</span>
+training:
+  battle_interval: <span class="num">5</span>             <span class="cm"># 每 5 个 episode 评估一次</span>
+  n_battles: <span class="num">2</span>                    <span class="cm"># 每次评估 2 轮（共 4 局）</span>
+
+selfplay:
+  baseline_agents:                  <span class="cm"># 要评估的基线 AI</span>
+    - <span class="str">"BasicTowerAI"</span>
+    - <span class="str">"BasicRandomAI"</span>
+</pre>
+
+<h3>8.3 CLI 参数对照</h3>
+
+<table>
+<tr><th>CLI 参数</th><th>对应配置路径</th><th>示例</th></tr>
+<tr><td><code>--battle-interval</code></td><td><code>training.battle_interval</code></td><td><code>--battle-interval 5</code></td></tr>
+<tr><td><code>--n-battles</code></td><td><code>training.n_battles</code></td><td><code>--n-battles 2</code></td></tr>
+<tr><td><code>--baseline-agents</code></td><td><code>selfplay.baseline_agents</code></td><td><code>--baseline-agents BasicTowerAI BasicRandomAI</code></td></tr>
+</table>
+
+<div class="callout info">
+<strong>参考</strong>：完整配置见 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/configs/custom_antwar.yaml">configs/custom_antwar.yaml</a> 和 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/configs/ppo_antwar.yaml">src/ppo_antwar/configs/ppo_antwar.yaml</a>（默认配置）。
+</div>
+
+<hr style="margin: 40px 0 20px; border: none; border-top: 1px solid #e9ecef;">
+<p style="text-align: center; color: #6c757d; font-size: 14px;">
+  AntWar PPO v2 — Baseline Battle 模块介绍文档
+</p>
+
+</div>
+
+</body>
+</html>

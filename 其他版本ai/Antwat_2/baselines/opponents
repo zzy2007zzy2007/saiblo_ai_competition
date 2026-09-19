@@ -1,0 +1,38 @@
+python ga_trainer.py --resume training_history/run_20260504_135653 --generations 200 --population-size 50 --num-games-per-opponent 6 --num-opponents 3 --num-workers 50 --max-rounds 512 --hp-diff-coefficient 0.2
+
+opponent1.npz = nn_gen_2_20~ (abcd1235)(top_1_gen_7.npz)
+opponent2.npz = training_history/run_20260504_135653/top_1_gen_32.npz(GA_NN_32)
+opponent3.npz = opponent1.npz(Original)
+
+scp -P 14639 /Users/raymondzeng/Documents/trae_projects/AntWar/baselines/nn_gen_2_20/my_ant_game/models/two_stage_model.npz root@connect.westc.seetacloud.com:/root/autodl-tmp/GenNN/ga_nn_training/opponents/opponent1.npz.1
+
+WxuErkwoJYA4
+
+
+
+/Users/raymondzeng/Documents/trae_projects/AntWar/baselines/ga_nn_31_1/my_ant_game/models/two_stage_model.npz
+/Users/raymondzeng/Documents/trae_projects/AntWar/baselines/nn_gen_2_20/my_ant_game/models/two_stage_model.npz
+/Users/raymondzeng/Documents/trae_projects/AntWar/baselines/nn_gen_32/models/action_scoring_model.npz
+
+
+
+
+ssh -p 14639 root@connect.westc.seetacloud.com
+WxuErkwoJYA4
+
+
+scp -P 14639 /Users/raymondzeng/Documents/trae_projects/AntWar/baselines/nn_gen_2_20/my_ant_game/models/two_stage_model.npz root@connect.westc.seetacloud.com:/root/autodl-tmp/GenNN/ga_nn_training/opponents/opponent1.npz
+
+
+scp -P 14639 /Users/raymondzeng/Documents/trae_projects/AntWar/baselines/ga_nn_31_1/my_ant_game/models/two_stage_model.npz root@connect.westc.seetacloud.com:/root/autodl-tmp/GenNN/ga_nn_training/opponents/opponent2.npz
+
+
+scp -P 14639 /Users/raymondzeng/Documents/trae_projects/temp/遗传算法打包/ga_nn_training/opponents/opponent1.npz root@connect.westc.seetacloud.com:/root/autodl-tmp/GenNN/ga_nn_training/opponents/opponent3.npz
+
+
+
+
+ssh -p 14639 root@connect.westc.seetacloud.com
+WxuErkwoJYA4
+
+scp -P 14639 root@connect.westc.seetacloud.com:/root/autodl-tmp/GenNN/ga_nn_training/training_history/run_20260504_135653/top_1_gen_35.npz /root/autodl-tmp/AntWar/battle_single/baselines/ga_nn_35_1/my_ant_game/models/two_stage_model.npz

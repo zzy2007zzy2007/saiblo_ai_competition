@@ -1,0 +1,3365 @@
+=== AI vs AI 对战日志 ===
+对战轮数: 100
+每局最大回合数: 512
+
+=== 第 0 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=48, AI HP=50
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=40, AI HP=44
+回合 80: AI HP=38, AI HP=40
+回合 90: AI HP=35, AI HP=40
+回合 100: AI HP=33, AI HP=39
+回合 110: AI HP=32, AI HP=39
+回合 120: AI HP=30, AI HP=39
+回合 130: AI HP=27, AI HP=39
+回合 140: AI HP=26, AI HP=38
+回合 150: AI HP=26, AI HP=37
+回合 160: AI HP=23, AI HP=35
+回合 170: AI HP=21, AI HP=34
+回合 180: AI HP=18, AI HP=31
+回合 190: AI HP=16, AI HP=27
+回合 200: AI HP=16, AI HP=26
+回合 210: AI HP=16, AI HP=21
+回合 220: AI HP=15, AI HP=20
+回合 230: AI HP=15, AI HP=18
+回合 240: AI HP=13, AI HP=14
+回合 250: AI HP=13, AI HP=13
+回合 260: AI HP=10, AI HP=11
+回合 270: AI HP=8, AI HP=10
+回合 280: AI HP=8, AI HP=9
+回合 290: AI HP=5, AI HP=9
+回合 300: AI HP=3, AI HP=4
+回合 310: AI HP=1, AI HP=2
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=25, AI=18
+超级武器使用: AI=0, AI=0
+总回合数: 311
+
+=== 第 1 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=47, AI HP=49
+回合 40: AI HP=44, AI HP=49
+回合 50: AI HP=44, AI HP=49
+回合 60: AI HP=44, AI HP=46
+回合 70: AI HP=41, AI HP=40
+回合 80: AI HP=38, AI HP=40
+回合 90: AI HP=36, AI HP=40
+回合 100: AI HP=32, AI HP=39
+回合 110: AI HP=31, AI HP=36
+回合 120: AI HP=29, AI HP=35
+回合 130: AI HP=27, AI HP=31
+回合 140: AI HP=24, AI HP=28
+回合 150: AI HP=23, AI HP=26
+回合 160: AI HP=23, AI HP=25
+回合 170: AI HP=21, AI HP=24
+回合 180: AI HP=18, AI HP=21
+回合 190: AI HP=14, AI HP=19
+回合 200: AI HP=11, AI HP=16
+回合 210: AI HP=8, AI HP=14
+回合 220: AI HP=6, AI HP=10
+回合 230: AI HP=5, AI HP=10
+回合 240: AI HP=3, AI HP=9
+回合 250: AI HP=1, AI HP=7
+结果: AI
+最终HP: AI=0, AI=5
+死亡蚂蚁: AI=9, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 2 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=47, AI HP=47
+回合 50: AI HP=47, AI HP=45
+回合 60: AI HP=46, AI HP=43
+回合 70: AI HP=44, AI HP=40
+回合 80: AI HP=40, AI HP=38
+回合 90: AI HP=39, AI HP=37
+回合 100: AI HP=37, AI HP=34
+回合 110: AI HP=36, AI HP=34
+回合 120: AI HP=34, AI HP=32
+回合 130: AI HP=32, AI HP=29
+回合 140: AI HP=30, AI HP=25
+回合 150: AI HP=27, AI HP=24
+回合 160: AI HP=24, AI HP=21
+回合 170: AI HP=23, AI HP=20
+回合 180: AI HP=20, AI HP=19
+回合 190: AI HP=18, AI HP=15
+回合 200: AI HP=18, AI HP=10
+回合 210: AI HP=18, AI HP=8
+回合 220: AI HP=18, AI HP=6
+回合 230: AI HP=16, AI HP=5
+回合 240: AI HP=15, AI HP=5
+回合 250: AI HP=14, AI HP=4
+回合 260: AI HP=11, AI HP=1
+回合 270: AI HP=10, AI HP=0
+结果: AI
+最终HP: AI=10, AI=0
+死亡蚂蚁: AI=9, AI=14
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 3 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=46, AI HP=47
+回合 50: AI HP=44, AI HP=46
+回合 60: AI HP=43, AI HP=45
+回合 70: AI HP=41, AI HP=43
+回合 80: AI HP=39, AI HP=41
+回合 90: AI HP=38, AI HP=40
+回合 100: AI HP=34, AI HP=36
+回合 110: AI HP=32, AI HP=36
+回合 120: AI HP=30, AI HP=34
+回合 130: AI HP=27, AI HP=34
+回合 140: AI HP=26, AI HP=33
+回合 150: AI HP=24, AI HP=31
+回合 160: AI HP=23, AI HP=28
+回合 170: AI HP=19, AI HP=26
+回合 180: AI HP=18, AI HP=26
+回合 190: AI HP=18, AI HP=23
+回合 200: AI HP=14, AI HP=22
+回合 210: AI HP=11, AI HP=22
+回合 220: AI HP=9, AI HP=21
+回合 230: AI HP=6, AI HP=21
+回合 240: AI HP=6, AI HP=16
+回合 250: AI HP=4, AI HP=12
+回合 260: AI HP=3, AI HP=10
+回合 270: AI HP=2, AI HP=7
+回合 280: AI HP=1, AI HP=6
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=19, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 282
+
+=== 第 4 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=45, AI HP=49
+回合 60: AI HP=44, AI HP=44
+回合 70: AI HP=40, AI HP=44
+回合 80: AI HP=38, AI HP=41
+回合 90: AI HP=36, AI HP=38
+回合 100: AI HP=35, AI HP=38
+回合 110: AI HP=31, AI HP=35
+回合 120: AI HP=29, AI HP=35
+回合 130: AI HP=26, AI HP=30
+回合 140: AI HP=25, AI HP=28
+回合 150: AI HP=24, AI HP=26
+回合 160: AI HP=22, AI HP=24
+回合 170: AI HP=20, AI HP=20
+回合 180: AI HP=17, AI HP=19
+回合 190: AI HP=16, AI HP=18
+回合 200: AI HP=11, AI HP=15
+回合 210: AI HP=9, AI HP=14
+回合 220: AI HP=6, AI HP=8
+回合 230: AI HP=4, AI HP=7
+回合 240: AI HP=3, AI HP=5
+回合 250: AI HP=1, AI HP=4
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=10, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 252
+
+=== 第 5 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=45, AI HP=50
+回合 50: AI HP=45, AI HP=46
+回合 60: AI HP=42, AI HP=43
+回合 70: AI HP=41, AI HP=42
+回合 80: AI HP=39, AI HP=38
+回合 90: AI HP=38, AI HP=36
+回合 100: AI HP=35, AI HP=34
+回合 110: AI HP=34, AI HP=33
+回合 120: AI HP=32, AI HP=30
+回合 130: AI HP=30, AI HP=30
+回合 140: AI HP=27, AI HP=28
+回合 150: AI HP=22, AI HP=26
+回合 160: AI HP=21, AI HP=24
+回合 170: AI HP=18, AI HP=21
+回合 180: AI HP=17, AI HP=20
+回合 190: AI HP=16, AI HP=18
+回合 200: AI HP=14, AI HP=16
+回合 210: AI HP=14, AI HP=15
+回合 220: AI HP=10, AI HP=14
+回合 230: AI HP=9, AI HP=12
+回合 240: AI HP=7, AI HP=8
+回合 250: AI HP=6, AI HP=7
+回合 260: AI HP=5, AI HP=7
+回合 270: AI HP=3, AI HP=3
+回合 280: AI HP=1, AI HP=1
+结果: AI
+最终HP: AI=0, AI=1
+死亡蚂蚁: AI=12, AI=10
+超级武器使用: AI=0, AI=0
+总回合数: 282
+
+=== 第 6 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=48, AI HP=50
+回合 30: AI HP=48, AI HP=49
+回合 40: AI HP=47, AI HP=46
+回合 50: AI HP=44, AI HP=45
+回合 60: AI HP=44, AI HP=45
+回合 70: AI HP=41, AI HP=45
+回合 80: AI HP=37, AI HP=42
+回合 90: AI HP=36, AI HP=41
+回合 100: AI HP=34, AI HP=38
+回合 110: AI HP=32, AI HP=37
+回合 120: AI HP=31, AI HP=37
+回合 130: AI HP=29, AI HP=33
+回合 140: AI HP=27, AI HP=31
+回合 150: AI HP=26, AI HP=27
+回合 160: AI HP=23, AI HP=24
+回合 170: AI HP=22, AI HP=24
+回合 180: AI HP=16, AI HP=24
+回合 190: AI HP=14, AI HP=22
+回合 200: AI HP=13, AI HP=21
+回合 210: AI HP=11, AI HP=18
+回合 220: AI HP=7, AI HP=16
+回合 230: AI HP=5, AI HP=15
+回合 240: AI HP=3, AI HP=15
+回合 250: AI HP=0, AI HP=15
+结果: AI
+最终HP: AI=0, AI=15
+死亡蚂蚁: AI=23, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 250
+
+=== 第 7 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=48
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=44, AI HP=42
+回合 70: AI HP=41, AI HP=42
+回合 80: AI HP=40, AI HP=41
+回合 90: AI HP=38, AI HP=36
+回合 100: AI HP=34, AI HP=34
+回合 110: AI HP=32, AI HP=34
+回合 120: AI HP=30, AI HP=33
+回合 130: AI HP=29, AI HP=32
+回合 140: AI HP=27, AI HP=30
+回合 150: AI HP=25, AI HP=30
+回合 160: AI HP=24, AI HP=30
+回合 170: AI HP=20, AI HP=30
+回合 180: AI HP=17, AI HP=28
+回合 190: AI HP=13, AI HP=26
+回合 200: AI HP=12, AI HP=26
+回合 210: AI HP=10, AI HP=21
+回合 220: AI HP=10, AI HP=18
+回合 230: AI HP=6, AI HP=15
+回合 240: AI HP=4, AI HP=11
+回合 250: AI HP=2, AI HP=10
+回合 260: AI HP=1, AI HP=7
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=15, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 265
+
+=== 第 8 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=48
+回合 50: AI HP=49, AI HP=45
+回合 60: AI HP=47, AI HP=44
+回合 70: AI HP=46, AI HP=41
+回合 80: AI HP=44, AI HP=37
+回合 90: AI HP=41, AI HP=35
+回合 100: AI HP=38, AI HP=35
+回合 110: AI HP=35, AI HP=34
+回合 120: AI HP=34, AI HP=32
+回合 130: AI HP=32, AI HP=31
+回合 140: AI HP=29, AI HP=27
+回合 150: AI HP=28, AI HP=24
+回合 160: AI HP=22, AI HP=23
+回合 170: AI HP=19, AI HP=23
+回合 180: AI HP=16, AI HP=21
+回合 190: AI HP=13, AI HP=20
+回合 200: AI HP=10, AI HP=18
+回合 210: AI HP=9, AI HP=16
+回合 220: AI HP=7, AI HP=15
+回合 230: AI HP=4, AI HP=12
+回合 240: AI HP=2, AI HP=10
+回合 250: AI HP=2, AI HP=6
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=11, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 9 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=50
+回合 50: AI HP=45, AI HP=50
+回合 60: AI HP=44, AI HP=48
+回合 70: AI HP=41, AI HP=46
+回合 80: AI HP=37, AI HP=44
+回合 90: AI HP=35, AI HP=41
+回合 100: AI HP=35, AI HP=38
+回合 110: AI HP=31, AI HP=37
+回合 120: AI HP=31, AI HP=34
+回合 130: AI HP=30, AI HP=30
+回合 140: AI HP=26, AI HP=28
+回合 150: AI HP=24, AI HP=28
+回合 160: AI HP=21, AI HP=28
+回合 170: AI HP=21, AI HP=24
+回合 180: AI HP=18, AI HP=21
+回合 190: AI HP=15, AI HP=19
+回合 200: AI HP=15, AI HP=18
+回合 210: AI HP=12, AI HP=16
+回合 220: AI HP=10, AI HP=14
+回合 230: AI HP=9, AI HP=12
+回合 240: AI HP=4, AI HP=9
+回合 250: AI HP=2, AI HP=8
+回合 260: AI HP=0, AI HP=7
+结果: AI
+最终HP: AI=0, AI=7
+死亡蚂蚁: AI=14, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 260
+
+=== 第 10 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=49
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=44, AI HP=48
+回合 60: AI HP=43, AI HP=47
+回合 70: AI HP=40, AI HP=45
+回合 80: AI HP=39, AI HP=44
+回合 90: AI HP=37, AI HP=43
+回合 100: AI HP=36, AI HP=42
+回合 110: AI HP=31, AI HP=42
+回合 120: AI HP=29, AI HP=40
+回合 130: AI HP=28, AI HP=36
+回合 140: AI HP=24, AI HP=34
+回合 150: AI HP=20, AI HP=32
+回合 160: AI HP=18, AI HP=29
+回合 170: AI HP=16, AI HP=24
+回合 180: AI HP=14, AI HP=22
+回合 190: AI HP=12, AI HP=21
+回合 200: AI HP=9, AI HP=18
+回合 210: AI HP=9, AI HP=16
+回合 220: AI HP=7, AI HP=15
+回合 230: AI HP=5, AI HP=12
+回合 240: AI HP=3, AI HP=11
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=16, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 249
+
+=== 第 11 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=44, AI HP=46
+回合 70: AI HP=40, AI HP=44
+回合 80: AI HP=36, AI HP=43
+回合 90: AI HP=34, AI HP=42
+回合 100: AI HP=34, AI HP=40
+回合 110: AI HP=33, AI HP=38
+回合 120: AI HP=30, AI HP=36
+回合 130: AI HP=28, AI HP=31
+回合 140: AI HP=25, AI HP=28
+回合 150: AI HP=23, AI HP=28
+回合 160: AI HP=21, AI HP=28
+回合 170: AI HP=20, AI HP=28
+回合 180: AI HP=18, AI HP=28
+回合 190: AI HP=16, AI HP=27
+回合 200: AI HP=14, AI HP=26
+回合 210: AI HP=10, AI HP=25
+回合 220: AI HP=9, AI HP=24
+回合 230: AI HP=7, AI HP=21
+回合 240: AI HP=6, AI HP=20
+回合 250: AI HP=2, AI HP=16
+结果: AI
+最终HP: AI=0, AI=15
+死亡蚂蚁: AI=21, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 252
+
+=== 第 12 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=50
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=45, AI HP=43
+回合 70: AI HP=43, AI HP=40
+回合 80: AI HP=39, AI HP=37
+回合 90: AI HP=38, AI HP=36
+回合 100: AI HP=38, AI HP=34
+回合 110: AI HP=34, AI HP=34
+回合 120: AI HP=32, AI HP=32
+回合 130: AI HP=29, AI HP=30
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=24, AI HP=24
+回合 160: AI HP=23, AI HP=18
+回合 170: AI HP=17, AI HP=17
+回合 180: AI HP=16, AI HP=16
+回合 190: AI HP=15, AI HP=15
+回合 200: AI HP=15, AI HP=13
+回合 210: AI HP=13, AI HP=12
+回合 220: AI HP=10, AI HP=12
+回合 230: AI HP=5, AI HP=11
+回合 240: AI HP=2, AI HP=11
+结果: AI
+最终HP: AI=0, AI=11
+死亡蚂蚁: AI=13, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 242
+
+=== 第 13 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=49
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=43, AI HP=44
+回合 80: AI HP=43, AI HP=39
+回合 90: AI HP=37, AI HP=37
+回合 100: AI HP=35, AI HP=35
+回合 110: AI HP=32, AI HP=34
+回合 120: AI HP=32, AI HP=29
+回合 130: AI HP=30, AI HP=27
+回合 140: AI HP=29, AI HP=25
+回合 150: AI HP=26, AI HP=23
+回合 160: AI HP=24, AI HP=21
+回合 170: AI HP=21, AI HP=20
+回合 180: AI HP=21, AI HP=18
+回合 190: AI HP=19, AI HP=15
+回合 200: AI HP=18, AI HP=14
+回合 210: AI HP=14, AI HP=13
+回合 220: AI HP=13, AI HP=13
+回合 230: AI HP=10, AI HP=12
+回合 240: AI HP=6, AI HP=10
+回合 250: AI HP=4, AI HP=9
+回合 260: AI HP=3, AI HP=7
+回合 270: AI HP=2, AI HP=3
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=13, AI=11
+超级武器使用: AI=0, AI=0
+总回合数: 276
+
+=== 第 14 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=50
+回合 50: AI HP=49, AI HP=49
+回合 60: AI HP=48, AI HP=47
+回合 70: AI HP=45, AI HP=45
+回合 80: AI HP=40, AI HP=43
+回合 90: AI HP=37, AI HP=39
+回合 100: AI HP=34, AI HP=38
+回合 110: AI HP=34, AI HP=38
+回合 120: AI HP=33, AI HP=37
+回合 130: AI HP=31, AI HP=35
+回合 140: AI HP=29, AI HP=33
+回合 150: AI HP=26, AI HP=28
+回合 160: AI HP=23, AI HP=25
+回合 170: AI HP=22, AI HP=24
+回合 180: AI HP=21, AI HP=23
+回合 190: AI HP=18, AI HP=21
+回合 200: AI HP=14, AI HP=21
+回合 210: AI HP=12, AI HP=19
+回合 220: AI HP=10, AI HP=18
+回合 230: AI HP=9, AI HP=15
+回合 240: AI HP=7, AI HP=11
+回合 250: AI HP=3, AI HP=9
+回合 260: AI HP=1, AI HP=8
+结果: AI
+最终HP: AI=0, AI=8
+死亡蚂蚁: AI=15, AI=9
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 15 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=47, AI HP=44
+回合 70: AI HP=46, AI HP=42
+回合 80: AI HP=44, AI HP=41
+回合 90: AI HP=40, AI HP=39
+回合 100: AI HP=38, AI HP=37
+回合 110: AI HP=35, AI HP=34
+回合 120: AI HP=32, AI HP=28
+回合 130: AI HP=31, AI HP=27
+回合 140: AI HP=30, AI HP=24
+回合 150: AI HP=28, AI HP=21
+回合 160: AI HP=27, AI HP=20
+回合 170: AI HP=24, AI HP=19
+回合 180: AI HP=22, AI HP=17
+回合 190: AI HP=20, AI HP=16
+回合 200: AI HP=18, AI HP=14
+回合 210: AI HP=16, AI HP=10
+回合 220: AI HP=15, AI HP=9
+回合 230: AI HP=12, AI HP=5
+回合 240: AI HP=8, AI HP=4
+回合 250: AI HP=6, AI HP=2
+结果: AI
+最终HP: AI=5, AI=0
+死亡蚂蚁: AI=11, AI=12
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 16 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=49, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=46, AI HP=45
+回合 70: AI HP=41, AI HP=41
+回合 80: AI HP=38, AI HP=39
+回合 90: AI HP=36, AI HP=36
+回合 100: AI HP=34, AI HP=36
+回合 110: AI HP=33, AI HP=36
+回合 120: AI HP=31, AI HP=32
+回合 130: AI HP=28, AI HP=29
+回合 140: AI HP=27, AI HP=28
+回合 150: AI HP=25, AI HP=25
+回合 160: AI HP=23, AI HP=23
+回合 170: AI HP=20, AI HP=22
+回合 180: AI HP=17, AI HP=21
+回合 190: AI HP=15, AI HP=20
+回合 200: AI HP=13, AI HP=20
+回合 210: AI HP=10, AI HP=19
+回合 220: AI HP=8, AI HP=18
+回合 230: AI HP=6, AI HP=15
+回合 240: AI HP=6, AI HP=15
+回合 250: AI HP=1, AI HP=12
+结果: AI
+最终HP: AI=0, AI=12
+死亡蚂蚁: AI=17, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 17 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=48
+回合 50: AI HP=48, AI HP=46
+回合 60: AI HP=44, AI HP=44
+回合 70: AI HP=43, AI HP=44
+回合 80: AI HP=40, AI HP=40
+回合 90: AI HP=37, AI HP=38
+回合 100: AI HP=33, AI HP=35
+回合 110: AI HP=31, AI HP=33
+回合 120: AI HP=29, AI HP=32
+回合 130: AI HP=26, AI HP=31
+回合 140: AI HP=25, AI HP=29
+回合 150: AI HP=24, AI HP=28
+回合 160: AI HP=21, AI HP=26
+回合 170: AI HP=21, AI HP=24
+回合 180: AI HP=20, AI HP=18
+回合 190: AI HP=20, AI HP=14
+回合 200: AI HP=20, AI HP=12
+回合 210: AI HP=17, AI HP=12
+回合 220: AI HP=17, AI HP=11
+回合 230: AI HP=16, AI HP=8
+回合 240: AI HP=13, AI HP=6
+回合 250: AI HP=10, AI HP=4
+回合 260: AI HP=8, AI HP=2
+回合 270: AI HP=6, AI HP=2
+结果: AI
+最终HP: AI=5, AI=0
+死亡蚂蚁: AI=10, AI=15
+超级武器使用: AI=0, AI=0
+总回合数: 278
+
+=== 第 18 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=47, AI HP=50
+回合 50: AI HP=44, AI HP=48
+回合 60: AI HP=43, AI HP=44
+回合 70: AI HP=42, AI HP=44
+回合 80: AI HP=40, AI HP=42
+回合 90: AI HP=36, AI HP=40
+回合 100: AI HP=36, AI HP=37
+回合 110: AI HP=33, AI HP=36
+回合 120: AI HP=31, AI HP=33
+回合 130: AI HP=27, AI HP=32
+回合 140: AI HP=26, AI HP=30
+回合 150: AI HP=25, AI HP=27
+回合 160: AI HP=22, AI HP=25
+回合 170: AI HP=21, AI HP=22
+回合 180: AI HP=20, AI HP=16
+回合 190: AI HP=18, AI HP=15
+回合 200: AI HP=14, AI HP=13
+回合 210: AI HP=13, AI HP=11
+回合 220: AI HP=10, AI HP=8
+回合 230: AI HP=9, AI HP=6
+回合 240: AI HP=5, AI HP=4
+回合 250: AI HP=1, AI HP=4
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=5, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 251
+
+=== 第 19 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=48
+回合 40: AI HP=48, AI HP=46
+回合 50: AI HP=45, AI HP=45
+回合 60: AI HP=44, AI HP=42
+回合 70: AI HP=42, AI HP=41
+回合 80: AI HP=41, AI HP=39
+回合 90: AI HP=38, AI HP=38
+回合 100: AI HP=36, AI HP=35
+回合 110: AI HP=34, AI HP=31
+回合 120: AI HP=30, AI HP=29
+回合 130: AI HP=28, AI HP=28
+回合 140: AI HP=24, AI HP=27
+回合 150: AI HP=23, AI HP=26
+回合 160: AI HP=21, AI HP=23
+回合 170: AI HP=20, AI HP=19
+回合 180: AI HP=20, AI HP=18
+回合 190: AI HP=17, AI HP=18
+回合 200: AI HP=16, AI HP=18
+回合 210: AI HP=14, AI HP=16
+回合 220: AI HP=10, AI HP=16
+回合 230: AI HP=9, AI HP=16
+回合 240: AI HP=7, AI HP=15
+回合 250: AI HP=6, AI HP=14
+回合 260: AI HP=3, AI HP=12
+回合 270: AI HP=1, AI HP=12
+结果: AI
+最终HP: AI=0, AI=12
+死亡蚂蚁: AI=26, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 271
+
+=== 第 20 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=47, AI HP=49
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=44, AI HP=45
+回合 70: AI HP=41, AI HP=44
+回合 80: AI HP=38, AI HP=41
+回合 90: AI HP=36, AI HP=40
+回合 100: AI HP=36, AI HP=40
+回合 110: AI HP=35, AI HP=38
+回合 120: AI HP=33, AI HP=36
+回合 130: AI HP=32, AI HP=32
+回合 140: AI HP=27, AI HP=29
+回合 150: AI HP=26, AI HP=28
+回合 160: AI HP=23, AI HP=28
+回合 170: AI HP=19, AI HP=26
+回合 180: AI HP=18, AI HP=25
+回合 190: AI HP=16, AI HP=24
+回合 200: AI HP=13, AI HP=21
+回合 210: AI HP=9, AI HP=19
+回合 220: AI HP=7, AI HP=19
+回合 230: AI HP=4, AI HP=18
+回合 240: AI HP=1, AI HP=16
+结果: AI
+最终HP: AI=0, AI=16
+死亡蚂蚁: AI=19, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 242
+
+=== 第 21 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=47
+回合 40: AI HP=47, AI HP=46
+回合 50: AI HP=46, AI HP=45
+回合 60: AI HP=41, AI HP=43
+回合 70: AI HP=39, AI HP=39
+回合 80: AI HP=37, AI HP=38
+回合 90: AI HP=34, AI HP=38
+回合 100: AI HP=34, AI HP=37
+回合 110: AI HP=33, AI HP=35
+回合 120: AI HP=33, AI HP=30
+回合 130: AI HP=31, AI HP=29
+回合 140: AI HP=26, AI HP=29
+回合 150: AI HP=24, AI HP=26
+回合 160: AI HP=22, AI HP=23
+回合 170: AI HP=20, AI HP=23
+回合 180: AI HP=19, AI HP=21
+回合 190: AI HP=16, AI HP=20
+回合 200: AI HP=12, AI HP=17
+回合 210: AI HP=12, AI HP=14
+回合 220: AI HP=8, AI HP=12
+回合 230: AI HP=7, AI HP=9
+回合 240: AI HP=6, AI HP=5
+回合 250: AI HP=5, AI HP=4
+回合 260: AI HP=1, AI HP=2
+回合 270: AI HP=1, AI HP=1
+结果: AI
+最终HP: AI=1, AI=0
+死亡蚂蚁: AI=12, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 275
+
+=== 第 22 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=44, AI HP=46
+回合 70: AI HP=44, AI HP=45
+回合 80: AI HP=42, AI HP=44
+回合 90: AI HP=41, AI HP=40
+回合 100: AI HP=37, AI HP=39
+回合 110: AI HP=36, AI HP=35
+回合 120: AI HP=33, AI HP=34
+回合 130: AI HP=31, AI HP=32
+回合 140: AI HP=30, AI HP=28
+回合 150: AI HP=29, AI HP=24
+回合 160: AI HP=27, AI HP=22
+回合 170: AI HP=24, AI HP=19
+回合 180: AI HP=22, AI HP=17
+回合 190: AI HP=19, AI HP=15
+回合 200: AI HP=17, AI HP=14
+回合 210: AI HP=14, AI HP=14
+回合 220: AI HP=11, AI HP=14
+回合 230: AI HP=6, AI HP=14
+回合 240: AI HP=4, AI HP=11
+回合 250: AI HP=0, AI HP=9
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=12, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 250
+
+=== 第 23 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=48, AI HP=48
+回合 60: AI HP=43, AI HP=47
+回合 70: AI HP=41, AI HP=45
+回合 80: AI HP=38, AI HP=43
+回合 90: AI HP=36, AI HP=43
+回合 100: AI HP=36, AI HP=41
+回合 110: AI HP=34, AI HP=38
+回合 120: AI HP=28, AI HP=37
+回合 130: AI HP=26, AI HP=35
+回合 140: AI HP=26, AI HP=33
+回合 150: AI HP=24, AI HP=30
+回合 160: AI HP=22, AI HP=29
+回合 170: AI HP=21, AI HP=25
+回合 180: AI HP=17, AI HP=24
+回合 190: AI HP=16, AI HP=22
+回合 200: AI HP=15, AI HP=22
+回合 210: AI HP=11, AI HP=22
+回合 220: AI HP=8, AI HP=21
+回合 230: AI HP=4, AI HP=19
+回合 240: AI HP=2, AI HP=18
+回合 250: AI HP=1, AI HP=17
+结果: AI
+最终HP: AI=0, AI=17
+死亡蚂蚁: AI=27, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 24 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=50
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=40, AI HP=46
+回合 70: AI HP=39, AI HP=40
+回合 80: AI HP=36, AI HP=40
+回合 90: AI HP=36, AI HP=39
+回合 100: AI HP=35, AI HP=37
+回合 110: AI HP=33, AI HP=36
+回合 120: AI HP=31, AI HP=35
+回合 130: AI HP=29, AI HP=32
+回合 140: AI HP=26, AI HP=28
+回合 150: AI HP=23, AI HP=28
+回合 160: AI HP=20, AI HP=28
+回合 170: AI HP=18, AI HP=27
+回合 180: AI HP=16, AI HP=23
+回合 190: AI HP=15, AI HP=21
+回合 200: AI HP=13, AI HP=20
+回合 210: AI HP=9, AI HP=19
+回合 220: AI HP=9, AI HP=15
+回合 230: AI HP=7, AI HP=13
+回合 240: AI HP=5, AI HP=11
+回合 250: AI HP=4, AI HP=10
+结果: AI
+最终HP: AI=0, AI=8
+死亡蚂蚁: AI=13, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 25 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=48
+回合 40: AI HP=47, AI HP=45
+回合 50: AI HP=44, AI HP=44
+回合 60: AI HP=41, AI HP=44
+回合 70: AI HP=40, AI HP=43
+回合 80: AI HP=39, AI HP=40
+回合 90: AI HP=37, AI HP=39
+回合 100: AI HP=37, AI HP=37
+回合 110: AI HP=34, AI HP=34
+回合 120: AI HP=31, AI HP=31
+回合 130: AI HP=29, AI HP=30
+回合 140: AI HP=25, AI HP=27
+回合 150: AI HP=24, AI HP=27
+回合 160: AI HP=23, AI HP=26
+回合 170: AI HP=18, AI HP=24
+回合 180: AI HP=17, AI HP=23
+回合 190: AI HP=15, AI HP=18
+回合 200: AI HP=11, AI HP=16
+回合 210: AI HP=9, AI HP=13
+回合 220: AI HP=7, AI HP=12
+回合 230: AI HP=5, AI HP=12
+回合 240: AI HP=2, AI HP=12
+结果: AI
+最终HP: AI=0, AI=10
+死亡蚂蚁: AI=11, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 249
+
+=== 第 26 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=50
+回合 50: AI HP=48, AI HP=49
+回合 60: AI HP=45, AI HP=48
+回合 70: AI HP=41, AI HP=46
+回合 80: AI HP=41, AI HP=41
+回合 90: AI HP=40, AI HP=39
+回合 100: AI HP=39, AI HP=38
+回合 110: AI HP=37, AI HP=34
+回合 120: AI HP=33, AI HP=32
+回合 130: AI HP=32, AI HP=30
+回合 140: AI HP=30, AI HP=26
+回合 150: AI HP=29, AI HP=26
+回合 160: AI HP=27, AI HP=26
+回合 170: AI HP=25, AI HP=24
+回合 180: AI HP=24, AI HP=22
+回合 190: AI HP=22, AI HP=18
+回合 200: AI HP=19, AI HP=18
+回合 210: AI HP=14, AI HP=16
+回合 220: AI HP=10, AI HP=14
+回合 230: AI HP=8, AI HP=13
+回合 240: AI HP=6, AI HP=9
+回合 250: AI HP=6, AI HP=8
+回合 260: AI HP=6, AI HP=4
+回合 270: AI HP=2, AI HP=2
+回合 280: AI HP=1, AI HP=1
+结果: AI
+最终HP: AI=0, AI=1
+死亡蚂蚁: AI=14, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 282
+
+=== 第 27 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=47, AI HP=47
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=43, AI HP=47
+回合 70: AI HP=41, AI HP=44
+回合 80: AI HP=41, AI HP=40
+回合 90: AI HP=39, AI HP=39
+回合 100: AI HP=37, AI HP=38
+回合 110: AI HP=34, AI HP=35
+回合 120: AI HP=33, AI HP=31
+回合 130: AI HP=30, AI HP=28
+回合 140: AI HP=27, AI HP=26
+回合 150: AI HP=25, AI HP=24
+回合 160: AI HP=18, AI HP=22
+回合 170: AI HP=17, AI HP=22
+回合 180: AI HP=17, AI HP=20
+回合 190: AI HP=15, AI HP=20
+回合 200: AI HP=14, AI HP=17
+回合 210: AI HP=12, AI HP=15
+回合 220: AI HP=9, AI HP=15
+回合 230: AI HP=4, AI HP=14
+回合 240: AI HP=1, AI HP=14
+结果: AI
+最终HP: AI=0, AI=13
+死亡蚂蚁: AI=13, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 243
+
+=== 第 28 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=48, AI HP=50
+回合 50: AI HP=45, AI HP=49
+回合 60: AI HP=43, AI HP=49
+回合 70: AI HP=40, AI HP=48
+回合 80: AI HP=39, AI HP=47
+回合 90: AI HP=36, AI HP=46
+回合 100: AI HP=32, AI HP=45
+回合 110: AI HP=31, AI HP=44
+回合 120: AI HP=28, AI HP=42
+回合 130: AI HP=25, AI HP=41
+回合 140: AI HP=23, AI HP=39
+回合 150: AI HP=21, AI HP=37
+回合 160: AI HP=19, AI HP=36
+回合 170: AI HP=16, AI HP=32
+回合 180: AI HP=14, AI HP=30
+回合 190: AI HP=12, AI HP=27
+回合 200: AI HP=11, AI HP=27
+回合 210: AI HP=10, AI HP=25
+回合 220: AI HP=5, AI HP=25
+回合 230: AI HP=3, AI HP=25
+回合 240: AI HP=2, AI HP=22
+回合 250: AI HP=2, AI HP=16
+结果: AI
+最终HP: AI=0, AI=16
+死亡蚂蚁: AI=22, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 29 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=43, AI HP=46
+回合 70: AI HP=43, AI HP=46
+回合 80: AI HP=40, AI HP=45
+回合 90: AI HP=36, AI HP=44
+回合 100: AI HP=35, AI HP=43
+回合 110: AI HP=32, AI HP=41
+回合 120: AI HP=31, AI HP=38
+回合 130: AI HP=29, AI HP=37
+回合 140: AI HP=26, AI HP=35
+回合 150: AI HP=23, AI HP=32
+回合 160: AI HP=20, AI HP=31
+回合 170: AI HP=18, AI HP=29
+回合 180: AI HP=16, AI HP=29
+回合 190: AI HP=13, AI HP=27
+回合 200: AI HP=11, AI HP=26
+回合 210: AI HP=10, AI HP=23
+回合 220: AI HP=9, AI HP=21
+回合 230: AI HP=6, AI HP=19
+回合 240: AI HP=5, AI HP=17
+回合 250: AI HP=4, AI HP=15
+结果: AI
+最终HP: AI=0, AI=14
+死亡蚂蚁: AI=19, AI=10
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 30 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=45, AI HP=47
+回合 70: AI HP=40, AI HP=46
+回合 80: AI HP=39, AI HP=43
+回合 90: AI HP=37, AI HP=42
+回合 100: AI HP=34, AI HP=42
+回合 110: AI HP=31, AI HP=41
+回合 120: AI HP=30, AI HP=41
+回合 130: AI HP=26, AI HP=39
+回合 140: AI HP=23, AI HP=39
+回合 150: AI HP=18, AI HP=39
+回合 160: AI HP=15, AI HP=38
+回合 170: AI HP=12, AI HP=38
+回合 180: AI HP=11, AI HP=37
+回合 190: AI HP=10, AI HP=35
+回合 200: AI HP=8, AI HP=33
+回合 210: AI HP=6, AI HP=33
+回合 220: AI HP=5, AI HP=28
+回合 230: AI HP=3, AI HP=24
+结果: AI
+最终HP: AI=0, AI=24
+死亡蚂蚁: AI=25, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 238
+
+=== 第 31 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=44, AI HP=48
+回合 60: AI HP=42, AI HP=47
+回合 70: AI HP=38, AI HP=45
+回合 80: AI HP=37, AI HP=44
+回合 90: AI HP=36, AI HP=44
+回合 100: AI HP=33, AI HP=42
+回合 110: AI HP=28, AI HP=40
+回合 120: AI HP=26, AI HP=38
+回合 130: AI HP=23, AI HP=37
+回合 140: AI HP=22, AI HP=33
+回合 150: AI HP=21, AI HP=32
+回合 160: AI HP=19, AI HP=31
+回合 170: AI HP=16, AI HP=28
+回合 180: AI HP=15, AI HP=26
+回合 190: AI HP=12, AI HP=24
+回合 200: AI HP=12, AI HP=24
+回合 210: AI HP=11, AI HP=23
+回合 220: AI HP=9, AI HP=21
+回合 230: AI HP=5, AI HP=21
+结果: AI
+最终HP: AI=0, AI=20
+死亡蚂蚁: AI=20, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 238
+
+=== 第 32 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=48
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=43, AI HP=47
+回合 70: AI HP=38, AI HP=44
+回合 80: AI HP=37, AI HP=43
+回合 90: AI HP=33, AI HP=42
+回合 100: AI HP=32, AI HP=38
+回合 110: AI HP=31, AI HP=35
+回合 120: AI HP=30, AI HP=35
+回合 130: AI HP=25, AI HP=33
+回合 140: AI HP=23, AI HP=31
+回合 150: AI HP=22, AI HP=28
+回合 160: AI HP=19, AI HP=24
+回合 170: AI HP=17, AI HP=22
+回合 180: AI HP=15, AI HP=21
+回合 190: AI HP=13, AI HP=18
+回合 200: AI HP=11, AI HP=16
+回合 210: AI HP=9, AI HP=15
+回合 220: AI HP=5, AI HP=14
+回合 230: AI HP=4, AI HP=12
+回合 240: AI HP=2, AI HP=8
+结果: AI
+最终HP: AI=0, AI=8
+死亡蚂蚁: AI=12, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 247
+
+=== 第 33 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=46, AI HP=45
+回合 60: AI HP=43, AI HP=43
+回合 70: AI HP=42, AI HP=39
+回合 80: AI HP=36, AI HP=36
+回合 90: AI HP=32, AI HP=35
+回合 100: AI HP=30, AI HP=34
+回合 110: AI HP=28, AI HP=34
+回合 120: AI HP=26, AI HP=31
+回合 130: AI HP=23, AI HP=29
+回合 140: AI HP=21, AI HP=27
+回合 150: AI HP=19, AI HP=27
+回合 160: AI HP=17, AI HP=27
+回合 170: AI HP=14, AI HP=27
+回合 180: AI HP=13, AI HP=26
+回合 190: AI HP=11, AI HP=26
+回合 200: AI HP=9, AI HP=21
+回合 210: AI HP=6, AI HP=20
+回合 220: AI HP=4, AI HP=17
+回合 230: AI HP=2, AI HP=14
+结果: AI
+最终HP: AI=0, AI=13
+死亡蚂蚁: AI=15, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 234
+
+=== 第 34 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=44, AI HP=48
+回合 60: AI HP=40, AI HP=47
+回合 70: AI HP=39, AI HP=44
+回合 80: AI HP=38, AI HP=42
+回合 90: AI HP=35, AI HP=41
+回合 100: AI HP=33, AI HP=37
+回合 110: AI HP=31, AI HP=35
+回合 120: AI HP=30, AI HP=35
+回合 130: AI HP=28, AI HP=33
+回合 140: AI HP=27, AI HP=32
+回合 150: AI HP=26, AI HP=32
+回合 160: AI HP=23, AI HP=31
+回合 170: AI HP=22, AI HP=29
+回合 180: AI HP=19, AI HP=27
+回合 190: AI HP=16, AI HP=25
+回合 200: AI HP=13, AI HP=24
+回合 210: AI HP=10, AI HP=23
+回合 220: AI HP=9, AI HP=19
+回合 230: AI HP=5, AI HP=17
+回合 240: AI HP=2, AI HP=16
+结果: AI
+最终HP: AI=0, AI=15
+死亡蚂蚁: AI=20, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 246
+
+=== 第 35 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=44, AI HP=46
+回合 70: AI HP=41, AI HP=45
+回合 80: AI HP=41, AI HP=44
+回合 90: AI HP=39, AI HP=42
+回合 100: AI HP=37, AI HP=40
+回合 110: AI HP=36, AI HP=34
+回合 120: AI HP=35, AI HP=32
+回合 130: AI HP=34, AI HP=30
+回合 140: AI HP=32, AI HP=27
+回合 150: AI HP=30, AI HP=25
+回合 160: AI HP=26, AI HP=25
+回合 170: AI HP=26, AI HP=23
+回合 180: AI HP=23, AI HP=22
+回合 190: AI HP=22, AI HP=19
+回合 200: AI HP=19, AI HP=18
+回合 210: AI HP=15, AI HP=15
+回合 220: AI HP=13, AI HP=11
+回合 230: AI HP=10, AI HP=9
+回合 240: AI HP=5, AI HP=8
+回合 250: AI HP=3, AI HP=8
+回合 260: AI HP=3, AI HP=6
+结果: AI
+最终HP: AI=0, AI=5
+死亡蚂蚁: AI=14, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 266
+
+=== 第 36 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=43, AI HP=49
+回合 60: AI HP=41, AI HP=45
+回合 70: AI HP=39, AI HP=44
+回合 80: AI HP=38, AI HP=43
+回合 90: AI HP=37, AI HP=41
+回合 100: AI HP=34, AI HP=40
+回合 110: AI HP=31, AI HP=38
+回合 120: AI HP=28, AI HP=38
+回合 130: AI HP=26, AI HP=37
+回合 140: AI HP=24, AI HP=35
+回合 150: AI HP=21, AI HP=34
+回合 160: AI HP=21, AI HP=33
+回合 170: AI HP=20, AI HP=29
+回合 180: AI HP=17, AI HP=27
+回合 190: AI HP=15, AI HP=24
+回合 200: AI HP=12, AI HP=22
+回合 210: AI HP=9, AI HP=20
+回合 220: AI HP=8, AI HP=19
+回合 230: AI HP=5, AI HP=17
+回合 240: AI HP=3, AI HP=14
+回合 250: AI HP=2, AI HP=9
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=16, AI=7
+超级武器使用: AI=0, AI=1
+总回合数: 257
+
+=== 第 37 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=41, AI HP=46
+回合 80: AI HP=40, AI HP=46
+回合 90: AI HP=38, AI HP=46
+回合 100: AI HP=33, AI HP=46
+回合 110: AI HP=30, AI HP=46
+回合 120: AI HP=27, AI HP=45
+回合 130: AI HP=27, AI HP=44
+回合 140: AI HP=26, AI HP=44
+回合 150: AI HP=25, AI HP=43
+回合 160: AI HP=22, AI HP=40
+回合 170: AI HP=21, AI HP=39
+回合 180: AI HP=18, AI HP=36
+回合 190: AI HP=12, AI HP=35
+回合 200: AI HP=12, AI HP=31
+回合 210: AI HP=10, AI HP=30
+回合 220: AI HP=9, AI HP=30
+回合 230: AI HP=8, AI HP=30
+回合 240: AI HP=5, AI HP=27
+回合 250: AI HP=3, AI HP=24
+结果: AI
+最终HP: AI=0, AI=23
+死亡蚂蚁: AI=28, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 38 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=49, AI HP=43
+回合 60: AI HP=45, AI HP=43
+回合 70: AI HP=42, AI HP=42
+回合 80: AI HP=39, AI HP=38
+回合 90: AI HP=37, AI HP=36
+回合 100: AI HP=36, AI HP=34
+回合 110: AI HP=32, AI HP=33
+回合 120: AI HP=30, AI HP=31
+回合 130: AI HP=29, AI HP=31
+回合 140: AI HP=28, AI HP=26
+回合 150: AI HP=26, AI HP=23
+回合 160: AI HP=23, AI HP=20
+回合 170: AI HP=22, AI HP=19
+回合 180: AI HP=21, AI HP=16
+回合 190: AI HP=20, AI HP=16
+回合 200: AI HP=17, AI HP=14
+回合 210: AI HP=13, AI HP=14
+回合 220: AI HP=9, AI HP=12
+回合 230: AI HP=7, AI HP=10
+回合 240: AI HP=4, AI HP=9
+回合 250: AI HP=2, AI HP=9
+回合 260: AI HP=1, AI HP=6
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=11, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 39 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=49, AI HP=50
+回合 50: AI HP=47, AI HP=47
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=43, AI HP=44
+回合 80: AI HP=40, AI HP=42
+回合 90: AI HP=36, AI HP=39
+回合 100: AI HP=35, AI HP=36
+回合 110: AI HP=33, AI HP=33
+回合 120: AI HP=33, AI HP=31
+回合 130: AI HP=30, AI HP=27
+回合 140: AI HP=29, AI HP=27
+回合 150: AI HP=26, AI HP=24
+回合 160: AI HP=26, AI HP=23
+回合 170: AI HP=24, AI HP=21
+回合 180: AI HP=23, AI HP=18
+回合 190: AI HP=20, AI HP=16
+回合 200: AI HP=16, AI HP=14
+回合 210: AI HP=15, AI HP=12
+回合 220: AI HP=13, AI HP=11
+回合 230: AI HP=11, AI HP=10
+回合 240: AI HP=9, AI HP=8
+回合 250: AI HP=4, AI HP=6
+回合 260: AI HP=2, AI HP=5
+回合 270: AI HP=2, AI HP=0
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=9, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 40 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=45, AI HP=48
+回合 70: AI HP=43, AI HP=45
+回合 80: AI HP=39, AI HP=42
+回合 90: AI HP=38, AI HP=39
+回合 100: AI HP=36, AI HP=38
+回合 110: AI HP=33, AI HP=36
+回合 120: AI HP=32, AI HP=34
+回合 130: AI HP=28, AI HP=33
+回合 140: AI HP=25, AI HP=33
+回合 150: AI HP=24, AI HP=29
+回合 160: AI HP=24, AI HP=24
+回合 170: AI HP=21, AI HP=24
+回合 180: AI HP=17, AI HP=22
+回合 190: AI HP=16, AI HP=20
+回合 200: AI HP=12, AI HP=20
+回合 210: AI HP=8, AI HP=18
+回合 220: AI HP=6, AI HP=14
+回合 230: AI HP=4, AI HP=10
+回合 240: AI HP=2, AI HP=8
+回合 250: AI HP=0, AI HP=6
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=12, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 250
+
+=== 第 41 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=44, AI HP=46
+回合 60: AI HP=41, AI HP=44
+回合 70: AI HP=40, AI HP=43
+回合 80: AI HP=39, AI HP=42
+回合 90: AI HP=37, AI HP=41
+回合 100: AI HP=37, AI HP=38
+回合 110: AI HP=35, AI HP=38
+回合 120: AI HP=33, AI HP=37
+回合 130: AI HP=30, AI HP=34
+回合 140: AI HP=29, AI HP=28
+回合 150: AI HP=24, AI HP=28
+回合 160: AI HP=23, AI HP=24
+回合 170: AI HP=21, AI HP=21
+回合 180: AI HP=19, AI HP=17
+回合 190: AI HP=17, AI HP=16
+回合 200: AI HP=15, AI HP=15
+回合 210: AI HP=14, AI HP=15
+回合 220: AI HP=11, AI HP=12
+回合 230: AI HP=8, AI HP=9
+回合 240: AI HP=6, AI HP=7
+回合 250: AI HP=4, AI HP=6
+回合 260: AI HP=1, AI HP=4
+结果: AI
+最终HP: AI=0, AI=3
+死亡蚂蚁: AI=11, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 42 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=48
+回合 50: AI HP=47, AI HP=47
+回合 60: AI HP=44, AI HP=42
+回合 70: AI HP=42, AI HP=41
+回合 80: AI HP=40, AI HP=37
+回合 90: AI HP=40, AI HP=36
+回合 100: AI HP=35, AI HP=35
+回合 110: AI HP=35, AI HP=34
+回合 120: AI HP=34, AI HP=30
+回合 130: AI HP=32, AI HP=29
+回合 140: AI HP=29, AI HP=27
+回合 150: AI HP=25, AI HP=27
+回合 160: AI HP=23, AI HP=25
+回合 170: AI HP=19, AI HP=25
+回合 180: AI HP=18, AI HP=24
+回合 190: AI HP=15, AI HP=24
+回合 200: AI HP=14, AI HP=24
+回合 210: AI HP=12, AI HP=24
+回合 220: AI HP=12, AI HP=24
+回合 230: AI HP=9, AI HP=23
+回合 240: AI HP=6, AI HP=23
+回合 250: AI HP=3, AI HP=23
+回合 260: AI HP=2, AI HP=23
+回合 270: AI HP=1, AI HP=23
+结果: AI
+最终HP: AI=0, AI=23
+死亡蚂蚁: AI=30, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 271
+
+=== 第 43 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=44, AI HP=46
+回合 60: AI HP=43, AI HP=43
+回合 70: AI HP=42, AI HP=43
+回合 80: AI HP=42, AI HP=40
+回合 90: AI HP=42, AI HP=37
+回合 100: AI HP=42, AI HP=34
+回合 110: AI HP=42, AI HP=32
+回合 120: AI HP=42, AI HP=30
+回合 130: AI HP=38, AI HP=29
+回合 140: AI HP=35, AI HP=27
+回合 150: AI HP=34, AI HP=25
+回合 160: AI HP=31, AI HP=20
+回合 170: AI HP=29, AI HP=18
+回合 180: AI HP=28, AI HP=18
+回合 190: AI HP=26, AI HP=15
+回合 200: AI HP=24, AI HP=15
+回合 210: AI HP=22, AI HP=15
+回合 220: AI HP=19, AI HP=13
+回合 230: AI HP=18, AI HP=13
+回合 240: AI HP=17, AI HP=13
+回合 250: AI HP=17, AI HP=10
+回合 260: AI HP=17, AI HP=8
+回合 270: AI HP=14, AI HP=6
+回合 280: AI HP=12, AI HP=6
+回合 290: AI HP=11, AI HP=5
+回合 300: AI HP=10, AI HP=2
+回合 310: AI HP=9, AI HP=1
+结果: AI
+最终HP: AI=9, AI=0
+死亡蚂蚁: AI=20, AI=25
+超级武器使用: AI=0, AI=0
+总回合数: 311
+
+=== 第 44 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=47
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=43, AI HP=44
+回合 70: AI HP=43, AI HP=40
+回合 80: AI HP=40, AI HP=37
+回合 90: AI HP=35, AI HP=36
+回合 100: AI HP=35, AI HP=33
+回合 110: AI HP=32, AI HP=30
+回合 120: AI HP=30, AI HP=27
+回合 130: AI HP=29, AI HP=24
+回合 140: AI HP=26, AI HP=22
+回合 150: AI HP=24, AI HP=20
+回合 160: AI HP=23, AI HP=20
+回合 170: AI HP=21, AI HP=18
+回合 180: AI HP=18, AI HP=14
+回合 190: AI HP=18, AI HP=13
+回合 200: AI HP=16, AI HP=12
+回合 210: AI HP=15, AI HP=10
+回合 220: AI HP=9, AI HP=10
+回合 230: AI HP=5, AI HP=9
+回合 240: AI HP=4, AI HP=7
+回合 250: AI HP=1, AI HP=4
+回合 260: AI HP=1, AI HP=4
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=13, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 261
+
+=== 第 45 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=48, AI HP=48
+回合 60: AI HP=46, AI HP=46
+回合 70: AI HP=46, AI HP=44
+回合 80: AI HP=41, AI HP=42
+回合 90: AI HP=40, AI HP=36
+回合 100: AI HP=37, AI HP=35
+回合 110: AI HP=34, AI HP=33
+回合 120: AI HP=33, AI HP=33
+回合 130: AI HP=31, AI HP=31
+回合 140: AI HP=29, AI HP=30
+回合 150: AI HP=27, AI HP=29
+回合 160: AI HP=22, AI HP=26
+回合 170: AI HP=19, AI HP=25
+回合 180: AI HP=18, AI HP=25
+回合 190: AI HP=12, AI HP=24
+回合 200: AI HP=12, AI HP=22
+回合 210: AI HP=10, AI HP=18
+回合 220: AI HP=8, AI HP=17
+回合 230: AI HP=5, AI HP=17
+回合 240: AI HP=2, AI HP=15
+回合 250: AI HP=2, AI HP=15
+回合 260: AI HP=1, AI HP=15
+结果: AI
+最终HP: AI=0, AI=15
+死亡蚂蚁: AI=24, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 266
+
+=== 第 46 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=48, AI HP=46
+回合 60: AI HP=44, AI HP=44
+回合 70: AI HP=44, AI HP=44
+回合 80: AI HP=41, AI HP=43
+回合 90: AI HP=40, AI HP=43
+回合 100: AI HP=38, AI HP=40
+回合 110: AI HP=34, AI HP=39
+回合 120: AI HP=33, AI HP=37
+回合 130: AI HP=31, AI HP=36
+回合 140: AI HP=31, AI HP=30
+回合 150: AI HP=30, AI HP=26
+回合 160: AI HP=30, AI HP=22
+回合 170: AI HP=27, AI HP=21
+回合 180: AI HP=25, AI HP=20
+回合 190: AI HP=20, AI HP=19
+回合 200: AI HP=18, AI HP=18
+回合 210: AI HP=17, AI HP=16
+回合 220: AI HP=15, AI HP=12
+回合 230: AI HP=12, AI HP=10
+回合 240: AI HP=10, AI HP=9
+回合 250: AI HP=6, AI HP=6
+回合 260: AI HP=6, AI HP=3
+回合 270: AI HP=4, AI HP=3
+回合 280: AI HP=2, AI HP=0
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=11, AI=13
+超级武器使用: AI=0, AI=0
+总回合数: 280
+
+=== 第 47 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=46, AI HP=47
+回合 60: AI HP=42, AI HP=46
+回合 70: AI HP=40, AI HP=43
+回合 80: AI HP=39, AI HP=40
+回合 90: AI HP=39, AI HP=36
+回合 100: AI HP=38, AI HP=35
+回合 110: AI HP=37, AI HP=34
+回合 120: AI HP=32, AI HP=30
+回合 130: AI HP=31, AI HP=26
+回合 140: AI HP=30, AI HP=24
+回合 150: AI HP=27, AI HP=22
+回合 160: AI HP=24, AI HP=21
+回合 170: AI HP=20, AI HP=19
+回合 180: AI HP=18, AI HP=16
+回合 190: AI HP=17, AI HP=14
+回合 200: AI HP=14, AI HP=12
+回合 210: AI HP=10, AI HP=11
+回合 220: AI HP=9, AI HP=9
+回合 230: AI HP=7, AI HP=7
+回合 240: AI HP=4, AI HP=4
+回合 250: AI HP=2, AI HP=4
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=14, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 48 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=48, AI HP=50
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=45, AI HP=46
+回合 70: AI HP=42, AI HP=44
+回合 80: AI HP=40, AI HP=41
+回合 90: AI HP=39, AI HP=41
+回合 100: AI HP=38, AI HP=38
+回合 110: AI HP=35, AI HP=36
+回合 120: AI HP=32, AI HP=35
+回合 130: AI HP=32, AI HP=33
+回合 140: AI HP=30, AI HP=30
+回合 150: AI HP=29, AI HP=26
+回合 160: AI HP=29, AI HP=23
+回合 170: AI HP=27, AI HP=22
+回合 180: AI HP=24, AI HP=17
+回合 190: AI HP=22, AI HP=16
+回合 200: AI HP=20, AI HP=15
+回合 210: AI HP=19, AI HP=12
+回合 220: AI HP=17, AI HP=11
+回合 230: AI HP=16, AI HP=9
+回合 240: AI HP=14, AI HP=5
+回合 250: AI HP=11, AI HP=2
+回合 260: AI HP=8, AI HP=1
+结果: AI
+最终HP: AI=8, AI=0
+死亡蚂蚁: AI=10, AI=11
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 49 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=46, AI HP=49
+回合 50: AI HP=45, AI HP=49
+回合 60: AI HP=42, AI HP=48
+回合 70: AI HP=39, AI HP=48
+回合 80: AI HP=35, AI HP=46
+回合 90: AI HP=33, AI HP=45
+回合 100: AI HP=32, AI HP=45
+回合 110: AI HP=29, AI HP=43
+回合 120: AI HP=28, AI HP=41
+回合 130: AI HP=26, AI HP=37
+回合 140: AI HP=23, AI HP=35
+回合 150: AI HP=22, AI HP=34
+回合 160: AI HP=18, AI HP=33
+回合 170: AI HP=16, AI HP=33
+回合 180: AI HP=12, AI HP=31
+回合 190: AI HP=10, AI HP=29
+回合 200: AI HP=8, AI HP=28
+回合 210: AI HP=5, AI HP=28
+回合 220: AI HP=4, AI HP=28
+回合 230: AI HP=1, AI HP=28
+结果: AI
+最终HP: AI=0, AI=28
+死亡蚂蚁: AI=32, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 234
+
+=== 第 50 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=47, AI HP=45
+回合 60: AI HP=46, AI HP=44
+回合 70: AI HP=43, AI HP=42
+回合 80: AI HP=41, AI HP=41
+回合 90: AI HP=40, AI HP=37
+回合 100: AI HP=36, AI HP=35
+回合 110: AI HP=31, AI HP=32
+回合 120: AI HP=29, AI HP=29
+回合 130: AI HP=29, AI HP=28
+回合 140: AI HP=27, AI HP=28
+回合 150: AI HP=27, AI HP=27
+回合 160: AI HP=26, AI HP=26
+回合 170: AI HP=23, AI HP=24
+回合 180: AI HP=20, AI HP=23
+回合 190: AI HP=18, AI HP=21
+回合 200: AI HP=16, AI HP=17
+回合 210: AI HP=15, AI HP=14
+回合 220: AI HP=13, AI HP=14
+回合 230: AI HP=11, AI HP=12
+回合 240: AI HP=8, AI HP=10
+回合 250: AI HP=5, AI HP=6
+回合 260: AI HP=3, AI HP=4
+回合 270: AI HP=1, AI HP=0
+结果: AI
+最终HP: AI=1, AI=0
+死亡蚂蚁: AI=11, AI=11
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 51 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=48, AI HP=47
+回合 50: AI HP=46, AI HP=47
+回合 60: AI HP=45, AI HP=45
+回合 70: AI HP=44, AI HP=42
+回合 80: AI HP=39, AI HP=41
+回合 90: AI HP=35, AI HP=39
+回合 100: AI HP=34, AI HP=35
+回合 110: AI HP=32, AI HP=33
+回合 120: AI HP=31, AI HP=29
+回合 130: AI HP=31, AI HP=28
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=25, AI HP=23
+回合 160: AI HP=24, AI HP=22
+回合 170: AI HP=21, AI HP=19
+回合 180: AI HP=21, AI HP=19
+回合 190: AI HP=17, AI HP=18
+回合 200: AI HP=16, AI HP=15
+回合 210: AI HP=13, AI HP=13
+回合 220: AI HP=11, AI HP=12
+回合 230: AI HP=7, AI HP=11
+回合 240: AI HP=3, AI HP=11
+回合 250: AI HP=1, AI HP=9
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=15, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 257
+
+=== 第 52 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=47
+回合 50: AI HP=45, AI HP=45
+回合 60: AI HP=42, AI HP=44
+回合 70: AI HP=40, AI HP=42
+回合 80: AI HP=39, AI HP=38
+回合 90: AI HP=39, AI HP=38
+回合 100: AI HP=38, AI HP=34
+回合 110: AI HP=32, AI HP=33
+回合 120: AI HP=31, AI HP=30
+回合 130: AI HP=28, AI HP=25
+回合 140: AI HP=28, AI HP=24
+回合 150: AI HP=26, AI HP=22
+回合 160: AI HP=25, AI HP=21
+回合 170: AI HP=23, AI HP=19
+回合 180: AI HP=19, AI HP=18
+回合 190: AI HP=17, AI HP=17
+回合 200: AI HP=15, AI HP=17
+回合 210: AI HP=14, AI HP=15
+回合 220: AI HP=13, AI HP=10
+回合 230: AI HP=8, AI HP=7
+回合 240: AI HP=7, AI HP=5
+回合 250: AI HP=3, AI HP=4
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=8, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 53 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=47
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=42, AI HP=43
+回合 70: AI HP=42, AI HP=40
+回合 80: AI HP=40, AI HP=39
+回合 90: AI HP=37, AI HP=35
+回合 100: AI HP=35, AI HP=34
+回合 110: AI HP=34, AI HP=32
+回合 120: AI HP=33, AI HP=28
+回合 130: AI HP=31, AI HP=27
+回合 140: AI HP=28, AI HP=25
+回合 150: AI HP=27, AI HP=25
+回合 160: AI HP=24, AI HP=22
+回合 170: AI HP=22, AI HP=21
+回合 180: AI HP=20, AI HP=21
+回合 190: AI HP=18, AI HP=21
+回合 200: AI HP=13, AI HP=18
+回合 210: AI HP=11, AI HP=17
+回合 220: AI HP=7, AI HP=16
+回合 230: AI HP=5, AI HP=13
+回合 240: AI HP=4, AI HP=10
+回合 250: AI HP=4, AI HP=5
+回合 260: AI HP=2, AI HP=2
+结果: AI
+最终HP: AI=0, AI=1
+死亡蚂蚁: AI=12, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 266
+
+=== 第 54 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=45, AI HP=46
+回合 60: AI HP=42, AI HP=46
+回合 70: AI HP=41, AI HP=43
+回合 80: AI HP=38, AI HP=42
+回合 90: AI HP=35, AI HP=35
+回合 100: AI HP=35, AI HP=33
+回合 110: AI HP=34, AI HP=30
+回合 120: AI HP=32, AI HP=27
+回合 130: AI HP=30, AI HP=25
+回合 140: AI HP=28, AI HP=23
+回合 150: AI HP=25, AI HP=22
+回合 160: AI HP=22, AI HP=21
+回合 170: AI HP=18, AI HP=21
+回合 180: AI HP=17, AI HP=21
+回合 190: AI HP=17, AI HP=14
+回合 200: AI HP=13, AI HP=10
+回合 210: AI HP=10, AI HP=8
+回合 220: AI HP=8, AI HP=7
+回合 230: AI HP=7, AI HP=7
+回合 240: AI HP=5, AI HP=4
+回合 250: AI HP=2, AI HP=3
+结果: AI
+最终HP: AI=0, AI=3
+死亡蚂蚁: AI=10, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 257
+
+=== 第 55 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=43, AI HP=48
+回合 70: AI HP=39, AI HP=47
+回合 80: AI HP=37, AI HP=44
+回合 90: AI HP=35, AI HP=43
+回合 100: AI HP=32, AI HP=43
+回合 110: AI HP=29, AI HP=39
+回合 120: AI HP=27, AI HP=39
+回合 130: AI HP=24, AI HP=37
+回合 140: AI HP=22, AI HP=35
+回合 150: AI HP=19, AI HP=35
+回合 160: AI HP=18, AI HP=34
+回合 170: AI HP=16, AI HP=32
+回合 180: AI HP=13, AI HP=30
+回合 190: AI HP=11, AI HP=29
+回合 200: AI HP=9, AI HP=24
+回合 210: AI HP=7, AI HP=23
+回合 220: AI HP=5, AI HP=21
+回合 230: AI HP=4, AI HP=18
+回合 240: AI HP=3, AI HP=18
+回合 250: AI HP=1, AI HP=17
+结果: AI
+最终HP: AI=0, AI=17
+死亡蚂蚁: AI=27, AI=2
+超级武器使用: AI=0, AI=1
+总回合数: 253
+
+=== 第 56 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=47
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=43, AI HP=45
+回合 70: AI HP=41, AI HP=42
+回合 80: AI HP=38, AI HP=41
+回合 90: AI HP=35, AI HP=38
+回合 100: AI HP=33, AI HP=35
+回合 110: AI HP=31, AI HP=34
+回合 120: AI HP=29, AI HP=33
+回合 130: AI HP=27, AI HP=32
+回合 140: AI HP=25, AI HP=32
+回合 150: AI HP=23, AI HP=32
+回合 160: AI HP=23, AI HP=29
+回合 170: AI HP=20, AI HP=28
+回合 180: AI HP=19, AI HP=25
+回合 190: AI HP=18, AI HP=19
+回合 200: AI HP=14, AI HP=17
+回合 210: AI HP=11, AI HP=16
+回合 220: AI HP=6, AI HP=13
+回合 230: AI HP=4, AI HP=9
+回合 240: AI HP=4, AI HP=5
+回合 250: AI HP=1, AI HP=2
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=9, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 251
+
+=== 第 57 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=46, AI HP=49
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=45, AI HP=45
+回合 70: AI HP=40, AI HP=43
+回合 80: AI HP=39, AI HP=40
+回合 90: AI HP=37, AI HP=37
+回合 100: AI HP=34, AI HP=36
+回合 110: AI HP=34, AI HP=32
+回合 120: AI HP=33, AI HP=28
+回合 130: AI HP=28, AI HP=27
+回合 140: AI HP=26, AI HP=26
+回合 150: AI HP=24, AI HP=25
+回合 160: AI HP=20, AI HP=25
+回合 170: AI HP=18, AI HP=23
+回合 180: AI HP=17, AI HP=23
+回合 190: AI HP=16, AI HP=19
+回合 200: AI HP=14, AI HP=16
+回合 210: AI HP=12, AI HP=14
+回合 220: AI HP=9, AI HP=12
+回合 230: AI HP=8, AI HP=7
+回合 240: AI HP=6, AI HP=5
+回合 250: AI HP=5, AI HP=1
+结果: AI
+最终HP: AI=5, AI=0
+死亡蚂蚁: AI=9, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 58 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=48, AI HP=50
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=42, AI HP=46
+回合 70: AI HP=41, AI HP=45
+回合 80: AI HP=37, AI HP=43
+回合 90: AI HP=37, AI HP=40
+回合 100: AI HP=34, AI HP=38
+回合 110: AI HP=31, AI HP=34
+回合 120: AI HP=28, AI HP=33
+回合 130: AI HP=28, AI HP=29
+回合 140: AI HP=24, AI HP=28
+回合 150: AI HP=23, AI HP=26
+回合 160: AI HP=19, AI HP=24
+回合 170: AI HP=18, AI HP=24
+回合 180: AI HP=16, AI HP=19
+回合 190: AI HP=16, AI HP=17
+回合 200: AI HP=16, AI HP=14
+回合 210: AI HP=12, AI HP=14
+回合 220: AI HP=10, AI HP=11
+回合 230: AI HP=7, AI HP=8
+回合 240: AI HP=5, AI HP=8
+回合 250: AI HP=2, AI HP=7
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=9, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 258
+
+=== 第 59 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=44, AI HP=44
+回合 70: AI HP=41, AI HP=43
+回合 80: AI HP=39, AI HP=42
+回合 90: AI HP=37, AI HP=41
+回合 100: AI HP=34, AI HP=40
+回合 110: AI HP=33, AI HP=40
+回合 120: AI HP=31, AI HP=36
+回合 130: AI HP=28, AI HP=32
+回合 140: AI HP=28, AI HP=32
+回合 150: AI HP=25, AI HP=27
+回合 160: AI HP=24, AI HP=24
+回合 170: AI HP=22, AI HP=21
+回合 180: AI HP=20, AI HP=19
+回合 190: AI HP=15, AI HP=19
+回合 200: AI HP=14, AI HP=17
+回合 210: AI HP=10, AI HP=15
+回合 220: AI HP=8, AI HP=10
+回合 230: AI HP=6, AI HP=9
+回合 240: AI HP=5, AI HP=6
+回合 250: AI HP=2, AI HP=3
+回合 260: AI HP=1, AI HP=2
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=11, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 261
+
+=== 第 60 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=49
+回合 40: AI HP=46, AI HP=49
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=41, AI HP=44
+回合 70: AI HP=40, AI HP=41
+回合 80: AI HP=37, AI HP=41
+回合 90: AI HP=33, AI HP=38
+回合 100: AI HP=31, AI HP=37
+回合 110: AI HP=31, AI HP=37
+回合 120: AI HP=29, AI HP=37
+回合 130: AI HP=26, AI HP=37
+回合 140: AI HP=25, AI HP=33
+回合 150: AI HP=23, AI HP=32
+回合 160: AI HP=21, AI HP=30
+回合 170: AI HP=19, AI HP=30
+回合 180: AI HP=14, AI HP=29
+回合 190: AI HP=12, AI HP=27
+回合 200: AI HP=12, AI HP=27
+回合 210: AI HP=9, AI HP=27
+回合 220: AI HP=8, AI HP=23
+回合 230: AI HP=6, AI HP=21
+回合 240: AI HP=3, AI HP=18
+结果: AI
+最终HP: AI=0, AI=18
+死亡蚂蚁: AI=19, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 246
+
+=== 第 61 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=45, AI HP=45
+回合 70: AI HP=43, AI HP=44
+回合 80: AI HP=40, AI HP=41
+回合 90: AI HP=38, AI HP=39
+回合 100: AI HP=37, AI HP=36
+回合 110: AI HP=33, AI HP=35
+回合 120: AI HP=32, AI HP=34
+回合 130: AI HP=29, AI HP=31
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=24, AI HP=26
+回合 160: AI HP=24, AI HP=24
+回合 170: AI HP=23, AI HP=21
+回合 180: AI HP=17, AI HP=21
+回合 190: AI HP=15, AI HP=17
+回合 200: AI HP=12, AI HP=15
+回合 210: AI HP=10, AI HP=13
+回合 220: AI HP=7, AI HP=13
+回合 230: AI HP=5, AI HP=9
+回合 240: AI HP=4, AI HP=8
+结果: AI
+最终HP: AI=0, AI=7
+死亡蚂蚁: AI=8, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 249
+
+=== 第 62 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=46, AI HP=42
+回合 70: AI HP=42, AI HP=41
+回合 80: AI HP=41, AI HP=39
+回合 90: AI HP=39, AI HP=35
+回合 100: AI HP=38, AI HP=33
+回合 110: AI HP=34, AI HP=31
+回合 120: AI HP=33, AI HP=29
+回合 130: AI HP=31, AI HP=26
+回合 140: AI HP=30, AI HP=23
+回合 150: AI HP=30, AI HP=23
+回合 160: AI HP=25, AI HP=22
+回合 170: AI HP=23, AI HP=20
+回合 180: AI HP=19, AI HP=17
+回合 190: AI HP=16, AI HP=17
+回合 200: AI HP=15, AI HP=17
+回合 210: AI HP=13, AI HP=14
+回合 220: AI HP=9, AI HP=9
+回合 230: AI HP=8, AI HP=6
+回合 240: AI HP=5, AI HP=5
+回合 250: AI HP=2, AI HP=2
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=8, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 251
+
+=== 第 63 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=47, AI HP=48
+回合 60: AI HP=45, AI HP=47
+回合 70: AI HP=43, AI HP=45
+回合 80: AI HP=41, AI HP=44
+回合 90: AI HP=40, AI HP=40
+回合 100: AI HP=36, AI HP=39
+回合 110: AI HP=34, AI HP=36
+回合 120: AI HP=31, AI HP=36
+回合 130: AI HP=29, AI HP=34
+回合 140: AI HP=28, AI HP=31
+回合 150: AI HP=26, AI HP=28
+回合 160: AI HP=24, AI HP=24
+回合 170: AI HP=21, AI HP=22
+回合 180: AI HP=20, AI HP=18
+回合 190: AI HP=19, AI HP=16
+回合 200: AI HP=17, AI HP=14
+回合 210: AI HP=16, AI HP=14
+回合 220: AI HP=13, AI HP=11
+回合 230: AI HP=9, AI HP=11
+回合 240: AI HP=7, AI HP=9
+回合 250: AI HP=4, AI HP=7
+回合 260: AI HP=3, AI HP=6
+回合 270: AI HP=0, AI HP=5
+结果: AI
+最终HP: AI=0, AI=5
+死亡蚂蚁: AI=13, AI=10
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 64 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=45, AI HP=43
+回合 70: AI HP=43, AI HP=42
+回合 80: AI HP=39, AI HP=38
+回合 90: AI HP=38, AI HP=35
+回合 100: AI HP=38, AI HP=34
+回合 110: AI HP=34, AI HP=31
+回合 120: AI HP=30, AI HP=30
+回合 130: AI HP=27, AI HP=28
+回合 140: AI HP=24, AI HP=27
+回合 150: AI HP=23, AI HP=25
+回合 160: AI HP=20, AI HP=21
+回合 170: AI HP=18, AI HP=19
+回合 180: AI HP=16, AI HP=17
+回合 190: AI HP=15, AI HP=16
+回合 200: AI HP=14, AI HP=15
+回合 210: AI HP=12, AI HP=10
+回合 220: AI HP=11, AI HP=9
+回合 230: AI HP=9, AI HP=8
+回合 240: AI HP=5, AI HP=6
+回合 250: AI HP=2, AI HP=1
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=7, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 251
+
+=== 第 65 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=47, AI HP=47
+回合 60: AI HP=45, AI HP=47
+回合 70: AI HP=42, AI HP=45
+回合 80: AI HP=39, AI HP=45
+回合 90: AI HP=36, AI HP=42
+回合 100: AI HP=35, AI HP=40
+回合 110: AI HP=31, AI HP=38
+回合 120: AI HP=30, AI HP=36
+回合 130: AI HP=28, AI HP=33
+回合 140: AI HP=25, AI HP=31
+回合 150: AI HP=23, AI HP=28
+回合 160: AI HP=20, AI HP=26
+回合 170: AI HP=20, AI HP=24
+回合 180: AI HP=18, AI HP=23
+回合 190: AI HP=15, AI HP=22
+回合 200: AI HP=15, AI HP=22
+回合 210: AI HP=15, AI HP=18
+回合 220: AI HP=15, AI HP=12
+回合 230: AI HP=15, AI HP=11
+回合 240: AI HP=15, AI HP=9
+回合 250: AI HP=12, AI HP=8
+回合 260: AI HP=8, AI HP=8
+回合 270: AI HP=7, AI HP=6
+回合 280: AI HP=6, AI HP=3
+回合 290: AI HP=3, AI HP=2
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=16, AI=18
+超级武器使用: AI=0, AI=0
+总回合数: 298
+
+=== 第 66 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=48
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=48, AI HP=47
+回合 60: AI HP=48, AI HP=46
+回合 70: AI HP=45, AI HP=44
+回合 80: AI HP=44, AI HP=42
+回合 90: AI HP=42, AI HP=41
+回合 100: AI HP=38, AI HP=38
+回合 110: AI HP=35, AI HP=35
+回合 120: AI HP=32, AI HP=33
+回合 130: AI HP=29, AI HP=33
+回合 140: AI HP=28, AI HP=28
+回合 150: AI HP=27, AI HP=25
+回合 160: AI HP=26, AI HP=23
+回合 170: AI HP=25, AI HP=22
+回合 180: AI HP=21, AI HP=20
+回合 190: AI HP=20, AI HP=18
+回合 200: AI HP=20, AI HP=15
+回合 210: AI HP=18, AI HP=13
+回合 220: AI HP=16, AI HP=11
+回合 230: AI HP=13, AI HP=8
+回合 240: AI HP=11, AI HP=7
+回合 250: AI HP=6, AI HP=7
+回合 260: AI HP=4, AI HP=6
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=16, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 269
+
+=== 第 67 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=43, AI HP=48
+回合 70: AI HP=41, AI HP=48
+回合 80: AI HP=39, AI HP=46
+回合 90: AI HP=39, AI HP=45
+回合 100: AI HP=39, AI HP=45
+回合 110: AI HP=33, AI HP=43
+回合 120: AI HP=31, AI HP=40
+回合 130: AI HP=30, AI HP=37
+回合 140: AI HP=28, AI HP=36
+回合 150: AI HP=25, AI HP=35
+回合 160: AI HP=23, AI HP=34
+回合 170: AI HP=21, AI HP=29
+回合 180: AI HP=17, AI HP=26
+回合 190: AI HP=15, AI HP=25
+回合 200: AI HP=12, AI HP=21
+回合 210: AI HP=10, AI HP=17
+回合 220: AI HP=8, AI HP=15
+回合 230: AI HP=7, AI HP=15
+回合 240: AI HP=5, AI HP=14
+回合 250: AI HP=1, AI HP=11
+回合 260: AI HP=1, AI HP=10
+结果: AI
+最终HP: AI=0, AI=10
+死亡蚂蚁: AI=13, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 261
+
+=== 第 68 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=49
+回合 50: AI HP=48, AI HP=48
+回合 60: AI HP=46, AI HP=47
+回合 70: AI HP=43, AI HP=45
+回合 80: AI HP=40, AI HP=41
+回合 90: AI HP=38, AI HP=39
+回合 100: AI HP=36, AI HP=37
+回合 110: AI HP=34, AI HP=34
+回合 120: AI HP=31, AI HP=34
+回合 130: AI HP=30, AI HP=32
+回合 140: AI HP=27, AI HP=32
+回合 150: AI HP=24, AI HP=30
+回合 160: AI HP=24, AI HP=29
+回合 170: AI HP=21, AI HP=28
+回合 180: AI HP=19, AI HP=28
+回合 190: AI HP=18, AI HP=24
+回合 200: AI HP=15, AI HP=23
+回合 210: AI HP=12, AI HP=21
+回合 220: AI HP=10, AI HP=19
+回合 230: AI HP=7, AI HP=19
+回合 240: AI HP=5, AI HP=14
+回合 250: AI HP=3, AI HP=12
+回合 260: AI HP=3, AI HP=9
+结果: AI
+最终HP: AI=0, AI=7
+死亡蚂蚁: AI=15, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 265
+
+=== 第 69 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=49
+回合 40: AI HP=46, AI HP=47
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=44, AI HP=43
+回合 70: AI HP=43, AI HP=41
+回合 80: AI HP=42, AI HP=41
+回合 90: AI HP=41, AI HP=41
+回合 100: AI HP=41, AI HP=39
+回合 110: AI HP=41, AI HP=33
+回合 120: AI HP=40, AI HP=32
+回合 130: AI HP=39, AI HP=27
+回合 140: AI HP=38, AI HP=25
+回合 150: AI HP=35, AI HP=23
+回合 160: AI HP=34, AI HP=22
+回合 170: AI HP=30, AI HP=22
+回合 180: AI HP=27, AI HP=22
+回合 190: AI HP=25, AI HP=20
+回合 200: AI HP=22, AI HP=18
+回合 210: AI HP=19, AI HP=15
+回合 220: AI HP=17, AI HP=12
+回合 230: AI HP=16, AI HP=9
+回合 240: AI HP=14, AI HP=7
+回合 250: AI HP=10, AI HP=7
+回合 260: AI HP=8, AI HP=5
+回合 270: AI HP=5, AI HP=4
+回合 280: AI HP=2, AI HP=4
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=18, AI=19
+超级武器使用: AI=0, AI=0
+总回合数: 287
+
+=== 第 70 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=50, AI HP=47
+回合 50: AI HP=47, AI HP=46
+回合 60: AI HP=43, AI HP=45
+回合 70: AI HP=42, AI HP=43
+回合 80: AI HP=38, AI HP=39
+回合 90: AI HP=37, AI HP=38
+回合 100: AI HP=34, AI HP=37
+回合 110: AI HP=32, AI HP=35
+回合 120: AI HP=29, AI HP=32
+回合 130: AI HP=27, AI HP=30
+回合 140: AI HP=25, AI HP=29
+回合 150: AI HP=25, AI HP=28
+回合 160: AI HP=25, AI HP=27
+回合 170: AI HP=23, AI HP=23
+回合 180: AI HP=20, AI HP=20
+回合 190: AI HP=17, AI HP=19
+回合 200: AI HP=15, AI HP=14
+回合 210: AI HP=14, AI HP=12
+回合 220: AI HP=12, AI HP=10
+回合 230: AI HP=10, AI HP=10
+回合 240: AI HP=7, AI HP=9
+回合 250: AI HP=5, AI HP=7
+回合 260: AI HP=3, AI HP=4
+回合 270: AI HP=2, AI HP=0
+结果: AI
+最终HP: AI=2, AI=0
+死亡蚂蚁: AI=10, AI=12
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 71 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=46, AI HP=50
+回合 50: AI HP=45, AI HP=50
+回合 60: AI HP=43, AI HP=50
+回合 70: AI HP=40, AI HP=49
+回合 80: AI HP=38, AI HP=48
+回合 90: AI HP=36, AI HP=44
+回合 100: AI HP=34, AI HP=42
+回合 110: AI HP=33, AI HP=41
+回合 120: AI HP=30, AI HP=38
+回合 130: AI HP=26, AI HP=37
+回合 140: AI HP=25, AI HP=36
+回合 150: AI HP=24, AI HP=36
+回合 160: AI HP=22, AI HP=35
+回合 170: AI HP=19, AI HP=32
+回合 180: AI HP=17, AI HP=31
+回合 190: AI HP=16, AI HP=29
+回合 200: AI HP=15, AI HP=28
+回合 210: AI HP=12, AI HP=27
+回合 220: AI HP=11, AI HP=23
+回合 230: AI HP=10, AI HP=19
+回合 240: AI HP=8, AI HP=17
+回合 250: AI HP=7, AI HP=16
+回合 260: AI HP=6, AI HP=12
+回合 270: AI HP=2, AI HP=10
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=20, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 278
+
+=== 第 72 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=48, AI HP=46
+回合 50: AI HP=45, AI HP=44
+回合 60: AI HP=43, AI HP=43
+回合 70: AI HP=40, AI HP=40
+回合 80: AI HP=39, AI HP=40
+回合 90: AI HP=37, AI HP=38
+回合 100: AI HP=35, AI HP=36
+回合 110: AI HP=34, AI HP=35
+回合 120: AI HP=32, AI HP=32
+回合 130: AI HP=30, AI HP=29
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=25, AI HP=25
+回合 160: AI HP=25, AI HP=25
+回合 170: AI HP=23, AI HP=24
+回合 180: AI HP=18, AI HP=23
+回合 190: AI HP=17, AI HP=19
+回合 200: AI HP=14, AI HP=14
+回合 210: AI HP=12, AI HP=13
+回合 220: AI HP=11, AI HP=11
+回合 230: AI HP=9, AI HP=10
+回合 240: AI HP=6, AI HP=8
+回合 250: AI HP=5, AI HP=8
+回合 260: AI HP=4, AI HP=7
+回合 270: AI HP=1, AI HP=6
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=14, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 271
+
+=== 第 73 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=46, AI HP=46
+回合 50: AI HP=45, AI HP=45
+回合 60: AI HP=43, AI HP=44
+回合 70: AI HP=40, AI HP=44
+回合 80: AI HP=38, AI HP=43
+回合 90: AI HP=37, AI HP=43
+回合 100: AI HP=33, AI HP=43
+回合 110: AI HP=31, AI HP=43
+回合 120: AI HP=30, AI HP=42
+回合 130: AI HP=27, AI HP=41
+回合 140: AI HP=24, AI HP=41
+回合 150: AI HP=20, AI HP=40
+回合 160: AI HP=19, AI HP=37
+回合 170: AI HP=17, AI HP=34
+回合 180: AI HP=16, AI HP=33
+回合 190: AI HP=14, AI HP=33
+回合 200: AI HP=12, AI HP=33
+回合 210: AI HP=9, AI HP=31
+回合 220: AI HP=7, AI HP=28
+回合 230: AI HP=5, AI HP=25
+回合 240: AI HP=2, AI HP=20
+结果: AI
+最终HP: AI=0, AI=20
+死亡蚂蚁: AI=25, AI=5
+超级武器使用: AI=0, AI=1
+总回合数: 242
+
+=== 第 74 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=48, AI HP=48
+回合 60: AI HP=48, AI HP=47
+回合 70: AI HP=45, AI HP=46
+回合 80: AI HP=45, AI HP=45
+回合 90: AI HP=41, AI HP=41
+回合 100: AI HP=39, AI HP=39
+回合 110: AI HP=36, AI HP=35
+回合 120: AI HP=33, AI HP=30
+回合 130: AI HP=30, AI HP=29
+回合 140: AI HP=29, AI HP=26
+回合 150: AI HP=26, AI HP=25
+回合 160: AI HP=24, AI HP=25
+回合 170: AI HP=23, AI HP=21
+回合 180: AI HP=20, AI HP=20
+回合 190: AI HP=19, AI HP=19
+回合 200: AI HP=17, AI HP=15
+回合 210: AI HP=15, AI HP=14
+回合 220: AI HP=15, AI HP=12
+回合 230: AI HP=13, AI HP=10
+回合 240: AI HP=11, AI HP=8
+回合 250: AI HP=9, AI HP=5
+回合 260: AI HP=7, AI HP=4
+回合 270: AI HP=4, AI HP=2
+结果: AI
+最终HP: AI=4, AI=0
+死亡蚂蚁: AI=9, AI=9
+超级武器使用: AI=0, AI=0
+总回合数: 275
+
+=== 第 75 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=45, AI HP=48
+回合 50: AI HP=44, AI HP=46
+回合 60: AI HP=43, AI HP=43
+回合 70: AI HP=43, AI HP=40
+回合 80: AI HP=42, AI HP=35
+回合 90: AI HP=41, AI HP=34
+回合 100: AI HP=37, AI HP=33
+回合 110: AI HP=32, AI HP=30
+回合 120: AI HP=32, AI HP=28
+回合 130: AI HP=30, AI HP=27
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=23, AI HP=25
+回合 160: AI HP=22, AI HP=24
+回合 170: AI HP=20, AI HP=21
+回合 180: AI HP=18, AI HP=18
+回合 190: AI HP=15, AI HP=17
+回合 200: AI HP=14, AI HP=16
+回合 210: AI HP=10, AI HP=11
+回合 220: AI HP=10, AI HP=10
+回合 230: AI HP=8, AI HP=8
+回合 240: AI HP=6, AI HP=5
+回合 250: AI HP=4, AI HP=4
+回合 260: AI HP=2, AI HP=3
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=8, AI=8
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 76 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=47, AI HP=50
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=44, AI HP=41
+回合 70: AI HP=42, AI HP=37
+回合 80: AI HP=39, AI HP=36
+回合 90: AI HP=38, AI HP=35
+回合 100: AI HP=36, AI HP=35
+回合 110: AI HP=36, AI HP=35
+回合 120: AI HP=35, AI HP=35
+回合 130: AI HP=32, AI HP=35
+回合 140: AI HP=28, AI HP=30
+回合 150: AI HP=27, AI HP=30
+回合 160: AI HP=23, AI HP=27
+回合 170: AI HP=21, AI HP=25
+回合 180: AI HP=19, AI HP=24
+回合 190: AI HP=15, AI HP=23
+回合 200: AI HP=14, AI HP=20
+回合 210: AI HP=9, AI HP=17
+回合 220: AI HP=7, AI HP=15
+回合 230: AI HP=5, AI HP=13
+回合 240: AI HP=5, AI HP=12
+回合 250: AI HP=2, AI HP=10
+结果: AI
+最终HP: AI=0, AI=10
+死亡蚂蚁: AI=12, AI=4
+超级武器使用: AI=0, AI=0
+总回合数: 254
+
+=== 第 77 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=50, AI HP=48
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=43, AI HP=46
+回合 70: AI HP=41, AI HP=44
+回合 80: AI HP=38, AI HP=42
+回合 90: AI HP=36, AI HP=40
+回合 100: AI HP=34, AI HP=38
+回合 110: AI HP=33, AI HP=36
+回合 120: AI HP=31, AI HP=34
+回合 130: AI HP=30, AI HP=33
+回合 140: AI HP=28, AI HP=30
+回合 150: AI HP=26, AI HP=29
+回合 160: AI HP=25, AI HP=26
+回合 170: AI HP=19, AI HP=24
+回合 180: AI HP=17, AI HP=21
+回合 190: AI HP=14, AI HP=20
+回合 200: AI HP=13, AI HP=18
+回合 210: AI HP=11, AI HP=17
+回合 220: AI HP=7, AI HP=15
+回合 230: AI HP=7, AI HP=14
+回合 240: AI HP=6, AI HP=11
+回合 250: AI HP=1, AI HP=10
+结果: AI
+最终HP: AI=0, AI=10
+死亡蚂蚁: AI=12, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 253
+
+=== 第 78 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=43, AI HP=48
+回合 70: AI HP=42, AI HP=47
+回合 80: AI HP=40, AI HP=46
+回合 90: AI HP=39, AI HP=46
+回合 100: AI HP=37, AI HP=45
+回合 110: AI HP=36, AI HP=44
+回合 120: AI HP=33, AI HP=41
+回合 130: AI HP=29, AI HP=41
+回合 140: AI HP=26, AI HP=41
+回合 150: AI HP=26, AI HP=41
+回合 160: AI HP=26, AI HP=41
+回合 170: AI HP=24, AI HP=38
+回合 180: AI HP=20, AI HP=38
+回合 190: AI HP=16, AI HP=37
+回合 200: AI HP=13, AI HP=35
+回合 210: AI HP=11, AI HP=34
+回合 220: AI HP=9, AI HP=34
+回合 230: AI HP=6, AI HP=33
+回合 240: AI HP=4, AI HP=33
+回合 250: AI HP=1, AI HP=32
+结果: AI
+最终HP: AI=0, AI=32
+死亡蚂蚁: AI=41, AI=7
+超级武器使用: AI=0, AI=2
+总回合数: 254
+
+=== 第 79 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=50, AI HP=48
+回合 50: AI HP=48, AI HP=44
+回合 60: AI HP=46, AI HP=42
+回合 70: AI HP=44, AI HP=41
+回合 80: AI HP=39, AI HP=39
+回合 90: AI HP=38, AI HP=38
+回合 100: AI HP=36, AI HP=35
+回合 110: AI HP=35, AI HP=32
+回合 120: AI HP=35, AI HP=30
+回合 130: AI HP=30, AI HP=27
+回合 140: AI HP=29, AI HP=25
+回合 150: AI HP=26, AI HP=25
+回合 160: AI HP=24, AI HP=25
+回合 170: AI HP=22, AI HP=24
+回合 180: AI HP=19, AI HP=22
+回合 190: AI HP=18, AI HP=17
+回合 200: AI HP=16, AI HP=16
+回合 210: AI HP=13, AI HP=16
+回合 220: AI HP=11, AI HP=11
+回合 230: AI HP=9, AI HP=9
+回合 240: AI HP=6, AI HP=9
+回合 250: AI HP=5, AI HP=8
+回合 260: AI HP=4, AI HP=7
+回合 270: AI HP=0, AI HP=4
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=14, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 第 80 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=48
+回合 40: AI HP=47, AI HP=46
+回合 50: AI HP=45, AI HP=46
+回合 60: AI HP=42, AI HP=46
+回合 70: AI HP=41, AI HP=42
+回合 80: AI HP=39, AI HP=40
+回合 90: AI HP=38, AI HP=37
+回合 100: AI HP=37, AI HP=35
+回合 110: AI HP=35, AI HP=34
+回合 120: AI HP=34, AI HP=31
+回合 130: AI HP=32, AI HP=29
+回合 140: AI HP=31, AI HP=27
+回合 150: AI HP=27, AI HP=26
+回合 160: AI HP=21, AI HP=25
+回合 170: AI HP=20, AI HP=24
+回合 180: AI HP=18, AI HP=24
+回合 190: AI HP=15, AI HP=23
+回合 200: AI HP=13, AI HP=21
+回合 210: AI HP=11, AI HP=20
+回合 220: AI HP=8, AI HP=16
+回合 230: AI HP=6, AI HP=15
+回合 240: AI HP=1, AI HP=13
+结果: AI
+最终HP: AI=0, AI=13
+死亡蚂蚁: AI=17, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 242
+
+=== 第 81 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=48, AI HP=47
+回合 60: AI HP=46, AI HP=45
+回合 70: AI HP=45, AI HP=44
+回合 80: AI HP=42, AI HP=41
+回合 90: AI HP=40, AI HP=41
+回合 100: AI HP=38, AI HP=40
+回合 110: AI HP=35, AI HP=34
+回合 120: AI HP=34, AI HP=31
+回合 130: AI HP=30, AI HP=29
+回合 140: AI HP=27, AI HP=29
+回合 150: AI HP=25, AI HP=26
+回合 160: AI HP=23, AI HP=24
+回合 170: AI HP=23, AI HP=21
+回合 180: AI HP=21, AI HP=20
+回合 190: AI HP=16, AI HP=19
+回合 200: AI HP=15, AI HP=16
+回合 210: AI HP=13, AI HP=12
+回合 220: AI HP=11, AI HP=12
+回合 230: AI HP=8, AI HP=12
+回合 240: AI HP=6, AI HP=11
+回合 250: AI HP=2, AI HP=10
+结果: AI
+最终HP: AI=0, AI=5
+死亡蚂蚁: AI=11, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 256
+
+=== 第 82 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=48, AI HP=48
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=44, AI HP=44
+回合 80: AI HP=41, AI HP=41
+回合 90: AI HP=37, AI HP=40
+回合 100: AI HP=35, AI HP=37
+回合 110: AI HP=34, AI HP=37
+回合 120: AI HP=32, AI HP=32
+回合 130: AI HP=28, AI HP=29
+回合 140: AI HP=25, AI HP=26
+回合 150: AI HP=22, AI HP=23
+回合 160: AI HP=22, AI HP=18
+回合 170: AI HP=19, AI HP=14
+回合 180: AI HP=16, AI HP=11
+回合 190: AI HP=14, AI HP=7
+回合 200: AI HP=14, AI HP=4
+回合 210: AI HP=11, AI HP=1
+结果: AI
+最终HP: AI=9, AI=0
+死亡蚂蚁: AI=10, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 218
+
+=== 第 83 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=49, AI HP=50
+回合 30: AI HP=49, AI HP=48
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=48, AI HP=47
+回合 60: AI HP=44, AI HP=46
+回合 70: AI HP=39, AI HP=43
+回合 80: AI HP=39, AI HP=42
+回合 90: AI HP=38, AI HP=40
+回合 100: AI HP=35, AI HP=36
+回合 110: AI HP=34, AI HP=32
+回合 120: AI HP=31, AI HP=30
+回合 130: AI HP=28, AI HP=30
+回合 140: AI HP=27, AI HP=27
+回合 150: AI HP=26, AI HP=26
+回合 160: AI HP=22, AI HP=24
+回合 170: AI HP=18, AI HP=21
+回合 180: AI HP=17, AI HP=20
+回合 190: AI HP=15, AI HP=18
+回合 200: AI HP=15, AI HP=16
+回合 210: AI HP=12, AI HP=14
+回合 220: AI HP=9, AI HP=13
+回合 230: AI HP=5, AI HP=13
+回合 240: AI HP=3, AI HP=12
+结果: AI
+最终HP: AI=0, AI=11
+死亡蚂蚁: AI=12, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 249
+
+=== 第 84 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=47, AI HP=50
+回合 40: AI HP=47, AI HP=50
+回合 50: AI HP=45, AI HP=49
+回合 60: AI HP=45, AI HP=47
+回合 70: AI HP=44, AI HP=44
+回合 80: AI HP=40, AI HP=42
+回合 90: AI HP=40, AI HP=42
+回合 100: AI HP=37, AI HP=42
+回合 110: AI HP=34, AI HP=41
+回合 120: AI HP=33, AI HP=41
+回合 130: AI HP=29, AI HP=41
+回合 140: AI HP=26, AI HP=38
+回合 150: AI HP=26, AI HP=34
+回合 160: AI HP=25, AI HP=31
+回合 170: AI HP=20, AI HP=30
+回合 180: AI HP=18, AI HP=27
+回合 190: AI HP=18, AI HP=24
+回合 200: AI HP=16, AI HP=22
+回合 210: AI HP=14, AI HP=20
+回合 220: AI HP=12, AI HP=17
+回合 230: AI HP=9, AI HP=15
+回合 240: AI HP=6, AI HP=12
+回合 250: AI HP=4, AI HP=12
+回合 260: AI HP=2, AI HP=10
+结果: AI
+最终HP: AI=0, AI=10
+死亡蚂蚁: AI=17, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 267
+
+=== 第 85 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=47, AI HP=44
+回合 60: AI HP=46, AI HP=42
+回合 70: AI HP=44, AI HP=39
+回合 80: AI HP=39, AI HP=37
+回合 90: AI HP=36, AI HP=37
+回合 100: AI HP=34, AI HP=37
+回合 110: AI HP=31, AI HP=37
+回合 120: AI HP=29, AI HP=35
+回合 130: AI HP=28, AI HP=34
+回合 140: AI HP=27, AI HP=33
+回合 150: AI HP=25, AI HP=31
+回合 160: AI HP=24, AI HP=29
+回合 170: AI HP=20, AI HP=27
+回合 180: AI HP=17, AI HP=25
+回合 190: AI HP=16, AI HP=23
+回合 200: AI HP=12, AI HP=20
+回合 210: AI HP=9, AI HP=18
+回合 220: AI HP=7, AI HP=15
+回合 230: AI HP=6, AI HP=12
+回合 240: AI HP=2, AI HP=12
+回合 250: AI HP=1, AI HP=9
+结果: AI
+最终HP: AI=0, AI=9
+死亡蚂蚁: AI=14, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 252
+
+=== 第 86 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=47, AI HP=48
+回合 50: AI HP=46, AI HP=46
+回合 60: AI HP=45, AI HP=43
+回合 70: AI HP=43, AI HP=40
+回合 80: AI HP=41, AI HP=39
+回合 90: AI HP=40, AI HP=35
+回合 100: AI HP=38, AI HP=34
+回合 110: AI HP=35, AI HP=32
+回合 120: AI HP=33, AI HP=29
+回合 130: AI HP=29, AI HP=28
+回合 140: AI HP=28, AI HP=28
+回合 150: AI HP=25, AI HP=25
+回合 160: AI HP=24, AI HP=23
+回合 170: AI HP=22, AI HP=18
+回合 180: AI HP=18, AI HP=17
+回合 190: AI HP=14, AI HP=17
+回合 200: AI HP=12, AI HP=17
+回合 210: AI HP=9, AI HP=17
+回合 220: AI HP=5, AI HP=16
+回合 230: AI HP=4, AI HP=14
+回合 240: AI HP=3, AI HP=11
+回合 250: AI HP=1, AI HP=9
+回合 260: AI HP=1, AI HP=7
+结果: AI
+最终HP: AI=0, AI=6
+死亡蚂蚁: AI=12, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 87 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=47, AI HP=47
+回合 50: AI HP=43, AI HP=44
+回合 60: AI HP=42, AI HP=42
+回合 70: AI HP=40, AI HP=40
+回合 80: AI HP=39, AI HP=38
+回合 90: AI HP=37, AI HP=36
+回合 100: AI HP=35, AI HP=32
+回合 110: AI HP=33, AI HP=30
+回合 120: AI HP=30, AI HP=30
+回合 130: AI HP=28, AI HP=29
+回合 140: AI HP=25, AI HP=29
+回合 150: AI HP=22, AI HP=29
+回合 160: AI HP=19, AI HP=29
+回合 170: AI HP=19, AI HP=29
+回合 180: AI HP=18, AI HP=29
+回合 190: AI HP=16, AI HP=28
+回合 200: AI HP=15, AI HP=25
+回合 210: AI HP=10, AI HP=23
+回合 220: AI HP=8, AI HP=23
+回合 230: AI HP=4, AI HP=22
+回合 240: AI HP=3, AI HP=21
+回合 250: AI HP=3, AI HP=19
+结果: AI
+最终HP: AI=0, AI=18
+死亡蚂蚁: AI=26, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 257
+
+=== 第 88 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=49, AI HP=47
+回合 60: AI HP=46, AI HP=46
+回合 70: AI HP=45, AI HP=43
+回合 80: AI HP=39, AI HP=42
+回合 90: AI HP=35, AI HP=41
+回合 100: AI HP=33, AI HP=40
+回合 110: AI HP=31, AI HP=38
+回合 120: AI HP=29, AI HP=37
+回合 130: AI HP=28, AI HP=35
+回合 140: AI HP=26, AI HP=35
+回合 150: AI HP=22, AI HP=34
+回合 160: AI HP=22, AI HP=32
+回合 170: AI HP=19, AI HP=29
+回合 180: AI HP=17, AI HP=27
+回合 190: AI HP=16, AI HP=26
+回合 200: AI HP=14, AI HP=24
+回合 210: AI HP=12, AI HP=22
+回合 220: AI HP=9, AI HP=22
+回合 230: AI HP=4, AI HP=22
+回合 240: AI HP=1, AI HP=22
+结果: AI
+最终HP: AI=0, AI=22
+死亡蚂蚁: AI=29, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 243
+
+=== 第 89 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=49
+回合 40: AI HP=48, AI HP=48
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=45, AI HP=46
+回合 70: AI HP=43, AI HP=46
+回合 80: AI HP=41, AI HP=45
+回合 90: AI HP=39, AI HP=42
+回合 100: AI HP=38, AI HP=41
+回合 110: AI HP=36, AI HP=40
+回合 120: AI HP=32, AI HP=36
+回合 130: AI HP=28, AI HP=34
+回合 140: AI HP=27, AI HP=32
+回合 150: AI HP=25, AI HP=29
+回合 160: AI HP=22, AI HP=23
+回合 170: AI HP=21, AI HP=21
+回合 180: AI HP=16, AI HP=18
+回合 190: AI HP=13, AI HP=17
+回合 200: AI HP=12, AI HP=16
+回合 210: AI HP=9, AI HP=15
+回合 220: AI HP=9, AI HP=9
+回合 230: AI HP=6, AI HP=8
+回合 240: AI HP=5, AI HP=3
+回合 250: AI HP=4, AI HP=0
+结果: AI
+最终HP: AI=4, AI=0
+死亡蚂蚁: AI=14, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 250
+
+=== 第 90 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=44, AI HP=47
+回合 60: AI HP=42, AI HP=47
+回合 70: AI HP=40, AI HP=46
+回合 80: AI HP=38, AI HP=42
+回合 90: AI HP=35, AI HP=39
+回合 100: AI HP=34, AI HP=37
+回合 110: AI HP=32, AI HP=35
+回合 120: AI HP=29, AI HP=32
+回合 130: AI HP=26, AI HP=32
+回合 140: AI HP=24, AI HP=30
+回合 150: AI HP=22, AI HP=26
+回合 160: AI HP=21, AI HP=24
+回合 170: AI HP=18, AI HP=24
+回合 180: AI HP=12, AI HP=24
+回合 190: AI HP=12, AI HP=24
+回合 200: AI HP=11, AI HP=23
+回合 210: AI HP=9, AI HP=23
+回合 220: AI HP=9, AI HP=23
+回合 230: AI HP=6, AI HP=22
+回合 240: AI HP=1, AI HP=22
+结果: AI
+最终HP: AI=0, AI=22
+死亡蚂蚁: AI=25, AI=3
+超级武器使用: AI=0, AI=0
+总回合数: 242
+
+=== 第 91 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=45, AI HP=49
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=41, AI HP=45
+回合 80: AI HP=39, AI HP=43
+回合 90: AI HP=37, AI HP=41
+回合 100: AI HP=35, AI HP=39
+回合 110: AI HP=31, AI HP=39
+回合 120: AI HP=30, AI HP=36
+回合 130: AI HP=26, AI HP=35
+回合 140: AI HP=23, AI HP=33
+回合 150: AI HP=20, AI HP=30
+回合 160: AI HP=20, AI HP=29
+回合 170: AI HP=18, AI HP=25
+回合 180: AI HP=16, AI HP=22
+回合 190: AI HP=14, AI HP=19
+回合 200: AI HP=11, AI HP=19
+回合 210: AI HP=9, AI HP=18
+回合 220: AI HP=8, AI HP=16
+回合 230: AI HP=6, AI HP=15
+回合 240: AI HP=3, AI HP=14
+回合 250: AI HP=3, AI HP=8
+回合 260: AI HP=2, AI HP=4
+结果: AI
+最终HP: AI=0, AI=2
+死亡蚂蚁: AI=7, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 268
+
+=== 第 92 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=46, AI HP=49
+回合 50: AI HP=45, AI HP=47
+回合 60: AI HP=42, AI HP=45
+回合 70: AI HP=41, AI HP=44
+回合 80: AI HP=40, AI HP=42
+回合 90: AI HP=37, AI HP=40
+回合 100: AI HP=34, AI HP=35
+回合 110: AI HP=31, AI HP=33
+回合 120: AI HP=30, AI HP=29
+回合 130: AI HP=29, AI HP=27
+回合 140: AI HP=28, AI HP=26
+回合 150: AI HP=25, AI HP=22
+回合 160: AI HP=24, AI HP=21
+回合 170: AI HP=19, AI HP=19
+回合 180: AI HP=16, AI HP=18
+回合 190: AI HP=15, AI HP=17
+回合 200: AI HP=13, AI HP=16
+回合 210: AI HP=10, AI HP=14
+回合 220: AI HP=7, AI HP=11
+回合 230: AI HP=5, AI HP=11
+回合 240: AI HP=5, AI HP=9
+回合 250: AI HP=2, AI HP=4
+回合 260: AI HP=1, AI HP=3
+结果: AI
+最终HP: AI=0, AI=3
+死亡蚂蚁: AI=12, AI=7
+超级武器使用: AI=0, AI=0
+总回合数: 263
+
+=== 第 93 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=46, AI HP=48
+回合 50: AI HP=44, AI HP=47
+回合 60: AI HP=43, AI HP=45
+回合 70: AI HP=39, AI HP=43
+回合 80: AI HP=39, AI HP=41
+回合 90: AI HP=36, AI HP=37
+回合 100: AI HP=34, AI HP=32
+回合 110: AI HP=33, AI HP=31
+回合 120: AI HP=31, AI HP=28
+回合 130: AI HP=30, AI HP=27
+回合 140: AI HP=25, AI HP=25
+回合 150: AI HP=22, AI HP=20
+回合 160: AI HP=19, AI HP=19
+回合 170: AI HP=16, AI HP=16
+回合 180: AI HP=15, AI HP=15
+回合 190: AI HP=13, AI HP=14
+回合 200: AI HP=11, AI HP=13
+回合 210: AI HP=9, AI HP=10
+回合 220: AI HP=8, AI HP=9
+回合 230: AI HP=6, AI HP=2
+回合 240: AI HP=5, AI HP=1
+结果: AI
+最终HP: AI=4, AI=0
+死亡蚂蚁: AI=4, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 246
+
+=== 第 94 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=49, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=48, AI HP=49
+回合 50: AI HP=46, AI HP=48
+回合 60: AI HP=45, AI HP=44
+回合 70: AI HP=42, AI HP=41
+回合 80: AI HP=41, AI HP=41
+回合 90: AI HP=38, AI HP=40
+回合 100: AI HP=36, AI HP=37
+回合 110: AI HP=34, AI HP=35
+回合 120: AI HP=32, AI HP=33
+回合 130: AI HP=29, AI HP=31
+回合 140: AI HP=27, AI HP=31
+回合 150: AI HP=25, AI HP=27
+回合 160: AI HP=21, AI HP=24
+回合 170: AI HP=19, AI HP=23
+回合 180: AI HP=17, AI HP=21
+回合 190: AI HP=15, AI HP=21
+回合 200: AI HP=12, AI HP=20
+回合 210: AI HP=11, AI HP=18
+回合 220: AI HP=9, AI HP=12
+回合 230: AI HP=8, AI HP=12
+回合 240: AI HP=6, AI HP=10
+回合 250: AI HP=2, AI HP=5
+回合 260: AI HP=1, AI HP=4
+结果: AI
+最终HP: AI=0, AI=3
+死亡蚂蚁: AI=12, AI=10
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 95 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=49, AI HP=49
+回合 60: AI HP=47, AI HP=46
+回合 70: AI HP=45, AI HP=44
+回合 80: AI HP=42, AI HP=41
+回合 90: AI HP=38, AI HP=38
+回合 100: AI HP=34, AI HP=35
+回合 110: AI HP=33, AI HP=33
+回合 120: AI HP=29, AI HP=32
+回合 130: AI HP=29, AI HP=30
+回合 140: AI HP=27, AI HP=26
+回合 150: AI HP=22, AI HP=26
+回合 160: AI HP=21, AI HP=23
+回合 170: AI HP=18, AI HP=23
+回合 180: AI HP=18, AI HP=20
+回合 190: AI HP=14, AI HP=18
+回合 200: AI HP=11, AI HP=16
+回合 210: AI HP=10, AI HP=15
+回合 220: AI HP=7, AI HP=13
+回合 230: AI HP=6, AI HP=10
+回合 240: AI HP=1, AI HP=9
+回合 250: AI HP=1, AI HP=7
+结果: AI
+最终HP: AI=0, AI=4
+死亡蚂蚁: AI=12, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 255
+
+=== 第 96 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=50, AI HP=50
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=47, AI HP=49
+回合 60: AI HP=44, AI HP=47
+回合 70: AI HP=42, AI HP=45
+回合 80: AI HP=41, AI HP=45
+回合 90: AI HP=39, AI HP=44
+回合 100: AI HP=38, AI HP=44
+回合 110: AI HP=34, AI HP=43
+回合 120: AI HP=33, AI HP=41
+回合 130: AI HP=32, AI HP=39
+回合 140: AI HP=30, AI HP=38
+回合 150: AI HP=27, AI HP=37
+回合 160: AI HP=24, AI HP=34
+回合 170: AI HP=20, AI HP=33
+回合 180: AI HP=19, AI HP=31
+回合 190: AI HP=18, AI HP=30
+回合 200: AI HP=12, AI HP=30
+回合 210: AI HP=9, AI HP=29
+回合 220: AI HP=9, AI HP=29
+回合 230: AI HP=6, AI HP=29
+回合 240: AI HP=4, AI HP=28
+回合 250: AI HP=2, AI HP=27
+回合 260: AI HP=1, AI HP=25
+结果: AI
+最终HP: AI=0, AI=25
+死亡蚂蚁: AI=33, AI=9
+超级武器使用: AI=0, AI=0
+总回合数: 262
+
+=== 第 97 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=49
+回合 30: AI HP=50, AI HP=49
+回合 40: AI HP=49, AI HP=49
+回合 50: AI HP=48, AI HP=49
+回合 60: AI HP=47, AI HP=48
+回合 70: AI HP=42, AI HP=48
+回合 80: AI HP=42, AI HP=47
+回合 90: AI HP=41, AI HP=42
+回合 100: AI HP=38, AI HP=41
+回合 110: AI HP=37, AI HP=40
+回合 120: AI HP=32, AI HP=40
+回合 130: AI HP=30, AI HP=39
+回合 140: AI HP=28, AI HP=38
+回合 150: AI HP=24, AI HP=38
+回合 160: AI HP=22, AI HP=36
+回合 170: AI HP=21, AI HP=36
+回合 180: AI HP=20, AI HP=35
+回合 190: AI HP=19, AI HP=34
+回合 200: AI HP=17, AI HP=34
+回合 210: AI HP=15, AI HP=33
+回合 220: AI HP=14, AI HP=32
+回合 230: AI HP=9, AI HP=32
+回合 240: AI HP=6, AI HP=31
+回合 250: AI HP=4, AI HP=30
+回合 260: AI HP=2, AI HP=30
+回合 270: AI HP=1, AI HP=29
+结果: AI
+最终HP: AI=0, AI=29
+死亡蚂蚁: AI=40, AI=9
+超级武器使用: AI=0, AI=0
+总回合数: 271
+
+=== 第 98 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=49, AI HP=49
+回合 40: AI HP=49, AI HP=48
+回合 50: AI HP=45, AI HP=48
+回合 60: AI HP=42, AI HP=47
+回合 70: AI HP=42, AI HP=45
+回合 80: AI HP=38, AI HP=43
+回合 90: AI HP=35, AI HP=43
+回合 100: AI HP=32, AI HP=42
+回合 110: AI HP=31, AI HP=41
+回合 120: AI HP=30, AI HP=40
+回合 130: AI HP=29, AI HP=39
+回合 140: AI HP=23, AI HP=37
+回合 150: AI HP=21, AI HP=36
+回合 160: AI HP=20, AI HP=33
+回合 170: AI HP=17, AI HP=31
+回合 180: AI HP=15, AI HP=28
+回合 190: AI HP=14, AI HP=26
+回合 200: AI HP=11, AI HP=24
+回合 210: AI HP=9, AI HP=22
+回合 220: AI HP=6, AI HP=22
+回合 230: AI HP=4, AI HP=22
+回合 240: AI HP=3, AI HP=22
+结果: AI
+最终HP: AI=0, AI=21
+死亡蚂蚁: AI=25, AI=5
+超级武器使用: AI=0, AI=0
+总回合数: 247
+
+=== 第 99 局 ===
+初始HP: AI=50, AI=50
+回合 10: AI HP=50, AI HP=50
+回合 20: AI HP=50, AI HP=50
+回合 30: AI HP=48, AI HP=50
+回合 40: AI HP=47, AI HP=49
+回合 50: AI HP=46, AI HP=47
+回合 60: AI HP=45, AI HP=47
+回合 70: AI HP=43, AI HP=45
+回合 80: AI HP=43, AI HP=42
+回合 90: AI HP=40, AI HP=39
+回合 100: AI HP=36, AI HP=38
+回合 110: AI HP=32, AI HP=37
+回合 120: AI HP=30, AI HP=37
+回合 130: AI HP=28, AI HP=34
+回合 140: AI HP=27, AI HP=29
+回合 150: AI HP=27, AI HP=27
+回合 160: AI HP=25, AI HP=26
+回合 170: AI HP=20, AI HP=25
+回合 180: AI HP=16, AI HP=23
+回合 190: AI HP=15, AI HP=22
+回合 200: AI HP=14, AI HP=19
+回合 210: AI HP=11, AI HP=18
+回合 220: AI HP=11, AI HP=12
+回合 230: AI HP=10, AI HP=9
+回合 240: AI HP=7, AI HP=6
+回合 250: AI HP=5, AI HP=4
+回合 260: AI HP=3, AI HP=4
+回合 270: AI HP=0, AI HP=1
+结果: AI
+最终HP: AI=0, AI=1
+死亡蚂蚁: AI=11, AI=6
+超级武器使用: AI=0, AI=0
+总回合数: 270
+
+=== 对战总结 ===
+AI 胜场: 19
+AI 胜场: 81
+平局: 0
+平均回合数: 259.52

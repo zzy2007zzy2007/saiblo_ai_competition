@@ -1,0 +1,97 @@
+Battle
+1. 检查并修复硬编码问题
+2. 单独处理ppo/docs/issues/ppo_v1_baseline_battle_bugs_v3.md中的bug6 问题，找出彻底完整解决的方案
+
+SelfPlay
+1. 检查ppo/src/ppo_antwar/league代码是否还有被引用
+2. 梳理设计对手池管理机制
+
+
+
+请阅读 ppo/src/ppo_antwar 代码中所有硬编码路径，以及其他包含文件路径的代码。
+思考：
+1. 这些路径的组织结构是怎样的？包含哪些主要文件夹？分别是什么类型的文件夹，代码还是日志？各主要文件夹之间的逻辑关系是怎样的？
+2. 当前这种文件组织结构是否合理？
+3. ppo/src/ppo_antwar的各类文件组织结构，是否有更好的方案
+
+
+【背景】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（3）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+（4）OpenRL对本项目可能有价值的feature可以参考文档：ppo/docs/design/ppo_openrl_features.md
+（5）项目设计文档：ppo/docs/design/ppo_v1_detail_design.md
+（6）项目代码在：ppo/src/ppo_antwar，其中主要包含SelfPlay和Battle两个模块的代码。SelfPlay是PPO算法训练的主体。Battle是侵入度低、可插拔的模型效果评估模块。
+【目标】
+1. 将ppo/src/ppo_antwar/league/baseline_battle下的功能彻底迁移到ppo/src/ppo_antwar/battle
+2. 让SelfPlay借助battle完成baseline_battle的功能目标
+3. 删除旧的ppo/src/ppo_antwar/league/baseline_battle文件夹
+【任务】
+1. 设计迁移技术方案，补齐battle缺失的功能和代码，修改SelfPlay代码对baseline_battle的调用，让SelfPlay调用或借助battle完成之前的工作目标
+2. 设计文档输出到 ppo/docs/design/ppo_v1_baseline_battle_migrate_design.md
+
+
+
+*** IMPORTANT ***
+1. SelfPlay训练的PPO模型，对战时需要调用SDK，需要开发动作转化层次
+2. 日志存放目录和日志详细内容，需要统一设计
+3. 日志统计功能（内容字段）需要重新设计
+
+
+需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/TODO20260512#L20-24` 
+
+针对这个需求内容，请阅读现有代码，评估编写设计方案之前，是否还有重大的设计问题需要提前澄清的，如果有，列出给我。并详细分析，有哪些解决方案，分别意味着什么
+
+
+1. 与SelfPlay集成方式：SelfPlay通过主动调用方式，调用battle提供的callback函数，（每 battle_interval 个 episode主动调用一次）。实现battle与SelfPlay解耦，互不影响。
+2. 游戏SDK调用方面，SelfPlay保持AntWarEnv，battle保持现有设计，互不影响
+3. PPO agent通过参数方式，与episode等一起传递给battle模块，与其他agent对战
+4. battle结果不在通过BattleOutcome返回，删除SelfPlay中接收对战结果并输出日志的代码，直接由battle模块负责记录日志到约定的日志中
+5. battle模块添加之前由SelfPlay负责输出的一些统计日志，输出与之前等价的日志信息
+6. battle模块抛出异常，除了妥善捕捉和记录，还应该向上抛出
+
+
+_get_agent_action 和 _operations_to_action 函数是核心逻辑， battle 模块缺少这些功能
+
+
+问题1：游戏引擎统一策略 =》 battle保持 battle/ 现有设计，SelfPlay保持AntWarEnv，互不影响
+问题2：SelfPlay 对手加载需求 =》保持 battle/ 现有设计
+问题3：数据结构兼容性 =》 修改 battle/ 代码，兼容 数据类： BattleOutcome , BattleResult , GameState , TowerState , BaseState
+问题4：旧代码处理策略 =》 直接删除
+
+1. 是否可行
+2. 是否是科学合理的方案
+3. 需要修改哪些代码
+4. 改造难度如何
+5. 改造收益如何
+6. 是否带来明显的风险
+
+
+PPO v1 Baseline Battle 集成改造
+
+
+阅读ppo/src/ppo_antwar/ 代码，完成一下需求的设计文档：ppo/docs/design/ppo_v1_baseline_battle_ppo_agent_battle_design.md
+核心目标
+1. 将 BattleEvalCallback 从通过 checkpoint 读取 PPO agent 改造为直接通过 callback 传递 PPO agent 对象的技术方案。
+目标范围
+1. 只改造battle模块，不修改SelfPlay模块
+2. 只将PPO agent的获取方式，从之前的checkpoint 读取，改造为，直接通过 callback 传递 PPO agent 对象
+3. 核心是让PPO agent 对象，能够与baseline的各agent进行对战
+核心原则
+1. 不做过度设计，不留冗余
+2. 不虑向后兼容，确定一种集成方案，全部设计向这一种方案靠齐
+项目级通用原则
+1. 最大化利用OpenRL框架
+2. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Ant-Game SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+5. 原则上，不应该设计容错机制，而应该让错误异常尽早暴露，以便及时调整
+7. 不做容错处理，但是，异常仍应该合理捕获并记录，然后抛向上层，以便事后从日志中追查问题根源
+8. 如果确实需要设计一定的容错机制，需要在设计环节明确提出，寻求确认
+9. 不做过度设计，只在现有功能上，优化代码结构
+10. 所有设计不用考虑window的情况，优先考虑Linux即可
+11. 所有日志都使用loguru，不要直接使用print
+12. 原本要使用GPU计算的任务，如果降级为CPU，需要输出警告
+
+
+

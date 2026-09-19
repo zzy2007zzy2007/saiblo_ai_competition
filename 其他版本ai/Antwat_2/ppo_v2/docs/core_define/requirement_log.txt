@@ -1,0 +1,62 @@
+A、SelfPlay对局级日志
+基本信息
+1. 先手/后手 agent
+2. 起止时间
+3. duration秒
+聚合信息
+1. 回合数
+2. ppo agent结束HP值
+3. ppo agent结束Coin值
+4. ppo agent累计总Coin收入（只管收入，不管支出）
+5. ppo agent局中最高Coin余额
+6. opponent结束HP值、结束Coin值、累计总Coin收入、局中最高Coin余额
+Action和Reward聚合信息
+1. ppo agent 8类各动作类型action数量
+2. ppo agent 8类各动作类型Reward累计
+3. ppo agent 非动作类Reward分量累计
+4. ppo agent Reward总量累计
+
+B、回合级日志
+1. round
+2. agent/opponent
+3. action
+4. 时间
+5. action reward
+6. action coin花费
+6. 其他各类非action reward * N
+7. 回合开始coin
+8. 本回合赚取coin
+9. 回合结束Coin
+注意：回合开始coin+本回合赚取coin-action coin花费=回合结束Coin
+10. 回合开始tower hp
+11. 回合内tower hp增量（通过build/upgrade/downgrade增加或减少的hp+受到攻击减少的hp）
+12. 回合结束tower hp
+注意：回合开始tower hp+回合内tower hp增量=回合结束tower hp
+13. 回合开始base hp
+14. 受到攻击减少的hp
+15. 回合结束base hp
+注意：回合开始base hp+受到攻击减少的hp=回合结束base hp
+
+C、Batch级日志
+1. entropy
+2. policy loss
+3. value loss
+4. tower loss
+5. coin loss
+6. GradNorm、ClipFrac等
+
+D、N-Env级对战日志
+1. episode start
+2. episode end
+3. 所有对局级日志属性的均值
+
+E、N-Env级训练日志
+1. episode start
+2. episode end
+3. 所有Batch级日志属性的均值
+
+F、Baseline Battle对局级日志
+1. 所有SelfPlay相同的字段
+
+G、Baseline Battle回合级日志
+1. 所有SelfPlay相同的字段

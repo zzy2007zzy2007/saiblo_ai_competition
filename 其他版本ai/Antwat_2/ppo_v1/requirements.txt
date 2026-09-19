@@ -1,0 +1,6 @@
+trueskill>=0.4.0
+gymnasium>=0.29.0
+easydict>=1.10
+loguru>=0.6.0
+openrl>=0.1.0
+pyyaml>=6.0

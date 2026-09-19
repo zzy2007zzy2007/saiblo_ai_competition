@@ -1,0 +1,19 @@
+battle:
+  num_episodes: 10
+  max_rounds: 512
+  parallel_workers: 4
+
+logging:
+  log_level: INFO
+  log_dir: /tmp/battle_single/logs
+  log_to_console: true
+  enable_timing: true
+  results_format: both
+
+agents:
+  agent1: ann_v1
+  agent2: gen99
+
+output:
+  report_file: /tmp/battle_single/report.txt
+  result_json: /tmp/battle_single/results.json

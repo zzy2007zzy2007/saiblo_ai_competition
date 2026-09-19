@@ -1,0 +1,98 @@
+# ============================================================
+# GA 进化训练配置文件 - AntWar v10
+# ============================================================
+
+# 系统配置
+system:
+  device: "cuda"
+  seed: 42
+
+# 网络结构配置
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 进化参数
+evolution:
+  max_generations: 200
+  population_size: 120       # 每代种群规模
+  gen1_population_size: 240  # Gen 1 专用种群规模（首次随机初始化，通常与 population_size 一致）
+  num_seeds: 12
+  elitism_count: 2
+  convergence_window: 20
+  convergence_threshold: 5.0
+
+# 杂交参数
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+# 变异参数
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+# 精英去重配置（用于循环赛阶段的种子选择）
+elite_dedup:
+  enabled: true
+  hard_threshold: 0.975       # cos>0.95 视为相同模型
+  soft_threshold: 0.825       # cos>0.85 视为同一家族
+  soft_max_per_family: 3     # 每家族最多 3 个种子位
+
+# 剪枝阶段 —— 在 touchstone 前，与弱 AI 对战过滤弱个体
+# early: gen1-gen3 使用 BasicRandomAI（降低门槛，保留多样性）
+# late:  gen4+    使用 NoviceAI（提高门槛，严格筛选）
+pruning:
+  enabled: true
+  early_gens: 3                 # gen1 - gen{early_gens} 使用 early 配置
+  early:                        # 前期配置（降低门槛，保留多样性）
+    opponent: "BasicRandomAI"
+    n_battle: 1                 # 每人对战次数（每次先后手各1局）
+    max_workers: 25             # 并行对战 worker 数
+    battle_timeout: 2400         # 单局超时秒数（放宽限制）
+  late:                         # gen{early_gens+1}+ 使用 late 配置
+    opponent: "NoviceAI"
+    n_battle: 1
+    max_workers: 25
+    battle_timeout: 600
+
+# 二分种子（touchstone）参数 —— 基准筛选阶段
+touchstone:
+  M: 32                  # 升级所需最少对手数
+  max_seeds: 3
+  n_battle: 2            # 批量阶段：每对 2×n_battle 局
+  max_candidate_fails: 32
+  max_workers: 25
+  candidate_max_rank: 12       # 候选升级：不能强于第 N 名（1=最强，含）
+  candidate_min_rank: 20       # 候选升级：不能弱于第 N 名（1=最强，含）
+  next_candidate_rank: 16      # 选下一候选：从剩余已对战个体中取第 N 名
+
+# 循环赛参数（在 benchmark 排序后，对 top_n 个体做循环赛精挑）
+round_robin:
+  top_n: 16
+  n_battles: 2
+  max_workers: 25
+
+# 基线验证参数（每 interval 代对种子做 baseline 对战）
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 6
+  max_workers: 25
+  agents:
+    - "BasicTowerAI"
+    - "rule_zzy25"
+
+# 环境参数
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+# 日志参数
+logging:
+  log_level: "INFO"
+  save_interval: 10
+  tensorboard: true

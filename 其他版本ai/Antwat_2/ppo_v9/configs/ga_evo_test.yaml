@@ -1,0 +1,67 @@
+# ============================================================
+# GA 进化训练 - 小规模测试配置
+# 用于快速验证代码流程正确性（gen 1~5）
+# ============================================================
+
+system:
+  device: "cuda"
+  seed: 42
+
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 小规模：10 个体，5 代
+evolution:
+  max_generations: 5
+  population_size: 10
+  num_seeds: 4
+  elitism_count: 2
+  convergence_window: 100       # 不触发收敛
+  convergence_threshold: 5.0
+
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+# 快速 selection：少对局
+selection:
+  method: "fixed_reference_elo"
+  n_battles: 1                  # 每对 2 局（先后手各 1）
+  anchor_references:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+  dynamic_references: 0         # 关闭动态参照物
+  include_previous_champion: false
+  elo_k_factor: 64
+  elo_initial: 1200
+
+opponent_pool:
+  max_size: 5
+  min_games_threshold: 2
+  exploit_prob: 0.7
+  decay: 0.99
+  min_win_rate_games: 2
+
+# 基线验证：仅 4 局/对
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 2                  # 4 局/对
+  max_workers: 8
+
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+logging:
+  log_level: "INFO"
+  save_interval: 1
+  tensorboard: false

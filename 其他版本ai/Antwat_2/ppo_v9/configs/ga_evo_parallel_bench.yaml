@@ -1,0 +1,82 @@
+# ============================================================
+# 并行度基准测试配置 - AntWar v9
+# 用于测试 Battle 阶段的并行度与正确性
+# ============================================================
+
+# 系统配置
+system:
+  device: "cuda"
+  seed: 42
+
+# 网络结构配置
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 进化参数（轻量级）
+evolution:
+  max_generations: 2
+  population_size: 4
+  num_seeds: 2
+  elitism_count: 1
+  convergence_window: 99
+  convergence_threshold: 0.0
+
+# 杂交参数
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+# 变异参数
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+# 选拔参数
+# 每个个体 vs 每个参照物进行 n_battles 次对战（每次含先后手各一局）
+# 3 个参照物 × 2 次 × 2 局 = 12 局 / 每个个体
+selection:
+  method: "fixed_reference_elo"
+  n_battles: 2
+  anchor_references:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+    - "MediumRuleAI"
+  dynamic_references: 0
+  include_previous_champion: false
+  elo_k_factor: 64
+  elo_initial: 1200
+
+# 对手池参数（最小化）
+opponent_pool:
+  max_size: 2
+  min_games_threshold: 1
+  exploit_prob: 0.5
+  decay: 0.99
+  min_win_rate_games: 1
+
+# 基线验证参数
+# 每个种子 vs 每个 baseline agent 进行 n_battles 次对战
+# 2 个 baseline × 2 次 × 2 局 = 8 局 / 每个种子
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 25
+  max_workers: 12
+  agents:
+    - "BasicRandomAI"
+    - "MediumRuleAI"
+
+# 环境参数
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+# 日志参数
+logging:
+  log_level: "DEBUG"
+  save_interval: 1
+  tensorboard: false

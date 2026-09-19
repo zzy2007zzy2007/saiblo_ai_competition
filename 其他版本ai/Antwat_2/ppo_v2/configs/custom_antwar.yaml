@@ -1,0 +1,16 @@
+training:
+  total_episodes: 20
+  save_interval: 20
+  opponent_update_interval: 50
+  n_envs: 5
+  battle_interval: 5
+  n_battles: 2
+  max_steps_per_episode: 512
+
+selfplay:
+  opponent_pool_size: 10
+  min_opponent_games: 8
+  exploit_prob: 0.7
+  baseline_agents:
+    - "BasicTowerAI"
+    - "BasicRandomAI"

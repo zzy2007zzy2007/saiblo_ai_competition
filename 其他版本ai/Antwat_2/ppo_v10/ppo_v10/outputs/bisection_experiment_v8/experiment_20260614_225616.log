@@ -1,0 +1,300 @@
+2026-06-14 22:56:16.380 | INFO     | __main__:setup_logging:137 | 日志文件: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/experiment_20260614_225616.log
+2026-06-14 22:56:16.383 | INFO     | __main__:main:252 | 批次模式: default = 5 个场景
+2026-06-14 22:56:16.383 | INFO     | __main__:main:253 | 全量 RR: True
+2026-06-14 22:56:16.383 | INFO     | __main__:main:254 | 输出目录: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8
+2026-06-14 22:56:16.385 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:237 | 
+############################################################
+2026-06-14 22:56:16.385 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:238 | 场景 [1/5]: N40_uniform
+2026-06-14 22:56:16.386 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:239 | ############################################################
+2026-06-14 22:56:16.386 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:92 | ============================================================
+2026-06-14 22:56:16.386 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:93 | 实验: N40_uniform
+2026-06-14 22:56:16.387 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:94 | N=40, p_dist=uniform, q_mode=constant, q_value=8.33
+2026-06-14 22:56:16.387 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:95 | Bisection config: {'P': 5, 'M': 20, 'N': 10, 'max_seeds': 3, 'n_battle': 2, 'max_consecutive_fails': 3, 'max_workers': 25}
+2026-06-14 22:56:16.387 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:96 | ============================================================
+2026-06-14 22:56:16.389 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:107 | 生成 40 个个体: p ∈ [11.6, 87.6], q ∈ [8.3, 8.3]
+2026-06-14 22:56:16.389 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:113 | Ground Truth Top5: ['ind_0011(p=87.6)', 'ind_0034(p=87.3)', 'ind_0001(p=86.1)', 'ind_0033(p=85.9)', 'ind_0007(p=79.3)']
+2026-06-14 22:56:16.389 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:116 | ── 二分种子选拔 ──
+2026-06-14 22:56:16.390 | INFO     | tools.bisection_experiment.bisection_coordinator:start:158 | BisectionCoordinator.start: N=40, P=5, M=20, N_fail=10, max_seeds=3
+2026-06-14 22:56:16.390 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0021: mu=25.00, 提交 39 个甄别 task
+2026-06-14 22:56:16.390 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0006: mu=25.00, 提交 39 个甄别 task
+2026-06-14 22:56:16.391 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0010: mu=25.00, 提交 39 个甄别 task
+2026-06-14 22:56:16.391 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0025: mu=25.00, 提交 39 个甄别 task
+2026-06-14 22:56:16.391 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0005: mu=25.00, 提交 39 个甄别 task
+2026-06-14 22:56:16.400 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0021 失败: mu=14.71, completed=10, streak=0
+2026-06-14 22:56:16.403 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0002: mu=28.46, 提交 39 个甄别 task
+2026-06-14 22:56:16.408 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0006 失败: mu=10.32, completed=10, streak=0
+2026-06-14 22:56:16.411 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0001: mu=28.69, 提交 39 个甄别 task
+2026-06-14 22:56:16.415 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0010 失败: mu=11.90, completed=10, streak=0
+2026-06-14 22:56:16.422 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 3 次候选失败 → fallback
+2026-06-14 22:56:16.423 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:16.450 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:144 | 二分种子耗时: 0.06s
+2026-06-14 22:56:16.450 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:145 | 实际对战局数: 48
+2026-06-14 22:56:16.450 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:146 | 已对战个体数 m: 19 / 40
+2026-06-14 22:56:16.450 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:147 | Fallback: True
+2026-06-14 22:56:16.451 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:148 | 种子: []
+2026-06-14 22:56:16.451 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:149 | 统计: launched=7, promoted=0, failed=3
+2026-06-14 22:56:16.451 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:159 | ── 全量 RoundRobin ──
+2026-06-14 22:56:16.451 | INFO     | tools.bisection_experiment.round_robin:run_round_robin:56 | RoundRobin: 40 人, 780 对, 每对 8 局 = 预计 6240 局
+2026-06-14 22:56:17.773 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:171 | RR 耗时: 1.32s, 对战局数: 6240
+2026-06-14 22:56:17.773 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:177 | ── 评估指标 ──
+2026-06-14 22:56:17.778 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:184 | 
+  n_battled: 19
+  n_ground_truth: 40
+  recall16_within_top16_vs_ground_truth: 1.0000
+  recall3_within_top16_vs_ground_truth: 1.0000
+  recall5_within_top16_vs_ground_truth: 1.0000
+  recall8_within_top16_vs_ground_truth: 1.0000
+  spearman_rho_rr_vs_ground_truth: 0.9919
+  spearman_rho_vs_ground_truth: 0.8035
+  spearman_rho_vs_round_robin: 0.8070
+  top16_overlap_vs_ground_truth: 1.0000
+  top16_overlap_vs_rr: 1.0000
+  top3_overlap_vs_ground_truth: 0.6667
+  top3_overlap_vs_rr: 0.6667
+  top5_overlap_vs_ground_truth: 0.4000
+  top5_overlap_vs_rr: 0.4000
+  top8_overlap_vs_ground_truth: 0.8750
+  top8_overlap_vs_rr: 0.8750
+2026-06-14 22:56:17.779 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:188 | 总耗时: 1.39s
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:257 | 场景结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_N40_uniform.json
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:237 | 
+############################################################
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:238 | 场景 [2/5]: N80_uniform
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:239 | ############################################################
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:92 | ============================================================
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:93 | 实验: N80_uniform
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:94 | N=80, p_dist=uniform, q_mode=constant, q_value=8.33
+2026-06-14 22:56:17.780 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:95 | Bisection config: {'P': 5, 'M': 20, 'N': 10, 'max_seeds': 3, 'n_battle': 2, 'max_consecutive_fails': 3, 'max_workers': 25}
+2026-06-14 22:56:17.781 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:96 | ============================================================
+2026-06-14 22:56:17.781 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:107 | 生成 80 个个体: p ∈ [10.4, 89.5], q ∈ [8.3, 8.3]
+2026-06-14 22:56:17.781 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:113 | Ground Truth Top5: ['ind_0049(p=89.5)', 'ind_0034(p=88.3)', 'ind_0021(p=87.7)', 'ind_0023(p=86.4)', 'ind_0040(p=86.2)']
+2026-06-14 22:56:17.781 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:116 | ── 二分种子选拔 ──
+2026-06-14 22:56:17.781 | INFO     | tools.bisection_experiment.bisection_coordinator:start:158 | BisectionCoordinator.start: N=80, P=5, M=20, N_fail=10, max_seeds=3
+2026-06-14 22:56:17.782 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0063: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:17.782 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0064: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:17.782 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0025: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:17.782 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0029: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:17.783 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0051: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:17.788 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0063 失败: mu=22.65, completed=10, streak=0
+2026-06-14 22:56:17.791 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0010: mu=29.87, 提交 79 个甄别 task
+2026-06-14 22:56:17.882 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0029 失败: mu=21.20, completed=10, streak=0
+2026-06-14 22:56:17.891 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0077: mu=28.18, 提交 79 个甄别 task
+2026-06-14 22:56:17.917 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0051 失败: mu=24.41, completed=51, streak=0
+2026-06-14 22:56:17.919 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 3 次候选失败 → fallback
+2026-06-14 22:56:17.919 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:17.932 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:144 | 二分种子耗时: 0.15s
+2026-06-14 22:56:17.932 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:145 | 实际对战局数: 247
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:146 | 已对战个体数 m: 80 / 80
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:147 | Fallback: True
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:148 | 种子: []
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:149 | 统计: launched=7, promoted=0, failed=3
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:159 | ── 全量 RoundRobin ──
+2026-06-14 22:56:17.933 | INFO     | tools.bisection_experiment.round_robin:run_round_robin:56 | RoundRobin: 80 人, 3160 对, 每对 8 局 = 预计 25280 局
+2026-06-14 22:56:22.720 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:171 | RR 耗时: 4.79s, 对战局数: 25280
+2026-06-14 22:56:22.720 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:177 | ── 评估指标 ──
+2026-06-14 22:56:22.723 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:184 | 
+  n_battled: 80
+  n_ground_truth: 80
+  recall16_within_top16_vs_ground_truth: 0.6875
+  recall3_within_top16_vs_ground_truth: 0.6667
+  recall5_within_top16_vs_ground_truth: 0.8000
+  recall8_within_top16_vs_ground_truth: 0.6250
+  spearman_rho_rr_vs_ground_truth: 0.9966
+  spearman_rho_vs_ground_truth: 0.8530
+  spearman_rho_vs_round_robin: 0.8521
+  top16_overlap_vs_ground_truth: 0.6875
+  top16_overlap_vs_rr: 0.6250
+  top3_overlap_vs_ground_truth: 0.0000
+  top3_overlap_vs_rr: 0.0000
+  top5_overlap_vs_ground_truth: 0.4000
+  top5_overlap_vs_rr: 0.2000
+  top8_overlap_vs_ground_truth: 0.3750
+  top8_overlap_vs_rr: 0.3750
+2026-06-14 22:56:22.723 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:188 | 总耗时: 4.94s
+2026-06-14 22:56:22.724 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:257 | 场景结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_N80_uniform.json
+2026-06-14 22:56:22.724 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:237 | 
+############################################################
+2026-06-14 22:56:22.724 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:238 | 场景 [3/5]: N80_normal
+2026-06-14 22:56:22.724 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:239 | ############################################################
+2026-06-14 22:56:22.724 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:92 | ============================================================
+2026-06-14 22:56:22.725 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:93 | 实验: N80_normal
+2026-06-14 22:56:22.725 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:94 | N=80, p_dist=normal, q_mode=constant, q_value=8.33
+2026-06-14 22:56:22.725 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:95 | Bisection config: {'P': 5, 'M': 20, 'N': 10, 'max_seeds': 3, 'n_battle': 2, 'max_consecutive_fails': 3, 'max_workers': 25}
+2026-06-14 22:56:22.725 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:96 | ============================================================
+2026-06-14 22:56:22.725 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:107 | 生成 80 个个体: p ∈ [0.0, 90.2], q ∈ [8.3, 8.3]
+2026-06-14 22:56:22.726 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:113 | Ground Truth Top5: ['ind_0048(p=90.2)', 'ind_0006(p=87.2)', 'ind_0075(p=84.0)', 'ind_0060(p=81.9)', 'ind_0051(p=78.9)']
+2026-06-14 22:56:22.726 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:116 | ── 二分种子选拔 ──
+2026-06-14 22:56:22.726 | INFO     | tools.bisection_experiment.bisection_coordinator:start:158 | BisectionCoordinator.start: N=80, P=5, M=20, N_fail=10, max_seeds=3
+2026-06-14 22:56:22.726 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0033: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:22.726 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0040: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:22.727 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0012: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:22.727 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0023: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:22.727 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0077: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:22.735 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0033 失败: mu=31.35, completed=16, streak=0
+2026-06-14 22:56:22.739 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0015: mu=21.62, 提交 79 个甄别 task
+2026-06-14 22:56:22.742 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0040 失败: mu=20.77, completed=10, streak=0
+2026-06-14 22:56:22.743 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0009: mu=26.73, 提交 79 个甄别 task
+2026-06-14 22:56:22.748 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0012 失败: mu=19.91, completed=10, streak=0
+2026-06-14 22:56:22.755 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 3 次候选失败 → fallback
+2026-06-14 22:56:22.757 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0023 失败: mu=18.50, completed=10, streak=0
+2026-06-14 22:56:22.761 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:22.762 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 4 次候选失败 → fallback
+2026-06-14 22:56:22.762 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:22.785 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:144 | 二分种子耗时: 0.06s
+2026-06-14 22:56:22.785 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:145 | 实际对战局数: 64
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:146 | 已对战个体数 m: 22 / 80
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:147 | Fallback: True
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:148 | 种子: []
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:149 | 统计: launched=7, promoted=0, failed=4
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:159 | ── 全量 RoundRobin ──
+2026-06-14 22:56:22.786 | INFO     | tools.bisection_experiment.round_robin:run_round_robin:56 | RoundRobin: 80 人, 3160 对, 每对 8 局 = 预计 25280 局
+2026-06-14 22:56:27.583 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:171 | RR 耗时: 4.80s, 对战局数: 25280
+2026-06-14 22:56:27.584 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:177 | ── 评估指标 ──
+2026-06-14 22:56:27.586 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:184 | 
+  n_battled: 22
+  n_ground_truth: 80
+  recall16_within_top16_vs_ground_truth: 0.9375
+  recall3_within_top16_vs_ground_truth: 1.0000
+  recall5_within_top16_vs_ground_truth: 1.0000
+  recall8_within_top16_vs_ground_truth: 1.0000
+  spearman_rho_rr_vs_ground_truth: 0.9971
+  spearman_rho_vs_ground_truth: 0.8916
+  spearman_rho_vs_round_robin: 0.8803
+  top16_overlap_vs_ground_truth: 0.9375
+  top16_overlap_vs_rr: 0.9375
+  top3_overlap_vs_ground_truth: 1.0000
+  top3_overlap_vs_rr: 0.6667
+  top5_overlap_vs_ground_truth: 0.6000
+  top5_overlap_vs_rr: 0.8000
+  top8_overlap_vs_ground_truth: 0.7500
+  top8_overlap_vs_rr: 0.7500
+2026-06-14 22:56:27.586 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:188 | 总耗时: 4.86s
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:257 | 场景结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_N80_normal.json
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:237 | 
+############################################################
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:238 | 场景 [4/5]: N80_bimodal
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:239 | ############################################################
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:92 | ============================================================
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:93 | 实验: N80_bimodal
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:94 | N=80, p_dist=bimodal, q_mode=constant, q_value=8.33
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:95 | Bisection config: {'P': 5, 'M': 20, 'N': 10, 'max_seeds': 3, 'n_battle': 2, 'max_consecutive_fails': 3, 'max_workers': 25}
+2026-06-14 22:56:27.587 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:96 | ============================================================
+2026-06-14 22:56:27.588 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:107 | 生成 80 个个体: p ∈ [4.0, 88.2], q ∈ [8.3, 8.3]
+2026-06-14 22:56:27.588 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:113 | Ground Truth Top5: ['ind_0078(p=88.2)', 'ind_0051(p=87.6)', 'ind_0079(p=87.4)', 'ind_0070(p=84.8)', 'ind_0075(p=82.2)']
+2026-06-14 22:56:27.588 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:116 | ── 二分种子选拔 ──
+2026-06-14 22:56:27.588 | INFO     | tools.bisection_experiment.bisection_coordinator:start:158 | BisectionCoordinator.start: N=80, P=5, M=20, N_fail=10, max_seeds=3
+2026-06-14 22:56:27.589 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0074: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:27.589 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0076: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:27.589 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0052: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:27.590 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0037: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:27.590 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0044: mu=25.00, 提交 79 个甄别 task
+2026-06-14 22:56:27.595 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0074 失败: mu=39.00, completed=10, streak=0
+2026-06-14 22:56:27.598 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0009: mu=23.43, 提交 79 个甄别 task
+2026-06-14 22:56:27.604 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0076 失败: mu=37.46, completed=10, streak=0
+2026-06-14 22:56:27.607 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0008: mu=23.01, 提交 79 个甄别 task
+2026-06-14 22:56:27.614 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0052 失败: mu=36.57, completed=10, streak=0
+2026-06-14 22:56:27.615 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 3 次候选失败 → fallback
+2026-06-14 22:56:27.625 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0037 失败: mu=28.25, completed=10, streak=0
+2026-06-14 22:56:27.633 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 4 次候选失败 → fallback
+2026-06-14 22:56:27.627 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:27.633 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:27.649 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:144 | 二分种子耗时: 0.06s
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:145 | 实际对战局数: 75
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:146 | 已对战个体数 m: 27 / 80
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:147 | Fallback: True
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:148 | 种子: []
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:149 | 统计: launched=7, promoted=0, failed=4
+2026-06-14 22:56:27.650 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:159 | ── 全量 RoundRobin ──
+2026-06-14 22:56:27.651 | INFO     | tools.bisection_experiment.round_robin:run_round_robin:56 | RoundRobin: 80 人, 3160 对, 每对 8 局 = 预计 25280 局
+2026-06-14 22:56:32.793 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:171 | RR 耗时: 5.14s, 对战局数: 25280
+2026-06-14 22:56:32.794 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:177 | ── 评估指标 ──
+2026-06-14 22:56:32.797 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:184 | 
+  n_battled: 27
+  n_ground_truth: 80
+  recall16_within_top16_vs_ground_truth: 0.6250
+  recall3_within_top16_vs_ground_truth: 1.0000
+  recall5_within_top16_vs_ground_truth: 1.0000
+  recall8_within_top16_vs_ground_truth: 0.8750
+  spearman_rho_rr_vs_ground_truth: 0.9679
+  spearman_rho_vs_ground_truth: 0.5134
+  spearman_rho_vs_round_robin: 0.7686
+  top16_overlap_vs_ground_truth: 0.6250
+  top16_overlap_vs_rr: 0.7500
+  top3_overlap_vs_ground_truth: 1.0000
+  top3_overlap_vs_rr: 1.0000
+  top5_overlap_vs_ground_truth: 0.6000
+  top5_overlap_vs_rr: 0.8000
+  top8_overlap_vs_ground_truth: 0.7500
+  top8_overlap_vs_rr: 0.8750
+2026-06-14 22:56:32.797 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:188 | 总耗时: 5.21s
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:257 | 场景结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_N80_bimodal.json
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:237 | 
+############################################################
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:238 | 场景 [5/5]: N20_uniform
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:239 | ############################################################
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:92 | ============================================================
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:93 | 实验: N20_uniform
+2026-06-14 22:56:32.798 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:94 | N=20, p_dist=uniform, q_mode=constant, q_value=8.33
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:95 | Bisection config: {'P': 5, 'M': 20, 'N': 10, 'max_seeds': 3, 'n_battle': 2, 'max_consecutive_fails': 3, 'max_workers': 25}
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:96 | ============================================================
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:107 | 生成 20 个个体: p ∈ [13.4, 85.0], q ∈ [8.3, 8.3]
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:113 | Ground Truth Top5: ['ind_0005(p=85.0)', 'ind_0008(p=83.0)', 'ind_0014(p=79.4)', 'ind_0017(p=74.2)', 'ind_0000(p=72.7)']
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:116 | ── 二分种子选拔 ──
+2026-06-14 22:56:32.799 | INFO     | tools.bisection_experiment.bisection_coordinator:start:158 | BisectionCoordinator.start: N=20, P=5, M=20, N_fail=10, max_seeds=3
+2026-06-14 22:56:32.800 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0007: mu=25.00, 提交 19 个甄别 task
+2026-06-14 22:56:32.800 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0013: mu=25.00, 提交 19 个甄别 task
+2026-06-14 22:56:32.800 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0006: mu=25.00, 提交 19 个甄别 task
+2026-06-14 22:56:32.800 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0000: mu=25.00, 提交 19 个甄别 task
+2026-06-14 22:56:32.800 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0015: mu=25.00, 提交 19 个甄别 task
+2026-06-14 22:56:32.806 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0007 失败: mu=23.92, completed=10, streak=0
+2026-06-14 22:56:32.810 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0012: mu=29.66, 提交 19 个甄别 task
+2026-06-14 22:56:32.814 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0013 失败: mu=34.24, completed=13, streak=0
+2026-06-14 22:56:32.817 | INFO     | tools.bisection_experiment.bisection_coordinator:_launch_candidate:242 | 候选 ind_0010: mu=28.07, 提交 19 个甄别 task
+2026-06-14 22:56:32.821 | INFO     | tools.bisection_experiment.bisection_coordinator:_fail_candidate:368 | 候选 ind_0006 失败: mu=10.94, completed=10, streak=0
+2026-06-14 22:56:32.827 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fail_candidate:374 | 连续 3 次候选失败 → fallback
+2026-06-14 22:56:32.837 | WARNING  | tools.bisection_experiment.bisection_coordinator:_fallback:414 | 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:56:32.861 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:144 | 二分种子耗时: 0.06s
+2026-06-14 22:56:32.861 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:145 | 实际对战局数: 72
+2026-06-14 22:56:32.861 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:146 | 已对战个体数 m: 20 / 20
+2026-06-14 22:56:32.861 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:147 | Fallback: True
+2026-06-14 22:56:32.861 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:148 | 种子: []
+2026-06-14 22:56:32.862 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:149 | 统计: launched=7, promoted=0, failed=3
+2026-06-14 22:56:32.862 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:159 | ── 全量 RoundRobin ──
+2026-06-14 22:56:32.862 | INFO     | tools.bisection_experiment.round_robin:run_round_robin:56 | RoundRobin: 20 人, 190 对, 每对 8 局 = 预计 1520 局
+2026-06-14 22:56:33.171 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:171 | RR 耗时: 0.31s, 对战局数: 1520
+2026-06-14 22:56:33.171 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:177 | ── 评估指标 ──
+2026-06-14 22:56:33.173 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:184 | 
+  n_battled: 20
+  n_ground_truth: 20
+  recall16_within_top16_vs_ground_truth: 0.8750
+  recall3_within_top16_vs_ground_truth: 1.0000
+  recall5_within_top16_vs_ground_truth: 1.0000
+  recall8_within_top16_vs_ground_truth: 1.0000
+  spearman_rho_rr_vs_ground_truth: 0.9820
+  spearman_rho_vs_ground_truth: 0.8346
+  spearman_rho_vs_round_robin: 0.8406
+  top16_overlap_vs_ground_truth: 0.8750
+  top16_overlap_vs_rr: 0.8750
+  top3_overlap_vs_ground_truth: 0.6667
+  top3_overlap_vs_rr: 0.6667
+  top5_overlap_vs_ground_truth: 0.8000
+  top5_overlap_vs_rr: 0.6000
+  top8_overlap_vs_ground_truth: 0.8750
+  top8_overlap_vs_rr: 0.8750
+2026-06-14 22:56:33.173 | INFO     | tools.bisection_experiment.experiment:run_single_experiment:188 | 总耗时: 0.38s
+2026-06-14 22:56:33.174 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:257 | 场景结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_N20_uniform.json
+2026-06-14 22:56:33.175 | INFO     | tools.bisection_experiment.experiment:run_batch_experiments:262 | 汇总报告已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/20260614_225616_summary.json
+2026-06-14 22:56:33.176 | INFO     | __main__:main:263 | 
+================================================================================
+2026-06-14 22:56:33.177 | INFO     | __main__:main:264 | 汇总表
+2026-06-14 22:56:33.177 | INFO     | __main__:main:265 | ================================================================================
+2026-06-14 22:56:33.177 | INFO     | __main__:main:267 | 场景                           N  ρ_vs_GT  ρ_vs_RR    Top8   Top16     局数 Fallback
+2026-06-14 22:56:33.177 | INFO     | __main__:main:268 | --------------------------------------------------------------------------------
+2026-06-14 22:56:33.178 | INFO     | __main__:main:278 | N40_uniform                 40   0.8035   0.8070  0.8750  1.0000     48     True
+2026-06-14 22:56:33.178 | INFO     | __main__:main:278 | N80_uniform                 80   0.8530   0.8521  0.3750  0.6875    247     True
+2026-06-14 22:56:33.178 | INFO     | __main__:main:278 | N80_normal                  80   0.8916   0.8803  0.7500  0.9375     64     True
+2026-06-14 22:56:33.179 | INFO     | __main__:main:278 | N80_bimodal                 80   0.5134   0.7686  0.7500  0.6250     75     True
+2026-06-14 22:56:33.179 | INFO     | __main__:main:278 | N20_uniform                 20   0.8346   0.8406  0.8750  0.8750     72     True
+2026-06-14 22:56:33.179 | INFO     | __main__:main:279 | ================================================================================
+2026-06-14 22:56:33.179 | INFO     | __main__:main:280 | 完整报告: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/bisection_experiment_v8/latest_summary.json
+2026-06-14 22:56:33.179 | INFO     | __main__:main:281 | ================================================================================

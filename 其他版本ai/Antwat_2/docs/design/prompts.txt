@@ -1,0 +1,367 @@
+！这是一个临时草稿，内容对项目决策没有任何关联，请忽略！
+
+
+
+
+=============================== 【代码生成】=============================== 
+【OpenRL调研】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+我希望开发一个基于PPO算法的AntWar游戏Agent，技术上实现方面基于OpenRL开源组件。
+（1）阅读游戏规则、Python SDK、Backend等，了解游戏相关规则和技术背景
+（2）请弄清楚OpenRL能做什么，哪些组件和功能可以用于本项目，分别起什么作用。
+（3）将调研结果写入ppo/docs/design/ppo_openrl_features.md
+
+
+【详细设计文档】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+（5）OpenRL对本项目可能有价值的feature可以参考文档：ppo/docs/design/ppo_openrl_features.md
+我希望开发一个基于PPO算法的AntWar游戏Agent，技术上实现方面基于OpenRL开源组件。
+（1）请帮我编写项目的概要设计和详细设计文档。分别保存到
+ppo/docs/design/ppo_v1_summanry_design.md 和 ppo/docs/design/ppo_v1_detail_design.md
+注意：
+（1）所有功能，尽量基于OpenRL开发，减少自己开发负担，提升效率，减少复杂度
+（2）游戏对战环节，本项目负责只负责动作选择，游戏的规则部分，尽量依赖Python SDK和Backend完成
+（3）项目代码未来存放在ppo/src，尽量避免污染SDK、Backend等代码
+（4）！除了最基本的PPO算法框架实现，还需要考虑自对弈训练，集成DI-engine的League模块的对战胜率计算和对手选择逻辑
+（5）！集成DI-engine的League模块，除了对战胜率计算和对手选择逻辑，不需要拓展太多，尽量保持较高投入产出比
+
+【代码生成】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+（5）OpenRL对本项目可能有价值的feature可以参考文档：ppo/docs/design/ppo_openrl_features.md
+（6）项目设计文档：ppo/docs/design/ppo_v1_detail_design.md
+请根据设计文档生成代码到ppo/src
+
+
+=============================== 【代码和文档质量检查】=============================== 
+【文档质量检查】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+请检查：
+（1）概要设计ppo/docs/design/ppo_v1_summary_design.md是否科学、合理
+（2）细设设计ppo/docs/design/ppo_v1_detail_design.md是否科学、合理
+
+
+请检查设计文档，是否存在：
+（1）已过时的内容
+（2）不合理不科学的内容
+（3）过于模糊不具体的内容
+（4）明显有待优化的内容
+
+【Debug】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+（5）OpenRL对本项目可能有价值的feature可以参考文档：ppo/docs/design/ppo_openrl_features.md
+（6）项目设计文档（主体）：ppo/docs/design/ppo_v1_detail_design.md
+（6）项目设计文档（日志监控）：ppo/docs/design/ppo/docs/design/ppo_v1_log_and_monitor_detail_design.md
+（8）项目代码在：ppo/src/ppo_antwar，项目配置在：ppo/configs
+请检查评估，代码和设计文档，是否一致，文档或代码，是否存在明显的问题
+
+
+【Debug】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）OpenRL是一个强化学习算法开源组件库，代码目录在：openrl
+（5）OpenRL对本项目可能有价值的feature可以参考文档：ppo/docs/design/ppo_openrl_features.md
+（6）项目设计文档：ppo/docs/design/ppo_v1_detail_design.md
+（7）项目代码在：ppo/src/ppo_antwar，项目配置在：ppo/configs
+这里是当前代码的bug问题清单：ppo/docs/code/ppo_v1_issues_01.md
+请检查，Bug问题清单中的问题：
+（1）是否真实存在
+（2）给出解决方案
+（3）评估解决问题的代价
+（4）评估解决问题的收益
+注意：
+1. 最大化利用OpenRL
+2. 关于游戏对战和游戏规则的部分，最大限度利用Python SDK protocol和 SDK backend，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Python SDK和 SDK Backend代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+4. 设计文档与Python SDK 或 SDK Backend不一致的地方，以游戏SDK为准
+4. Python SDK 或 SDK Backend不一致的地方，Python SDK为准
+
+
+
+
+=============================== 【正确性检查】=============================== 
+
+【游戏规则检查】
+​【背景】
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏SDK：Ant-Game/SDK，与游戏SDK交互的protocol：Ant-Game/AI/protocol.py
+（4）以上Python SDK protocol和 SDK backend是游戏官方提供，不可以修改或升级
+【重要原则】
+最大限度利用Python SDK protocol和 SDK backend，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper。避免与游戏规则与SDK提供的规则出现不一致。
+【任务】
+请检查代码ppo/src，将违背这个原则的地方找出来，逐一列出给我
+
+
+
+
+对于以下四个目录
+1. saiblo-antwar-sdk-python
+2. baselines/ann_593/ 
+3. baselines/ann_593/SDK
+4. game_engine/saiblo-antwar-sdk-python
+5. game_engine/baselines/ann_593
+6. game_engine/baselines/ann_593/SDK
+请分别统计他们各自的文件体积和代码行数
+
+
+【运维Tools】
+请阅读一个类似项目的运维脚本：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/tools
+请思考，哪些是当前项目：PPO算法游戏Agent项目可以借鉴和借用的
+
+【背景】
+ppo_v4是一个与本项目类似的AI游戏Agent
+（1）它的日志和监控系统功能文档：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/ppo_v4
+（2）它的代码：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/ppo_v4
+【任务】
+请阅读ppo_v4的日志和监控系统功能文档 和 它的代码。思考：哪些是当前项目：PPO算法游戏Agent项目可以借鉴和借用的
+
+
+
+【背景】
+ppo_v4是一个与本项目类似的AI游戏Agent
+（1）它的日志和监控系统功能文档：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/ppo_v4
+（2）它的代码：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/ppo_v4
+（4）它的check_training_status.sh脚本：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/tools/monitor/train_progress_check.sh
+【目标】
+根据本项目的实际情况，借鉴类似项目的check_training_status.sh，编写本项目的对应脚本
+【具体任务】
+先编写一个关于在本项目添加check_training_status.sh的技术方案说明
+
+
+
+=============================== 【运维】=============================== 
+
+1. 结构化数据存储：train_progress_check所需数据应在训练过程中直接写入结构化JSON，避免实时分析日志文件。
+2. 历史记录机制：所有JSON数据需对应txt log文件，记录完整历史数据、时间戳及背景信息。
+3. 异常记录策略：所有异常需同时记录到training.log（完整信息）和error.log（独立存储），确保debug时信息充分。
+4. 并行资源采样：CPU/GPU/内存/显存采样需与训练代码并行执行，覆盖训练和对战阶段，准确反映硬件使用情况。
+5. 采样数据存储：系统资源采样结果使用JSON保存，历史数据通过txt log记录。
+6. 监控工具适配：调整train_progress_check，支持从JSON、error.log和training.log按需获取信息。
+7. 实时读取保留：保持train_progress_check的实时CPU/GPU/内存/显存读取功能不变，仅反映执行瞬间状态。
+8. 历史采样读取：train_progress_check需读取最近一轮系统资源采样结果，反映最近训练和对战的资源使用情况。
+9. 输出简化：train_progress_check无需输出复杂图表，系统资源采样数据无需趋势分析功能。
+
+
+请使用 tools 的 train_progress_check 指令，全面检查并详细报告 server5 上 ppo_v1模型的训练情况。请确保以下所有信息都被完整包含，并且尽可能详细：
+
+## 1. 训练基本信息
+- 此次训练的完整参数配置（包括但不限于：奖励类型、奖励值、训练轮数、批次大小、并行环境数、对战次数、对战间隔等）
+- 训练启动命令的完整参数
+- 训练目录路径和日志文件位置
+
+## 2. 训练进度详细信息
+- 当前训练轮次和总轮次
+- 训练开始时间和当前时间
+- 训练总时长（精确到分钟）
+- 已完成的训练步数
+- 平均每轮训练耗时
+- 最近10-20轮的训练耗时明细
+- 训练时间分配（训练时间 vs 对战时间占比）
+
+## 3. 系统资源与进程健康信息
+- CPU 使用情况（整体使用率、各核心使用情况）
+- GPU 详细状态（型号、内存使用、利用率、温度）
+- 训练进程状态（PID、CPU/内存占用、启动时间）
+- Screen 会话状态（会话名称、状态、创建时间）
+- 系统内存和磁盘使用情况
+
+## 4. 模型收敛与性能分析
+- 最近10-20轮的平均奖励、平均损失、平均回合长度
+- 奖励和损失的变化趋势分析
+- 模型检查点保存情况（保存路径、保存轮次）
+- 最佳模型的性能指标
+
+## 5. 对战统计（总体情况）
+- 每个 Agent 的对战总场次、胜场、负场、平局数
+- 每个 Agent 的胜率和平均回合数
+- 对战总次数和总耗时
+- 对战评估的时间分布
+
+## 6. 对战统计（最近一次）
+- 最近一次对战评估中每个 Agent 的具体对战结果
+- 最近一次对战的开始时间和结束时间，历时长度（秒）
+- 最近一次对战的平均回合数和总耗时
+- 最近一次对战之前的一波模型训练，开始时间和结束时间，历时长度（秒）
+
+## 7. 其他重要信息
+- 训练过程中的关键事件（如模型保存、参数调整等）
+- 系统或训练中的潜在问题
+- 基于当前状态的建议
+
+请确保所有信息都尽可能详细和准确，充分利用现有的日志和系统数据，提供一份全面、结构化的训练状态报告。
+如果你分析数据和日志过程中，发现了疑点和问题，请告诉我！
+如果你在执行和分析过程中，发现了目前脚本难以完成的任务，请告诉我！
+
+
+
+
+=============================== 【具体模块】=============================== 
+
+对于 原则1：最大化利用OpenRL
+请分析代码、对OpenRL组件开展调研，然后详细介绍，本项目有哪些可以改进的
+
+分析中，请加入收益和成本的评估。其中，成本评估方面：
+需要关注的维度包括：
+（1）对日志的内容会有改变吗？会不会有些日志信息就看不到了
+（2）baseline对战这样的功能，会收到影响吗？
+（3）运维方式，会不会变得复杂，会不会增加运维难度
+（4）有没有哪些对模型效果提升有帮助的功能需要抛弃或修改
+（5）与游戏对战过程的追踪能力
+（6）修改的代码量会不会过大，如果过大，需要风险提示；如果修改代码量很小，则可以不提
+（7）如果某些具体能力，需要额外集成才能保留，只要改造代码不大，则不用关注，如果代码量过大，则需要风险提示
+不需要关注的维度
+（1）代码的增减
+（2）技术性、细颗粒度的调试能力（如果代码足够稳健，不需要调试，才是我需要的！但与游戏本身的问题追踪，不在此列）
+
+
+任务名称：baseline对战的多线程改造
+背景：
+1. 参考项目ppo_v4实现了baseline对战的多线程功能，参见：/Users/raymondzeng/backup20180429/4Paradigm/Private/曾子岩/清华大学/大一下/智能体大赛/AntWar/ppo_v4
+2. 当前项目ppo_v1包含非常相似的baseline对战功能，但目前是单线程的。
+具体任务：
+1. 请分析ppo_v4实现baseline对战的多线程功能的关键代码
+2. 根据ppo_v1现有情况，分析，将ppo_v4的baseline对战的多线程功能借鉴或移植到ppo_v1，具体需要如何做？需要修改哪些文件，需要如何修改？
+注意：
+1. 可以设计一个安全方案，将改造的新代码，单独存放，等验证通过后，再删除就代码文件
+2. 方案需要批准后再执行！
+3. 所有操作请使用tools/manager.sh提供的工具进行
+4. 不做过度设计，不做新旧开关。保留被波及的旧代码，在新代码中不需要体现旧代码的存在
+5. 做好收尾设计，待新方案测试通过后，将旧代码删除，必要时，将新代码改名为旧代码
+6. 对以上需求和要求有不理解的，先向我询问
+
+
+
+
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏 SDK：Ant-Game，是官方提供的SDK，不允许修改
+（3）ppo_v1项目代码：ppo/src/ppo_antwar
+（4）所有运维操作，查看tools/manager.sh
+（5）baseline中的ann_v1，nn_gen_32,sample三个模型文件有所修改
+（6）本地任务目标是：编写代码测试ann_v1，nn_gen_32,sample这三个模型
+TODO:
+1. 请检查unit_tests/baseline_load_and_battle代码，test_*.py，temp_test_*.py等测试文件，找到测试gen99和gen199加载和与BasicRandomAI对战的测试的代码
+2. 检查这些代码中，在服务器如何找到baseline agent代码的逻辑。如果合理，检查相同方法是否可以找到ann_v1，nn_gen_32,sample这三个模型
+2. 编写类似的代码测试ann_v1，nn_gen_32,sample这三个模型
+3. 在server5的/tmp目录测试加载和对战。不要在本地测试！
+要求：
+1. BasicRandomAI使用项目SDK
+2. baseline模型使用自己的SDK
+3. 对战使用项目SDK ！
+4. 不要修改服务器环境变量！
+5. 所有运维操作，查看tools/manager.sh！
+有疑问随时向我提问
+
+=============================== 【To Do List】=============================== 
+1. 对战先手后手
+2. 检查废弃代码，废弃函数，废弃参数
+3. unit_test代码整理
+4. 文档整理
+5. 重构tools脚本
+6. 重构
+
+
+
+=============================== 【经常使用】=============================== 
+请检查 ppo/docs/issues/selfplay_battle_logging_issues.md 上记录到问题，针对每个问题，给出：
+1. 是否真实存在
+2. 分析是否客观合理
+3. 处理难度等级
+4. 收益等级
+5. 其他需要关注的问题
+6. 详细解决方案
+结果记录到ppo/docs/issues/selfplay_battle_logging_issues_review.md
+
+
+
+
+=============================== 【测试对战】=============================== 
+第一、请阅读ppo_v1 baseline对战的代码 ppo/src/ppo_antwar
+第二、请阅读 tests baseline模型测试的代码
+请设计一个轻量级，但功能完备的对战评测系统，目标是评估baseline中各个agent之间对对战胜率。
+请先完成设计，将设计文档输出到 battle/docs
+注意：
+（1）agent各自用各自的SDK
+（2）对战用项目SDK，即Ant-Game/SDK
+（3）可以通过参数设定局数，每局对战两次，先手后手各一次
+（4）对战测试应可以并行执行，提升效率
+（5）对战过程日志参考ppo_v1 的 baseline对战，可以诊断对战的过程
+（6）对战结束后输出对战胜率统计
+（7）对战非正常结束，通过对战日志，应该也能获得一部分已完成的对战胜负及其他关键信息
+（8）对战测试全部需要在服务器/tmp/battle目录执行，不可以在本地执行
+（9）有疑问随时向我提问
+Add
+1. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game/SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+2. Ant-Game/SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+
+
+【Battle对战debug原则】
+查找和修复bug时，请注意几个原则：
+1. Ant-Game/SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+2. Agent代码也是完全不允洗修改的
+3. 如果遇到bug，第一优先是从代码中找原因；如果没有答案，第二优先是查看ppo_v1 baseline对战代码；第三才是上服务器真实测试，从日志找原因
+
+第一、请阅读battle相关代码和文档
+第二、服务器操作请阅读tools/manager.sh
+--episodes 72 --workers 8 --agents nn_gen_32 gen199 使用这个参数测试，并汇报结果
+注意：
+1. 对战测试全部需要在服务器执行，不可以在本地执行
+2. 请记录测试执行过程，输出到：battle/docs/battle_log.md
+3. 有疑问随时向我提问
+
+
+
+
+
+请根据 battle_single 重新设计 ppo_v1的baseline对战部分代码。
+要求：
+1. 完全改写，不用考虑之前的代码
+2. 之前的统计项不能减少，但battle_single包含的每个回合的详细信息，可以全部添加到新的baseline对战设计中
+3. 不需要开发时间估算
+4. 不需要分阶段开发
+注意：
+2. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Ant-Game SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+5. 原则上，不应该设计容错机制，而应该让错误异常尽早暴露，以便及时调整
+7. 不做容错处理，但是，异常仍应该合理捕获并记录，然后抛向上层，以便事后从日志中追查问题根源
+8. 如果确实需要设计一定的容错机制，需要在设计环节明确提出，寻求确认
+9. 不做过度设计，只在设计目标范围内，优化代码结构。不用考虑未来的优化
+10. 所有设计不用考虑window的情况，优先考虑Linux即可
+11. 所有日志都使用loguru，不要直接使用print
+12. 原本要使用GPU计算的任务，如果降级为CPU，需要输出警告
+13. 解决问题要从根源触发，不要workaround
+注意：
+1. 如果存在难以取舍的问题，请务必向先我提问再继续
+设计保存到：ppo/docs/design/ppo_v1_baseline_battle_detail_design_v2.md
+
+
+
+
+
+
+
+【日志重构】
+针对 ppo/docs/code/ppo_v1_path_issues.md 中的问题，请输出解决这些问题的详细解决方案到 ppo/docs/code/ppo_v1_path_issues_solution.md
+注意：
+1. 不要过度设计，不要向后兼容，只保留一套正确标准
+2. 既要追究科学性，也要追求间接性
+3. 只修改路径的代码编写方式，不要修改路径本身
+4. 对于原路径设计不合理，确实需要修改的情况，请集中阐述修改的理由和内容
+5. 设计要尽量细致具体
+6. SelfPlay的对战详细日志和Battle的日志分开，存放到各自的文件夹。但日志内容尽量做到统一

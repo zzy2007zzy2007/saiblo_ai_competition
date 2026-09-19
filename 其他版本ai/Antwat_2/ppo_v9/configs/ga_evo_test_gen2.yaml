@@ -1,0 +1,64 @@
+# ============================================================
+# GA 进化训练小规模测试配置 - 验证 Gen 2 循环导入修复
+# ============================================================
+
+system:
+  device: "cuda"
+  seed: 42
+
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+evolution:
+  max_generations: 3
+  population_size: 4
+  num_seeds: 2
+  elitism_count: 1
+  convergence_window: 20
+  convergence_threshold: 5.0
+
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+selection:
+  method: "fixed_reference_elo"
+  n_battles: 2
+  anchor_references:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+    - "MediumRuleAI"
+  dynamic_references: 2
+  include_previous_champion: true
+  elo_k_factor: 64
+  elo_initial: 1200
+
+opponent_pool:
+  max_size: 5
+  min_games_threshold: 2
+  exploit_prob: 0.7
+  decay: 0.99
+  min_win_rate_games: 2
+
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 4
+  max_workers: 4
+
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+logging:
+  log_level: "INFO"
+  save_interval: 1
+  tensorboard: true

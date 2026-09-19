@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPO 模型训练 — 原理、实现与配置详解</title>
+<style>
+  /* ===== 全局重置 ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", sans-serif;
+    font-size: 16px; line-height: 1.8; color: #1a1a2e; background: #fff;
+    display: flex; min-height: 100vh;
+  }
+
+  /* ===== 侧边导航 ===== */
+  nav.sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 280px;
+    background: #f8f9fa; border-right: 1px solid #e9ecef;
+    overflow-y: auto; padding: 32px 0; z-index: 100;
+  }
+  nav.sidebar::-webkit-scrollbar { width: 4px; }
+  nav.sidebar::-webkit-scrollbar-thumb { background: #ccc; border-radius: 2px; }
+  nav.sidebar h1 {
+    font-size: 18px; font-weight: 700; color: #1a1a2e;
+    padding: 0 24px 16px; border-bottom: 1px solid #e9ecef;
+    margin-bottom: 12px; line-height: 1.4;
+  }
+  nav.sidebar a {
+    display: block; padding: 8px 24px; color: #495057;
+    text-decoration: none; font-size: 14px; transition: all .15s;
+    border-left: 3px solid transparent;
+  }
+  nav.sidebar a:hover { background: #e9ecef; color: #1a1a2e; }
+  nav.sidebar a.active { color: #1a73e8; border-left-color: #1a73e8; background: #e8f0fe; font-weight: 600; }
+  nav.sidebar a.chap { font-weight: 600; color: #1a1a2e; margin-top: 8px; }
+  nav.sidebar a.sub { padding-left: 36px; font-size: 13px; }
+
+  /* ===== 主内容 ===== */
+  main { margin-left: 280px; flex: 1; max-width: 960px; padding: 48px 64px 80px; }
+
+  /* ===== 章节标题 ===== */
+  h2 { font-size: 28px; font-weight: 700; color: #1a1a2e; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 2px solid #1a73e8; }
+  h2:first-of-type { margin-top: 0; }
+  h3 { font-size: 22px; font-weight: 600; color: #2d3748; margin: 32px 0 12px; }
+  h4 { font-size: 18px; font-weight: 600; color: #4a5568; margin: 24px 0 8px; }
+  h5 { font-size: 16px; font-weight: 600; color: #718096; margin: 16px 0 8px; }
+  p { margin-bottom: 16px; text-align: justify; }
+
+  /* ===== 列表 ===== */
+  ul, ol { margin: 0 0 16px 24px; }
+  li { margin-bottom: 6px; }
+
+  /* ===== 代码块 ===== */
+  pre {
+    background: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px;
+    padding: 16px 20px; font-size: 13.5px; line-height: 1.6;
+    overflow-x: auto; margin: 16px 0; font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    tab-size: 4;
+  }
+  pre .kw { color: #d73a49; font-weight: 600; }
+  pre .fn { color: #6f42c1; }
+  pre .str { color: #032f62; }
+  pre .cm { color: #6a737d; font-style: italic; }
+  pre .num { color: #005cc5; }
+  pre .op { color: #d73a49; }
+  pre .cls { color: #6f42c1; font-weight: 600; }
+  pre .dec { color: #005cc5; }
+  code {
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    font-size: 14px; background: #f1f3f5; padding: 2px 6px; border-radius: 3px;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; border-radius: 0; }
+
+  /* ===== 数学公式（纯文本） ===== */
+  .math { font-family: "Times New Roman", serif; font-style: italic; }
+
+  /* ===== 提示框 ===== */
+  .callout {
+    padding: 16px 20px; border-radius: 6px; margin: 16px 0;
+    border-left: 4px solid;
+  }
+  .callout-info { background: #e8f0fe; border-color: #1a73e8; }
+  .callout-warn { background: #fef3cd; border-color: #ffc107; }
+  .callout-tip { background: #e6f7ee; border-color: #28a745; }
+  .callout strong { display: block; margin-bottom: 4px; }
+
+  /* ===== 表格 ===== */
+  table {
+    width: 100%; border-collapse: collapse; margin: 16px 0 24px;
+    font-size: 14px;
+  }
+  th, td { padding: 10px 14px; border: 1px solid #e1e4e8; text-align: left; }
+  th { background: #f6f8fa; font-weight: 600; }
+  tr:nth-child(even) td { background: #fafbfc; }
+
+  /* ===== 引用 ===== */
+  blockquote {
+    border-left: 3px solid #1a73e8; background: #f8f9fa;
+    padding: 12px 20px; margin: 16px 0; border-radius: 0 6px 6px 0;
+  }
+  blockquote p:last-child { margin-bottom: 0; }
+
+  /* ===== 底部 ===== */
+  footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #e9ecef; color: #868e96; font-size: 14px; text-align: center; }
+
+  /* ===== 锚点偏移 ===== */
+  .anchor { display: block; position: relative; top: -80px; visibility: hidden; }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 768px) {
+    nav.sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e9ecef; padding: 16px 0; }
+    main { margin-left: 0; padding: 24px 20px 40px; }
+  }
+
+  /* ===== 高亮行 ===== */
+  .hl { background: #fff8c5; padding: 0 2px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 侧边导航 ==================== -->
+<nav class="sidebar">
+  <h1>PPO 训练文档</h1>
+  <a href="#ch1" class="chap">一、PPO 算法原理总览</a>
+  <a href="#ch1-1" class="sub">1.1 策略梯度的问题</a>
+  <a href="#ch1-2" class="sub">1.2 PPO-Clip 核心思想</a>
+  <a href="#ch1-3" class="sub">1.3 Actor-Critic 架构</a>
+  <a href="#ch1-4" class="sub">1.4 GAE 优势估计</a>
+  <a href="#ch2" class="chap">二、本项目 PPO 算法细节</a>
+  <a href="#ch2-1" class="sub">2.1 双优化器设计</a>
+  <a href="#ch2-2" class="sub">2.2 Returns / 优势归一化</a>
+  <a href="#ch2-3" class="sub">2.3 辅助任务损失</a>
+  <a href="#ch2-4" class="sub">2.4 NaN 保护机制</a>
+  <a href="#ch2-5" class="sub">2.5 学习率调度</a>
+  <a href="#ch3" class="chap">三、模块结构与训练流程</a>
+  <a href="#ch3-1" class="sub">3.1 核心类角色</a>
+  <a href="#ch3-2" class="sub">3.2 完整训练流程</a>
+  <a href="#ch3-3" class="sub">3.3 数据流图</a>
+  <a href="#ch3-4" class="sub">3.4 文件结构</a>
+  <a href="#ch4" class="chap">四、核心代码实现总览</a>
+  <a href="#ch4-1" class="sub">4.1 训练入口：train.py</a>
+  <a href="#ch4-2" class="sub">4.2 训练主循环：SelfPlayTrainer.train()</a>
+  <a href="#ch4-3" class="sub">4.3 数据收集：EpisodeCollector.collect()</a>
+  <a href="#ch4-4" class="sub">4.4 PPO 更新入口：_flush_batch_to_update()</a>
+  <a href="#ch5" class="chap">五、PPO 更新核心代码深度解读</a>
+  <a href="#ch5-1" class="sub">5.1 EpisodeBatch：数据容器</a>
+  <a href="#ch5-2" class="sub">5.2 GAE 实现：compute_gae()</a>
+  <a href="#ch5-3" class="sub">5.3 _ppo_update()：顶层调度</a>
+  <a href="#ch5-4" class="sub">5.4 _train_ppo_epochs()：多轮迭代</a>
+  <a href="#ch5-5" class="sub">5.5 _process_minibatch()：前向 + 损失 + 反传</a>
+  <a href="#ch5-6" class="sub">5.6 _compute_losses()：损失函数详解</a>
+  <a href="#ch5-7" class="sub">5.7 梯度裁剪与安全检测</a>
+  <a href="#ch6" class="chap">六、数据收集与 EpisodeBatch</a>
+  <a href="#ch6-1" class="sub">6.1 EpisodeBatch 数据结构</a>
+  <a href="#ch6-2" class="sub">6.2 EpisodeCollector 收集流程</a>
+  <a href="#ch6-3" class="sub">6.3 辅助标签计算</a>
+  <a href="#ch7" class="chap">七、参数配置详解</a>
+  <a href="#ch7-1" class="sub">7.1 PPO 算法参数</a>
+  <a href="#ch7-2" class="sub">7.2 训练调度参数</a>
+  <a href="#ch7-3" class="sub">7.3 Self-Play 参数</a>
+  <a href="#ch7-4" class="sub">7.4 网络参数</a>
+  <a href="#ch7-5" class="sub">7.5 配置加载流程</a>
+  <a href="#ch8" class="chap">八、辅助系统简介</a>
+  <a href="#ch8-1" class="sub">8.1 NeuralAgent</a>
+  <a href="#ch8-2" class="sub">8.2 安全机制</a>
+  <a href="#ch8-3" class="sub">8.3 回调系统</a>
+  <a href="#ch8-4" class="sub">8.4 对战评估</a>
+</nav>
+
+<!-- ==================== 主内容 ==================== -->
+<main>
+
+<!-- ======================================================================== -->
+<!-- 第一章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch1"></span>
+<h2>一、PPO 算法原理总览</h2>
+
+<p>Proximal Policy Optimization (PPO) 是目前强化学习领域最广泛使用的策略梯度算法之一。其核心目标是在每一轮更新中<span class="hl">在提升策略性能的同时，防止策略发生过于剧烈的变化</span>——因为一次过大的策略更新往往会导致灾难性的性能崩塌。</p>
+
+<h3 id="ch1-1">1.1 策略梯度的问题</h3>
+
+<p>在策略梯度方法中，我们通过梯度上升最大化期望累积奖励 <span class="math">J(&pi;) = E[&Sigma; &gamma;<sup>t</sup> r<sub>t</sub>]</span>。标准的策略梯度更新为：</p>
+
+<pre><span class="math">&nabla;J(&theta;) = E[&nabla;log &pi;<sub>&theta;</sub>(a|s) &middot; A(s,a)]</span></pre>
+
+<p>其中 <span class="math">&pi;<sub>&theta;</sub></span> 是参数为 <span class="math">&theta;</span> 的策略网络，<span class="math">A(s,a)</span> 是优势函数。这个公式的直观含义是：<span class="hl">如果某个动作的优势为正，就增大它的概率；反之则减小</span>。</p>
+
+<p>但问题在于：<span class="hl">策略梯度没有限制每次更新的步长</span>。如果使用同一个数据批次进行多次梯度更新（这在 PPO 中是标准做法），旧策略 <span class="math">&pi;<sub>&theta;<sub>old</sub></sub></span> 和新策略 <span class="math">&pi;<sub>&theta;</sub></span> 可能在几次更新后差异极大，导致训练不稳定。</p>
+
+<div class="callout callout-warn">
+  <strong>为什么不能直接限制参数更新的步长？</strong>
+  <p>策略网络的参数空间和策略分布空间不是线性对应的——参数的小变化可能导致策略分布的剧烈变化，反之亦然。因此，PPO 不直接约束参数变化量，而是约束 <span class="hl">策略分布的变化量</span>。</p>
+</div>
+
+<h3 id="ch1-2">1.2 PPO-Clip 核心思想</h3>
+
+<p>PPO 的解决方案是使用<span class="hl">重要性采样比率 (importance sampling ratio)</span> 来衡量新旧策略的差异程度：</p>
+
+<pre><span class="math">r<sub>t</sub>(&theta;) = &pi;<sub>&theta;</sub>(a<sub>t</sub>|s<sub>t</sub>) / &pi;<sub>&theta;<sub>old</sub></sub>(a<sub>t</sub>|s<sub>t</sub>)</span></pre>
+
+<p>当 <span class="math">r<sub>t</sub>(&theta;) = 1</span> 时，新旧策略在动作 <span class="math">a<sub>t</sub></span> 上的概率完全相同。PPO-Clip 的优化目标为：</p>
+
+<pre><span class="math">L<sup>CLIP</sup>(&theta;) = E[min(r<sub>t</sub>(&theta;) &middot; A<sub>t</sub> , clip(r<sub>t</sub>(&theta;), 1-&epsilon;, 1+&epsilon;) &middot; A<sub>t</sub>)]</span></pre>
+
+<table>
+  <tr><th>符号</th><th>含义</th></tr>
+  <tr><td><span class="math">r<sub>t</sub>(&theta;)</span></td><td>新旧策略在动作 <span class="math">a<sub>t</sub></span> 上的概率比</td></tr>
+  <tr><td><span class="math">A<sub>t</sub></span></td><td>时刻 <span class="math">t</span> 的优势估计，正值表示该动作优于平均</td></tr>
+  <tr><td><span class="math">&epsilon;</span></td><td>裁剪阈值（典型值 0.2），控制允许的策略变化幅度</td></tr>
+  <tr><td><span class="math">clip(r, 1-&epsilon;, 1+&epsilon;)</span></td><td>将比率限制在 [0.8, 1.2] 之间</td></tr>
+</table>
+
+<p><span class="hl">裁剪机制的本质</span>：当优势 <span class="math">A<sub>t</sub> &gt; 0</span> 时（该动作好），我们想要增大其概率，但增大幅度被限制在 <span class="math">1+&epsilon;</span>；当 <span class="math">A<sub>t</sub> &lt; 0</span> 时（该动作差），我们想要减小其概率，但减小幅度被限制在 <span class="math">1-&epsilon;</span>。这相当于给策略更新加了一个"安全带"——每次最多变化 <span class="math">&epsilon;</span> 倍。</p>
+
+<div class="callout callout-info">
+  <strong>为什么用裁减法而不是 KL 散度约束？</strong>
+  <p>TRPO (Trust Region Policy Optimization) 使用 KL 散度作为硬约束，但计算复杂且需要二阶优化。PPO-Clip 用一阶优化实现了相似的信任区域效果，实现简单、计算高效、对超参数更鲁棒。</p>
+</div>
+
+<h3 id="ch1-3">1.3 Actor-Critic 架构</h3>
+
+<p>本项目采用 Actor-Critic 架构：</p>
+<ul>
+  <li><strong>Actor（策略网络）</strong>：输出动作概率分布 <span class="math">&pi;(a|s)</span>，决定"做什么"</li>
+  <li><strong>Critic（价值网络）</strong>：输出状态价值 <span class="math">V(s)</span>，评估"当前状态有多好"</li>
+</ul>
+
+<p>优势函数 <span class="math">A(s,a) = Q(s,a) - V(s)</span> 衡量"这个动作相对于平均水平的优劣"。在实践中，我们用 TD 误差或 GAE 来估计优势，而不是直接计算 Q 值。</p>
+
+<h3 id="ch1-4">1.4 GAE 优势估计</h3>
+
+<p>Generalized Advantage Estimation (GAE) 是优势估计的利器，它在<span class="hl">偏差与方差之间做平衡</span>：</p>
+
+<pre><span class="math">&delta;<sub>t</sub> = r<sub>t</sub> + &gamma;V(s<sub>t+1</sub>) - V(s<sub>t</sub>)  &nbsp;&nbsp;(TD 误差)
+
+A<sup>GAE</sup><sub>t</sub> = &Sigma;<sub>l=0</sub><sup>T-t-1</sup> (&gamma;&lambda;)<sup>l</sup> &delta;<sub>t+l</sub></span></pre>
+
+<table>
+  <tr><th>符号</th><th>含义</th></tr>
+  <tr><td><span class="math">&gamma;</span> (gamma)</td><td>折扣因子，控制远期的奖励对当前的影响程度</td></tr>
+  <tr><td><span class="math">&lambda;</span> (gae_lambda)</td><td>GAE 权衡参数，<span class="math">&lambda;=0</span> 等价于单步 TD，<span class="math">&lambda;=1</span> 等价于 Monte Carlo</td></tr>
+  <tr><td><span class="math">&delta;<sub>t</sub></span></td><td>单步 TD 误差——当前奖励 + 下一状态价值 - 当前状态价值</td></tr>
+</table>
+
+<p><span class="hl">GAE 的直觉</span>：如果 <span class="math">&lambda;</span> 接近 0，我们主要信任当前的价值估计（低方差，高偏差）；如果 <span class="math">&lambda;</span> 接近 1，我们更相信实际奖励的累积（高方差，低偏差）。实践中 <span class="math">&lambda;=0.95</span> 是常见选择。</p>
+
+<!-- ======================================================================== -->
+<!-- 第二章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch2"></span>
+<h2>二、本项目 PPO 算法细节</h2>
+
+<p>本项目在标准 PPO-Clip 的基础上做了一些工程化的调整和扩展。以下逐一说明每项设计的动机和效果。</p>
+
+<h3 id="ch2-1">2.1 双优化器设计</h3>
+
+<p>与许多实现共享一个优化器的做法不同，本项目为策略网络 (Actor) 和价值网络 (Critic) 使用<span class="hl">独立的优化器</span>：</p>
+
+<pre><span class="kw">self</span>.optimizer = optim.Adam(policy_params, lr=lr)
+<span class="kw">self</span>.value_optimizer = optim.Adam(value_params, lr=lr_vf)</pre>
+
+<p><strong>为什么这样做？</strong></p>
+<ol>
+  <li><strong>不同的学习率需求</strong>：策略网络和价值网络的 loss landscape 不同。价值网络的 MSE loss 相对稳定，可以用较低学习率；策略网络的 policy gradient 更敏感，可能需要不同的学习率。</li>
+  <li><strong>梯度裁剪独立</strong>：价值网络的梯度范数通常远大于策略网络（MSE loss 的梯度幅度与 reward scale 相关），分开裁剪可以设置不同的 max_grad_norm。</li>
+  <li><strong>优化器状态独立</strong>：各自的 Adam 动量/方差累积不会相互干扰。</li>
+</ol>
+
+<p>参数分组通过参数名前缀识别：</p>
+<pre>VALUE_PREFIXES = (
+    <span class="str">"value_cnn."</span>,  <span class="cm"># 价值网络 CNN 层</span>
+    <span class="str">"value_mlp."</span>,  <span class="cm"># 价值网络 MLP 层</span>
+    <span class="str">"value_head."</span>, <span class="cm"># 价值输出头</span>
+    <span class="str">"value_proj."</span>,
+    <span class="str">"value_layer_norm."</span>,
+)</pre>
+
+<h3 id="ch2-2">2.2 Returns / 优势归一化</h3>
+
+<p>在 PPO 更新中，returns 和价值网络的 MSE loss 尺度高度依赖奖励信号的幅度。如果奖励范围变化（例如某一局的对战特别激烈），value loss 可能突然爆炸。</p>
+
+<p>本项目的处理方式：</p>
+
+<pre><span class="cm"># 在 _ppo_update() 中：</span>
+return_mean = returns.mean()
+return_std = returns.std() + 1e-8
+returns = (returns - return_mean) / return_std   <span class="cm"># ← 归一化到 N(0,1)</span>
+
+<span class="cm"># 在 _prepare_minibatch() 中：</span>
+adv_mean = mb_advantages.mean()
+adv_std = mb_advantages.std() + 1e-8
+mb_advantages_norm = (mb_advantages - adv_mean) / adv_std  <span class="cm"># ← minibatch 内归一化</span></pre>
+
+<p><span class="hl">注意</span>：returns 在批级别归一化，优势在 minibatch 级别归一化。这样做的好处是 value loss 始终在一个可控的尺度上，不同 episode 之间不会因为奖励幅度不同而导致 loss 剧烈波动。</p>
+
+<h3 id="ch2-3">2.3 辅助任务损失</h3>
+
+<p>除了策略损失和价值损失，本项目引入了<span class="hl">辅助任务 (auxiliary tasks)</span> 来帮助网络学习更丰富的状态表示：</p>
+
+<table>
+  <tr><th>辅助任务</th><th>预测目标</th><th>权重参数</th></tr>
+  <tr><td>己方塔伤害</td><td>本回合对敌方防御塔造成的伤害</td><td>aux_tower_coef</td></tr>
+  <tr><td>己方金币收入</td><td>本回合获得的金币数量</td><td>aux_gold_coef</td></tr>
+  <tr><td>敌方塔伤害</td><td>敌方本回合对己方防御塔造成的伤害</td><td>aux_enemy_tower_coef</td></tr>
+  <tr><td>敌方金币收入</td><td>敌方本回合获得的金币数量</td><td>aux_enemy_gold_coef</td></tr>
+</table>
+
+<p>这些辅助标签从对局轨迹中离线计算（见 `compute_aux_labels_from_trajectory`），不参与在线推理。辅助任务的本质是<span class="hl">多任务学习</span>——通过预测这些与游戏进程高度相关的量，强迫网络中间层提取更丰富的特征。</p>
+
+<div class="callout callout-tip">
+  <strong>辅助任务为什么有效？</strong>
+  <p>游戏对抗的本质是资源（金币、塔 HP）的争夺。如果网络的中间特征能够预测金币收入和塔伤害，这些特征必然包含了关于游戏全局状态的有用信息，进而帮助策略网络做出更好的决策。</p>
+</div>
+
+<h3 id="ch2-4">2.4 NaN 保护机制</h3>
+
+<p>神经网络训练中 NaN (Not a Number) 的出现是训练崩溃的前兆。本项目构建了一套三级 NaN 防御体系：</p>
+
+<h4>第一级：推理时 NaN 保护 (NeuralAgent._forward)</h4>
+<pre><span class="cm"># 当 log_prob 或 value 出现 NaN 时，回退到 0</span>
+<span class="kw">if</span> has_nan:
+    log_prob = torch.tensor(<span class="num">0.0</span>, device=self._device)
+    value = torch.tensor(<span class="num">0.0</span>, device=self._device)</pre>
+
+<h4>第二级：训练时 Tensor 清理 (clean_tensor)</h4>
+<pre><span class="cm"># 在 loss 计算前替换 NaN/Inf</span>
+new_log_probs = clean_tensor(new_log_probs)
+new_values   = clean_tensor(new_values)
+
+<span class="kw">def</span> <span class="fn">clean_tensor</span>(tensor):
+    <span class="kw">return</span> torch.nan_to_num(tensor, nan=<span class="num">0.0</span>, posinf=<span class="num">1e4</span>, neginf=-<span class="num">1e4</span>)</pre>
+
+<h4>第三级：NaN 恢复机制 (NanRecoveryHandler)</h4>
+<p>当检测到 loss 中出现 NaN 时，跳过当前 minibatch；如果连续 NaN 次数超过阈值，回滚到最近一次健康的检查点权重并停止训练。</p>
+
+<pre><span class="cm"># 每次 PPO update 成功后保存健康状态</span>
+self._nan_handler.save_good_state(
+    policy_state=self.policy.state_dict(),
+    optimizer_state=self.optimizer.state_dict(),
+    value_optimizer_state=self.value_optimizer.state_dict(),
+)
+
+<span class="cm"># NaN 恢复时回滚</span>
+policy.load_state_dict(self._last_good_policy_state)
+optimizer.load_state_dict(self._last_good_optimizer_state)</pre>
+
+<h3 id="ch2-5">2.5 学习率调度</h3>
+
+<p>学习率调度器 `LRScheduler` 支持三种策略：</p>
+
+<ol>
+  <li><strong>Warmup</strong>：在前 N 个 episode 将学习率从 0 线性增加到目标值，避免初期训练不稳定</li>
+  <li><strong>Cosine Decay</strong>：训练过程中按照余弦曲线从初始值衰减到 0，在训练后期进行精细调优</li>
+  <li><strong>Fixed</strong>：保持初始学习率不变</li>
+</ol>
+
+<pre><span class="cm"># Cosine decay 实现</span>
+<span class="kw">if</span> cfg.cosine_decay:
+    progress = episode / max(total_episodes, <span class="num">1</span>)
+    factor = (<span class="num">1.0</span> + math.cos(math.pi * progress)) / <span class="num">2.0</span>  <span class="cm"># [0, &pi;] 上的 cos，从 1 到 0</span>
+    lr = cfg.lr_base * factor
+    lr_vf = cfg.lr_vf_base * factor</pre>
+
+
+<!-- ======================================================================== -->
+<!-- 第三章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch3"></span>
+<h2>三、模块结构与训练流程</h2>
+
+<h3 id="ch3-1">3.1 核心类角色</h3>
+
+<table>
+  <tr><th>类名</th><th>文件路径</th><th>职责</th></tr>
+  <tr>
+    <td>PPOTrainer</td>
+    <td>trainer/ppo_trainer.py</td>
+    <td>纯训练引擎：构建网络、优化器，执行 PPO 更新，保存/加载检查点。不包含推理逻辑。</td>
+  </tr>
+  <tr>
+    <td>NeuralAgent</td>
+    <td>trainer/neural_agent.py</td>
+    <td>推理封装：持有 policy 引用，提供 act() 和 act_record()，含 NaN 保护。</td>
+  </tr>
+  <tr>
+    <td>EpisodeCollector</td>
+    <td>trainer/episode_collector.py</td>
+    <td>数据收集：运行单回合对战循环，收集观测/动作/奖励/价值数据，构建 EpisodeBatch。</td>
+  </tr>
+  <tr>
+    <td>SelfPlayTrainer</td>
+    <td>trainer/selfplay.py</td>
+    <td>训练编排：驱动主循环，协调数据收集、对手选择、PPO 更新、对战评估等。</td>
+  </tr>
+  <tr>
+    <td>EpisodeBatch</td>
+    <td>trainer/batch.py</td>
+    <td>数据容器：存储一局或多局对战的完整轨迹，提供 to_tensors() 和 merge()。</td>
+  </tr>
+</table>
+
+<h3 id="ch3-2">3.2 完整训练流程</h3>
+
+<p>从 `train.py` 启动到训练结束，核心流程如下：</p>
+
+<pre>  train.py
+    │
+    ├── 1. 解析配置 (YAML + CLI)
+    ├── 2. 创建 PPOTrainer (构建网络 & 优化器)
+    ├── 3. 创建 SelfPlayTrainer
+    │     ├── 创建 NeuralAgent (持有 policy 引用)
+    │     └── 创建 EpisodeCollector (传入 NeuralAgent)
+    └── 4. 调用 selfplay_trainer.train()
+          │
+          └── 主循环 (每个 episode) ───────────────────────────────────┐
+                │                                                     │
+                ├── _run_single_episode()                             │
+                │     ├── 选择对手 (从对手池)                          │
+                │     ├── 创建环境                                    │
+                │     └── EpisodeCollector.collect()                  │
+                │           ├── while not done:                       │
+                │           │     ├── NeuralAgent.act_record(obs)     │
+                │           │     ├── opponent_agent.act(obs)         │
+                │           │     ├── env.step(action_self, action_opponent, self_first)
+                │           │     ├── batch.add_step(...)             │
+                │           │     └── 更新观测                        │
+                │           └── 返回 (EpisodeBatch, battle_details)   │
+                │                                                     │
+                ├── _flush_batch_to_update()                          │
+                │     ├── EpisodeBatch.merge(batch_pool)              │
+                │     ├── PPOTrainer.ppo_update(batch)                │
+                │     │     ├── GAE 计算                              │
+                │     │     ├── returns 归一化                        │
+                │     │     └── PPO Epochs (多次 minibatch SGD)       │
+                │     └── 记录 metrics                                │
+                │                                                     │
+                └── _run_periodic_tasks()                             │
+                      ├── 创建对手快照                                │
+                      ├── 对战评估                                    │
+                      └── 保存联赛状态                                │
+                                                                      │
+              循环直到 episode_count &ge; total_episodes ◄───────────┘</pre>
+
+<h3 id="ch3-3">3.3 数据流图</h3>
+
+<p>以数据维度展示各模块之间的数据传递：</p>
+
+<pre>  环境 (AntWarEnv)
+    │  obs: Dict{'board': (28,19,19), 'global': (33,), 'action_mask': (N,)}
+    ▼
+  NeuralAgent.act_record(obs)
+    │  内部: observation_to_tensors() → policy.get_action() → NaN check
+    ▼
+  (action_id: int, log_prob: float, value: float)
+    │
+    ├──→ env.step(action_self, action_opponent)
+    │         ↓
+    │    (next_obs, rewards, done, info)
+    │
+    └──→ EpisodeBatch.add_step(obs, action, reward, value, log_prob, done)
+              ↓ (重复 T 步)
+         EpisodeBatch {
+           observations_board:  list of (28,19,19)
+           observations_global: list of (33,)
+           observations_mask:   list of (N,)
+           actions:             list of int
+           rewards:             list of float
+           values:              list of float
+           log_probs:           list of float
+           dones:               list of bool
+         }
+              ↓
+         EpisodeBatch.merge([batch1, batch2, ...])
+              ↓
+         PPOTrainer.ppo_update(merged_batch)
+              ↓
+         returns: Dict{policy_loss, value_loss, entropy, grad_norm, ...}</pre>
+
+<h3 id="ch3-4">3.4 文件结构</h3>
+
+<pre>  ppo_v2/src/ppo_antwar/
+    ├── train.py                          # 训练入口 (顶层)
+    ├── __init__.py                       # 包导出
+    ├── trainer/
+    │   ├── ppo_trainer.py                # PPOTrainer — PPO 核心算法
+    │   ├── neural_agent.py               # NeuralAgent — 推理封装
+    │   ├── episode_collector.py          # EpisodeCollector — 数据收集
+    │   ├── selfplay.py                   # SelfPlayTrainer — 训练编排
+    │   ├── batch.py                      # EpisodeBatch — 数据容器
+    │   ├── safety.py                     # NaN 检测/清理/恢复
+    │   ├── lr_scheduler.py               # 学习率调度
+    │   ├── checkpoint_manager.py         # 检查点管理
+    │   ├── logging_subsystem.py          # 日志子系统
+    │   └── selfplay_logger.py            # SelfPlay 专用日志
+    ├── network/
+    │   └── ant_war_policy_value_network.py  # Actor-Critic 网络定义
+    ├── battle/
+    │   ├── opponent_agent.py             # 对手 Agent 封装
+    │   ├── ppo_war_agent.py              # PPO 策略的战场 Agent
+    │   └── battle_coordinator.py         # 对战评估协调器
+    ├── _agent/
+    │   └── protocol.py                   # Agent / RecordingAgent 抽象
+    └── utils/
+        ├── gae.py                        # GAE 优势估计
+        ├── obs_utils.py                  # 观测编码工具
+        └── aux_labels.py                 # 辅助标签计算</pre>
+
+<!-- ======================================================================== -->
+<!-- 第四章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch4"></span>
+<h2>四、核心代码实现总览</h2>
+
+<p>本章走读主要代码路径一次，重在理解整体执行流程和各个模块如何配合。我们不深入每一行代码的细节——那些将留到第五章。本章的目标是建立"代码地图"。</p>
+
+<h3 id="ch4-1">4.1 训练入口：train.py</h3>
+
+<p>训练从 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/train.py">train.py</a> 开始。它的核心逻辑是：</p>
+
+<ol>
+  <li>解析命令行参数和 YAML 配置文件（支持 CLI 覆盖）</li>
+  <li>创建环境工厂 <code class="hl">env_factory</code>（延迟创建环境实例，每次调用生成新环境）</li>
+  <li>创建 <code>PPOTrainer</code>（内部构建网络 + 优化器）</li>
+  <li>创建 <code>SelfPlayTrainer</code>（内部创建 NeuralAgent + EpisodeCollector）</li>
+  <li>调用 <code>selfplay_trainer.train()</code> 开始训练循环</li>
+</ol>
+
+<pre><span class="cm"># train.py — 核心创建逻辑</span>
+trainer = PPOTrainer(
+    env_factory=env_factory,
+    config=config,
+    device=device,
+    base_dir=str(path_config.get_run_dir(run_id)),
+    callbacks=callbacks,
+)
+trainer.log_config_summary()
+
+selfplay_trainer = SelfPlayTrainer(
+    trainer=trainer,
+    config=config,
+    path_config=path_config,
+    run_id=run_id,
+)
+
+callbacks.init_callback(trainer)
+callbacks.on_training_start()
+selfplay_trainer.train(
+    num_episodes=total_episodes,
+    env_factory=env_factory,
+    callbacks=callbacks,
+)</pre>
+
+<p><span class="hl">关键设计</span>：<code>SelfPlayTrainer</code> 接收一个已构建好的 <code>PPOTrainer</code> 实例。这种"组合优于继承"的设计使 <code>PPOTrainer</code> 可以独立于训练框架被测试和复用。</p>
+
+<h3 id="ch4-2">4.2 训练主循环：SelfPlayTrainer.train()</h3>
+
+<p>在 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/selfplay.py">selfplay.py</a> 中，<code>train()</code> 方法是整个训练的核心循环（第 507-557 行）：</p>
+
+<pre><span class="kw">def</span> <span class="fn">train</span>(self, num_episodes, env_factory, callbacks=<span class="kw">None</span>):
+    <span class="kw">while</span> self._episode_count &lt; num_episodes:
+        self._episode_count += 1                          <span class="cm"># 1. 计数器累加</span>
+        pending_info, reward, length, result = \
+            self._run_single_episode(env_factory)          <span class="cm"># 2. 一局对战 → EpisodeBatch</span>
+        self._flush_batch_to_update(                       <span class="cm"># 3. 缓存够了就触发 PPO 更新</span>
+            pending_action_stats=[pending_info]
+        )
+        self._run_periodic_tasks()                         <span class="cm"># 4. 对手更新/对战评估/保存</span></pre>
+
+<p>每次循环执行一个 episode。这里的关键是 <code class="hl">_run_single_episode</code> 收集数据后，<code>_flush_batch_to_update</code> 判断是否累积了足够的数据（达到 <code>n_envs</code> 局）来进行一次 PPO 更新。</p>
+
+<h3 id="ch4-3">4.3 数据收集：EpisodeCollector.collect()</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/episode_collector.py">EpisodeCollector</a> 封装了单局对战的完整数据收集。其 <code>collect()</code> 方法执行以下流程：</p>
+
+<pre><span class="kw">def</span> <span class="fn">collect</span>(self, env, opponent_agent, opponent_id, self_first):
+    batch = EpisodeBatch()
+    observations, _ = env.reset()
+    obs_self, obs_opponent = self._setup_observations(observations)
+
+    <span class="kw">while</span> <span class="kw">not</span> done:
+        <span class="cm"># 1. 己方动作：通过 NeuralAgent 获取 (action, log_prob, value)</span>
+        action_self, log_prob, value = self._self_agent.act_record(obs_self)
+
+        <span class="cm"># 2. 对手动作：通过 opponent_agent.act() 获取</span>
+        action_opponent = opponent_agent.act(obs_opponent)
+
+        <span class="cm"># 3. 环境 step：同时执行双方动作</span>
+        obs_new, (reward, _), terminated, truncated, info = \
+            env.step(action_self, action_opponent, self_first)
+        done = terminated or truncated
+
+        <span class="cm"># 4. 写入 batch</span>
+        batch.add_step(obs_self, action_self, reward, value, log_prob, done)
+
+        <span class="cm"># 5. 更新观测</span>
+        obs_self, obs_opponent = self._update_observations(obs_new, ...)
+
+    <span class="cm"># 6. 附加辅助标签</span>
+    self._attach_aux_labels(batch, step_snapshots)
+    <span class="kw">return</span> batch, battle_details</pre>
+
+<p><span class="hl">注意</span>：每步同时收集 <code>value</code>（Critic 输出）和 <code>log_prob</code>（Actor 输出的对数概率）。这两个量在后续的 PPO 更新中是计算损失函数所必需的。</p>
+
+<h3 id="ch4-4">4.4 PPO 更新入口：_flush_batch_to_update()</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/selfplay.py">SelfPlayTrainer._flush_batch_to_update()</a>（第 440-504 行）是数据收集和模型训练的桥梁：</p>
+
+<ol>
+  <li><strong>判断条件</strong>：<code>batch_pool</code> 中的局数达到 <code>n_envs</code> 且总样本数达到 <code>batch_size</code></li>
+  <li><strong>合并数据</strong>：<code>EpisodeBatch.merge()</code> 将多局数据拼接</li>
+  <li><strong>质量检查</strong>：检测 NaN/Inf/全零奖励等异常</li>
+  <li><strong>PPO 更新</strong>：调用 <code>trainer.ppo_update(merged)</code></li>
+  <li><strong>记录指标</strong>：将训练 metrics 写入日志和监控系统</li>
+  <li><strong>清空缓存</strong>：重置 <code>batch_pool</code>，准备下一轮收集</li>
+</ol>
+
+<pre><span class="kw">def</span> <span class="fn">_flush_batch_to_update</span>(self, pending_action_stats=<span class="kw">None</span>):
+    <span class="cm"># 检查是否达到更新条件</span>
+    <span class="kw">if</span> len(self._batch_pool) &lt; n_envs <span class="kw">or</span> total_steps &lt; batch_size:
+        <span class="kw">return</span>
+
+    merged = EpisodeBatch.merge(self._batch_pool)
+
+    <span class="cm"># 质量检查</span>
+    is_valid, issues = self._trainer.check_batch_quality(merged)
+
+    <span class="cm"># PPO 更新</span>
+    metrics = self._trainer.ppo_update(merged)  <span class="cm"># ← 核心调用</span></pre>
+
+<p><span class="hl">为什么合并后才更新？</span>PPO 是一个 on-policy 算法——训练数据必须是用当前策略收集的。每一局对战使用同一个策略（<code>self_agent</code> 的 <code>policy</code> 引用），所以多局数据可以合并使用。合并更大的 batch 能降低梯度估计的方差。</p>
+
+
+<!-- ======================================================================== -->
+<!-- 第五章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch5"></span>
+<h2>五、PPO 更新核心代码深度解读</h2>
+
+<p>本章深入 <code>PPOTrainer</code> 中 PPO 更新的每一行代码。我们将从数据进入训练器开始，逐层剖析到最终的参数更新。</p>
+
+<h3 id="ch5-1">5.1 EpisodeBatch：数据容器</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/batch.py">EpisodeBatch</a> 是连接数据收集和模型训练的桥梁。其字段构成的每个维度都有明确的含义：</p>
+
+<table>
+  <tr><th>字段</th><th>类型</th><th>Shape</th><th>来源</th><th>用途</th></tr>
+  <tr><td><code>observations_board</code></td><td>List[np.ndarray]</td><td>T x (28, 19, 19)</td><td>环境观测</td><td>策略网络输入</td></tr>
+  <tr><td><code>observations_global</code></td><td>List[np.ndarray]</td><td>T x (33,)</td><td>环境观测</td><td>策略网络输入</td></tr>
+  <tr><td><code>observations_mask</code></td><td>List[np.ndarray]</td><td>T x (N,)</td><td>环境观测</td><td>动作掩码</td></tr>
+  <tr><td><code>actions</code></td><td>List[int]</td><td>T</td><td>NeuralAgent 输出</td><td>PPO loss 计算</td></tr>
+  <tr><td><code>rewards</code></td><td>List[float]</td><td>T</td><td>环境 step 返回</td><td>GAE 计算</td></tr>
+  <tr><td><code>values</code></td><td>List[float]</td><td>T</td><td>Critic 输出</td><td>GAE + value loss</td></tr>
+  <tr><td><code>log_probs</code></td><td>List[float]</td><td>T</td><td>Actor 输出</td><td>重要性采样比率</td></tr>
+  <tr><td><code>dones</code></td><td>List[bool]</td><td>T</td><td>环境 step 返回</td><td>GAE 边界处理</td></tr>
+</table>
+
+<p><code>T</code> = 单局对战步数（一般几十到几百步），<code>N</code> = 动作空间维度。辅助标签（<code>aux_tower_damage</code>、<code>aux_gold_income</code>）是可选的，仅在 <code>enable_auxiliary=True</code> 时填充。</p>
+
+<p><code>to_tensors()</code> 方法将所有 numpy 数据转换为 GPU 张量：</p>
+
+<pre>tensors = batch.to_tensors(self.device)
+<span class="cm"># 返回: Dict{
+#   "board":      torch.Tensor (T, 28, 19, 19),
+#   "global":     torch.Tensor (T, 33),
+#   "action_mask": torch.Tensor (T, N),
+#   "actions":    torch.Tensor (T,)  dtype=long,
+#   "rewards":    torch.Tensor (T,),
+#   "values":     torch.Tensor (T,),
+#   "log_probs":  torch.Tensor (T,),
+#   "dones":      torch.Tensor (T,),
+# }</span></pre>
+
+<h3 id="ch5-2">5.2 GAE 实现：compute_gae()</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/utils/gae.py">compute_gae()</a> 的代码只有 15 行，但理解了它就读懂了 PPO 中"数据如何转化为学习信号"的关键环节：</p>
+
+<pre><span class="kw">def</span> <span class="fn">compute_gae</span>(rewards, values, dones, gamma, gae_lambda, device):
+    <span class="cm"># 1. 转换为 Tensor</span>
+    rewards_t = torch.tensor(rewards, ...)
+    values_t  = torch.tensor(values, ...)
+    dones_t   = torch.tensor(dones, ...)
+
+    T = len(rewards)
+    advantages = torch.zeros(T, device=device)
+    gae = <span class="num">0.0</span>
+
+    <span class="cm"># 2. 逆向遍历（从最后一个时间步往前）</span>
+    <span class="kw">for</span> t <span class="kw">in</span> reversed(range(T)):
+        <span class="cm"># 如果 t 是最后一步，下一状态价值为 0（游戏结束）</span>
+        next_value = <span class="num">0.0</span> <span class="kw">if</span> t == T - <span class="num">1</span> \
+            <span class="kw">else</span> values_t[t+<span class="num">1</span>] * (<span class="num">1.0</span> - dones_t[t])
+
+        <span class="cm"># 3. 单步 TD 误差</span>
+        delta = rewards_t[t] + gamma * next_value - values_t[t]
+
+        <span class="cm"># 4. GAE 递推公式</span>
+        gae = delta + gamma * gae_lambda * (<span class="num">1.0</span> - dones_t[t]) * gae
+        advantages[t] = gae
+
+    <span class="cm"># 5. returns = advantages + values（Critic 优化的目标）</span>
+    returns = advantages + values_t
+    <span class="kw">return</span> advantages, returns</pre>
+
+<p><strong>为什么逆向遍历？</strong></p>
+<p>GAE 的定义 <span class="math">A<sub>t</sub> = &delta;<sub>t</sub> + (&gamma;&lambda;)&delta;<sub>t+1</sub> + (&gamma;&lambda;)<sup>2</sup>&delta;<sub>t+2</sub> + ...</span> 是一个累积和。从后往前遍历可以复用上一步计算的 <code>gae</code>——这正是递推公式 <span class="math">gae<sub>t</sub> = &delta;<sub>t</sub> + &gamma;&lambda; &middot; gae<sub>t+1</sub></span> 的含义。</p>
+
+<div class="callout callout-info">
+  <strong>dones 的作用</strong>
+  <p>当 <code>dones[t] = True</code>（游戏提前终止）时，<code>(1.0 - dones_t[t]) = 0</code>，GAE 递推被截断——<code>gae<sub>t</sub> = delta<sub>t</sub></code>。这防止了跨越 episode 边界的价值传播，符合马尔可夫性质。</p>
+</div>
+
+<p>GAE 计算完后，<code>PPOTrainer._compute_gae</code> 还做了额外的数值裁剪：</p>
+
+<pre>advantages = torch.clamp(advantages, -<span class="num">1e4</span>, <span class="num">1e4</span>)
+returns    = torch.clamp(returns,    -<span class="num">1e6</span>,  <span class="num">1e6</span>)</pre>
+
+<p>这是为了防止极端的奖励值导致梯度爆炸。</p>
+
+<h3 id="ch5-3">5.3 _ppo_update()：顶层调度</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/ppo_trainer.py">_ppo_update()</a>（第 108-151 行）是 PPO 更新的顶层调度函数。它执行三个主要步骤：</p>
+
+<pre><span class="kw">def</span> <span class="fn">_ppo_update</span>(self, batch):
+    ppo_cfg = self.config.get(<span class="str">"ppo"</span>, {})
+
+    <span class="cm"># Step 1: 数据准备 + GAE</span>
+    tensors = batch.to_tensors(self.device)
+    advantages, returns = self._compute_gae(
+        tensors[<span class="str">"rewards"</span>].tolist(),
+        tensors[<span class="str">"values"</span>].tolist(),
+        tensors[<span class="str">"dones"</span>].tolist(),
+    )
+    td_errors = returns - tensors[<span class="str">"values"</span>]
+
+    <span class="cm"># Step 2: returns 归一化（防 value loss 爆炸）</span>
+    return_mean = returns.mean()
+    return_std  = returns.std() + <span class="num">1e-8</span>
+    returns = (returns - return_mean) / return_std
+
+    <span class="cm"># Step 3: 统计信息计算 + PPO 多轮迭代</span>
+    reward_stats = self._compute_reward_stats(tensors)
+    type_metrics = self._compute_type_metrics(tensors)
+    metrics = self._train_ppo_epochs(tensors, advantages, returns, ppo_cfg)
+
+    <span class="cm"># Step 4: 保存健康状态（用于 NaN 恢复）</span>
+    self._nan_handler.save_good_state(...)
+
+    <span class="cm"># Step 5: 聚合指标并返回</span>
+    result = self._aggregate_metrics(metrics, reward_stats, type_metrics, ...)
+    <span class="kw">return</span> result</pre>
+
+<table>
+  <tr><th>步骤</th><th>产出</th><th>后续使用</th></tr>
+  <tr><td>GAE 计算</td><td><code>advantages</code>（策略梯度方向）<br><code>returns</code>（价值网络拟合目标）</td><td><code>_train_ppo_epochs</code> 中的每个 minibatch</td></tr>
+  <tr><td>returns 归一化</td><td><code>returns ~ N(0,1)</code></td><td>价值网络的 MSE loss 保持可控尺度</td></tr>
+  <tr><td>reward stats</td><td><code>reward_mean, reward_std</code> 等</td><td>训练日志和监控</td></tr>
+</table>
+
+<h3 id="ch5-4">5.4 _train_ppo_epochs()：多轮迭代</h3>
+
+<p>PPO 的一个重要特点是<span class="hl">同一批数据可以重复使用多次</span>（这就是需要裁剪的原因——防止同一批数据上多次更新导致策略偏离过远）。</p>
+
+<pre><span class="kw">def</span> <span class="fn">_train_ppo_epochs</span>(self, tensors, advantages, returns, ppo_cfg):
+    ppo_epochs = ppo_cfg.get(<span class="str">"ppo_epochs"</span>)      <span class="cm"># 4 或 10</span>
+    batch_size = ppo_cfg.get(<span class="str">"batch_size"</span>)       <span class="cm"># 512 或 1024</span>
+    target_kl  = ppo_cfg.get(<span class="str">"target_kl"</span>)        <span class="cm"># 0.02，早停阈值</span>
+    total_samples = len(tensors[<span class="str">"rewards"</span>])
+
+    <span class="kw">for</span> epoch <span class="kw">in</span> range(ppo_epochs):
+        indices = torch.randperm(total_samples, device=self.device)  <span class="cm"># ← 每轮打乱</span>
+        <span class="kw">for</span> start <span class="kw">in</span> range(<span class="num">0</span>, total_samples, batch_size):
+            mb_indices = indices[start:start + batch_size]
+
+            mb_data = self._prepare_minibatch(tensors, advantages, returns, mb_indices)
+            step_metrics = self._process_minibatch(mb_data, ...)
+
+            <span class="kw">if</span> step_metrics <span class="kw">is</span> <span class="kw">None</span>:  <span class="cm"># NaN 导致跳过的 minibatch</span>
+                <span class="kw">continue</span>
+
+        <span class="cm"># KL 早停：如果策略偏离过大，停止后续 epoch</span>
+        <span class="kw">if</span> epoch_approx_kl &gt; target_kl:
+            <span class="kw">break</span></pre>
+
+<p><span class="hl">打乱的重要性</span>：每一轮 epoch 开始时 <code>torch.randperm</code> 重新打乱数据顺序，确保每个 epoch 看到的 minibatch 组成不同。这增加了训练的随机性，有助于泛化。</p>
+
+<p><code>_prepare_minibatch</code> 的功能是从完整数据中切出一个 minibatch 并做优势归一化：</p>
+
+<pre>mb_data = {
+    <span class="str">"board"</span>:         tensors[<span class="str">"board"</span>][mb_indices],       <span class="cm"># (M, 28, 19, 19)</span>
+    <span class="str">"global"</span>:        tensors[<span class="str">"global"</span>][mb_indices],      <span class="cm"># (M, 33)</span>
+    <span class="str">"mask"</span>:          tensors[<span class="str">"action_mask"</span>][mb_indices], <span class="cm"># (M, N)</span>
+    <span class="str">"actions"</span>:       tensors[<span class="str">"actions"</span>][mb_indices],     <span class="cm"># (M,)</span>
+    <span class="str">"old_log_probs"</span>: tensors[<span class="str">"log_probs"</span>][mb_indices],   <span class="cm"># (M,) 旧策略的对数概率</span>
+    <span class="str">"advantages_norm"</span>: mb_advantages_norm,             <span class="cm"># (M,) 归一化优势</span>
+    <span class="str">"returns"</span>:       mb_returns,                       <span class="cm"># (M,) 目标 returns</span>
+    <span class="str">"old_values"</span>:    tensors[<span class="str">"values"</span>][mb_indices],     <span class="cm"># (M,) 旧价值估计</span>
+}
+<span class="cm"># M = minibatch 大小（通常是 batch_size，最后一批可能较小）</span></pre>
+
+<h3 id="ch5-5">5.5 _process_minibatch()：前向 + 损失 + 反传</h3>
+
+<p>这是<a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/ppo_trainer.py">_process_minibatch()</a> 的核心流程（第 327-398 行），它完成一个 minibatch 的完整前向-反向传播：</p>
+
+<pre><span class="kw">def</span> <span class="fn">_process_minibatch</span>(self, mb_data, ppo_cfg, clip_eps, clip_eps_vf,
+                      ent_coef, vf_coef, clip_values):
+    <span class="cm"># ── 1. 前向：用当前策略在新数据上评估 ──</span>
+    (new_log_probs, new_values, entropy, type_ent, target_ent,
+     aux_preds, features) = self.policy.evaluate_actions(
+        mb_data[<span class="str">"board"</span>], mb_data[<span class="str">"global"</span>],
+        mb_data[<span class="str">"mask"</span>], mb_data[<span class="str">"actions"</span>]
+    )
+
+    <span class="cm"># ── 2. 清理 NaN/Inf ──</span>
+    new_log_probs = clean_tensor(new_log_probs)
+    new_values    = clean_tensor(new_values)
+
+    <span class="cm"># ── 3. 计算损失 ──</span>
+    loss_result = self._compute_losses(mb_data, new_log_probs, new_values, ...)
+    <span class="kw">if</span> loss_result <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">return</span> <span class="kw">None</span>   <span class="cm"># NaN 检测到，跳过</span>
+    total_loss, aux_metrics, clip_fraction, ratio, log_ratio = loss_result
+
+    <span class="cm"># ── 4. 反向传播 + 梯度裁剪 ──</span>
+    skip_update, grad_metrics = self._backward_and_clip(total_loss, ...)
+    <span class="kw">if</span> skip_update:
+        <span class="kw">return</span> <span class="kw">None</span>   <span class="cm"># 梯度异常，跳过</span>
+
+    <span class="cm"># ── 5. 收集指标 ──</span>
+    <span class="kw">return</span> self._collect_step_metrics(mb_data, new_values, ..., clip_fraction, ...)</pre>
+
+<p><code>evaluate_actions</code> 是网络的核心方法，它同时完成两件事：</p>
+<ul>
+  <li>重新计算给定动作在新策略下的对数概率 <code>new_log_probs</code>（用于计算比率 <span class="math">r<sub>t</sub>(&theta;)</span>）</li>
+  <li>重新估计状态价值 <code>new_values</code>（用于计算 value loss）</li>
+  <li>计算策略熵 <code>entropy</code>（用于熵正则化）</li>
+</ul>
+
+<h3 id="ch5-6">5.6 _compute_losses()：损失函数详解</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/ppo_trainer.py">_compute_losses()</a>（第 400-464 行）是 PPO 算法的数学核心。让我们逐行解析：</p>
+
+<h4>比率计算</h4>
+<pre>log_ratio = new_log_probs - mb_data[<span class="str">"old_log_probs"</span>]  <span class="cm"># 对数域相减 = 除法</span>
+<span class="cm"># 数值稳定裁剪：防止 log_ratio 过小或过大</span>
+log_ratio = torch.clamp(log_ratio,
+    math.log(clip_values.get(<span class="str">"ratio_min"</span>, <span class="num">1e-5</span>)),
+    math.log(clip_values.get(<span class="str">"ratio_max"</span>, <span class="num">10.0</span>)))
+ratio = torch.exp(log_ratio)  <span class="cm"># 重要性采样比率 r(&theta;)</span></pre>
+
+<p><code>ratio</code> 的含义：如果 > 1，说明当前策略给出这个动作的概率比旧策略高；如果 &lt; 1，说明概率降低了。<span class="hl">ratio 是 PPO-Clip 的核心控制量</span>。</p>
+
+<h4>策略损失 (Policy Loss)</h4>
+<pre>surr1 = ratio * mb_data[<span class="str">"advantages_norm"</span>]               <span class="cm"># 原始策略梯度目标</span>
+surr2 = torch.clamp(ratio, <span class="num">1.0</span> - clip_eps, <span class="num">1.0</span> + clip_eps) \
+        * mb_data[<span class="str">"advantages_norm"</span>]                     <span class="cm"># 裁剪后的目标</span>
+policy_loss = -torch.min(surr1, surr2).mean()               <span class="cm"># 取最小值 + 负号 = 最大化</span></pre>
+
+<table>
+  <tr><th>场景</th><th>ratio</th><th>优势</th><th><code>min(surr1, surr2)</code></th><th>效果</th></tr>
+  <tr><td>好动作，试图过度提高</td><td>&gt; 1.2</td><td>+</td><td>surr2 = clip(ratio)×A</td><td>被裁剪器限制，停止过度提高</td></tr>
+  <tr><td>好动作，适度提高</td><td>1.0~1.2</td><td>+</td><td>surr1 = ratio×A</td><td>正常更新</td></tr>
+  <tr><td>差动作，试图过度降低</td><td>&lt; 0.8</td><td>-</td><td>surr2 = clip(ratio)×A</td><td>被裁剪器限制，停止过度降低</td></tr>
+  <tr><td>差动作，适度降低</td><td>0.8~1.0</td><td>-</td><td>surr1 = ratio×A</td><td>正常更新</td></tr>
+</table>
+
+<h4>价值损失 (Value Loss) — 裁剪式 MSE</h4>
+<pre><span class="cm"># 未裁剪的 value 预测</span>
+value_loss_unclipped = (new_values - mb_data[<span class="str">"returns"</span>]).pow(<span class="num">2</span>)
+
+<span class="cm"># 裁剪后的 value 预测（限制每次变化幅度）</span>
+value_pred_clipped = mb_data[<span class="str">"old_values"</span>] + torch.clamp(
+    new_values - mb_data[<span class="str">"old_values"</span>], -clip_eps_vf, clip_eps_vf)
+value_loss_clipped = (value_pred_clipped - mb_data[<span class="str">"returns"</span>]).pow(<span class="num">2</span>)
+
+<span class="cm"># 取二者最大值（最差情况下的 loss，鼓励保守更新）</span>
+value_loss = <span class="num">0.5</span> * torch.max(value_loss_unclipped, value_loss_clipped).mean()</pre>
+
+<p><span class="hl">为什么 value loss 也要裁剪？</span>策略裁剪防止策略分布突变，价值裁剪防止价值估计突变。二者原理相同——对价值网络来说，如果某一步 <code>old_value</code> 是 5，新估计变成 100，即使这个"更准确"，也可能导致训练不稳定。裁剪让价值估计也逐步变化。</p>
+
+<h4>熵损失 (Entropy Loss) — 鼓励探索</h4>
+<pre>entropy_loss = -ent_coef * entropy.mean()</pre>
+
+<p>策略熵衡量策略的随机程度。最大化熵意味着鼓励策略保持探索，防止过早收敛到确定性策略。<code>ent_coef</code> 控制探索的权重——太小则策略过早确定化，太大则策略过于随机。</p>
+
+<h4>总损失</h4>
+<pre>total_loss = policy_loss + vf_coef * value_loss + entropy_loss
+<span class="cm"># 可选：添加辅助任务损失</span>
+total_loss = self._add_auxiliary_loss(total_loss, mb_data, aux_preds, ...)</pre>
+
+<p><span class="hl">训练过程的最终结果</span>：每个 PPO update 周期中，整个 minibatch 循环运行多次，每次计算 total_loss → backward → optimizer.step → 梯度裁剪 → 收集指标。训练结束后<code>self._nan_handler.save_good_state()</code> 保存当前的参数状态作为新的"健康检查点"。</p>
+
+<h3 id="ch5-7">5.7 梯度裁剪与安全检测</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/ppo_trainer.py">_backward_and_clip()</a> 和 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/ppo_trainer.py">_check_and_clip_gradients()</a> 组成了梯度安全层：</p>
+
+<pre><span class="kw">def</span> <span class="fn">_backward_and_clip</span>(self, total_loss, max_grad_norm, max_grad_norm_vf):
+    self.optimizer.zero_grad()          <span class="cm"># 清零梯度</span>
+    self.value_optimizer.zero_grad()
+    total_loss.backward()                <span class="cm"># 反向传播</span>
+
+    skip, grad_metrics = self._check_and_clip_gradients(
+        max_grad_norm, max_grad_norm_vf)
+    <span class="kw">if</span> skip: <span class="kw">return</span> <span class="kw">True</span>, grad_metrics   <span class="cm"># 检测到 NaN/Inf 梯度</span>
+
+    self.optimizer.step()                <span class="cm"># 更新策略网络参数</span>
+    self.value_optimizer.step()          <span class="cm"># 更新价值网络参数</span>
+    <span class="kw">return</span> <span class="kw">False</span>, grad_metrics</pre>
+
+<p><code>_check_and_clip_gradients</code> 遍历所有参数：</p>
+<ol>
+  <li>检查每个参数的梯度是否包含 NaN/Inf → 如果发现，跳过整个 minibatch</li>
+  <li>计算策略网络和价值网络各自的梯度范数（用于日志和异常检测）</li>
+  <li>分别对策略参数和价值参数应用梯度裁剪（不同的 max_grad_norm 阈值）</li>
+</ol>
+
+<pre><span class="cm"># 梯度裁剪：策略网络梯度限制在 max_grad_norm，价值网络限制在 max_grad_norm_vf</span>
+nn.utils.clip_grad_norm_(policy_params, max_grad_norm)
+nn.utils.clip_grad_norm_(value_params, max_grad_norm_vf)</pre>
+
+<p><span class="hl">梯度裁剪的作用</span>：即使某个 minibatch 产生异常大的梯度，裁剪器也能将其"压回"安全范围，防止一步更新就破坏网络参数。这本质上是信任区域的另一种形式。</p>
+
+
+<!-- ======================================================================== -->
+<!-- 第六章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch6"></span>
+<h2>六、数据收集与 EpisodeBatch</h2>
+
+<p>本章重点介绍数据从环境产生到最终进入训练器的完整生命周期。</p>
+
+<h3 id="ch6-1">6.1 EpisodeBatch 数据结构</h3>
+
+<p><code>EpisodeBatch</code>（定义在 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/batch.py">batch.py</a>）存储一局对战中每个时间步的完整快照。它的关键设计点是：</p>
+
+<ul>
+  <li><strong>纯数据容器</strong>：只是 list 的集合，不含任何训练逻辑</li>
+  <li><strong>独立于设备</strong>：数据以 numpy 格式存储，直到 <code>to_tensors()</code> 时才转移到 GPU</li>
+  <li><strong>可合并</strong>：<code>merge()</code> 静态方法将多局数据拼接为一个大 batch</li>
+</ul>
+
+<p><code>to_tensors()</code> 方法将数据转换为模型所需的张量格式——注意 <code>actions</code> 使用 <code>dtype=torch.long</code>（作为交叉熵损失的索引），其他字段使用 <code>dtype=torch.float32</code>。</p>
+
+<h3 id="ch6-2">6.2 EpisodeCollector 收集流程</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/episode_collector.py">EpisodeCollector</a> 是对战循环的封装，其设计意图是：</p>
+
+<ul>
+  <li><strong>解耦</strong>：数据收集不依赖 PPOTrainer，只依赖 <code>RecordingAgent</code> 协议</li>
+  <li><strong>自包含</strong>：观测视角切换、奖励来源统计、快照采集都在内部完成</li>
+  <li><strong>可测试</strong>：传入 mock 的 <code>RecordingAgent</code> 即可测试收集逻辑</li>
+</ul>
+
+<p>收集流程中的关键调用链：</p>
+
+<pre><span class="cm"># 己方动作（含 NaN 保护）</span>
+self._self_agent.act_record(obs_self)
+  → NeuralAgent._forward(obs)
+    → observation_to_tensors(obs, device)
+    → policy.get_action(board, global, mask, deterministic=False, exploration_epsilon)
+    → NaN check
+  → (action_id: int, log_prob: float, value: float)
+
+<span class="cm"># 对手动作（不含训练数据，仅决策）</span>
+opponent_agent.act(obs_opponent)
+  → (action_id: int)
+
+<span class="cm"># 环境推进（同时执行双方动作）</span>
+env.step(action_self, action_opponent, self_first)
+  → (next_obs, (reward_self, reward_opponent), terminated, truncated, info)</pre>
+
+<h3 id="ch6-3">6.3 辅助标签计算</h3>
+
+<p>辅助标签（塔伤害、金币收入）从对战过程中的步快照计算，使用 <code>_capture_snapshot</code> 在每个时间步前采集一次状态快照：</p>
+
+<pre>snapshot = {
+    <span class="str">"own_tower_hp"</span>:    snapshot.self_state.tower_hp,      <span class="cm"># Dict[tower_id → HP]</span>
+    <span class="str">"enemy_tower_hp"</span>:  snapshot.opponent_state.tower_hp,
+    <span class="str">"own_coins"</span>:       snapshot.self_state.coins,          <span class="cm"># float</span>
+    <span class="str">"enemy_coins"</span>:     snapshot.opponent_state.coins,
+}</pre>
+
+<p>整局对战结束后，<code>compute_aux_labels_from_trajectory</code> 通过比较相邻时间步的快照差值，计算出每个时间步的塔伤害量和金币收入量：</p>
+
+<pre><span class="cm"># 塔伤害 = 上一时间步的 HP - 当前时间步的 HP（只算减少量）</span>
+tower_damage = prev_hp[tower_id] - curr_hp[tower_id]
+<span class="cm"># 金币收入 = 当前时间步的金币 - 上一时间步的金币（只算增加量）</span>
+gold_income = curr_coins - prev_coins  (if &gt; 0)</pre>
+
+<p>这些标签会作为辅助任务的监督信号，在 <code>_add_auxiliary_loss()</code> 中与主损失一起优化。</p>
+
+
+<!-- ======================================================================== -->
+<!-- 第七章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch7"></span>
+<h2>七、参数配置详解</h2>
+
+<p>本项目的所有训练参数集中在 <a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/configs/custom_antwar.yaml">custom_antwar.yaml</a> 中。以下按配置组逐一说明每个参数的含义、默认值和影响。</p>
+
+<h3 id="ch7-1">7.1 PPO 算法参数 (ppo)</h3>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th><th>调参建议</th></tr>
+  <tr>
+    <td><code>lr</code></td><td>3e-4</td>
+    <td>策略网络 (Actor) 的学习率。控制策略更新的步长。</td>
+    <td>初始推荐 3e-4，训练不稳定可降至 1e-4</td>
+  </tr>
+  <tr>
+    <td><code>lr_vf</code></td><td>1e-4</td>
+    <td>价值网络 (Critic) 的学习率。通常低于策略学习率。</td>
+    <td>一般为 lr 的 1/3 ~ 1/2</td>
+  </tr>
+  <tr>
+    <td><code>clip_eps</code></td><td>0.2</td>
+    <td>PPO 裁剪阈值 &epsilon;。控制策略更新的最大允许变化幅度。</td>
+    <td>0.2 是最常用的值；训练不稳定可降至 0.1</td>
+  </tr>
+  <tr>
+    <td><code>clip_eps_vf</code></td><td>0.2</td>
+    <td>价值网络裁剪阈值。控制价值估计的最大变化幅度。</td>
+    <td>通常与 clip_eps 保持一致</td>
+  </tr>
+  <tr>
+    <td><code>ent_coef</code></td><td>0.01</td>
+    <td>熵正则化系数。越大越鼓励探索。</td>
+    <td>0.01 是中等值；过早收敛可适当增大</td>
+  </tr>
+  <tr>
+    <td><code>vf_coef</code></td><td>0.5</td>
+    <td>价值损失在总损失中的权重。默认 0.5。</td>
+    <td>通常保持 0.5 不变</td>
+  </tr>
+  <tr>
+    <td><code>gamma</code></td><td>0.99</td>
+    <td>折扣因子 &gamma;。越接近 1，模型越关注远期奖励。</td>
+    <td>0.99 — 1.0 之间</td>
+  </tr>
+  <tr>
+    <td><code>gae_lambda</code></td><td>0.95</td>
+    <td>GAE &lambda; 参数。平衡优势估计的偏差和方差。</td>
+    <td>0.9 — 0.99，推荐 0.95</td>
+  </tr>
+  <tr>
+    <td><code>target_kl</code></td><td>0.02</td>
+    <td>KL 散度早停阈值。当 epoch 内的近似 KL 超过此值时停止后续 epoch。</td>
+    <td>0.01 — 0.03</td>
+  </tr>
+  <tr>
+    <td><code>ppo_epochs</code></td><td>4</td>
+    <td>每轮 PPO update 中，同一批数据被重复使用的轮次。</td>
+    <td>3 — 10。更多 epoch 适合数据量少的场景</td>
+  </tr>
+  <tr>
+    <td><code>batch_size</code></td><td>512</td>
+    <td>每个 minibatch 的样本数。PPO epoch 内部的 minibatch 划分粒度。</td>
+    <td>256 — 1024，取决于 GPU 显存</td>
+  </tr>
+  <tr>
+    <td><code>exploration_epsilon</code></td><td>0.05</td>
+    <td>探索噪声。在动作采样时以 &epsilon; 的概率做随机采样而不是贪心采样。</td>
+    <td>训练初期 0.05 — 0.1，后期降至 0.01</td>
+  </tr>
+</table>
+
+<p><code>clip_values</code> 子配置项：</p>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>ratio_min</code></td><td>1e-5</td><td>重要性采样比率的最小值（用于数值稳定）</td></tr>
+  <tr><td><code>ratio_max</code></td><td>10.0</td><td>重要性采样比率的最大值（用于数值稳定）</td></tr>
+  <tr><td><code>log_prob_min</code></td><td>-100.0</td><td>对数概率的最小值</td></tr>
+  <tr><td><code>value_min</code></td><td>-1e6</td><td>价值估计的最小值（梯度裁剪前）</td></tr>
+  <tr><td><code>value_max</code></td><td>1e6</td><td>价值估计的最大值</td></tr>
+</table>
+
+<h3 id="ch7-2">7.2 训练调度参数 (training)</h3>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th><th>调参建议</th></tr>
+  <tr>
+    <td><code>max_steps_per_episode</code></td><td>512</td>
+    <td>单局对战最大步数，防止无限循环。</td>
+    <td>根据地图大小调整，小地图可降至 256</td>
+  </tr>
+  <tr>
+    <td><code>n_envs</code></td><td>20</td>
+    <td>每轮 PPO update 前需收集的 episode 数量。决定 BATCH_POOL_SIZE。</td>
+    <td>10 — 30，越大则更新频率越低但数据多样性越好</td>
+  </tr>
+</table>
+
+<p><code>training.lr_schedule</code> 子配置项：</p>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>warmup</code></td><td>100</td><td>学习率 warmup 的 episode 数（线性从 0 到目标值）</td></tr>
+  <tr><td><code>cosine_decay</code></td><td>true</td><td>是否使用余弦衰减。如果为 false，使用固定学习率。</td></tr>
+  <tr><td><code>decay_start_episode</code></td><td>0</td><td>从第几个 episode 开始衰减（用于预热期后衰减）</td></tr>
+  <tr><td><code>schedule_type</code></td><td>episode</td><td>调度单位：按 episode 计数或按 step 计数</td></tr>
+</table>
+
+<h3 id="ch7-3">7.3 Self-Play 参数 (selfplay)</h3>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>max_opponent_pool_size</code></td><td>15</td><td>对手池最大保留的旧策略数量</td></tr>
+  <tr><td><code>opponent_save_interval</code></td><td>50</td><td>每 N 个 episode 将当前策略保存为对手快照</td></tr>
+  <tr><td><code>battle_eval_interval</code></td><td>50</td><td>每 N 个 episode 进行一次对战评估</td></tr>
+  <tr><td><code>battle_eval_episodes</code></td><td>5</td><td>每次对战评估跑多少局</td></tr>
+  <tr><td><code>ramp_down_opponent_save</code></td><td>true</td><td>训练后期是否减少对手保存频率</td></tr>
+  <tr><td><code>disable_battle_evaluation</code></td><td>false</td><td>是否禁用对战评估（调试时使用）</td></tr>
+</table>
+
+<p><strong>对手选择策略</strong>（由 <code>selfplay.opponent_selection</code> 配置）：</p>
+<ul>
+  <li><code>type: "pool"</code> — 从对手池中随机选择（经典的 self-play 方式）</li>
+  <li><code>type: "league"</code> — 联机对抗选择，综合胜率等因素确定对手</li>
+</ul>
+
+<h3 id="ch7-4">7.4 网络参数 (network)</h3>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>hidden_dim</code></td><td>256</td><td>网络中间层的隐藏单元数</td></tr>
+  <tr><td><code>enable_auxiliary</code></td><td>true</td><td>是否启用辅助任务头（塔伤害/金币预测）</td></tr>
+  <tr><td><code>max_action_type_count</code></td><td>6</td><td>动作类型的种类数量（用于结构化动作头）</td></tr>
+  <tr><td><code>value_head_type</code></td><td>mlp</td><td>价值输出头的类型（mlp / linear）</td></tr>
+</table>
+
+<p>辅助任务系数：</p>
+
+<table>
+  <tr><th>参数名</th><th>默认值</th><th>说明</th></tr>
+  <tr><td><code>aux_tower_coef</code></td><td>0.5</td><td>己方塔伤害预测损失的权重</td></tr>
+  <tr><td><code>aux_gold_coef</code></td><td>0.5</td><td>己方金币收入预测损失的权重</td></tr>
+  <tr><td><code>aux_enemy_tower_coef</code></td><td>0.3</td><td>敌方塔伤害预测损失的权重</td></tr>
+  <tr><td><code>aux_enemy_gold_coef</code></td><td>0.3</td><td>敌方金币收入预测损失的权重</td></tr>
+</table>
+
+<h3 id="ch7-5">7.5 配置加载流程</h3>
+
+<p>配置加载路径经过三个层次，优先级由低到高：</p>
+
+<ol>
+  <li><strong>YAML 默认配置</strong> — 从 <code>configs/custom_antwar.yaml</code> 读取，提供所有参数的默认值</li>
+  <li><strong>CLI 覆盖</strong> — 命令行参数通过点号分隔的键路径覆盖（如 <code>--ppo.lr 1e-4</code>）</li>
+  <li><strong>代码级合并</strong> — <code>ConfigParser</code> 使用递归合并（<code>deep_merge</code>），深度合并嵌套字典，而不是简单替换最外层</li>
+</ol>
+
+<p>最终的配置对象通过 <code>AttrDict</code> 提供属性访问（<code>config.ppo.lr</code>），兼具字典的灵活性和属性的便捷性。</p>
+
+
+<!-- ======================================================================== -->
+<!-- 第八章 -->
+<!-- ======================================================================== -->
+<span class="anchor" id="ch8"></span>
+<h2>八、辅助系统简介</h2>
+
+<p>本章简要介绍训练架构中非核心但不可或缺的辅助模块，供需要时深入阅读对应源码。</p>
+
+<h3 id="ch8-1">8.1 NeuralAgent</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/neural_agent.py">NeuralAgent</a> 是推理逻辑的统一封装，替代了旧版 <code>PPOAgent</code>。它持有 <code>policy</code> 对象的<span class="hl">引用</span>——这意味着 <code>PPOTrainer.ppo_update()</code> 更新后的权重立即在 NeuralAgent 的后续推理中生效，无需额外同步。</p>
+
+<p>关键接口：</p>
+<ul>
+  <li><code>act(obs) → action_id</code>：仅做决策，不返回训练数据</li>
+  <li><code>act_record(obs) → (action, log_prob, value)</code>：决策 + 返回完整的训练数据</li>
+  <li><code>get_value(obs) → float</code>：仅评估状态价值</li>
+</ul>
+
+<p>所有方法共享同一个 <code>_forward()</code> 方法，保证 NaN 保护逻辑统一应用。</p>
+
+<h3 id="ch8-2">8.2 安全机制</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/trainer/safety.py">safety.py</a> 提供了四个核心安全工具：</p>
+
+<table>
+  <tr><th>函数/类</th><th>职责</th></tr>
+  <tr><td><code>check_tensor_nan()</code></td><td>检测 tensor 中是否包含 NaN/Inf 值，返回布尔值</td></tr>
+  <tr><td><code>clean_tensor()</code></td><td>用 torch.nan_to_num 替换 NaN/Inf 为安全值</td></tr>
+  <tr><td><code>reset_parameters()</code></td><td>重置网络参数（用于回滚后重新初始化）</td></tr>
+  <tr><td><code>NanRecoveryHandler</code></td><td>记录健康参数快照，NaN 连续超过阈值时自动回滚并停止训练</td></tr>
+</table>
+
+<h3 id="ch8-3">8.3 回调系统</h3>
+
+<p>回调系统基于 <code>PPOCallback</code> 抽象基类，支持以下钩子：</p>
+
+<ul>
+  <li><code>on_training_start()</code> — 开始训练前触发</li>
+  <li><code>on_ppo_update_end(metrics)</code> — 每次 PPO 更新后触发</li>
+  <li><code>on_episode_end(episode_count, reward, length)</code> — 每局对战后触发</li>
+  <li><code>on_checkpoint(saved_path)</code> — 保存检查点后触发</li>
+</ul>
+
+<p>内置回调包括 <code>CheckpointCallback</code>（定期保存权重）和 <code>TensorBoardCallback</code>（记录训练曲线）。</p>
+
+<h3 id="ch8-4">8.4 对战评估</h3>
+
+<p><a href="file:///Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v2/src/ppo_antwar/battle/battle_coordinator.py">BaselineBattleCoordinator</a> 负责定期评估当前策略的战斗力：</p>
+
+<ul>
+  <li>创建 <code>NeuralAgent</code> 和 <code>PPOWarAgent</code> 的实例</li>
+  <li>与多个基线对手（规则 Agent、历史策略快照等）对战</li>
+  <li>统计胜率、平均奖励、对局长度等指标</li>
+  <li>将结果写入日志供 TensorBoard 可视化</li>
+</ul>
+
+<p>评估结果用于判断策略是否在持续提升，也是对手池更新策略（如淘汰最弱对手）的重要依据。</p>
+
+
+</main>
+<footer>
+  <p>PPO 模型训练文档 — 基于 AntWar ppo_v2 代码库</p>
+</footer>
+</body>
+</html>

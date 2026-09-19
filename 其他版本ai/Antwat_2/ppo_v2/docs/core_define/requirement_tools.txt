@@ -1,0 +1,35 @@
+【背景定义】
+1. Episode Batch 级聚合，PPO V2训练中，启动参数会制定n_envs参数，表示，每次采集n_envs次对战的数据，集中做一轮模型参数update
+2. 比如n_envs=20， 则Episode20,40,60,80,...都会执行一次模型update
+3. 为了监控模型训练进展，系统定了train_metrics_table & train_action_table & train_action_reward_table & train_battle_table & scan_anomalies等脚本，用于查看n_envs次对战范围内的技术和业务指标
+4. Episode Batch ID。以上表格，通常每个n_envs次对战组成的Episode Batch，会输出一条数据记录，行号记做E20，E40，E60，... 等等，定义为Episode Batch ID
+
+
+脚本train_metrics_table.sh的统计和展示需求
+1. 这个表格是展示和诊断模型训练的技术指标
+2. 数据源主要选择Episode Batch级训练指标聚合结果：episode_batch_train_stats.jsonl
+3. 表格展示训练技术指标，比如各种loss
+4. 除了训练技术指标，应该添加一些业务资料，方面横向对比查看，比如：（1）Rounds，每局平均回合数；（2）Reward，每局平均总reward，以及其他最主要业务指标
+5. 表格首列应该是Episode Batch ID
+
+
+脚本train_action_table的统计和展示需求
+1. 这个表格是展示和诊断模型动作空间的
+2. 数据源主要选择Episode Batch级训练指标聚合结果：episode_batch_battle_stats.jsonl
+3. 表格展示个动作类型的每局平均数量
+4. 除了动作类型统计，应该添加一些业务资料，方面横向对比查看，比如：（1）Rounds，每局平均回合数；（2）Reward，每局平均总reward，以及其他最主要业务指标
+5. 表格首列应该是Episode Batch ID
+
+
+脚本train_action_reward_table.sh的统计和展示需求
+1. 这个表格是展示和诊断各项reward分量方向和强度是否合理的表格
+2. 数据源主要选择Episode Batch级训练指标聚合结果：episode_batch_battle_stats.jsonl
+3. 所有reward有正负之分，表示对某种行为或状态的奖励和惩罚
+4. 所有的reward来源大致分为两类，一类是action动作的即时奖励，另一类是某种状态的持续性奖励，比如防御塔存活，持有金币等。
+5. 建防御塔和防御塔存活，都是有关防御塔的奖励，所以，动作奖励和状态奖励可能存在逻辑关系
+6. HP伤害方面，有对我方防御塔受到伤害的惩罚，也有对敌方防御塔收到伤害的奖励，所以，有类奖励的总和可能是有正有负的
+7. 因为存在正负之分，一局游戏的reward总和，可能是有正有负的，
+8. 为了方便观察每个分量对总量的贡献，需要统计分量在总量中的占比。而又因为总量因为正负分量抵消，是的这个占比数据失真，所以，应该同时暂时正式的reward总量，和各个分量绝对值累加的总量。而所有分量占比，全部以分量绝对值累加的总量作为分母。但自身的正负方向保持不变
+9. 字段名称请选择合适的表达和长度，但不要加/Ep这样的写法。因为每个字段默认都是一局游戏的统计结果，不需要全部加上相同后缀
+
+

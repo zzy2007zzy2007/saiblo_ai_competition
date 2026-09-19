@@ -1,0 +1,9 @@
+{
+  "episodes": 20,
+  "max_rounds": 500,
+  "strategies": ["sample", "gen99", "ann_v1"],
+  "pairs": [],
+  "verbose": false,
+  "export": "results.json",
+  "report": "report.txt"
+}

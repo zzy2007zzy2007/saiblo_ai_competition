@@ -1,0 +1,276 @@
+AntWar是一个小型AI对战游戏
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏 SDK：Ant-Game，是官方提供的SDK，不允许修改
+（3）ppo_v1项目代码：ppo/src/ppo_antwar
+（4）所有运维操作，查看tools/manager.sh ！
+请在server5上部署最新的ppo_v1（ppo/src/ppo_antwar）相关代码，然后重新启动训练。请使以下参数启动训练：
+  total_episodes: 20
+  num_envs: 2
+  battle_interval: 30
+  n_battles: 2
+请关注SelfPlay过程中，模型的游戏动作是否正常
+
+
+
+
+请根据 battle_single 重新设计 ppo_v1的baseline对战部分代码。
+要求：
+1. 完全改写，不用考虑之前的代码
+2. 之前的统计项不能减少，但battle_single包含的每个回合的详细信息，可以全部添加到新的baseline对战设计中
+3. 不需要开发时间估算
+4. 不需要分阶段开发
+5. 不要影响模型训练代码
+注意：
+2. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Ant-Game SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+5. 原则上，不应该设计容错机制，而应该让错误异常尽早暴露，以便及时调整
+7. 不做容错处理，但是，异常仍应该合理捕获并记录，然后抛向上层，以便事后从日志中追查问题根源
+8. 如果确实需要设计一定的容错机制，需要在设计环节明确提出，寻求确认
+9. 不做过度设计，只在设计目标范围内，优化代码结构。不用考虑未来的优化
+10. 所有设计不用考虑window的情况，优先考虑Linux即可
+11. 所有日志都使用loguru，不要直接使用print
+12. 原本要使用GPU计算的任务，如果降级为CPU，需要输出警告
+13. 解决问题要从根源触发，不要workaround
+注意：
+1. 如果存在难以取舍的问题，请务必向先我提问再继续
+设计保存到：ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3.md
+
+
+
+
+请阅读ppo_v1(ppo/src/ppo_antwar)代码
+请阅读独立的baseline对战工具代码battle_single
+请客观评价 ppo_v1的baseline对战代码改造设计ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3.md
+
+
+
+请将以上内容输出到ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3_review.md
+
+
+
+
+请阅读ppo_v1(ppo/src/ppo_antwar)代码
+请阅读独立的baseline对战工具代码battle_single
+请阅读 ppo_v1的baseline对战代码改造设计：ppo/docs/design/ppo_v1_baseline_battle_detail_design_v2.md
+请客观评价 设计评审文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design_v2_review.md
+
+
+
+请根据评审文档 ppo/docs/design/ppo_v1_baseline_battle_detail_design_v2_review.md 建议，优化v2设计文档，新的设计文档存放到ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3.md
+
+
+请阅读ppo_v1(ppo/src/ppo_antwar)代码
+请阅读独立的baseline对战工具代码battle_single
+请阅读 ppo_v1的baseline对战代码改造设计：ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3.md
+请阅读 ppo/docs/design/ppo_v1_baseline_battle_detail_design_v3_diff.md
+
+针对每个问题，给出：
+1. 是否真实存在
+2. 分析是否客观合理
+3. 处理难度等级
+4. 收益等级
+5. 其他需要关注的问题
+6. 详细解决方案
+结果记录到ppo/docs/issues/ppo_v1_baseline_battle_detail_design_v3_diff_review.md
+
+
+
+
+
+
+
+
+
+
+【背景】
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏 SDK：Ant-Game，是官方提供的SDK，不允许修改
+（3）ppo_v1项目代码：ppo/src/ppo_antwar，它上一个PPO算法的AI游戏agent
+（4）所有运维操作，查看tools/manager.sh
+（5）battle_single是一个独立的baseline agent对战测试工具。它与ppo_v1互不依赖
+（6）ppo_v1 目前包含一个baseline对战的功能，代码在ppo/src/ppo_antwar/league。它的作用是，作为一个独立的模型效果测试外围组件，使用当前训练的PPO模型，与baseline中的多个agent执行对战，观察模型当前的强度
+（7）当期ppo_v1 的baseline对战功能比较过时，还包含较多bug，需要废弃
+【目标】
+1. 参考battle_single代码，设计构建一个新的baseline对战的功能模块
+2. 设计文档务必完整，不要遗漏要点
+3. 设计文档务必详细，将具体方案说清楚
+4. 参考battle_single代码的内容，要足够详细和足够明确。要么在设计中注明参考具体哪些代码？要么详细描述参考对象具体是如何实现的，以便对照文档即可还原参考的设计内容
+【要求】
+1. 为了与就代码完全区隔开，新的代码放到ppo/src/ppo_antwar/battle下
+2. 完全改写，不需要考虑兼容旧的baseline对战代码
+3. 新的baseline对战功能代码不要依赖ppo/src/ppo_antwar/league的旧代码，有需要的内容，重写或者移植即可
+4. baseline对战功能与PPO训练流程集成采用callback自动触发
+5. baseline对战功能中，通过checkpoint获得PPO agent
+5. 保持battle_single的多进程能力
+6. 所有agent统一使用项目SDK，Ant-Game；借鉴battle_single的进程隔离机制，在子进程中独立加载SDK和agent，通过 sys.path 和 sys.modules 隔离避免污染
+7. agent加载失败后，需要准确详细记录异常信息，便于问题排查
+8. 保持ppo_v的baseline对战参数，配置参数是沿用旧league的 BaselineBattleConfig；删掉battle_interval，使用checkpoint的save_interval
+9. 保持battle_single中的日志结构内容；记录每回合的HP、金币、操作序列等详细数据；使用loguru的 enqueue=True 实现多进程安全的实时日志
+10. 自动生成包含胜率、先后手分析等的综合报告
+11. 记录每回合双方agent的操作时间、状态解析时间
+12. 日志目录结构，尽量保持与旧league相同的目录结构
+13. 支持与battle_single一样的内置的BasicTowerAI、BasicRandomAI、sample这样对规则agent，gen99这样的agent，以及nn_gen_32这样的多层网络agent
+14. 需要考虑与ppo_v1现有的训练监控、日志系统集成
+15. 保持每局对战两次，先手后手各一次
+16. 不需要开发时间估算
+17. 不需要分阶段开发
+18. 不需要考虑测试和单元测试
+19. 尽量多参考battle_single代码，尽量不要参考ppo/src/ppo_antwar/league
+【设计通用原则】
+1. 最大化利用OpenRL框架
+2. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Ant-Game SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+5. 原则上，不应该设计容错机制，而应该让错误异常尽早暴露，以便及时调整
+7. 不做容错处理，但是，异常仍应该合理捕获并记录，然后抛向上层，以便事后从日志中追查问题根源
+8. 如果确实需要设计一定的容错机制，需要在设计环节明确提出，寻求确认
+9. 不做过度设计，只在现有功能上，优化代码结构
+10. 所有设计不用考虑window的情况，优先考虑Linux即可
+11. 所有日志都使用loguru，不要直接使用print
+12. 原本要使用GPU计算的任务，如果降级为CPU，需要输出警告
+
+
+
+需求背景： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L85-129` 
+要求：
+第一、先不要编写目标设计文档，先编写设计文档章节框架：ppo/docs/design/ppo_v1_baseline_battle_detail_design_framework.md
+第二、每个章节，在章节框架文档中，提炼出：
+1. 章节的内容目标
+2. 章节需要参考的代码有哪些（包括哪些文件和哪些段落）
+3. 本章设计需要关注的要求有哪些（将18项要求和12项原则，抽取出于本章节相关的，分为关键要求，通用原则要求列出，要求尽量列全，不要漏）
+注意：
+1. 章节参考内容，需要足够完备，以便不借助其他上下文，也可以高质量完成这个章节
+2. 要求也必须明确，完整，具体
+
+
+
+
+
+
+以下是原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L85-128` 
+以下是输出文档的章节框架：ppo/docs/design/ppo_v1_baseline_battle_detail_design_framework.md
+这里约定了各章节的：
+1. 章节的内容目标
+2. 章节需要参考的代码有哪些
+3. 本章设计需要关注的要求有哪些
+请按文档章节框架的指引，将设计文档编写工作，分解成若干个子任务，逐一完成，逐一检查，以便确保最终文档足够完整，足够详细，还能照顾到原始要求中的各项要求和原则
+
+
+
+
+
+
+【背景】
+（1）游戏规则说明文档：docs/design/antwar_rules.md
+（2）游戏 SDK：Ant-Game，是官方提供的SDK，不允许修改
+（3）ppo_v1项目代码：ppo/src/ppo_antwar，它上一个PPO算法的AI游戏agent
+（4）所有运维操作，查看tools/manager.sh
+（5）battle_single是一个独立的baseline agent对战测试工具。它与ppo_v1互不依赖
+（6）ppo_v1 目前包含一个baseline对战的功能，代码在ppo/src/ppo_antwar/league。它的作用是，作为一个独立的模型效果测试外围组件，使用当前训练的PPO模型，与baseline中的多个agent执行对战，观察模型当前的强度
+（7）当期ppo_v1 的baseline对战功能比较过时，还包含较多bug，需要废弃
+【目标】
+1. 参考battle_single代码，设计构建一个新的baseline对战的功能模块
+【要求】
+1. 为了与就代码完全区隔开，新的代码放到ppo/src/ppo_antwar/battle下
+2. 完全改写，不需要考虑兼容旧的baseline对战代码
+3. 新的baseline对战功能代码不要依赖ppo/src/ppo_antwar/league的旧代码，有需要的内容，重写或者移植即可
+4. baseline对战功能与PPO训练流程集成采用callback自动触发
+5. baseline对战功能中，通过checkpoint获得PPO agent
+5. 保持battle_single的多进程能力
+6. 所有agent统一使用项目SDK，Ant-Game；借鉴battle_single的进程隔离机制，在子进程中独立加载SDK和agent，通过 sys.path 和 sys.modules 隔离避免污染
+7. agent加载失败后，需要准确详细记录异常信息，便于问题排查
+8. 保持ppo_v的baseline对战参数，配置参数是沿用旧league的 BaselineBattleConfig；删掉battle_interval，使用checkpoint的save_interval
+9. 保持battle_single中的日志结构内容；记录每回合的HP、金币、操作序列等详细数据；使用loguru的 enqueue=True 实现多进程安全的实时日志
+10. 自动生成包含胜率、先后手分析等的综合报告
+11. 记录每回合双方agent的操作时间、状态解析时间
+12. 日志目录结构，尽量保持与旧league相同的目录结构
+13. 支持与battle_single一样的内置的BasicTowerAI、BasicRandomAI、sample这样对规则agent，gen99这样的agent，以及nn_gen_32这样的多层网络agent
+14. 需要考虑与ppo_v1现有的训练监控、日志系统集成
+15. 保持每局对战两次，先手后手各一次
+16. 不需要开发时间估算
+17. 不需要分阶段开发
+18. 不需要考虑测试和单元测试
+19. 尽量多参考battle_single代码，尽量不要参考ppo/src/ppo_antwar/league
+【设计通用原则】
+1. 最大化利用OpenRL框架
+2. 关于游戏对战和游戏规则的部分，最大限度利用Ant-Game SDK，尽量避免涉及游戏规则的实现，只做游戏引擎的wrapper
+3. Ant-Game SDK代码是不允许修改的，只允许通过修改ppo/src/ppo_antwar代码解决问题
+5. 原则上，不应该设计容错机制，而应该让错误异常尽早暴露，以便及时调整
+7. 不做容错处理，但是，异常仍应该合理捕获并记录，然后抛向上层，以便事后从日志中追查问题根源
+8. 如果确实需要设计一定的容错机制，需要在设计环节明确提出，寻求确认
+9. 不做过度设计，只在现有功能上，优化代码结构
+10. 所有设计不用考虑window的情况，优先考虑Linux即可
+11. 所有日志都使用loguru，不要直接使用print
+12. 原本要使用GPU计算的任务，如果降级为CPU，需要输出警告
+
+以下是原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L85-128` 
+以下是设计文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+目标：检查代码与设计文档是否一致，将不一致的地方记录到：ppo/docs/design/ppo_v1_baseline_battle_detail_design_code_diff.md
+
+请分解若干子任务，逐个章节检查，代码与设计文档是否一致
+
+
+以下是模块设计要求：
+prompts_baseline_battle.txt 84-124
+设计文档是：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+请客观评价设计文档：
+（1）是否满足各项要求
+（2）是否完整
+（3）是否详细
+
+
+
+
+
+
+以下是原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L162-203` 
+以下是设计文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+目标：检查新的baseline对战代码与设计文档是否一致，将不一致的地方记录到：ppo/docs/design/ppo_v1_baseline_battle_detail_design_code_diff.md，并评估：每一个差异点，在设计文档中，设计是否完备，设计是否合理，设计是否可行
+请分解若干子任务，逐个章节检查，代码与设计文档是否一致。
+
+
+
+`spec` 
+(1)原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L162-203` 
+(2)设计文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+(3)PPO v1 Baseline Battle 代码与设计文档差异分析报告：ppo/docs/design/ppo_v1_baseline_battle_detail_design_code_diff.md
+请逐一修复 《PPO v1 Baseline Battle 代码与设计文档差异分析报告》 中缺失或有问题的内容
+
+
+以下是原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L162-203` 
+以下是设计文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+目标：检查新的baseline对战代码与设计文档是否一致，将不一致的地方记录到：ppo/docs/design/ppo_v1_baseline_battle_detail_design_code_diff.md，并评估：每一个差异点，在设计文档中：
+1. 设计是否完备
+2. 设计是否合理
+3. 设计是否可行
+4. 代码方案是否合理
+5. 代码方案是否完备
+6. 代码方案是否需要改进
+请分解若干子任务，逐个章节检查，代码与设计文档是否一致。
+
+
+
+
+
+`spec` 
+
+原始需求： `/Users/raymondzeng/Documents/trae_projects/AntWar/docs/design/prompts_baseline_battle.txt#L162-203` 
+设计文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design.md
+代码实现复查文档：ppo/docs/design/ppo_v1_baseline_battle_detail_design_code_diff.md
+请根据代码实现复查文档，将其中的 代码改进建议 梳理出来，并根据实际情况，设计详细的代码改进方案，输出到 ppo/docs/design/ppo_v1_baseline_battle_code_diff_solution.md
+另外，对于 代码改进建议 ，请标记上，与它相关的原始需求是哪些？与它相关的设计文档段落是哪些？实现这些代码的参考代码（如果有）是那些？
+
+请分解若干子任务，逐个分析 代码改进建议，然后设计详细的代码改进方案
+
+
+
+# MediumRuleAI(先手) vs gen99(后手)
+python -m battle_single.src.battle_single_cli \
+    --agent1 MediumRuleAI --agent2 gen99 --episodes 10 --workers 4
+
+# MediumRuleAI(先手) vs sample
+python -m battle_single.src.battle_single_cli \
+    --agent1 MediumRuleAI --agent2 sample --episodes 10 --workers 4
+
+# MediumRuleAI(先手) vs nn_gen_32
+python -m battle_single.src.battle_single_cli \
+    --agent1 MediumRuleAI --agent2 nn_gen_32 --episodes 10 --workers 4

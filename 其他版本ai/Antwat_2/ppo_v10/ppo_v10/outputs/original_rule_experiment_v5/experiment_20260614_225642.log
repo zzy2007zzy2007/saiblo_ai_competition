@@ -1,0 +1,237 @@
+2026-06-14 22:56:43.005 | INFO     | __main__:main:328 - 日志: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/original_rule_experiment_v5/experiment_20260614_225642.log
+2026-06-14 22:56:43.006 | INFO     | __main__:main:353 - 场景总数: 9, 配置: {'n_population': 80, 'M': 32, 'max_seeds': 3, 'n_battle': 2, 'max_candidate_fails': 12, 'max_workers': 25}
+2026-06-14 22:56:43.006 | INFO     | __main__:main:358 - [1/9] N80_uniform_constant_s42
+2026-06-14 22:56:43.031 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:43.031 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:43.050 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=24.19, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:43.051 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0017: mu=30.44, 提交 32 个甄别 task
+2026-06-14 22:56:43.090 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0017: mu=27.48 (已确认 1/3)
+2026-06-14 22:56:43.090 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0002: mu=32.54, 提交 32 个甄别 task
+2026-06-14 22:56:43.127 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0002 失败: mu=35.63, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:43.128 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0012: mu=30.12, 提交 32 个甄别 task
+2026-06-14 22:56:43.161 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0012 失败: mu=35.07, completed=32, cumulative_fails=3/12
+2026-06-14 22:56:43.161 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0028: mu=29.31, 提交 32 个甄别 task
+2026-06-14 22:56:43.198 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0028: mu=28.64 (已确认 2/3)
+2026-06-14 22:56:43.198 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0035: mu=30.14, 提交 32 个甄别 task
+2026-06-14 22:56:43.234 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0035 失败: mu=35.35, completed=32, cumulative_fails=4/12
+2026-06-14 22:56:43.235 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0020: mu=30.08, 提交 32 个甄别 task
+2026-06-14 22:56:43.270 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0020: mu=29.58 (已确认 3/3)
+2026-06-14 22:56:43.270 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:43.939 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:56:46.594 | INFO     | __main__:main:369 -    total=1055 c1=223 c2=832 c3=119 eff=936 cand=7 top16=0.750 R@8=0.875
+2026-06-14 22:56:46.594 | INFO     | __main__:main:358 - [2/9] N80_uniform_constant_s142
+2026-06-14 22:56:46.595 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:46.595 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:46.611 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=36.19, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:46.612 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0008: mu=23.43, 提交 32 个甄别 task
+2026-06-14 22:56:46.644 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0008 失败: mu=17.78, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:46.644 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0015: mu=27.07, 提交 32 个甄别 task
+2026-06-14 22:56:46.682 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0015 失败: mu=36.46, completed=32, cumulative_fails=3/12
+2026-06-14 22:56:46.682 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0018: mu=25.41, 提交 32 个甄别 task
+2026-06-14 22:56:46.716 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0018 失败: mu=35.79, completed=32, cumulative_fails=4/12
+2026-06-14 22:56:46.716 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0033: mu=24.85, 提交 32 个甄别 task
+2026-06-14 22:56:46.750 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0033 失败: mu=22.18, completed=32, cumulative_fails=5/12
+2026-06-14 22:56:46.751 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0035: mu=27.40, 提交 32 个甄别 task
+2026-06-14 22:56:46.785 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0035: mu=30.20 (已确认 1/3)
+2026-06-14 22:56:46.786 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0030: mu=29.75, 提交 32 个甄别 task
+2026-06-14 22:56:46.819 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0030: mu=27.73 (已确认 2/3)
+2026-06-14 22:56:46.819 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0010: mu=31.52, 提交 32 个甄别 task
+2026-06-14 22:56:46.852 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0010: mu=29.62 (已确认 3/3)
+2026-06-14 22:56:46.852 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:47.274 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:56:49.762 | INFO     | __main__:main:369 -    total=1084 c1=255 c2=828 c3=148 eff=936 cand=8 top16=0.938 R@8=1.000
+2026-06-14 22:56:49.762 | INFO     | __main__:main:358 - [3/9] N80_uniform_constant_s242
+2026-06-14 22:56:49.762 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:49.763 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:49.779 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=34.90, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:49.780 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0032: mu=22.54, 提交 32 个甄别 task
+2026-06-14 22:56:49.816 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0032 失败: mu=19.36, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:49.816 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0016: mu=26.63, 提交 32 个甄别 task
+2026-06-14 22:56:49.851 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0016: mu=29.74 (已确认 1/3)
+2026-06-14 22:56:49.851 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0028: mu=30.44, 提交 32 个甄别 task
+2026-06-14 22:56:49.888 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0028: mu=31.94 (已确认 2/3)
+2026-06-14 22:56:49.889 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0003: mu=28.84, 提交 32 个甄别 task
+2026-06-14 22:56:49.926 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0003: mu=27.36 (已确认 3/3)
+2026-06-14 22:56:49.927 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:50.334 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:56:52.697 | INFO     | __main__:main:369 -    total=994 c1=160 c2=834 c3=58 eff=936 cand=5 top16=0.938 R@8=0.875
+2026-06-14 22:56:52.698 | INFO     | __main__:main:358 - [4/9] N80_normal_constant_s42
+2026-06-14 22:56:52.698 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:52.698 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:52.714 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=32.69, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:52.714 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0027: mu=22.20, 提交 32 个甄别 task
+2026-06-14 22:56:52.756 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0027: mu=29.13 (已确认 1/3)
+2026-06-14 22:56:52.756 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0007: mu=23.06, 提交 32 个甄别 task
+2026-06-14 22:56:52.805 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0007: mu=30.23 (已确认 2/3)
+2026-06-14 22:56:52.805 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0004: mu=23.04, 提交 32 个甄别 task
+2026-06-14 22:56:52.845 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0004 失败: mu=20.57, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:52.846 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0024: mu=22.33, 提交 32 个甄别 task
+2026-06-14 22:56:52.872 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0024 失败: mu=20.81, completed=32, cumulative_fails=3/12
+2026-06-14 22:56:52.873 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0017: mu=24.08, 提交 32 个甄别 task
+2026-06-14 22:56:52.905 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0017: mu=28.36 (已确认 3/3)
+2026-06-14 22:56:52.906 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:53.325 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:56:55.835 | INFO     | __main__:main:369 -    total=1027 c1=192 c2=835 c3=91 eff=936 cand=6 top16=0.875 R@8=1.000
+2026-06-14 22:56:55.835 | INFO     | __main__:main:358 - [5/9] N80_normal_constant_s142
+2026-06-14 22:56:55.836 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:55.836 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:55.851 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=24.19, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:55.852 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0022: mu=30.54, 提交 32 个甄别 task
+2026-06-14 22:56:55.889 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0022 失败: mu=40.40, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:55.890 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0020: mu=28.30, 提交 32 个甄别 task
+2026-06-14 22:56:55.929 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0020: mu=27.22 (已确认 1/3)
+2026-06-14 22:56:55.929 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=24.70, 提交 32 个甄别 task
+2026-06-14 22:56:56.035 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0001 失败: mu=29.47, completed=32, cumulative_fails=3/12
+2026-06-14 22:56:56.036 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0011: mu=28.23, 提交 32 个甄别 task
+2026-06-14 22:56:56.081 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0011 失败: mu=23.65, completed=32, cumulative_fails=4/12
+2026-06-14 22:56:56.081 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0035: mu=25.80, 提交 32 个甄别 task
+2026-06-14 22:56:56.116 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0035: mu=28.39 (已确认 2/3)
+2026-06-14 22:56:56.116 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0031: mu=27.54, 提交 32 个甄别 task
+2026-06-14 22:56:56.150 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0031: mu=28.39 (已确认 3/3)
+2026-06-14 22:56:56.151 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:56.625 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:56:59.024 | INFO     | __main__:main:369 -    total=1056 c1=223 c2=833 c3=120 eff=936 cand=7 top16=0.938 R@8=1.000
+2026-06-14 22:56:59.024 | INFO     | __main__:main:358 - [6/9] N80_normal_constant_s242
+2026-06-14 22:56:59.025 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:56:59.025 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:56:59.042 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=18.25, completed=32, cumulative_fails=1/12
+2026-06-14 22:56:59.042 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=28.61, 提交 32 个甄别 task
+2026-06-14 22:56:59.080 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0001 失败: mu=21.86, completed=32, cumulative_fails=2/12
+2026-06-14 22:56:59.080 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0028: mu=30.48, 提交 32 个甄别 task
+2026-06-14 22:56:59.118 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0028 失败: mu=23.14, completed=32, cumulative_fails=3/12
+2026-06-14 22:56:59.118 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0030: mu=32.04, 提交 32 个甄别 task
+2026-06-14 22:56:59.167 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0030: mu=32.87 (已确认 1/3)
+2026-06-14 22:56:59.167 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0017: mu=29.88, 提交 32 个甄别 task
+2026-06-14 22:56:59.193 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0017: mu=31.86 (已确认 2/3)
+2026-06-14 22:56:59.193 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0011: mu=30.06, 提交 32 个甄别 task
+2026-06-14 22:56:59.224 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0011: mu=25.86 (已确认 3/3)
+2026-06-14 22:56:59.225 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:56:59.716 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:57:02.130 | INFO     | __main__:main:369 -    total=1023 c1=192 c2=831 c3=87 eff=936 cand=6 top16=0.750 R@8=1.000
+2026-06-14 22:57:02.130 | INFO     | __main__:main:358 - [7/9] N80_bimodal_constant_s42
+2026-06-14 22:57:02.131 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:57:02.131 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:57:02.148 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0000: mu=30.24 (已确认 1/3)
+2026-06-14 22:57:02.148 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0019: mu=21.63, 提交 32 个甄别 task
+2026-06-14 22:57:02.182 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0019 失败: mu=15.32, completed=32, cumulative_fails=1/12
+2026-06-14 22:57:02.182 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=26.38, 提交 32 个甄别 task
+2026-06-14 22:57:02.219 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0001: mu=25.96 (已确认 2/3)
+2026-06-14 22:57:02.220 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0024: mu=26.96, 提交 32 个甄别 task
+2026-06-14 22:57:02.256 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0024 失败: mu=20.77, completed=32, cumulative_fails=2/12
+2026-06-14 22:57:02.256 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0007: mu=27.93, 提交 32 个甄别 task
+2026-06-14 22:57:02.293 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0007: mu=30.34 (已确认 3/3)
+2026-06-14 22:57:02.294 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:57:02.714 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:57:05.205 | INFO     | __main__:main:369 -    total=997 c1=160 c2=837 c3=61 eff=936 cand=5 top16=0.375 R@8=0.500
+2026-06-14 22:57:05.205 | INFO     | __main__:main:358 - [8/9] N80_bimodal_constant_s142
+2026-06-14 22:57:05.206 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:57:05.206 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:57:05.222 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=22.59, completed=32, cumulative_fails=1/12
+2026-06-14 22:57:05.222 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0028: mu=29.74, 提交 32 个甄别 task
+2026-06-14 22:57:05.256 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0028: mu=26.99 (已确认 1/3)
+2026-06-14 22:57:05.256 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0008: mu=29.88, 提交 32 个甄别 task
+2026-06-14 22:57:05.295 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0008 失败: mu=31.72, completed=32, cumulative_fails=2/12
+2026-06-14 22:57:05.295 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0026: mu=29.52, 提交 32 个甄别 task
+2026-06-14 22:57:05.332 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0026 失败: mu=22.14, completed=32, cumulative_fails=3/12
+2026-06-14 22:57:05.333 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0033: mu=29.34, 提交 32 个甄别 task
+2026-06-14 22:57:05.369 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0033: mu=31.96 (已确认 2/3)
+2026-06-14 22:57:05.369 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=28.18, 提交 32 个甄别 task
+2026-06-14 22:57:05.403 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0001: mu=27.86 (已确认 3/3)
+2026-06-14 22:57:05.404 | INFO     | coordinator:_promote_to_seed:299 - 全部 3 个种子已确定，提交批量对战；取消 0 个'双方非种子'的待执行 task
+2026-06-14 22:57:05.861 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:57:08.308 | INFO     | __main__:main:369 -    total=1026 c1=192 c2=834 c3=90 eff=936 cand=6 top16=0.500 R@8=0.500
+2026-06-14 22:57:08.308 | INFO     | __main__:main:358 - [9/9] N80_bimodal_constant_s242
+2026-06-14 22:57:08.308 | INFO     | coordinator:start:139 - OriginalRuleCoordinator.start: N=80, M=32, max_seeds=3, max_candidate_fails=12
+2026-06-14 22:57:08.309 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0000: mu=25.00, 提交 32 个甄别 task
+2026-06-14 22:57:08.324 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0000 失败: mu=17.30, completed=32, cumulative_fails=1/12
+2026-06-14 22:57:08.324 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0031: mu=27.81, 提交 32 个甄别 task
+2026-06-14 22:57:08.366 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0031: mu=29.23 (已确认 1/3)
+2026-06-14 22:57:08.366 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=24.63, 提交 32 个甄别 task
+2026-06-14 22:57:08.399 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0001 失败: mu=26.20, completed=32, cumulative_fails=2/12
+2026-06-14 22:57:08.400 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0025: mu=27.69, 提交 32 个甄别 task
+2026-06-14 22:57:08.440 | INFO     | coordinator:_promote_to_seed:282 - 种子 ind_0025: mu=28.68 (已确认 2/3)
+2026-06-14 22:57:08.441 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0006: mu=26.16, 提交 32 个甄别 task
+2026-06-14 22:57:08.474 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0006 失败: mu=29.47, completed=32, cumulative_fails=3/12
+2026-06-14 22:57:08.474 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0035: mu=27.40, 提交 32 个甄别 task
+2026-06-14 22:57:08.508 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0035 失败: mu=20.61, completed=32, cumulative_fails=4/12
+2026-06-14 22:57:08.509 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0001: mu=26.61, 提交 32 个甄别 task
+2026-06-14 22:57:08.540 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0001 失败: mu=21.65, completed=32, cumulative_fails=5/12
+2026-06-14 22:57:08.541 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0053: mu=30.02, 提交 32 个甄别 task
+2026-06-14 22:57:08.579 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0053 失败: mu=42.13, completed=32, cumulative_fails=6/12
+2026-06-14 22:57:08.579 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0044: mu=30.09, 提交 32 个甄别 task
+2026-06-14 22:57:08.609 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0044 失败: mu=40.75, completed=32, cumulative_fails=7/12
+2026-06-14 22:57:08.609 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0064: mu=30.16, 提交 32 个甄别 task
+2026-06-14 22:57:08.645 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0064 失败: mu=39.62, completed=32, cumulative_fails=8/12
+2026-06-14 22:57:08.646 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0058: mu=29.95, 提交 32 个甄别 task
+2026-06-14 22:57:08.676 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0058 失败: mu=41.82, completed=32, cumulative_fails=9/12
+2026-06-14 22:57:08.676 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0062: mu=29.88, 提交 32 个甄别 task
+2026-06-14 22:57:08.718 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0062 失败: mu=36.05, completed=32, cumulative_fails=10/12
+2026-06-14 22:57:08.719 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0060: mu=30.24, 提交 32 个甄别 task
+2026-06-14 22:57:08.766 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0060 失败: mu=31.83, completed=32, cumulative_fails=11/12
+2026-06-14 22:57:08.766 | INFO     | coordinator:_launch_candidate:226 - 候选 ind_0057: mu=30.32, 提交 32 个甄别 task
+2026-06-14 22:57:08.815 | INFO     | coordinator:_fail_candidate:352 - 候选 ind_0057 失败: mu=38.29, completed=32, cumulative_fails=12/12
+2026-06-14 22:57:08.815 | WARNING  | coordinator:_fail_candidate:360 - 累计 12 次候选失败 → fallback
+2026-06-14 22:57:08.815 | WARNING  | coordinator:_fallback:411 - 二分种子 fallback: 直接用累积 TrueSkill 排序取 Top16
+2026-06-14 22:57:08.836 | INFO     | round_robin:run_round_robin:56 - RoundRobin: 80 人, 3160 对, 每对 4 局 = 预计 12640 局
+2026-06-14 22:57:11.355 | INFO     | __main__:main:369 -    total=448 c1=433 c2=15 c3=366 eff=82 cand=13 top16=0.250 R@8=0.250
+2026-06-14 22:57:11.356 | INFO     | __main__:main:388 - 详细结果已保存: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/original_rule_experiment_v5/20260614_225711_results.json
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:183 - ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:184 - 【表 1】45 组实验 — 对局数量明细（按场景）
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:185 - ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:189 -  #  场景                                  总数    一类    二类    三类    有效   候选    RR     节省%  Fb
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:190 - ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:192 -  1  N80_uniform_constant_s42          1055   223   832   119   936    7 12640  91.65%   N
+2026-06-14 22:57:11.356 | INFO     | __main__:print_per_scenario_battles_table:192 -  2  N80_uniform_constant_s142         1084   255   828   148   936    8 12640  91.42%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  3  N80_uniform_constant_s242          994   160   834    58   936    5 12640  92.14%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  4  N80_normal_constant_s42           1027   192   835    91   936    6 12640  91.88%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  5  N80_normal_constant_s142          1056   223   833   120   936    7 12640  91.65%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  6  N80_normal_constant_s242          1023   192   831    87   936    6 12640  91.91%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  7  N80_bimodal_constant_s42           997   160   837    61   936    5 12640  92.11%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  8  N80_bimodal_constant_s142         1026   192   834    90   936    6 12640  91.88%   N
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:192 -  9  N80_bimodal_constant_s242          448   433    15   366    82   13 12640  96.46%   Y
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_battles_table:200 - ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_coverage_table:206 - ──────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.357 | INFO     | __main__:print_per_scenario_coverage_table:207 - 【表 2】45 组实验 — 覆盖率明细（按场景）
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:208 - ──────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:211 -  #  场景                                  Top16重叠   Recall8   Recall16
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:212 - ──────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  1  N80_uniform_constant_s42             0.7500    0.8750     0.7500
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  2  N80_uniform_constant_s142            0.9375    1.0000     0.9375
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  3  N80_uniform_constant_s242            0.9375    0.8750     0.9375
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  4  N80_normal_constant_s42              0.8750    1.0000     0.8750
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  5  N80_normal_constant_s142             0.9375    1.0000     0.9375
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  6  N80_normal_constant_s242             0.7500    1.0000     0.7500
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  7  N80_bimodal_constant_s42             0.3750    0.5000     0.3750
+2026-06-14 22:57:11.358 | INFO     | __main__:print_per_scenario_coverage_table:214 -  8  N80_bimodal_constant_s142            0.5000    0.5000     0.5000
+2026-06-14 22:57:11.359 | INFO     | __main__:print_per_scenario_coverage_table:214 -  9  N80_bimodal_constant_s242            0.2500    0.2500     0.2500
+2026-06-14 22:57:11.359 | INFO     | __main__:print_per_scenario_coverage_table:220 - ──────────────────────────────────────────────────────────────────────────────────────────
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:234 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:235 - 【表 3】整体汇总（45 组平均 ± 标准差）
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:236 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:254 -   总对战数                                     :   967.7778 ± 185.7584
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:254 -   一类对战数（提交时一方是候选）                          :   225.5556 ±  78.8009
+2026-06-14 22:57:11.359 | INFO     | __main__:print_aggregate:254 -   二类对战数（提交时一方是正式种子）                        :   742.1111 ± 257.0838
+2026-06-14 22:57:11.360 | INFO     | __main__:print_aggregate:254 -   三类对战数（结束时双方都非种子）                         :   126.6667 ±  88.8544
+2026-06-14 22:57:11.360 | INFO     | __main__:print_aggregate:254 -   有效对战数（= 总数 − 三类）                         :   841.1111 ± 268.3863
+2026-06-14 22:57:11.360 | INFO     | __main__:print_aggregate:254 -   累计候选个体数（去重）                              :     7.0000 ±   2.3094
+2026-06-14 22:57:11.360 | INFO     | __main__:print_aggregate:254 -   RR 对战数                                   : 12640.0000 ±   0.0000
+2026-06-14 22:57:11.360 | INFO     | __main__:print_aggregate:254 -   节省率 (%)                                  :    92.3435 ±   1.4696
+2026-06-14 22:57:11.361 | INFO     | __main__:print_aggregate:254 -   Top16 重叠率 vs GT                          :     0.7014 ±   0.2479
+2026-06-14 22:57:11.361 | INFO     | __main__:print_aggregate:254 -   Recall@8 within Top16                    :     0.7778 ±   0.2686
+2026-06-14 22:57:11.361 | INFO     | __main__:print_aggregate:254 -   Recall@16 within Top16                   :     0.7014 ±   0.2479
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:257 -   Fallback 触发率                             :      11.11%
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:258 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:261 - 【表 4】按 p 分布分组
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:262 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:266 -   group           n      总数     一类     二类     三类      有效    候选     节省%   Top16    R@8    R@16
+2026-06-14 22:57:11.362 | INFO     | __main__:print_aggregate:272 -   p=bimodal       3   823.7  261.7  562.0  172.3   651.3   8.0  93.48%  0.3750 0.4167  0.3750
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:272 -   p=normal        3  1035.3  202.3  833.0   99.3   936.0   6.3  91.81%  0.8542 1.0000  0.8542
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:272 -   p=uniform       3  1044.3  212.7  831.3  108.3   936.0   6.7  91.74%  0.8750 0.9167  0.8750
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:285 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:288 - 【表 5】按 q 模式分组
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:289 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.363 | INFO     | __main__:print_aggregate:290 -   group           n      总数     一类     二类     三类      有效    候选     节省%   Top16    R@8    R@16
+2026-06-14 22:57:11.364 | INFO     | __main__:print_aggregate:296 -   q=constant      9   967.8  225.6  742.1  126.7   841.1   7.0  92.34%  0.7014 0.7778  0.7014
+2026-06-14 22:57:11.364 | INFO     | __main__:print_aggregate:309 - ══════════════════════════════════════════════════════════════════════════════════════════════════════════════
+2026-06-14 22:57:11.365 | INFO     | __main__:main:406 - 汇总报告: /Users/raymondzeng/Documents/trae_projects/AntWar/ppo_v10/ppo_v10/outputs/original_rule_experiment_v5/20260614_225711_summary.json
+2026-06-14 22:57:11.365 | INFO     | __main__:main:407 - 实验完成 | 总耗时 28.3s

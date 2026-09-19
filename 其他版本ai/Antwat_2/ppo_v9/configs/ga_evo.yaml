@@ -1,0 +1,86 @@
+# ============================================================
+# GA 进化训练配置文件 - AntWar v9
+# ============================================================
+
+# 系统配置
+system:
+  device: "cuda"
+  seed: 42
+
+# 网络结构配置
+network:
+  hidden_dim: 256
+  enable_auxiliary: true
+
+# 进化参数
+evolution:
+  max_generations: 200
+  population_size: 80
+  num_seeds: 8
+  elitism_count: 2
+  convergence_window: 20
+  convergence_threshold: 5.0
+
+# 杂交参数
+crossover:
+  method: "layer_wise"
+  rate: 0.8
+
+# 变异参数
+mutation:
+  method: "gaussian"
+  rate: 0.1
+  scale: 0.03
+  decay: 0.99
+
+# 选拔参数
+selection:
+  method: "fixed_reference_elo"
+  n_battles: 3
+  anchor_references:
+    - "BasicRandomAI"
+    - "BasicTowerAI"
+    - "MediumRuleAI"
+  dynamic_references: 3
+  include_previous_champion: true
+  elo_k_factor: 64
+  elo_initial: 1200
+
+# 对手池参数
+opponent_pool:
+  max_size: 20
+  min_games_threshold: 8
+  exploit_prob: 0.7
+  decay: 0.99
+  min_win_rate_games: 8
+
+# 基线验证参数
+baseline_battle:
+  enabled: true
+  interval: 1
+  n_battles: 16
+  max_workers: 25
+  agents:
+    - "MediumRuleAI"
+    - "BasicTowerAI"
+    - "nn_gen_32_cuda"
+    - "rule_zzy25"
+
+# 环境参数
+env:
+  player_id: 0
+  backend_type: "python"
+  max_steps: 512
+
+# 日志参数
+logging:
+  log_level: "INFO"
+  save_interval: 10
+  tensorboard: true
+
+# 精英去重配置
+elite_dedup:
+  enabled: true
+  hard_threshold: 0.95       # cos>0.95 视为相同模型
+  soft_threshold: 0.85       # cos>0.85 视为同一家族
+  soft_max_per_family: 2     # 每家族最多 2 个种子位
