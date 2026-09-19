@@ -3038,3 +3038,35 @@ D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py \
 class/pos 网走出来的 ⇒ 要拿**干净 A/B**，新 ckpt 必须是 `three_mix_r10p_vw_pol_frozen.pt`
 的 `class_state`/`pos_state` **照抄**、**只替换 `value_state`**（这样对局逐位相同，
 唯一变量就是价值网）。
+
+## 2026-09-19 17:46:49 — inject_ex02_400g
+
+- **commit**: `807a8d6` (dirty: 17 files)
+- **exit**: 0，用时 4090s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_r1.pt --games 400 --workers 16 --seed 1 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 24 --search-mode pos-only --skip-single-candidate --native-engine --inject-example-prob 0.02 --out-dir training_history/inject_ex02/data
+  ```
+- **output**: `training_history/runs/20260919_174648_inject_ex02_400g/output.log`
+- **result**: ✅ 采集成功：**400 局全部打到 terminal**，**369,476 个决策点**（每局均 924），
+  产物 `training_history/inject_ex02/data/az_selfplay_seed*.pkl` 共 **17 GB**。
+  用时 68 分钟（"约 1 小时"的估计对上了）。
+
+  **这批数据到底带来了什么 —— 用 `_tmp_inject_data_stats.py` 直接数 `board` 通道：**
+  （通道 4 = 己方塔、通道 5 = 敌方塔，见 `SDK/utils/features.py:177-180`）
+
+  | 数据集 | 决策点 | **场上有己方塔** | 有 ≥2 己方塔 | 场上有敌方塔 |
+  |---|---|---|---|---|
+  | **注入前**：`vprior/vp_400.npz`（训 `posnet_r1` 用的）| 24,972 | **0.0%** | 0.0% | **0.0%** |
+  | **注入前**：`az_fixed/mixdata_mix13`（老训练数据）| 804/局 | **0.0%** | 0.0% | **0.0%** |
+  | **注入后**：`inject_ex02/data`（本批）| **369,476** | **38.9%** | **28.2%** | **39.4%** |
+
+  ⇒ 🔴 **决定性对比**：此前**所有**自对弈训练数据里，"场上有一座塔"的决策点是 **0.0%**
+  （敌方塔也是 0.0% ⇒ 整盘棋从头到尾没有任何塔）。本批把"有塔局面"的覆盖从 **0 → 38.9%**、
+  "≥2 塔"到 **28.2%**。这正是 §2"价值网对其他动作是瞎的"那条诊断的**直接证据**，
+  也是 (a) 唯一想改变的东西。
+  （通道索引可信度交叉验证：同一个通道在注入数据里是 38.9%、在两份老数据里是 0.0%
+  ⇒ 不是"取错通道导致恒为 0"。）
+
+  player0/1 样本数 184,738 / 184,738（完全均衡）；value_target 每局内标准差均 0.308
+  （局间均值恒为 0，是"两玩家样本数相同、标签互为相反数"的构造使然，非 bug）。
