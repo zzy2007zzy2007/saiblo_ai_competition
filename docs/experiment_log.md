@@ -3341,3 +3341,51 @@ D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates
 `first` 0.6055 / `search`(旧) 0.6172 / `search`(新) 0.5938，三者互在噪声内
 ⇒ 初步看"搜索 ≈ 启发式自己挑第一名"，**没看出搜索的额外增益**。要下结论必须直接头对头，
 已排进 S3 之后的一批（**顺序跑，不并行**）。
+
+## 2026-09-19 20:13:53 — random_menu24_arms
+
+- **commit**: `b3a9f97` (dirty: 18 files)
+- **exit**: 0，用时 6236s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+O=$OLD; N=$NEW
+echo "#### G 守卫：random vs random（期望恰好 0.5000）####"
+$PY -u $S --our random --opp random --k 24 --menu-random 24 --pairs 32 --workers 16 --seed 0 --ckpt $O
+echo "#### L 菜单活性：first(子集分最高) vs random(子集乱选) ####"
+$PY -u $S --our first --opp random --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt $O
+echo "#### P1 1-ply 头对头：value(新) vs value(旧) ####"
+$PY -u $S --our value --opp value --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt-opp $O
+echo "#### S1 搜索(旧) vs random ####"
+$PY -u $S --our search --opp random --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 64 --workers 16 --seed 0 --ckpt-our $O
+echo "#### S2 搜索(新) vs random ####"
+$PY -u $S --our search --opp random --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 64 --workers 16 --seed 0 --ckpt-our $N
+echo "#### S3 主判据·搜索头对头：search(新) vs search(旧) ####"
+$PY -u $S --our search --opp search --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt-opp $O
+  ```
+- **output**: `training_history/runs/20260919_201353_random_menu24_arms/output.log`
+- **result**: ✅ 6 臂全部完成（用时 6236s）。完整表：
+
+  | 臂 | 配对胜率 | SE | t | 净胜局 |
+  |---|---|---|---|---|
+  | **G 守卫** `random` vs `random` | **0.5000** | 0.0000 | — | 0（0/32 偏离）|
+  | **L 菜单活性** `first` vs `random` | **0.6055** | 0.0312 | +3.38 | +27 |
+  | **P1 1-ply 头对头** `value`(新) vs `value`(旧) | **0.5625** | 0.0299 | **+2.09** | +16 |
+  | **S1** `search`(旧) vs `random` | 0.6172 | 0.0469 | +2.50 | +15 |
+  | **S2** `search`(新) vs `random` | 0.5938 | 0.0400 | +2.35 | +12 |
+  | **S3 主判据·头对头** `search`(新) vs `search`(旧) | **0.5664** | 0.0290 | **+2.29** | **+17** |
+
+  ⇒ 🔴 **本轮最重要的结论：有两条机制不同的对局级证据同时确认"注入重训让价值网变好了"**
+  （P1 用 1-ply 价值 argmax 裁决，S3 用 MCTS 访问次数裁决），都是 ~0.56、t≈2.1~2.3。
+  加上分位判据 55.9%→61.2%，三条同向。**幅度就是 +6~7pp 这个量级**，
+  与"权重只动了 ‖Δθ‖/‖θ‖ = 4.1%"相符（热启动 + 只训 2 epoch、val 到顶就过拟合 + 注入只占 2% 回合）。
+
+  **① 用户改法有效（菜单"活了"）**：`first vs random` 从 top-24 菜单的 **0.4922（t=−0.18）**
+  变成随机 24 子集的 **0.6055（t=+3.38）** ⇒ 随机子集含"差选项"，选错开始有代价。
+
+  **② S1 与 S2 不可比**（两次独立 run、各 64 对；0.6172 vs 0.5938 的差 0.023 ≪ SE 0.04~0.047）。
+  要判新旧只能看配对头对头（P1/S3）。
+
+  ⚠️ **本轮缺一个臂：`search` vs `first`**（用户 21:1x 指出）。跨 run 粗略方向是
+  `first` 0.6055 / `search`(旧) 0.6172 / `search`(新) 0.5938 —— 三者互在噪声内，
+  提示"搜索 ≈ 启发式自己挑第一名"。已排进 `search_vs_first_arms` 顺序补跑。
