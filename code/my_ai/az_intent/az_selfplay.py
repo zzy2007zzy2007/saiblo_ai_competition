@@ -280,11 +280,47 @@ def _random_legal_bundle(model, out, state, player, rng, pm, cm, n_samples: int 
     return bundles[int(rng.integers(len(bundles)))]
 
 
+def _example_legal_bundle(state, player, feat):
+    """**ExampleAI 的选法**：`ai_example.py` 是 `bundles[1:8]` 里取 (score, -len(ops)) 最大者。
+    这里**只改一处**：先把候选过滤成"建设性"动作（见下），再套同一个 argmax。
+
+    用途（`--inject-example-prob`）：以概率 p 把搜索选的动作换成它 —— 与
+    `--random-action-prob`（均匀随机 bundle = 纯噪声）不同，**这是"合理动作"**，
+    所以既能把对局推向"有塔的局面"（给价值网/类头铺覆盖），又不会把对局搞乱。
+
+    **为什么要过滤（2026-09-19 直接测量，`_tmp_probe_example_pick.py`）**：
+    金币耗尽时 `ActionCatalog.build()` 只剩 `[hold(0.0), downgrade...(-3.3)]`（塔已献祭）。
+    `ai_example.py` 取 `bundles[1:8]` ⇒ **跳过 `bundles[0]` 那个 hold** ⇒ 选**降级**！
+    下一回合又有钱 ⇒ 又建塔 ⇒ **官方参考实现自己就是"建↔拆循环"的制造者**
+    （seed 0/3 的探针：真正出招的决策点里 26%/39% 是降级）。
+    这正是用户判为"异常、只白烧金币"的行为，所以注入时要把它排除：
+    我们想要的只是"会建塔/升级"这段多样性，不是"把刚建的塔卖掉"。
+    """
+    from SDK.utils.actions import ActionCatalog
+    from SDK.utils.features import FeatureExtractor
+    from SDK.backend.model import OperationType as _OT
+    cat = ActionCatalog(max_actions=96, feature_extractor=feat or FeatureExtractor(max_actions=96))
+    b = cat.build(state, player)
+    if not b:
+        return None
+    _PRODUCTIVE = {int(_OT.BUILD_TOWER), int(_OT.UPGRADE_TOWER),
+                   int(_OT.UPGRADE_GENERATION_SPEED), int(_OT.UPGRADE_GENERATED_ANT)}
+    cand = [x for x in b[1:] if x.operations
+            and all(int(o.op_type) in _PRODUCTIVE for o in x.operations)]
+    if not cand:
+        return None
+    best = max(cand[:8], key=lambda x: (x.score, -len(x.operations)))
+    # 注意：`chosen` 在别处是**元组的元组** (op_type, arg0, arg1)，不是 Operation 对象
+    ops = [(int(o.op_type), int(o.arg0), int(o.arg1)) for o in best.operations]
+    return ops or None
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None,
                  native_engine: bool = False,
                  random_action_prob: float = 0.0,
+                 inject_example_prob: float = 0.0,
                  skip_hold_search: bool = False) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
 
@@ -353,10 +389,13 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                 chosen = res.chosen_bundle
                 bundles, intent_counts, visit = (list(res.bundles), res.intent_counts,
                                                  res.visit_policy.astype(np.float32))
-                if random_action_prob > 0.0 and mcts.rng.random() < random_action_prob:
+                rb = None
+                if inject_example_prob > 0.0 and mcts.rng.random() < inject_example_prob:
+                    rb = _example_legal_bundle(state, player, feature_extractor)
+                elif random_action_prob > 0.0 and mcts.rng.random() < random_action_prob:
                     rb = _random_legal_bundle(model, out, state, player, mcts.rng, pm, cm)
-                    if rb:
-                        chosen = rb
+                if rb:
+                    chosen = rb
             samples.append(
                 {
                     "board": obs["board"].astype(np.float16),
@@ -411,6 +450,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       k: int, sample_mult: int, max_rounds: int, temp_rounds: int,
                       native_engine: bool = False, c_puct: float = 1.25,
                       random_action_prob: float = 0.0,
+                      inject_example_prob: float = 0.0,
                       skip_hold_search: bool = False,
                       write_npz: bool = False,
                       search_mode: str = "joint", pos_pin: str = "argmax",
@@ -430,6 +470,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
                            native_engine=native_engine,
                            random_action_prob=random_action_prob,
+                           inject_example_prob=inject_example_prob,
                            skip_hold_search=skip_hold_search)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -464,6 +505,7 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            temp_rounds: int, native_engine: bool = False,
                            c_puct: float = 1.25,
                            random_action_prob: float = 0.0,
+                           inject_example_prob: float = 0.0,
                            skip_hold_search: bool = False,
                            write_npz: bool = False,
                            search_mode: str = "joint", pos_pin: str = "argmax",
@@ -471,7 +513,8 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
              k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
-             random_action_prob, skip_hold_search, write_npz, search_mode, pos_pin,
+             random_action_prob, inject_example_prob, skip_hold_search, write_npz,
+             search_mode, pos_pin,
              skip_single_candidate) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -504,6 +547,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--native-engine", action="store_true",
                         help="use the C++ engine (native_game) instead of the Python SDK engine")
+    parser.add_argument("--inject-example-prob", type=float, default=0.0,
+                        help="x: with probability x OUR play ignores the search and plays "
+                             "**ExampleAI 的选法**（动作目录里 score 最高的 bundle，但先过滤成"
+                             "建塔/升级这类'建设性'动作、排除降级与超武；见 _example_legal_bundle）。"
+                             "与 --random-action-prob（均匀随机=纯噪声）不同：它把对局推向"
+                             "'有塔的局面'给价值网/类头铺覆盖，又不打乱对局。"
+                             "见 docs/az_class_axis_plan.md §5(a)")
     parser.add_argument("--random-action-prob", type=float, default=0.0,
                         help="x: with probability x a decision plays a uniformly random "
                              "LEGAL bundle instead of the search's choice (diversity / "
@@ -547,13 +597,15 @@ def main() -> None:
     print(f"[selfplay] collecting {args.games} games ({args.workers} workers, "
           f"{args.iterations} iters / depth {args.max_depth_rounds}) "
           f"[engine={'C++' if args.native_engine else 'python'}, c_puct={args.c_puct}, "
-          f"random_action_prob={args.random_action_prob}]...", flush=True)
+          f"random_action_prob={args.random_action_prob}, "
+          f"inject_example_prob={args.inject_example_prob}]...", flush=True)
     paths = collect_games_parallel(
         args.checkpoint, seeds, args.out_dir, args.workers,
         args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
         args.k, args.sample_mult, args.max_rounds, args.temp_rounds,
         native_engine=args.native_engine, c_puct=args.c_puct,
         random_action_prob=args.random_action_prob,
+        inject_example_prob=args.inject_example_prob,
         skip_hold_search=args.skip_hold_search,
         write_npz=args.write_npz,
         search_mode=args.search_mode,
