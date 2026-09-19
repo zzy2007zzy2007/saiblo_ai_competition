@@ -281,35 +281,28 @@ def _random_legal_bundle(model, out, state, player, rng, pm, cm, n_samples: int 
 
 
 def _example_legal_bundle(state, player, feat):
-    """**ExampleAI 的选法**：`ai_example.py` 是 `bundles[1:8]` 里取 (score, -len(ops)) 最大者。
-    这里**只改一处**：先把候选过滤成"建设性"动作（见下），再套同一个 argmax。
+    """**ExampleAI 的做法**：`ai_example.py` 逐字逻辑（`bundles[1:8]` 里取
+    (score, -len(ops)) 最大者）。**不做任何过滤** —— 用户 2026-09-19 明确要求保持原样。
 
     用途（`--inject-example-prob`）：以概率 p 把搜索选的动作换成它 —— 与
     `--random-action-prob`（均匀随机 bundle = 纯噪声）不同，**这是"合理动作"**，
     所以既能把对局推向"有塔的局面"（给价值网/类头铺覆盖），又不会把对局搞乱。
 
-    **为什么要过滤（2026-09-19 直接测量，`_tmp_probe_example_pick.py`）**：
-    金币耗尽时 `ActionCatalog.build()` 只剩 `[hold(0.0), downgrade...(-3.3)]`（塔已献祭）。
-    `ai_example.py` 取 `bundles[1:8]` ⇒ **跳过 `bundles[0]` 那个 hold** ⇒ 选**降级**！
-    下一回合又有钱 ⇒ 又建塔 ⇒ **官方参考实现自己就是"建↔拆循环"的制造者**
-    （seed 0/3 的探针：真正出招的决策点里 26%/39% 是降级）。
-    这正是用户判为"异常、只白烧金币"的行为，所以注入时要把它排除：
-    我们想要的只是"会建塔/升级"这段多样性，不是"把刚建的塔卖掉"。
+    ⚠️ 已知行为（2026-09-19 直接测量，`_tmp_probe_example_pick.py`）：金币耗尽时
+    `ActionCatalog.build()` 只剩 `[hold(0.0), downgrade...(-3.3)]`，而这里取
+    `bundles[1:8]` ⇒ **跳过 `bundles[0]` 那个 hold** ⇒ 它会**拆一座塔换钱**，
+    下回合又有钱建塔 ⇒ 官方参考实现自身就有"建↔拆循环"成分（真正出招的决策点里
+    26%~39% 是降级）。我们**故意保留**这个行为：注入率只有 2%，且这套数据要覆盖的
+    正是"含建塔/升级/降级的混合局面"。
     """
     from SDK.utils.actions import ActionCatalog
     from SDK.utils.features import FeatureExtractor
-    from SDK.backend.model import OperationType as _OT
     cat = ActionCatalog(max_actions=96, feature_extractor=feat or FeatureExtractor(max_actions=96))
     b = cat.build(state, player)
     if not b:
         return None
-    _PRODUCTIVE = {int(_OT.BUILD_TOWER), int(_OT.UPGRADE_TOWER),
-                   int(_OT.UPGRADE_GENERATION_SPEED), int(_OT.UPGRADE_GENERATED_ANT)}
-    cand = [x for x in b[1:] if x.operations
-            and all(int(o.op_type) in _PRODUCTIVE for o in x.operations)]
-    if not cand:
-        return None
-    best = max(cand[:8], key=lambda x: (x.score, -len(x.operations)))
+    short = b[1:min(len(b), 8)] or b
+    best = max(short, key=lambda x: (x.score, -len(x.operations)))
     # 注意：`chosen` 在别处是**元组的元组** (op_type, arg0, arg1)，不是 Operation 对象
     ops = [(int(o.op_type), int(o.arg0), int(o.arg1)) for o in best.operations]
     return ops or None
@@ -549,10 +542,9 @@ def main() -> None:
                         help="use the C++ engine (native_game) instead of the Python SDK engine")
     parser.add_argument("--inject-example-prob", type=float, default=0.0,
                         help="x: with probability x OUR play ignores the search and plays "
-                             "**ExampleAI 的选法**（动作目录里 score 最高的 bundle，但先过滤成"
-                             "建塔/升级这类'建设性'动作、排除降级与超武；见 _example_legal_bundle）。"
-                             "与 --random-action-prob（均匀随机=纯噪声）不同：它把对局推向"
-                             "'有塔的局面'给价值网/类头铺覆盖，又不打乱对局。"
+                             "**ExampleAI 的动作**（动作目录里 score 最高的 bundle；合理动作、"
+                             "大概率是建塔；不过滤）。与 --random-action-prob（均匀随机=纯噪声）"
+                             "不同：它把对局推向'有塔的局面'给价值网/类头铺覆盖，又不打乱对局。"
                              "见 docs/az_class_axis_plan.md §5(a)")
     parser.add_argument("--random-action-prob", type=float, default=0.0,
                         help="x: with probability x a decision plays a uniformly random "
