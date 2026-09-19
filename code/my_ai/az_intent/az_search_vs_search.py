@@ -27,7 +27,8 @@ for p in (_REPO, _CODE):
 
 def _worker(args: tuple) -> dict:
     (a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos,
-     native_engine, flip, a_rel_abs, b_rel_abs, a_tanh, b_tanh) = args
+     native_engine, flip, a_rel_abs, b_rel_abs, a_tanh, b_tanh,
+     search_mode, skip_single, k) = args
     import torch
     torch.set_num_threads(1)
 
@@ -45,12 +46,14 @@ def _worker(args: tuple) -> dict:
                                         value_rel_to_abs=a_rel_abs)
     _, net_fn_b = make_net_fn_from_ckpt(b_path, feat, value_tanh=b_tanh,
                                         value_rel_to_abs=b_rel_abs)
-    mcts_a = BundleMCTS(net_fn_a, iterations=iterations,
-                        max_depth_rounds=max_depth_rounds,
-                        t_class=t_class, t_pos=t_pos, seed=seed)
-    mcts_b = BundleMCTS(net_fn_b, iterations=iterations,
-                        max_depth_rounds=max_depth_rounds,
-                        t_class=t_class, t_pos=t_pos, seed=seed + 1)
+    # search_mode / skip_single_candidate（2026-09-19 新增，默认 = 原行为）：
+    # 部署/采集口径是 `pos-only + skip-single-candidate`（实测与 joint 强度逐位相同、
+    # 便宜 ~26x，因为 pos-only 下 ~97% 回合只有 1 个候选）。见 docs/az_forced_move_skip_plan.md
+    _m = dict(iterations=iterations, max_depth_rounds=max_depth_rounds, k=k,
+              t_class=t_class, t_pos=t_pos, search_mode=search_mode,
+              skip_single_candidate=skip_single)
+    mcts_a = BundleMCTS(net_fn_a, seed=seed, **_m)
+    mcts_b = BundleMCTS(net_fn_b, seed=seed + 1, **_m)
 
     # alternate which model is P0; --flip-sides inverts the assignment so the SAME
     # seed can be replayed with swapped sides -> pairs with the unflipped run
@@ -112,6 +115,15 @@ def main() -> None:
     parser.add_argument("--b-rel-to-abs", type=float, default=0.0, help="same, for B")
     parser.add_argument("--a-no-tanh", action="store_true", help="A: keep raw value (no tanh)")
     parser.add_argument("--b-no-tanh", action="store_true", help="B: keep raw value (no tanh)")
+    parser.add_argument("--search-mode", type=str, default="joint",
+                        choices=["joint", "class-only", "pos-only"],
+                        help="传给 BundleMCTS。pos-only = 类钉在类头 argmax（= 部署/采集口径）")
+    parser.add_argument("--skip-single-candidate", action="store_true",
+                        help="单候选时跳过迭代（pos-only 下 ~97%% 回合命中，便宜 ~26x）")
+    parser.add_argument("--k", type=int, default=24, help="每层候选数（BundleMCTS k）")
+    parser.add_argument("--pairs", type=int, default=0,
+                        help=">0：**真镜像配对**——每个 seed 各打一次 A=P0 与 A=P1，"
+                             "报配对胜率 + SE + t（与 --games 二选一）")
     parser.add_argument("--flip-sides", action="store_true",
                         help="invert the seed%%2 side assignment. Running the SAME "
                              "seeds with this flag replays every game with swapped "
@@ -119,11 +131,16 @@ def main() -> None:
                              "(cancels the P0/P1 asymmetry within each pair)")
     args = parser.parse_args()
 
-    jobs = [(args.a, args.b, args.seed + s, args.iterations, args.max_depth_rounds,
-             args.t_class, args.t_pos, args.native_engine, args.flip_sides,
-             args.a_rel_to_abs, args.b_rel_to_abs,
-             not args.a_no_tanh, not args.b_no_tanh)
-            for s in range(args.games)]
+    _common = (args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
+               args.native_engine, args.a_rel_to_abs, args.b_rel_to_abs,
+               not args.a_no_tanh, not args.b_no_tanh,
+               args.search_mode, args.skip_single_candidate, args.k)
+    if args.pairs > 0:
+        jobs = [(args.a, args.b, args.seed + s) + _common[:5] + (fl,) + _common[5:]
+                for s in range(args.pairs) for fl in (False, True)]
+    else:
+        jobs = [(args.a, args.b, args.seed + s) + _common[:5] + (args.flip_sides,)
+                + _common[5:] for s in range(args.games)]
     if args.workers > 1:
         import multiprocessing as mp
         with mp.Pool(args.workers) as pool:
@@ -138,7 +155,14 @@ def main() -> None:
     a_name = Path(args.a).name
     b_name = Path(args.b).name
     print(f"\n=== {a_name} (A) vs {b_name} (B) [search {args.iterations}/{args.max_depth_rounds}]: "
-          f"A win rate = {win/len(scores):.1%} ({win}W/{draw}D/{loss}L) ===")
+          f"A win rate = {win/len(scores):.1%} ({win}W/{draw}D/{loss}L) "
+          f"[{args.search_mode}, skip_single={args.skip_single_candidate}, k={args.k}] ===")
+    if args.pairs > 0:
+        sc = np.asarray(scores, dtype=np.float64).reshape(args.pairs, 2).mean(axis=1)
+        se = sc.std(ddof=1) / np.sqrt(len(sc)) if len(sc) > 1 else 0.0
+        t = (sc.mean() - 0.5) / se if se > 0 else 0.0
+        print(f"  配对胜率(A) = {sc.mean():.4f}  (0.5 = 持平)  SE = {se:.4f}   t = {t:+.2f}"
+              f"   [{args.pairs} 对 / {2 * args.pairs} 局]")
 
 
 if __name__ == "__main__":
