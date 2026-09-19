@@ -2993,6 +2993,27 @@ r3  coins=35 塔=1  -> 又 BUILD
 613 回合里 BUILD 704 / DOWNGRADE 700 / LIGHTNING 15 ⇒ **更糟的疯狂循环**。
 ⇒ "不用注入、靠 playable 就能产生建塔数据"的猜想被否掉。
 
+### 发现 5（对照）：**p=0 时我们自己的策略只出闪电**，所以 trace 里所有非闪电动作都是注入
+
+同一配置（`pos-only` + `pos-pin argmax` + `skip-single-candidate` + native）、只把
+`--inject-example-prob` 设成 0，跑 3 局 / **1275 回合**：
+
+| | 出招回合 | 实际执行 |
+|---|---|---|
+| **p=0（无注入，对照）** | 5.6% | **LIGHTNING:71，其余全 0** |
+| p=0.02（正式采集） | 10.3% | BUILD 164 / LIGHTNING 137 / DOWNGRADE 49 / UPGRADE 6 |
+
+⇒ ① **我们的策略在这个配置下的动作空间就是"闪电 + 空过"**（类头塌缩，与 §2 的诊断一致）；
+② 所以采集 trace 里出现的 **BUILD/UPGRADE 必定是注入**，**DOWNGRADE 是意图解码的自动降级**
+（对照里 0 降级 = 没有塔可拆）—— 这给了"读 trace"一把标尺；
+③ 注入把出招回合占比从 5.6% 抬到 10.3%（≈ 翻倍），即注入确实在改变对局形态。
+
+样例（第 1 局，`training_history/inject_ex02/data/az_progress_seed10098.txt`，383 回合、
+winner=0、35 个出招回合，其余全是双方空过攒钱）：
+`BUILD 24 / LIGHTNING 21 / DOWNGRADE 5 / UPGRADE 2`。可辨认的注入：
+`r29 P1 [BUILD(13,9),BUILD(14,9)]`、`r88 P0 [UPGRADE(id=3->type=2),UPGRADE(id=5->type=2)]`
+⇒ **不只是建塔，升级也进来了**；而且塔能活一段（r29 建的塔到 r63 才被拆，r88 升级的塔到 r98 才拆）。
+
 ### 下一步（判据口径先钉死，免得又"不可比"）
 
 400 局采集已启动：`inject_ex02_400g`（p=0.02、不过滤、pos-only + skip-single-candidate +
