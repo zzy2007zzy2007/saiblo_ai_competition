@@ -49,17 +49,34 @@ def _is_lightning(b) -> bool:
     return any(op.op_type == OperationType.USE_LIGHTNING_STORM for op in b.operations)
 
 
-def _candidates(state, player, catalog, k: int, no_lightning: bool) -> list:
-    """启发式 top-K。`ActionCatalog.build()` 的分 bundle.score 降序（空过分数 0 会排最后）。"""
+def _key(b):
+    return tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in b.operations)
+
+
+def _candidates(state, player, catalog, k: int, no_lightning: bool,
+                menu_lightning: bool = False) -> list:
+    """启发式 top-K。`ActionCatalog.build()` 的分 bundle.score 降序（空过分数 0 会排最后）。
+
+    `menu_lightning`（2026-09-19，见 docs/az_heuristic_menu_search_plan.md）：在 top-K 之外
+    **再补一个"评分最高的闪电候选"**。动机：实测官方 top-24 里闪电 ~0%、构成建塔 73~75%，
+    ⇒ 菜单把**类轴整条丢掉了**，只剩近乎等价的"建在哪一格"，于是
+    `random vs first` = 0.4922（t=-0.18）——在这份菜单里选什么都一样。
+    补回闪电后，"放不放闪电"这个值 ~80pp 的取舍（`rv4_lightning_only`）才回到菜单里。
+    对手侧 `first` 取 `cands[0]`（分最高者），补进来的闪电排在末尾 ⇒ 对手行为基本不变。"""
     bundles = sorted(catalog.build(state, player), key=lambda b: -b.score)
     if no_lightning:
         bundles = [b for b in bundles if not _is_lightning(b)]
-    return bundles[:k]
+    top = bundles[:k]
+    if menu_lightning:
+        lb = next((b for b in bundles if _is_lightning(b)), None)
+        if lb is not None and all(_key(lb) != _key(x) for x in top):
+            top = top + [lb]
+    return top
 
 
 def _worker(job):
     (seed, our_player, our_mode, opp_mode, k, no_lightning, ckpt, native, max_rounds,
-     search_iters, search_depth, c_puct) = job
+     search_iters, search_depth, c_puct, menu_lightning) = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
@@ -82,7 +99,8 @@ def _worker(job):
             _, net_fn = make_net_fn_from_ckpt(ckpt, feat)
 
             def _menu(state, player, kk):
-                bs = _candidates(state, player, catalog, kk, no_lightning)
+                bs = _candidates(state, player, catalog, kk, no_lightning,
+                                 menu_lightning)
                 return [tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in b.operations)
                         for b in bs]
 
@@ -173,7 +191,7 @@ def _worker(job):
                 pool = pool + [lb]
             cands = pool
         else:
-            cands = _candidates(state, player, catalog, k, no_lightning)
+            cands = _candidates(state, player, catalog, k, no_lightning, menu_lightning)
         stats["cands"].append(len(cands))
         if not cands:
             return []
@@ -235,6 +253,9 @@ def main() -> None:
     ap.add_argument("--c-puct", type=float, default=1.25, help="search 模式：PUCT 常数")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--no-lightning", action="store_true", help="候选集里剔除含闪电的 bundle")
+    ap.add_argument("--menu-lightning", action="store_true",
+                    help="在 top-K 之外再补一个评分最高的闪电候选（把类轴放回菜单）；"
+                         "见 docs/az_heuristic_menu_search_plan.md")
     ap.add_argument("--ckpt", default="training_history/vprior/posnet_r1.pt")
     ap.add_argument("--pairs", type=int, default=32)
     ap.add_argument("--workers", type=int, default=16)
@@ -249,7 +270,8 @@ def main() -> None:
         for pl in (0, 1):
             jobs.append((s, pl, a.our, a.opp, a.k, a.no_lightning, a.ckpt,
                          a.native_engine, a.max_rounds,
-                         a.search_iters, a.search_depth, a.c_puct))
+                         a.search_iters, a.search_depth, a.c_puct,
+                         a.menu_lightning))
     import multiprocessing as mp
     if a.workers > 1:
         with mp.Pool(a.workers) as pool:
@@ -263,7 +285,7 @@ def main() -> None:
     se = ps.std(ddof=1) / np.sqrt(n) if n > 1 else 0.0
     cand = np.asarray([c for r in res for c in r["cands"]], dtype=np.float64)
     t_str = "  (SE=0：镜像严格抵消)" if se == 0 else f"  t = {(ps.mean() - 0.5) / se:+.2f}"
-    print(f"\n=== our={a.our} opp={a.opp} k={a.k} no_lightning={a.no_lightning}  "
+    print(f"\n=== our={a.our} opp={a.opp} k={a.k} no_lightning={a.no_lightning} menu_lightning={a.menu_lightning}  "
           f"{n} pairs ({2 * n} games) seed={a.seed} ===")
     print(f"  我方配对胜率 = {ps.mean():.4f}  (0.5 = 持平, 1.0 = 全胜)  SE = {se:.4f}{t_str}")
     print(f"  偏离 0.5 的 pair 数 = {int((np.abs(ps - 0.5) > 1e-9).sum())}/{n}   "
