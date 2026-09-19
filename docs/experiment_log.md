@@ -3389,3 +3389,60 @@ $PY -u $S --our search --opp search --k 24 --menu-random 24 --search-iters 64 --
   ⚠️ **本轮缺一个臂：`search` vs `first`**（用户 21:1x 指出）。跨 run 粗略方向是
   `first` 0.6055 / `search`(旧) 0.6172 / `search`(新) 0.5938 —— 三者互在噪声内，
   提示"搜索 ≈ 启发式自己挑第一名"。已排进 `search_vs_first_arms` 顺序补跑。
+
+## 2026-09-19 21:58:09 — search_vs_first_arms
+
+- **commit**: `6767b76` (dirty: 18 files)
+- **exit**: 0，用时 4027s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+O=$OLD; N=$NEW
+echo "#### G2 守卫：first vs first（期望恰好 0.5000）####"
+$PY -u $S --our first --opp first --k 24 --menu-random 24 --pairs 32 --workers 16 --seed 0 --ckpt $O
+echo "#### V1 1-ply：value(旧) vs first ####"
+$PY -u $S --our value --opp first --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt $O
+echo "#### V2 1-ply：value(新) vs first ####"
+$PY -u $S --our value --opp first --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt $O
+echo "#### F1 搜索(旧) vs first ####"
+$PY -u $S --our search --opp first --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 64 --workers 16 --seed 0 --ckpt $O
+echo "#### F2 主：搜索(新) vs first ####"
+$PY -u $S --our search --opp first --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt $O
+  ```
+- **output**: `training_history/runs/20260919_215809_search_vs_first_arms/output.log`
+- **result**: 🔴 **本轮出了两条很硬的结论**（菜单 `--menu-random 24`、不补闪电、镜像配对）。
+
+  | 臂 | 配对胜率 | SE | t | 净胜局 |
+  |---|---|---|---|---|
+  | G2 守卫 `first` vs `first` | **0.5000** | 0.0000 | — | 0（0/32 偏离）|
+  | **V1** `value`(**旧**) vs `first` | **0.4375** | 0.0346 | **−1.80** | **−16** |
+  | **V2** `value`(**新**) vs `first` | **0.5742** | 0.0278 | **+2.67** | **+19** |
+  | **F1** `search`(**旧**) vs `first` | 0.5078 | 0.0409 | +0.19 | +1 |
+  | **F2** `search`(**新**) vs `first` | **0.5273** | 0.0310 | **+0.88** | +7 |
+
+  ### 结论 1（强）：**重训把 1-ply 价值网的排序从"输给手写启发式"变成"赢它"**
+
+  V1 **0.4375（t=−1.80）** ⇒ 旧价值网在**同一份随机菜单**里的挑选**不如**官方启发式自己挑第一名；
+  V2 **0.5742（t=+2.67）** ⇒ 新价值网**反超**它。**摆动 +13.7pp**。
+  这是"注入数据让价值网学会了判塔/升级/降级的好坏"最直接的对局级证据，
+  也回应了用户最初的问题（"重训就是为了让它能判除闪电以外的动作"）。
+
+  ### 结论 2（强）：**但搜索没有超过 `first`**
+
+  F1（旧）0.5078 ≈ 平；F2（新）**0.5273（t=+0.88，不显著）**。
+  ⇒ **价值网 1-ply 直接挑能赢 `first`，走 MCTS 反而只是打平。**
+  可能原因（未验证）：24 个根候选只给 64 次迭代 ⇒ 每候选才 2~3 次访问，
+  访问平均被探索项（`c_puct=1.25`）和访问噪声稀释，不如一次干净的值比较。
+  **可检验的下一步**：把 `--search-iters` 从 64 提到 192/256 看 F2 是否改善。
+  另一条线索：搜索那侧降级占 **9~12%**、`first` 只占 **2~3%** ⇒ 搜索在主动拆塔，
+  这可能正是它没赢的原因之一（值得单独查）。
+
+  ### ⚠️ 不可传递性再次出现（第三次）
+
+  P1（新 vs 旧 头对头）= **0.5625**，而 V1/V2 对**固定对手** `first` 的摆动是 **+13.7pp**。
+  按传递性两者应当接近（方向一致但幅度差一倍多）⇒ 与 `cand_pick_k96` 那次一样：
+  **这个游戏的对局级比较不可传递**，不同配对结构下的同一个差值不可换算。
+  **方向一致（四次独立读数全部"新 > 旧"），幅度只能按具体配对结构解读。**
+
+  **四次独立读数汇总（全部指向"新 > 旧"）**：
+  分位 55.9%→61.2%（z≈12.5）｜ P1 0.5625（t=+2.09）｜ S3 0.5664（t=+2.29）｜ V1→V2 0.4375→0.5742。
