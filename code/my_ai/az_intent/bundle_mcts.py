@@ -202,6 +202,7 @@ class BundleMCTS:
         pos_pin: str = "argmax",
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
+        candidate_fn=None,
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
@@ -224,6 +225,14 @@ class BundleMCTS:
         #   pos_prior_fn(state, player, net_out, pinned_classes, is_root) -> action_map | None
         # 返回 None 表示不覆盖。只碰被钉的类那几条通道 ⇒ 类轴与解码器的降级逻辑都不受影响。
         self.pos_prior_fn = pos_prior_fn
+        # OPTIONAL external CANDIDATE MENU (2026-09-19), default None = 原有采样行为。
+        # 用途：把候选来源换成"外部给定的菜单"（例如官方启发式 top-K），从而测
+        # "在这份菜单里，价值网 + 搜索能不能选出比菜单自己的排序更好的招"
+        # （见 docs/az_heuristic_menu_search_plan.md）。签名：
+        #   candidate_fn(state, player, k) -> list[tuple[(op_type,arg0,arg1), ...]] | None
+        #   返回 None 表示"这一层不接管"，回落原有采样。
+        # 先验一律**均匀**（不掺官方 score，避免把"被检验的排序"又当先验偷回来）。
+        self.candidate_fn = candidate_fn
         self.rng = np.random.default_rng(seed)
         self.last_root: BundleNode | None = None
 
@@ -248,6 +257,29 @@ class BundleMCTS:
             return self._terminal_value(node.state, node.player)
         net_out = self.net_fn(node.state, node.player)
         node.net_value = float(net_out["value"])
+
+        # 外部候选菜单（见 __init__ 的 candidate_fn 注释 / docs/az_heuristic_menu_search_plan.md）：
+        # 接管则**完全跳过**策略采样，直接用外部菜单建子节点（先验均匀）。
+        if self.candidate_fn is not None:
+            ext = self.candidate_fn(node.state, node.player, k)
+            if ext:
+                nxt = 1 - node.player
+                pri = 1.0 / float(len(ext))
+                for key in ext:
+                    ops = [Operation(OperationType(int(x[0])), int(x[1]), int(x[2]))
+                           for x in key]
+                    child_state = node.state.clone()
+                    if ops:
+                        child_state.apply_operation_list(node.player, ops)
+                    if node.player == 1:
+                        child_state.advance_round()
+                    node.children.append(
+                        BundleNode(state=child_state, player=nxt, prior=pri))
+                    node.bundles.append(tuple((int(x[0]), int(x[1]), int(x[2])) for x in key))
+                    # 对局/评估用不到训练目标，留空即可（长度必须与 children 对齐）
+                    node.intent_counts.append([dict(), dict(), dict()])
+                node.expanded = True
+                return node.net_value
 
         # cache masks once (they only depend on the state, not the sample)
         from my_ai.decoder import make_class_mask, make_position_masks

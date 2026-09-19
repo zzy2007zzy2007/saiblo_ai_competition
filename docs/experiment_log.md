@@ -3140,3 +3140,79 @@ D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net
   而"训练前"的旧网在这个标签上 r 就已经 **+0.910**（MSE 0.00737 vs 常数 0.04131）
   ⇒ 这个标签本身好预测（未来 HP 均值与当前优势高度相关），MSE 降 58% 主要说明"拟合上了"，
   **不说明"对动作更敏感"**。它是否真的更有用，只能看判据（下条 `valnet_criterion`）。
+
+## 2026-09-19 19:54:37 — k24_menu_guard
+
+- **commit**: `8b45ad6` (dirty: 17 files)
+- **exit**: 0，用时 220s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 零假设守卫：first vs first（两侧同策略 ⇒ 镜像必须恰好 0.5000）##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our first --opp first --k 24 --pairs 64 --workers 12 --seed 0
+echo '########## 菜单可行性：random(top-24 里乱选) vs first(官方第一名) ##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our random --opp first --k 24 --pairs 64 --workers 12 --seed 0
+  ```
+- **output**: `training_history/runs/20260919_195437_k24_menu_guard/output.log`
+- **result**: 🔴 **零假设守卫完美通过，但可行性守卫失败 ⇒ 用户提的"官方 top-24 菜单 + 价值网搜索"
+  这个臂按原样**测不出东西**。**（64 对 / 128 局，K=24，镜像配对）
+
+  | 臂 | 配对胜率 | t | 净胜局 |
+  |---|---|---|---|
+  | **① `first` vs `first`**（两侧同策略）| **0.5000（SE=0）** | — | **0** |
+  | ② `random`（菜单里乱选）vs `first`（官方第一名）| **0.4922**（SE 0.0438）| **−0.18** | **−1** |
+
+  **① 守卫通过**：0/64 个 pair 偏离 0.5，且两侧动作构成**逐项相同**
+  ⇒ 镜像台子精确、两侧策略确实相同。
+  **② 菜单内部的官方排序没有可测信息**：随机乱选 vs 永远选第一名，差 **−1 局（t=−0.18）**。
+  更狠的是：随机那一侧的行为**变化很大**（降级 14% vs 对方 4%），**结果却完全不变**
+  ⇒ 这份菜单里根本没有"选错要付代价"的选项。
+
+  **结构性原因（顺带测出来的，比结论本身更有用）**：
+  - 菜单大小 **中位 1、均值 3.5**（金币不够时空过是唯一合法）⇒ **大部分回合根本没得选**；
+  - 菜单动作构成 **建塔 73~75%、闪电 ~0%** ⇒ 菜单里的差异主要是"建在哪一格"，
+    而那些格子近乎等价。
+  ⇒ 这也解释了为什么"per-class 的类轴"才是关键：这份菜单把**类轴（闪电 vs 不闪电）
+    整条丢掉了**，只剩下近乎等价的同内选择。
+
+  ⚠️ 注意守卫的边界：`random vs first` = 0.4922 ± 0.044 只证明"**官方排序**在这份菜单里没信息"
+  （|Δ| 大致被 95% CI 限制在 ±9pp 内），**不等于"任何排序都没信息"**。但结合"中位 1 个候选 +
+  选错无代价"，这个臂的**鉴别力**已经被结构性上限卡死 ⇒ 不该按原样投两小时。
+  **修法**：把类轴放回菜单（官方 top-24 **∪ 评分最高的闪电候选**，harness 里已有 `value_mix`
+  就是这个口径），这样"闪电 vs 不闪电"这个值 ~80pp 的取舍（`rv4_lightning_only`）才在菜单里。
+  见 `docs/az_heuristic_menu_search_plan.md`。
+
+## 2026-09-19 19:24:23 — valnet_criterion
+
+- **commit**: `18b8ad2` (dirty: 18 files)
+- **exit**: 0，用时 2109s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 守卫：基线 three_mix_r10p_vw_pol_frozen（应复现 56.4% / 49.6%）##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '########## 臂 A2：注入数据 + terminal + freeze-bn ##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py --ckpt training_history/inject_ex02/valnet_A2.pt
+echo '########## 臂 C：注入数据 + abs+kgeo + freeze-bn ##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py --ckpt training_history/inject_ex02/valnet_C.pt
+  ```
+- **output**: `training_history/runs/20260919_192423_valnet_criterion/output.log`
+- **result**: 🟢 **判据动了，而且幅度很大**（三臂 n 完全一致 = 9018，SE 各 0.3）：
+
+  | ckpt | 价值网 1-ply argmax 分位 | Spearman ρ | 随机分位 |
+  |---|---|---|---|
+  | 基线 `three_mix_r10p_vw_pol_frozen` | **55.9%** | 0.128 | 49.5% |
+  | **臂 A2**（注入数据 + `terminal` 标签 + 冻 BN）| **61.2%** | **0.315** | 49.5% |
+  | 臂 C（注入数据 + `abs+kgeo` 标签 + 冻 BN）| **59.8%** | 0.233 | 49.5% |
+
+  **① 主结论：注入数据显著改变了价值网的排序**（+5.3pp 分位、ρ 0.128→0.315，SE 0.3 ⇒ z≈12.5）。
+  **② "数据覆盖"就是有效杠杆，不是"标签设计"**：A2 只换了数据、标签配方与产出旧价值网的
+  value_warmup 逐字相同，却拿到最大的提升；反过来臂 C（换标签）拿到的更小（59.8 < 61.2）。
+  这正好落在 `az_class_axis_plan.md` §5(a) 赌的那一条上（"新意在于从标签设计换到数据覆盖"）。
+  **③ 守卫通过**："随机"那一列三臂**完全相同（49.5%）**⇒ 三臂的对局与决策点逐位相同，
+  唯一变量确实是价值网（`class_state`/`pos_state` 已另验逐位照抄）。
+
+  ⚠️ **但这条判据的"尺子"本身弱，不能当成"价值网变好了"的充分证据**（用户 2026-09-19 提出）：
+  官方 score 在**大池子里**有信号（k=96 时 top-1 vs random = 0.6406, t=+2.06），但在
+  **好端内部**是噪声（k=8 时 0.4531, t=−0.90）。所以分位上升只说明"价值网的排序朝官方 score
+  靠了"，不等于"棋力会变好"。**对局级判据见下条 `k24_menu_guard` / `az_heuristic_menu_search_plan.md`。**

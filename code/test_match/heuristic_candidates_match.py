@@ -16,6 +16,7 @@
     python code/test_match/heuristic_candidates_match.py --our random --opp random --pairs 8   # 对照
     python code/test_match/heuristic_candidates_match.py --our value  --opp random --pairs 32 --k 8
     python code/test_match/heuristic_candidates_match.py --our value  --opp random --pairs 32 --k 24
+    python code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --pairs 8 --search-iters 64
     python code/test_match/heuristic_candidates_match.py --our value  --opp random --pairs 32 --k 8 --no-lightning
 """
 from __future__ import annotations
@@ -57,19 +58,43 @@ def _candidates(state, player, catalog, k: int, no_lightning: bool) -> list:
 
 
 def _worker(job):
-    seed, our_player, our_mode, opp_mode, k, no_lightning, ckpt, native, max_rounds = job
+    (seed, our_player, our_mode, opp_mode, k, no_lightning, ckpt, native, max_rounds,
+     search_iters, search_depth, c_puct) = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
     from SDK.utils.actions import ActionCatalog
-    from SDK.backend.model import OperationType
+    from SDK.backend.model import Operation, OperationType
     from my_ai.az_intent.az_selfplay import load_three_models, make_initial_state
 
     feat = FeatureExtractor(max_actions=96)
     catalog = ActionCatalog(max_actions=96, feature_extractor=feat)
     vmodel = None
-    if "value" in our_mode or "value" in opp_mode:
+    if any("value" in m or "search" in m for m in (our_mode, opp_mode)):
         _, _, vmodel = load_three_models(ckpt)
+    _cache = {}
+
+    def _mcts():
+        """search 模式：候选菜单 = 官方启发式 top-k（外部注入），先验均匀、叶子值来自价值网。"""
+        if "m" not in _cache:
+            from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
+            from my_ai.az_intent.bundle_mcts import BundleMCTS
+            _, net_fn = make_net_fn_from_ckpt(ckpt, feat)
+
+            def _menu(state, player, kk):
+                bs = _candidates(state, player, catalog, kk, no_lightning)
+                return [tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in b.operations)
+                        for b in bs]
+
+            # skip_single_candidate：本台子菜单**中位数只有 1 个候选**（金币不够时空过是
+            # 唯一合法）⇒ 那些回合的 iterations 纯浪费。该开关在"单候选"时逐位等价
+            # （docs/az_forced_move_skip_plan.md），这里只影响对局的 rng 流，不影响裁决。
+            _cache["m"] = BundleMCTS(net_fn, iterations=search_iters,
+                                     max_depth_rounds=search_depth, k=k,
+                                     c_puct=c_puct, seed=seed + 991,
+                                     search_mode="joint", candidate_fn=_menu,
+                                     skip_single_candidate=True)
+        return _cache["m"]
     OrigAI = None
     if "rule_v4" in (our_mode, opp_mode):
         m = _load_by_path("rv4_orig_ai_hm", ORIG / "ai.py")
@@ -97,6 +122,16 @@ def _worker(job):
             for op in ops:
                 stats["cls"][who][OperationType(op.op_type).name] += 1
             return ops
+        if mode == "search":
+            sres = _mcts().search(state, player, temperature=0.0)
+            stats["cands"].append(len(sres.bundles))
+            # 注意：本 harness 的 _pick 约定返回 **Operation 对象**（别的模式返回 b.operations），
+            # 而 chosen_bundle 是 (op_type, arg0, arg1) 元组 ⇒ 这里要转回来。
+            out_ops = [Operation(OperationType(int(op[0])), int(op[1]), int(op[2]))
+                       for op in sres.chosen_bundle]
+            for o in out_ops:
+                stats["cls"][who][o.op_type.name] += 1
+            return out_ops
         allb = sorted(catalog.build(state, player), key=lambda b: -b.score)
         if mode == "hl_save":
             # 启发式做非闪电决策 + rule_v4 的"攒钱"规则（冷却<=2 就先 hold 存钱）
@@ -189,9 +224,15 @@ def _worker(job):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--our", default="value",
-                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save", "value_mix"])
+                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save",
+                             "value_mix", "search"])
     ap.add_argument("--opp", default="random",
-                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save", "value_mix"])
+                    choices=["random", "value", "first", "rule_v4", "hl", "hl_save",
+                             "value_mix", "search"])
+    ap.add_argument("--search-iters", type=int, default=64,
+                    help="search 模式：MCTS 迭代数（每次裁决 24 个候选 ⇒ 成本 ≈ iterations）")
+    ap.add_argument("--search-depth", type=int, default=4, help="search 模式：max_depth_rounds")
+    ap.add_argument("--c-puct", type=float, default=1.25, help="search 模式：PUCT 常数")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--no-lightning", action="store_true", help="候选集里剔除含闪电的 bundle")
     ap.add_argument("--ckpt", default="training_history/vprior/posnet_r1.pt")
@@ -207,7 +248,8 @@ def main() -> None:
         s = a.seed + i
         for pl in (0, 1):
             jobs.append((s, pl, a.our, a.opp, a.k, a.no_lightning, a.ckpt,
-                         a.native_engine, a.max_rounds))
+                         a.native_engine, a.max_rounds,
+                         a.search_iters, a.search_depth, a.c_puct))
     import multiprocessing as mp
     if a.workers > 1:
         with mp.Pool(a.workers) as pool:
