@@ -2924,3 +2924,96 @@ $PY -u $S --our hl_save --opp rule_v4 --k 8 --pairs 32 --workers 16 --seed 0
   而我们的智能体在动作空间里占的是**极端角落**（几乎只有闪电/空过）。
   这也**印证了类轴计划里"必须采到含降级/升级/建塔的数据"**（`az_class_axis_plan.md` §5(c)）：
   那些行为在我们的自对弈数据里**出现率≈0**，价值网自然判不了、类头自然也学不到。
+
+
+## 2026-09-19 — 类轴第一步：`--inject-example-prob` 注入钩子 + 四条实测
+
+> 手动/一次性命令，未走 `run_logged`。代码：`59796f3`（加钩子）、`807a8d6`（去过滤器）。
+> 计划出处：`docs/az_class_axis_plan.md` §5(a)。
+
+### 做了什么
+
+`az_selfplay.py` 新增 `--inject-example-prob p`：以概率 p 把**搜索选的动作**换成
+**ExampleAI 的动作**（`ai_example.py` 逐字逻辑：`bundles[1:8]` 里取 `(score, -len(ops))` 最大者）。
+只改**实际执行**的动作；记录进样本的 `bundles`/`visit` 仍是搜索的 ⇒ **不污染策略目标**。
+目的：把对局推向"有塔的局面"，给价值网/类头铺非闪电动作的覆盖。
+
+### 发现 1（新）：**官方参考实现自己就是"建↔拆循环"的制造者**
+
+`_tmp_probe_example_pick.py`（新增探针）：用 ExampleAI 的选法走一局，在"场上有塔"的决策点
+打印 top-8 分数。直接看到机制：
+
+```
+r1  coins=35 塔=1  top8: build@4,9=24.0 ...            -> 选 BUILD
+r2  coins=8  塔=2  n_bundles=5, b[0]=hold(0.0)
+                   top8(b[1:8]): downgrade#2=-3.3, downgrade#0=-3.6, ...  -> 选 DOWNGRADE
+r3  coins=35 塔=1  -> 又 BUILD
+```
+
+⇒ 金币耗尽时目录只剩 `[hold(0.0), downgrade(-3.3)]`，而 `ai_example.py` 取的是
+`bundles[1:8]` —— **它主动跳过了 `bundles[0]` 那个 hold** ⇒ 拆一座塔换钱，下回合再建。
+**真正出招的决策点里 26%(seed 3) / 39%(seed 0) 是降级。**
+
+⇒ 这条**修正**了本会话早先的一个归因：拆塔有**两个独立来源**，不是一个。
+  (a) 官方启发式 `bundles[1:8]` 会主动拆（上面这条）；
+  (b) **我们自己的意图解码**：`code/my_ai/decoder.py:358-372` 写死的
+      "选中 17-20 类但金币不足 ⇒ 用 16 通道的位置解码成 DOWNGRADE"。
+  我们智能体真实轨迹里的拆塔是 (b)。
+
+### 发现 2：**过滤器是 no-op**（所以在用户要求下删掉了）
+
+中途我给注入加过 `_PRODUCTIVE` 过滤器（排除降级/超武），理由是发现 1。
+用户要求保持 ExampleAI 原样，于是去掉。**实测：去掉零代价。**
+
+| 配置（p=0.02，6 局 / 2536 回合）| 实际执行动作 |
+|---|---|
+| 带 `_PRODUCTIVE` 过滤器 | BUILD 164 / LIGHTNING 137 / DOWNGRADE 49 / UPGRADE 6 |
+| **不带过滤器**（最终版）| **BUILD 164 / LIGHTNING 137 / DOWNGRADE 49 / UPGRADE 6** |
+
+而且两边的 `az_progress_seed00000.txt` **逐字节相同**。
+**原因**：ExampleAI 会注入降级的那些回合（2 塔 + 金币耗尽），我们自己的
+意图解码 fallback 反正也会输出降级 ⇒ 两条路径同一动作。
+
+### 发现 3：**注入比例**实测（修正一个我自己造成的假象）
+
+早先我数的是样本里 `bundles[argmax(visit)]` = **搜索记录**，不是**实际执行**的动作
+⇒ 得出过"p=0.05 全是降级"。改成从进度文件数实际执行后：
+
+| 注入概率 | 回合数 | 出招回合 | 实际执行 | 建:拆 |
+|---|---|---|---|---|
+| p=0.02 | 2536 | 10.3% | BUILD 164 / LIGHTNING 137 / DOWNGRADE 49 / UPGRADE 6 | 3.3 : 1 |
+| p=0.05 | 2396 | 18.2% | BUILD 384 / DOWNGRADE 161 / LIGHTNING 120 / UPGRADE 10 | 2.4 : 1 |
+
+**两个都健康** ⇒ 用户"低比例就正常"的判断对，我的"与比例无关"撤回；但同时
+`p=0.05` 会给 2.3x 的建塔覆盖（若 0.02 训完覆盖不够，这是下一个旋钮）。
+
+### 发现 4（流程）：**playable 钉类不通**
+
+`--pos-pin playable`（买不起闪电时不去降级、而是挑"真能执行"的类）+ **无注入**：
+613 回合里 BUILD 704 / DOWNGRADE 700 / LIGHTNING 15 ⇒ **更糟的疯狂循环**。
+⇒ "不用注入、靠 playable 就能产生建塔数据"的猜想被否掉。
+
+### 下一步（判据口径先钉死，免得又"不可比"）
+
+400 局采集已启动：`inject_ex02_400g`（p=0.02、不过滤、pos-only + skip-single-candidate +
+native-engine、256 iters / depth 4、k=24、seed=1 ⇒ games 10000..10399、16 workers）。
+
+**判据（训完后照打）：**
+```bash
+D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py \
+    --ckpt training_history/<新 3 网 ckpt>.pt        # 其余全用默认
+```
+默认口径（与旧基线**逐字相同**才能比）：`--games 12 --workers 6 --k 96 --seed 31 --max-rounds 512`。
+
+| | 数值 |
+|---|---|
+| 旧基线 ckpt | `training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt` |
+| 旧基线 随机分位 | 49.6% (SE 0.4) |
+| 旧基线 **价值网分位** | **56.4% (SE 0.5)** |
+| 旧基线 Spearman ρ | 0.139 (SE 0.006) |
+| 决策点数 | 4476（"有 ≥2 候选"的回合，候选池均 92） |
+
+⚠️ **新 ckpt 的构造方式是关键**：`_tmp_rank_quality.py` 里那些对局是用 `--ckpt` 自己的
+class/pos 网走出来的 ⇒ 要拿**干净 A/B**，新 ckpt 必须是 `three_mix_r10p_vw_pol_frozen.pt`
+的 `class_state`/`pos_state` **照抄**、**只替换 `value_state`**（这样对局逐位相同，
+唯一变量就是价值网）。
