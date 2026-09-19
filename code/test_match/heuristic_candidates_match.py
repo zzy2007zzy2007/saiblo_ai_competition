@@ -54,7 +54,7 @@ def _key(b):
 
 
 def _candidates(state, player, catalog, k: int, no_lightning: bool,
-                menu_lightning: bool = False) -> list:
+                menu_lightning: bool = False, menu_random: int = 0, rng=None) -> list:
     """启发式 top-K。`ActionCatalog.build()` 的分 bundle.score 降序（空过分数 0 会排最后）。
 
     `menu_lightning`（2026-09-19，见 docs/az_heuristic_menu_search_plan.md）：在 top-K 之外
@@ -62,11 +62,21 @@ def _candidates(state, player, catalog, k: int, no_lightning: bool,
     ⇒ 菜单把**类轴整条丢掉了**，只剩近乎等价的"建在哪一格"，于是
     `random vs first` = 0.4922（t=-0.18）——在这份菜单里选什么都一样。
     补回闪电后，"放不放闪电"这个值 ~80pp 的取舍（`rv4_lightning_only`）才回到菜单里。
-    对手侧 `first` 取 `cands[0]`（分最高者），补进来的闪电排在末尾 ⇒ 对手行为基本不变。"""
+    对手侧 `first` 取 `cands[0]`（分最高者），补进来的闪电排在末尾 ⇒ 对手行为基本不变。
+
+    `menu_random`（2026-09-19，用户提出）：不从 top-K 取，而是**从全部合法候选里
+    均匀抽 K 个**。动机：top-K 是被"好端"过滤过的近等价集合（实测 `random vs first`
+    = 0.4922, t=-0.18）⇒ 里面选什么都一样，测不出排序能力；随机子集里含**差选项**，
+    选错才有代价。`first` 仍取子集里分最高者 ⇒ 变成"受限贪心"，`random` 则等价于
+    在全部合法候选里乱选。⚠️ 抽样用 worker 的 rng ⇒ 会消耗随机流（对局不可跨代码版本复现）。"""
     bundles = sorted(catalog.build(state, player), key=lambda b: -b.score)
     if no_lightning:
         bundles = [b for b in bundles if not _is_lightning(b)]
-    top = bundles[:k]
+    if menu_random > 0 and len(bundles) > menu_random:
+        idx = rng.choice(len(bundles), size=menu_random, replace=False)
+        top = [bundles[int(i)] for i in sorted(idx)]
+    else:
+        top = bundles[:k]
     if menu_lightning:
         lb = next((b for b in bundles if _is_lightning(b)), None)
         if lb is not None and all(_key(lb) != _key(x) for x in top):
@@ -76,7 +86,8 @@ def _candidates(state, player, catalog, k: int, no_lightning: bool,
 
 def _worker(job):
     (seed, our_player, our_mode, opp_mode, k, no_lightning, ckpt, native, max_rounds,
-     search_iters, search_depth, c_puct, menu_lightning) = job
+     search_iters, search_depth, c_puct, menu_lightning, menu_random,
+     ckpt_our, ckpt_opp) = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
@@ -86,33 +97,40 @@ def _worker(job):
 
     feat = FeatureExtractor(max_actions=96)
     catalog = ActionCatalog(max_actions=96, feature_extractor=feat)
-    vmodel = None
-    if any("value" in m or "search" in m for m in (our_mode, opp_mode)):
-        _, _, vmodel = load_three_models(ckpt)
+    # 允许两侧用**不同的 ckpt**（--ckpt-our/--ckpt-opp）：这样"新价值网 vs 旧价值网"
+    # 可以头对头配对打（镜像），不必绕道一个共同对手。
+    ck = {"ours": ckpt_our or ckpt, "opp": ckpt_opp or ckpt}
     _cache = {}
 
-    def _mcts():
-        """search 模式：候选菜单 = 官方启发式 top-k（外部注入），先验均匀、叶子值来自价值网。"""
-        if "m" not in _cache:
+    def _vm(who):
+        if ("vm", who) not in _cache:
+            _, _, vm = load_three_models(ck[who])
+            _cache[("vm", who)] = vm
+        return _cache[("vm", who)]
+
+    def _mcts(who):
+        """search 模式：候选菜单由外部注入（启发式 top-k 或随机 k 个），先验均匀、叶子值来自价值网。"""
+        if ("m", who) not in _cache:
             from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
             from my_ai.az_intent.bundle_mcts import BundleMCTS
-            _, net_fn = make_net_fn_from_ckpt(ckpt, feat)
+            _, net_fn = make_net_fn_from_ckpt(ck[who], feat)
 
             def _menu(state, player, kk):
                 bs = _candidates(state, player, catalog, kk, no_lightning,
-                                 menu_lightning)
+                                 menu_lightning, menu_random, rng)
                 return [tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in b.operations)
                         for b in bs]
 
             # skip_single_candidate：本台子菜单**中位数只有 1 个候选**（金币不够时空过是
             # 唯一合法）⇒ 那些回合的 iterations 纯浪费。该开关在"单候选"时逐位等价
             # （docs/az_forced_move_skip_plan.md），这里只影响对局的 rng 流，不影响裁决。
-            _cache["m"] = BundleMCTS(net_fn, iterations=search_iters,
-                                     max_depth_rounds=search_depth, k=k,
-                                     c_puct=c_puct, seed=seed + 991,
-                                     search_mode="joint", candidate_fn=_menu,
-                                     skip_single_candidate=True)
-        return _cache["m"]
+            _cache[("m", who)] = BundleMCTS(net_fn, iterations=search_iters,
+                                            max_depth_rounds=search_depth, k=k,
+                                            c_puct=c_puct,
+                                            seed=seed + 991 + (0 if who == "ours" else 7),
+                                            search_mode="joint", candidate_fn=_menu,
+                                            skip_single_candidate=True)
+        return _cache[("m", who)]
     OrigAI = None
     if "rule_v4" in (our_mode, opp_mode):
         m = _load_by_path("rv4_orig_ai_hm", ORIG / "ai.py")
@@ -121,7 +139,7 @@ def _worker(job):
 
     stats = {"turns": 0, "cands": [], "cls": {"ours": Counter(), "opp": Counter()}}
 
-    def _value_of(posts, pl):
+    def _value_of(posts, pl, vm):
         boards, statss = [], []
         for post in posts:
             ob = feat.encode_observation(post, 1 - pl, np.zeros(96))
@@ -129,7 +147,7 @@ def _worker(job):
         out = []
         for i in range(0, len(boards), 128):
             with torch.no_grad():
-                v = vmodel(torch.from_numpy(np.stack(boards[i:i + 128])).float(),
+                v = vm(torch.from_numpy(np.stack(boards[i:i + 128])).float(),
                            torch.from_numpy(np.stack(statss[i:i + 128])).float())["value"]
             out.extend((-v.squeeze(-1).numpy()).tolist())
         return np.asarray(out, dtype=np.float64)
@@ -141,7 +159,7 @@ def _worker(job):
                 stats["cls"][who][OperationType(op.op_type).name] += 1
             return ops
         if mode == "search":
-            sres = _mcts().search(state, player, temperature=0.0)
+            sres = _mcts(who).search(state, player, temperature=0.0)
             stats["cands"].append(len(sres.bundles))
             # 注意：本 harness 的 _pick 约定返回 **Operation 对象**（别的模式返回 b.operations），
             # 而 chosen_bundle 是 (op_type, arg0, arg1) 元组 ⇒ 这里要转回来。
@@ -191,7 +209,8 @@ def _worker(job):
                 pool = pool + [lb]
             cands = pool
         else:
-            cands = _candidates(state, player, catalog, k, no_lightning, menu_lightning)
+            cands = _candidates(state, player, catalog, k, no_lightning, menu_lightning,
+                                menu_random, rng)
         stats["cands"].append(len(cands))
         if not cands:
             return []
@@ -205,7 +224,7 @@ def _worker(job):
                 post = state.clone()
                 post.apply_operation_list(player, list(c.operations))
                 posts.append(post)
-            b = cands[int(np.argmax(_value_of(posts, player)))]
+            b = cands[int(np.argmax(_value_of(posts, player, _vm(who))))]
         for op in b.operations:
             stats["cls"][who][OperationType(op.op_type).name] += 1
         return list(b.operations)
@@ -253,6 +272,11 @@ def main() -> None:
     ap.add_argument("--c-puct", type=float, default=1.25, help="search 模式：PUCT 常数")
     ap.add_argument("--k", type=int, default=8)
     ap.add_argument("--no-lightning", action="store_true", help="候选集里剔除含闪电的 bundle")
+    ap.add_argument("--menu-random", type=int, default=0,
+                    help=">0：不从 top-K 取候选，而是从**全部合法候选里均匀抽 K 个**"
+                         "（top-K 是近等价集合，选什么都一样；随机子集含差选项 ⇒ 才测得出排序能力）")
+    ap.add_argument("--ckpt-our", default=None, help="我方用的三网 ckpt（默认同 --ckpt）")
+    ap.add_argument("--ckpt-opp", default=None, help="对方用的三网 ckpt（默认同 --ckpt）")
     ap.add_argument("--menu-lightning", action="store_true",
                     help="在 top-K 之外再补一个评分最高的闪电候选（把类轴放回菜单）；"
                          "见 docs/az_heuristic_menu_search_plan.md")
@@ -271,7 +295,7 @@ def main() -> None:
             jobs.append((s, pl, a.our, a.opp, a.k, a.no_lightning, a.ckpt,
                          a.native_engine, a.max_rounds,
                          a.search_iters, a.search_depth, a.c_puct,
-                         a.menu_lightning))
+                         a.menu_lightning, a.menu_random, a.ckpt_our, a.ckpt_opp))
     import multiprocessing as mp
     if a.workers > 1:
         with mp.Pool(a.workers) as pool:
@@ -285,7 +309,7 @@ def main() -> None:
     se = ps.std(ddof=1) / np.sqrt(n) if n > 1 else 0.0
     cand = np.asarray([c for r in res for c in r["cands"]], dtype=np.float64)
     t_str = "  (SE=0：镜像严格抵消)" if se == 0 else f"  t = {(ps.mean() - 0.5) / se:+.2f}"
-    print(f"\n=== our={a.our} opp={a.opp} k={a.k} no_lightning={a.no_lightning} menu_lightning={a.menu_lightning}  "
+    print(f"\n=== our={a.our} opp={a.opp} k={a.k} no_lightning={a.no_lightning} menu_lightning={a.menu_lightning} menu_random={a.menu_random}  "
           f"{n} pairs ({2 * n} games) seed={a.seed} ===")
     print(f"  我方配对胜率 = {ps.mean():.4f}  (0.5 = 持平, 1.0 = 全胜)  SE = {se:.4f}{t_str}")
     print(f"  偏离 0.5 的 pair 数 = {int((np.abs(ps - 0.5) > 1e-9).sum())}/{n}   "
