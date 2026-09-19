@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -33,7 +34,7 @@ for _p in (_REPO / "Ant-Game", _REPO / "code"):
 
 
 def _worker(job) -> dict:
-    ckpt, games, seed, max_rounds, native = job
+    ckpt, games, seed, max_rounds, native, progress_dir = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
@@ -46,15 +47,28 @@ def _worker(job) -> dict:
     pol, _ = make_net_fn_from_ckpt(ckpt, feat)
     _, _, vmodel = load_three_models(ckpt)
 
+    # 逐局进度文件（照 az_selfplay.py 的 progress_path 做法）—— 否则一个小时的采集
+    # 中间完全看不到进度，只能靠外推（用户 2026-09-19 指出这个缺口）。
+    prog = None
+    if progress_dir:
+        prog = Path(progress_dir) / ("vp_progress_seed%05d.txt" % seed)
+        prog.parent.mkdir(parents=True, exist_ok=True)
+        with open(prog, "w", encoding="utf-8") as f:
+            f.write("ckpt=%s games=%d seed=%d max_rounds=%d\n" % (ckpt, games, seed, max_rounds))
+
     out = {"boards": [], "stats": [], "player": [], "head": [], "cls": [],
            "cells": [], "adv": []}
     n_turn = n_act = 0
+    t_start = time.time()
 
     for g in range(games):
         st = make_initial_state(seed + g, native)
+        n_act_g = 0
+        rounds = 0
         for _ in range(max_rounds):
             if st.terminal:
                 break
+            rounds += 1
             for pl in (0, 1):
                 if st.terminal:
                     break
@@ -105,11 +119,20 @@ def _worker(job) -> dict:
                     out["cells"].append(np.asarray(keep, dtype=np.int16))
                     out["adv"].append(np.asarray(adv, dtype=np.float32))
                     n_act += 1
+                    n_act_g += 1
 
                 ops = decode_network_output(o, st, pl, temperature=0.0, intent_decoding=True)
                 st.apply_operation_list(pl, ops)
             if not st.terminal:
                 st.advance_round()
+
+        if prog is not None:
+            line = ("seed=%d game %3d/%d  rounds=%3d  decisions(games累计)=%4d  "
+                    "decisions(本局)=%2d  用时=%.0fs\n"
+                    % (seed, g + 1, games, rounds, n_act, n_act_g, time.time() - t_start))
+            with open(prog, "a", encoding="utf-8") as f:
+                f.write(line)
+            print("[collect] " + line.rstrip(), flush=True)
 
     return {"out": out, "n_turn": n_turn, "n_act": n_act, "n_games": games}
 
@@ -123,17 +146,21 @@ def main() -> None:
     ap.add_argument("--max-rounds", type=int, default=512)
     ap.add_argument("--native-engine", action="store_true", default=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--progress-dir", type=str, default=None,
+                    help="逐局进度文件目录（默认 = --out 所在目录）")
     ap.add_argument("--tau", type=float, default=1.0,
                     help="只记录在元数据里；目标在训练时才由 a 算 softmax(z/tau)")
     args = ap.parse_args()
 
+    pdir = args.progress_dir or str(Path(args.out).parent)
     per = [args.games // args.workers + (1 if i < args.games % args.workers else 0)
            for i in range(args.workers)]
     jobs, s = [], args.seed
     for i, n in enumerate(per):
         if n <= 0:
             continue
-        jobs.append((args.checkpoint, n, s, args.max_rounds, args.native_engine))
+        jobs.append((args.checkpoint, n, s, args.max_rounds, args.native_engine,
+                     pdir))
         s += n * 1000
     print("[collect] %d 局 / %d worker，seed 起 %d" % (args.games, len(jobs), args.seed),
           flush=True)
