@@ -138,6 +138,27 @@ def _batch(b, s, v, idx, dev):
     return bb, ss, vv
 
 
+def _bn_stats_snapshot(model) -> tuple[float, float]:
+    """BN running 统计量的极值（用于确认 --freeze-bn 真的冻住了）。"""
+    vmax, mmax = 0.0, 0.0
+    for mod in model.modules():
+        if isinstance(mod, torch.nn.modules.batchnorm._BatchNorm):
+            if mod.running_var is not None:
+                vmax = max(vmax, float(mod.running_var.max()))
+                mmax = max(mmax, float(mod.running_mean.abs().max()))
+    return vmax, mmax
+
+
+def _set_bn_eval(model) -> int:
+    """把 BN 子模块单独切到 eval（父模块仍是 train ⇒ 只冻结 BN 的统计量更新）。"""
+    n = 0
+    for mod in model.modules():
+        if isinstance(mod, torch.nn.modules.batchnorm._BatchNorm):
+            mod.eval()
+            n += 1
+    return n
+
+
 @torch.no_grad()
 def evaluate(model, b, s, p, v, idx, dev, batch_size: int) -> dict:
     """返回整体/分组 MSE + 与目标的相关。分组 = 该样本**场上有没有己方塔**。"""
@@ -192,6 +213,14 @@ def main() -> None:
     ap.add_argument("--label-weight", type=str, default="geo", choices=["geo", "kgeo"])
     ap.add_argument("--freeze-backbone", action="store_true",
                     help="冻结 initial_conv+resblocks，只训头")
+    ap.add_argument("--freeze-bn", action="store_true", default=True,
+                    help="训练时把 BN 固定在 eval 模式（不更新 running_mean/var）。**默认开**，"
+                         "因为源价值网的 BN 是未训练的（mean 0 / var 1 / num_batches_tracked 0，"
+                         "在 eval 下等于恒等）；不冻的话 BN 统计量会朝新数据分布猛冲"
+                         "（实测 resblocks.5.bn1.running_var 1 -> 1.47e4），学到的会有一部分"
+                         "只是'适配分布'，不是'学会判有塔局面'。")
+    ap.add_argument("--allow-bn-update", dest="freeze_bn", action="store_false",
+                    help="允许 BN 更新 running 统计（默认关；只用于对照）")
     ap.add_argument("--anchor-lambda", type=float, default=0.0,
                     help="参数空间 L2 锚回 value_state 初值")
     ap.add_argument("--seed", type=int, default=0)
@@ -278,6 +307,8 @@ def main() -> None:
     if args.anchor_lambda > 0:
         init_ref = [q.detach().clone() for q in value_model.parameters()]
     opt = torch.optim.Adam([q for q in value_model.parameters() if q.requires_grad], lr=args.lr)
+    print(f"[vnet] freeze_bn={args.freeze_bn}（源 BN 统计量 var/mean 极值 %s）"
+          % (str(_bn_stats_snapshot(value_model)),), flush=True)
 
     best = (base["mse"], -1)
     if args.out:
@@ -290,6 +321,8 @@ def main() -> None:
     for ep in range(1, args.epochs + 1):
         t0 = time.time()
         value_model.train()
+        if args.freeze_bn:
+            _set_bn_eval(value_model)          # 父模块仍 train，只冻 BN 的 running 统计量
         order = np.random.default_rng(args.seed + ep).permutation(len(tr_idx))
         tot, nb = 0.0, 0
         for i in range(0, len(order), args.batch_size):
@@ -318,8 +351,9 @@ def main() -> None:
                                 "valnet_anchor": args.anchor_lambda, "valnet_epoch": ep,
                                 "valnet_cache": args.cache})
             flag = "  <- 保存"
-        print("[vnet] epoch %2d/%d  train MSE=%.5f | %s  (%.0fs)%s"
-              % (ep, args.epochs, tot / max(nb, 1), fmt("val", r), time.time() - t0, flag),
+        print("[vnet] epoch %2d/%d  train MSE=%.5f | %s  (%.0fs) BNvar/max=%.3g%s"
+              % (ep, args.epochs, tot / max(nb, 1), fmt("val", r), time.time() - t0,
+                 _bn_stats_snapshot(value_model)[0], flag),
               flush=True)
 
     print(f"[vnet] 最佳 val MSE=%.5f @epoch %d  ->  %s" % (best[0], best[1], args.out), flush=True)
