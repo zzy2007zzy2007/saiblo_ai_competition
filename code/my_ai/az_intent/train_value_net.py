@@ -229,13 +229,29 @@ def main() -> None:
     print(f"[vnet] train {len(tr_idx)} 决策点 / val {len(val_idx)} 决策点（{args.val_games} 局）",
           flush=True)
 
-    v_src = np.asarray(v[:], dtype=np.float32).copy()
-    if args.label_mode != "terminal":
-        raise SystemExit("--label-mode != terminal 需要逐局原始 stats 重算标签；"
-                         "当前缓存只存了 value_target。先用 terminal。")
-    labels = v_src
-    print(f"[vnet] 标签 mode={args.label_mode}  mean={labels.mean():+.4f} std={labels.std():.4f} "
+    v_src = np.asarray(v[:], dtype=np.float32)
+    if args.label_mode == "terminal":
+        labels = v_src.copy()
+    else:
+        # 非 terminal：逐局把该局的 stats 序列喂给 az_train.add_weighted_labels（复用现成配方，
+        # 不新增实现）。⚠️ 它按**局内时序**前缀和递推，所以必须逐局切、不能跨局拼。
+        # 动机：terminal 标签**一局之内所有决策点同值** ⇒ 对"动作之间的差别"是零信号；
+        # abs/rel 用局内的未来 HP 轨迹 ⇒ 每个决策点有各自的标签。
+        labels = np.zeros(N, dtype=np.float32)
+        st_all = np.asarray(s, dtype=np.float32)
+        pl_all = np.asarray(p, dtype=np.int64)
+        for g in range(len(counts)):
+            sl = slice(int(offs[g]), int(offs[g + 1]))
+            shim = [{"stats": st_all[i], "player": int(pl_all[i])} for i in range(sl.start, sl.stop)]
+            add_weighted_labels(shim, tau=args.tau, label_scale=args.label_scale,
+                                label_mode=args.label_mode,
+                                mix_alpha=args.label_mix_alpha,
+                                label_weight=args.label_weight)
+            labels[sl] = np.asarray([x["value_label"] for x in shim], dtype=np.float32)
+    print(f"[vnet] 标签 mode={args.label_mode} weight={args.label_weight} tau={args.tau} "
+          f"scale={args.label_scale}  mean={labels.mean():+.4f} std={labels.std():.4f} "
           f"range=[{labels.min():+.3f},{labels.max():+.3f}]", flush=True)
+    lab = np.ascontiguousarray(labels, dtype=np.float32)   # 训练/评估都用它当目标
 
     src = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     class_model, pos_model, value_model = load_three_models(args.ckpt)
@@ -253,7 +269,7 @@ def main() -> None:
     print(f"[vnet] 骨干冻结 {n_frozen:,} 参数；可训 {sum(q.numel() for q in value_model.parameters() if q.requires_grad):,}",
           flush=True)
 
-    base = evaluate(value_model, b, s, p, v, val_idx, dev, args.batch_size)
+    base = evaluate(value_model, b, s, p, lab, val_idx, dev, args.batch_size)
     print("[vnet] **训练前** " + fmt("val", base), flush=True)
     if args.eval_only:
         return
@@ -278,7 +294,7 @@ def main() -> None:
         tot, nb = 0.0, 0
         for i in range(0, len(order), args.batch_size):
             j = tr_idx[order[i:i + args.batch_size]]
-            bb, ss, vv = _batch(b, s, v, j, dev)
+            bb, ss, vv = _batch(b, s, lab, j, dev)
             out = value_model(bb, ss)["value"].squeeze(-1)
             loss = torch.nn.functional.mse_loss(out, vv)
             opt.zero_grad()
@@ -289,7 +305,7 @@ def main() -> None:
             loss.backward()
             opt.step()
             tot += float(loss.detach()); nb += 1
-        r = evaluate(value_model, b, s, p, v, val_idx, dev, args.batch_size)
+        r = evaluate(value_model, b, s, p, lab, val_idx, dev, args.batch_size)
         flag = ""
         if r["mse"] < best[0]:
             best = (r["mse"], ep)
