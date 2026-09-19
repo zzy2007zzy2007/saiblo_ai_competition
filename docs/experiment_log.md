@@ -3216,3 +3216,52 @@ D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rank_quality.py --ckpt training
   官方 score 在**大池子里**有信号（k=96 时 top-1 vs random = 0.6406, t=+2.06），但在
   **好端内部**是噪声（k=8 时 0.4531, t=−0.90）。所以分位上升只说明"价值网的排序朝官方 score
   靠了"，不等于"棋力会变好"。**对局级判据见下条 `k24_menu_guard` / `az_heuristic_menu_search_plan.md`。**
+
+## 2026-09-19 20:03:46 — menu_lightning_arms
+
+- **commit**: `a52be2a` (dirty: 18 files)
+- **exit**: 2，用时 69s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 版本1 · 1-ply ##########'
+echo '#### 1A 菜单天花板：random over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our random --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 1B 价值网(旧) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our value --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 1C 价值网(新=A2) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our value --opp first --k 24 --menu-lightning --pairs 128 --workers 16 --seed 0 --ckpt training_history/inject_ex02/valnet_A2.pt
+echo '########## 版本2 · 搜索（iters=64 depth=4）##########'
+echo '#### 2D 搜索(旧价值网) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --menu-lightning --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt
+echo '#### 2E 搜索(新价值网=A2) over (top-24 U 闪电) vs first ####'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --menu-lightning --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt training_history/inject_ex02/valnet_A2.pt
+  ```
+- **output**: `training_history/runs/20260919_200346_menu_lightning_arms/output.log`
+- **result**: _待填_
+
+## 2026-09-19 20:13:26 — random_menu24_arms
+
+- **commit**: `b3a9f97` (dirty: 18 files)
+- **exit**: 127，用时 0s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+O=training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt; N=training_history/inject_ex02/valnet_A2.pt
+echo '#### G 守卫：random vs random（期望恰好 0.5000）####'
+$PY -u $S --our random --opp random --k 24 --menu-random 24 --pairs 32 --workers 16 --seed 0 --ckpt $O
+echo '#### L 菜单活性：first(子集分最高) vs random(子集乱选) ####'
+$PY -u $S --our first --opp random --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt $O
+echo '#### P1 1-ply 头对头：value(新) vs value(旧) ####'
+$PY -u $S --our value --opp value --k 24 --menu-random 24 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt-opp $O
+echo '#### S1 搜索(旧) vs random ####'
+$PY -u $S --our search --opp random --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 64 --workers 16 --seed 0 --ckpt-our $O
+echo '#### S2 搜索(新) vs random ####'
+$PY -u $S --our search --opp random --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 64 --workers 16 --seed 0 --ckpt-our $N
+echo '#### S3 主判据·搜索头对头：search(新) vs search(旧) ####'
+$PY -u $S --our search --opp search --k 24 --menu-random 24 --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt-our $N --ckpt-opp $O
+  ```
+- **output**: `training_history/runs/20260919_201326_random_menu24_arms/output.log`
+- **result**: ❌ **启动失败（exit 127，0s）**——我把 `$PY`/`$S` 转义成了 `\$PY`，
+  内层 `bash -c` 里这两个变量是空的（外层只 `PY=...` 没 `export`）⇒ 整条命令没跑。
+  已用 `export` 重发为下面那条 `20:13:53` 的 run。**本条只作排错记录，无结果。**
