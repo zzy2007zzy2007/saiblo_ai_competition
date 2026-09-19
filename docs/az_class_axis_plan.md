@@ -99,6 +99,36 @@
 - ⚠️ **风险最高的一步**：项目历史上"重训价值头"是最反复的领域（kgeo / 池 / 迭代循环多为负面）。
   本计划的**新意**在于从"标签设计"换到"**数据覆盖**"，但成功与否未验证。
 
+### (a-1) 训练协议（2026-09-19，落地细节）
+
+**新脚本 `code/my_ai/az_intent/train_value_net.py`**（照 `train_value_prior.py` 的模子：
+三网 ckpt 进、**只训一个网**、另两网**原样照抄**进新 ckpt）。为什么另写而不复用
+`az_train.py --value-only`：后者只在 `--split` 分支有效，而 `--split` 用的
+`load_split_models` 明确**拒绝三网 ckpt**（`_guard_no_three_net`）；
+`--pos-only-net --train-value` 又会连 `pos_state` 一起改 —— 那 `_tmp_rank_quality.py`
+里的对局就不是同一批了，A/B 立刻不干净。
+
+- **输入**：`--ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt`（旧基线 3 网）
+  + `--data training_history/inject_ex02/data`（400 局 / 369,476 决策点 / 38.9% 有塔）。
+- **只训 `value_state`**（`class_state`/`pos_state` 逐位照抄）⇒ 判据脚本里的对局**逐位相同**，
+  唯一变量是价值网。
+- **标签**：默认 `--label-mode terminal` = **采集时已存的 `value_target`**（每局终局 HP 差、
+  clip ±1、按 player 签名）—— 与产出当前 `value_state` 的 value_warmup 配方对齐，
+  也是计划 §5(a) 说的"沿用现有配方、先不引入新标签"。可选 `rel/abs/mix` 走
+  `az_train.add_weighted_labels`（逐局流式调用，不新增实现）。
+- **数据读取**：17 GB pkl 每 epoch 重读太慢 ⇒ 先做一次**紧凑缓存**（只留
+  board(float16)/stats/player/value_target，`npy` + memmap），epoch 变成纯 GPU 计算。
+- **风险控制（"重训价值头是最反复的领域"）**：预算三个臂，按"改动量"递增试
+  - 臂 A：全量微调（默认）；
+  - 臂 B：`--freeze-backbone`（只训头，骨干冻结 ⇒ 特征空间不动）；
+  - 臂 C：`--anchor-lambda`（参数空间 L2 锚回初值）。
+
+**预注册判据（跑前写死）**：用 §6 判据 2 的**同一把尺子**（`_tmp_rank_quality.py` 默认口径）：
+1. **主判据**：价值网选中项的官方启发式**分位 > 56.4%**（旧基线），且 SE 不重叠；
+2. 次判据：Spearman ρ(价值网评估, 官方 score) **> 0.139**；
+3. **对照守卫**：随机基线仍应 ≈49.6%（若随机分位也变了，说明口径被动了，整条作废）。
+⚠️ 这一步**不看棋力**（按 §5(a)：此时棋力不该动）；棋力留到 (b)(c) 之后的 §6 判据 3。
+
 ### (b) 重训动作类网络
 - 目标 = 类搜索的类偏好（`class-only`）—— **前提是 (a) 让类搜索第一次有信号**。
 - 可能需要同时提高 `t_class` 或加显式探索，否则采样仍在闪电附近打转（见 §2 的两条解释）。
