@@ -3070,3 +3070,73 @@ class/pos 网走出来的 ⇒ 要拿**干净 A/B**，新 ckpt 必须是 `three_m
 
   player0/1 样本数 184,738 / 184,738（完全均衡）；value_target 每局内标准差均 0.308
   （局间均值恒为 0，是"两玩家样本数相同、标签互为相反数"的构造使然，非 bug）。
+
+## 2026-09-19 19:00:11 — valnet_train_arms
+
+- **commit**: `aea221a` (dirty: 17 files)
+- **exit**: 0，用时 780s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 臂 A：全量微调（lr 3e-4, 4 epochs）##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --cache training_history/inject_ex02/value_cache --epochs 4 --lr 3e-4 --out training_history/inject_ex02/valnet_A.pt
+echo '########## 臂 B：--freeze-backbone（只训头）##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --cache training_history/inject_ex02/value_cache --epochs 6 --lr 1e-3 --freeze-backbone --out training_history/inject_ex02/valnet_B.pt
+  ```
+- **output**: `training_history/runs/20260919_190011_valnet_train_arms/output.log`
+- **result**: 价值网在注入数据上微调，**有塔样本的误差改善明显大于整体**（这正是 (a) 想要的）：
+
+  | 臂 | 可训参数 | 最好 val MSE | 有塔 MSE | 无塔 MSE | r |
+  |---|---|---|---|---|---|
+  | **训练前**（旧价值网）| — | 0.05815 | **0.06325** | 0.05503 | +0.526 |
+  | A 全量微调 4ep（lr 3e-4）| 553,313 | **0.05517** @ep2 (−5.1%) | **0.05744** (−9.2%) | 0.05379 (−2.3%) | +0.556 |
+  | B `--freeze-backbone` 6ep | 21,473 | 0.05616 @ep5 (−3.4%) | 0.05719 (−9.6%) | 0.05552 | +0.542 |
+
+  **① 微调真的在学"有塔的局面"**：有塔样本 MSE 降 9%+，**大于整体降幅（3-5%）**，
+  也大于无塔样本（2%）⇒ 改善集中在被注入出来的那部分。
+  **② 收敛极快、随即过拟合**：ep1-2 就到位，之后 val 反弹（A 的 ep3/ep4 都变差）；
+  `freeze-backbone` 只训 21k 参数也能拿到接近的效果 ⇒ 瓶颈不在容量。
+  **③ ⚠️ 训练前发现 BN 陷阱**（见下条 `valnet_train_clean`）。
+
+  ⚠️ **这个 MSE 读数的解释力有限**：terminal 标签是"每局一个值、按 player 签名"，
+  一局内所有决策点同值 ⇒ 18,778 个 val 样本背后只有 **20 个独立结局**，
+  r=+0.53 主要在说"它能看出谁占优"，不是"它对动作后果敏感"。
+
+## 2026-09-19 19:13:32 — valnet_train_clean
+
+- **commit**: `8eb7e07` (dirty: 19 files)
+- **exit**: 0，用时 643s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo '########## 臂 A2：全量微调 + freeze-bn（terminal 标签，3 epochs）##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --cache training_history/inject_ex02/value_cache --epochs 3 --lr 3e-4 --freeze-bn --out training_history/inject_ex02/valnet_A2.pt
+echo '########## 臂 C：abs+kgeo 标签（每帧有各自标签）+ freeze-bn，3 epochs ##########'
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --cache training_history/inject_ex02/value_cache --epochs 3 --lr 3e-4 --freeze-bn --label-mode abs --label-weight kgeo --tau 20 --out training_history/inject_ex02/valnet_C.pt
+  ```
+- **output**: `training_history/runs/20260919_191332_valnet_train_clean/output.log`
+- **result**: 🔴 **先修掉一个会污染归因的坑：源价值网的 BatchNorm 从来没训过。**
+
+  `three_mix_r10p_vw_pol_frozen.pt` 里 **`value_state` 的所有 BN 都是初值**
+  （`running_mean` 全 0、`running_var` 全 1、`num_batches_tracked=0`）
+  ⇒ 在 `eval()` 下 BN 等于恒等（除以 sqrt(1+eps)）。
+  对照：同 ckpt 的 `class_state`（策略网）BN 是训过的（`num_batches_tracked=21475`、
+  `running_var` 到 1260）。
+
+  后果：直接 `model.train()` 微调时 running 统计量朝新数据猛冲 ——
+  实测 `resblocks.5.bn1.running_var` **1 → 1.473e4**，`resblocks.4/3/2` 依次 4401/2419/1882。
+  那样"val MSE 变好"里会混进"BN 统计量适配了新分布"，不是纯"学会判有塔局面"。
+  ⇒ 新增 `--freeze-bn`（**默认开**）：父模块仍 `train`，只把 BN 子模块切到 `eval`
+  （`_set_bn_eval`），每 epoch 打印 BN var 极值确认冻住（实测整轮后仍 `=1`）。
+
+  | 臂（3-6 epochs）| 最好 val MSE | 有塔 MSE | 备注 |
+  |---|---|---|---|
+  | **训练前** | 0.05815 | 0.06325 | — |
+  | A2 全量微调 + freeze-bn 3ep | **0.05581** @ep2 | 0.05794 | 与不冻 BN 的 A（0.05517）几乎一样 |
+  | C `abs + kgeo` 标签 + freeze-bn 3ep | **0.00308** @ep3 | 0.00347 | 见下 |
+
+  **① 冻 BN 几乎不影响结果**（A2 0.05581 vs A 0.05517）⇒ 前面 A 的改善不是 BN 漂移带来的，
+  结论不变。**② 臂 C 的 MSE 不能和 A 直接比**：`abs+kgeo` 标签**每帧各不相同**，
+  而"训练前"的旧网在这个标签上 r 就已经 **+0.910**（MSE 0.00737 vs 常数 0.04131）
+  ⇒ 这个标签本身好预测（未来 HP 均值与当前优势高度相关），MSE 降 58% 主要说明"拟合上了"，
+  **不说明"对动作更敏感"**。它是否真的更有用，只能看判据（下条 `valnet_criterion`）。
