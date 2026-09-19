@@ -3473,3 +3473,38 @@ H3 头对头 128 对；全部 256/4）。**但实测速率是 ~48 s/局（16 wor
 第一次 `taskkill` 打到 bash **fork 出的子壳**上，父层 `bash -c` 又启动了下一个臂 ⇒
 **中止多臂 suite 必须从 ppid 链找到最上面的 `bash -c`（或 run_logged 包装层）再 `/T /F`**，
 杀完必须重新分组确认 python 归零。
+
+## 2026-09-19 23:35:54 — svs_valnet_new_vs_old
+
+- **commit**: `9193ba4` (dirty: 17 files)
+- **exit**: 0，用时 2347s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_search_vs_search.py --a training_history/inject_ex02/valnet_A2.pt --b training_history/az_fixed/three_mix_r10p_vw_pol_frozen.pt --pairs 128 --workers 16 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --search-mode pos-only --skip-single-candidate --native-engine
+  ```
+- **output**: `training_history/runs/20260919_233554_svs_valnet_new_vs_old/output.log`
+- **result**: 🟢🟢 **本轮最强的一条结论：新价值网在"闪电轴"上不但没变差，反而明显更强。**
+
+  | | 数值 |
+  |---|---|
+  | **配对胜率（A = 新价值网 A2）** | **0.6172**（SE 0.0280，**t = +4.19**）|
+  | 逐局 | 61.7%（**158W / 0D / 98L**）|
+  | 规模 | **128 对 / 256 局**（真镜像配对），用时 39 分钟 |
+
+  **设计（用户 2026-09-19 提出）**：两侧 `class_state`/`pos_state` **逐位照抄同一份**
+  （已验证 94 个张量 0 个变）⇒ **唯一变量是 `value_state`**；配置用**部署/采集口径**
+  `pos-only + skip-single-candidate`、256 iters / depth 4（不是 64——见上一条的教训）。
+  因为类头塌缩成闪电，这盘棋里**所有决定都是闪电的位置/时机**
+  ⇒ 这是"注入数据有没有把价值网对闪电的判断弄坏"的**隔离检验**。
+
+  **答案：没有弄坏，而且更好（+11.7pp）。** 用户的原话判读标准是
+  "胜率稍微比 50% 低一点应该问题不大，更高的话更好" —— 结果是明显更高。
+
+  **与启发式菜单那条线对比**：同一对价值网，在**非闪电**的官方菜单里头对头是 **+6pp**
+  （P1 0.5625 / S3 0.5664），在**闪电**的部署口径里是 **+11.7pp**。
+  ⇒ 价值网在**它本来该用的地方（搜索的叶子评估）**收益更大；
+  也说明 F2"搜索打平 `first`"更可能是**候选菜单**（官方启发式 top-24）不是好候选源，
+  而不是价值网或搜索机制的问题。
+
+  ⚠️ 注意这条只说明"**新 > 旧**"（自指比较：两侧同一个策略网），
+  **不说明**这个 agent 在绝对意义上有多强（那要和 rule_v4 等外部对手打，见 §6 判据 3）。
