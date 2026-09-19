@@ -2831,3 +2831,60 @@ t=1.5 买到的是"**分布更分散的目标**"（空过从 98% 降到 51%，�
   ⚠️ 设计细节：候选数在**空过回合恒为 1**（金币不够只能 hold），只有能出招的回合（约 30%）
   才有 ≥2 个 ⇒ 差异只出现在那些回合。k=8 时**闪电从不入候选**，所以这个实验天然在测非闪电
   动作。对局仍决定性（基地能被打到 0），所以"不放闪电就打不死人"这个担心不成立。
+
+## 2026-09-19 14:53:16 — cand_pick_first
+
+- **commit**: `04e855a` (dirty: 18 files)
+- **exit**: 0，用时 53s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8; D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our first --opp random --k 8 --pairs 32 --workers 16 --seed 0
+  ```
+- **output**: `training_history/runs/20260919_145316_cand_pick_first/output.log`
+- **result**: 🔴 **把上一条的主判据判死了。** `first`（启发式**自己的第一名**）vs `random`
+  （top-8 里随便挑）**= 0.4531（SE 0.0520，t = −0.90，净 −3 局）**。
+  ⇒ **启发式 top-8 内部近乎等价** ⇒ 上一条"价值网在 top-8 里 +3 局（不显著）"**不能**读成
+  "价值网排不了"——**那堆选项里本来就没有可排的东西**。
+
+  **顺带的独立发现：官方启发式的 `score` 在 top-8 内部的排序基本是噪声**
+  （它有用的是"筛出这 8 个"，不是"排出先后"）。
+
+  ⇒ 要测"谁能排得更好"，候选池必须**大到质量上真有差距** ⇒ 已改用 **K=96（≈全部候选）**
+  重跑三条（`cand_pick_k96`）：`first vs random` 作"池子里有没有质量差"的对照、
+  `value vs random` 主判据、`value vs first` 头对头。
+
+## 2026-09-19 14:59:28 — cand_pick_k96
+
+- **commit**: `ad40cb7` (dirty: 18 files)
+- **exit**: 0，用时 454s
+- **cmd**:
+  ```bash
+  bash -c 
+export PYTHONIOENCODING=utf-8; PY=D:/anaconda3/envs/pytorch-gpu/python.exe; S=code/test_match/heuristic_candidates_match.py
+echo '########## first vs random (k=96=全部) —— 池子里到底有没有质量差 ##########'
+$PY -u $S --our first --opp random --k 96 --pairs 32 --workers 16 --seed 0
+echo '########## value vs random (k=96) —— 价值网能不能在大池子里挑 ##########'
+$PY -u $S --our value --opp random --k 96 --pairs 32 --workers 16 --seed 0
+echo '########## value vs first (k=96) —— 直接打启发式的选法 ##########'
+$PY -u $S --our value --opp first --k 96 --pairs 32 --workers 16 --seed 0
+
+  ```
+- **output**: `training_history/runs/20260919_145928_cand_pick_k96/output.log`
+- **result**: 🔴 **把候选池放大到 K=96（≈全部），并发现"对局级比较在这个游戏里不可传递"。**
+
+  | 臂（k=96，各 32 对）| 配对胜率 | t | 净胜局 |
+  |---|---|---|---|
+  | `first`（启发式第一名）vs `random` | **0.6406** | **+2.06** | **+9** |
+  | `value`（价值网）vs `random` | **0.5156** | +0.25 | **+1** |
+  | `value` vs `first` | **0.6094** | **+2.03** | **+7** |
+
+  * **池子里质量差是真的**（k=8 时没有、k=96 时 `first` 明显赢随机）⇒ "top-8 等价"只成立于小池子。
+  * **但三条互相矛盾**：前两条给 `value < first`、第三条给 `value > first` ⇒ **不可传递**
+    （这游戏有建塔/降级/升级/闪电的相互克制，可能是真的非传递性；也可能是别的混杂，未解释）。
+  * ⇒ **对局不能当"谁排得更好"的判据**，改用局面级无噪声判据（见下条 `rank_quality`）。
+
+  **顺带（独立发现）**：只按启发式选的一方**全败给 rule_v4（0.0000，−32 局）**，
+  动作构成 `建塔 93%/升级 5%/降级 1%`、**闪电 0%**；rule_v4 是 `建塔33%/降级25%/升级25%/闪电18%`。
+  ⇒ **官方启发式压根不选闪电**（与"gen_0030 闪电流打 ExampleAI 90.6%"、用户说的
+  "ExampleAI 不太爱放闪电"一致）。与 `rv4_lightning_only` 并排：
+  **只建塔 = 0% / 只闪电 = 17.2% / 两者都做 = 最强** ⇒ 类轴要学的是**混合**策略。
