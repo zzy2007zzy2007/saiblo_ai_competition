@@ -59,6 +59,12 @@ def main() -> None:
     ap.add_argument("--t-pos", type=float, default=1.0, help="预测 softmax 的温度（应=采样器的 t_pos）")
     ap.add_argument("--anchor-lambda", type=float, default=0.0,
                     help="参数空间 L2 锚定强度（0=关）。目标只覆盖类 17，其余通道无梯度")
+    ap.add_argument("--weight-norm", action="store_true", default=True,
+                    help="把每行权重除以**全局平均权重**（=> 平均行权重恒为 1）。多类记录把行数"
+                         "放大 ~14x 且 93%% 的行只有 lambda 权重 => 不归一的话'总权重预算'也变了，"
+                         "A/B 会同时差'内容'与'预算'两件事。见 docs/az_posnet_v2_plan.md §3.3")
+    ap.add_argument("--no-weight-norm", dest="weight_norm", action="store_false",
+                    help="用原始行权重（只用于对照）")
     ap.add_argument("--val-frac", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", type=str, default="cuda")
@@ -80,6 +86,15 @@ def main() -> None:
     adv = torch.from_numpy(np.asarray(d["adv"], dtype=np.float32))
     cnt = torch.from_numpy(np.asarray(d["cnt"], dtype=np.int64))
     N, MAXC = adv.shape
+    cls_np = np.asarray(d["cls"], dtype=np.int64)
+    # 行权重（只有多类记录才有；旧 npz 无该字段 => 全 1 => 与旧行为逐位等价）
+    wt_raw = (np.asarray(d["weight"], dtype=np.float64) if "weight" in d
+              else np.ones(N, dtype=np.float64))
+    wt = wt_raw / wt_raw.mean() if args.weight_norm else wt_raw.copy()
+    wg = torch.from_numpy(wt.astype(np.float32))
+    # 逐类诊断（守护读数：多类记录后闪电通道不得劣化）—— 只在 val 上累计
+    by_cls: dict = {int(c): {"ce": 0.0, "hit": 0.0, "n": 0.0} for c in np.unique(cls_np)}
+    n_cls_rows = {int(c): int((cls_np == c).sum()) for c in np.unique(cls_np)}
     print(f"[vprior] 数据 {args.data}: {N} 行（决策点×头），每行格数 均值 {cnt.float().mean():.1f}"
           f"  最大 {int(cnt.max())}", flush=True)
 
@@ -108,6 +123,9 @@ def main() -> None:
 
     def run(idx: np.ndarray, train: bool) -> tuple[float, float, float]:
         tot_ce, tot_hit, tot_n = 0.0, 0.0, 0.0
+        if not train:                       # 逐类诊断只统计 val，且每次重新累计
+            for v in by_cls.values():
+                v["ce"] = v["hit"] = v["n"] = 0.0
         order = rng.permutation(len(idx)) if train else np.arange(len(idx))
         for i in range(0, len(idx), args.batch_size):
             b = idx[order[i:i + args.batch_size]]
@@ -138,7 +156,10 @@ def main() -> None:
                                               torch.full_like(aa, NEG)), dim=1) * vv
                 p = p / p.sum(dim=1, keepdim=True).clamp(min=1e-12)
                 ce = -(p * logq).sum(dim=1)
-                loss = (ce * (vv.sum(dim=1) > 1)).sum() / max(int((vv.sum(dim=1) > 1).sum()), 1)
+                ok_b = (vv.sum(dim=1) > 1).float()
+                w_b = wg[bt].to(dev)
+                # 加权平均（w 全 1 时 = 旧的无权平均 => 逐位等价）
+                loss = (ce * ok_b * w_b).sum() / (ok_b * w_b).sum().clamp(min=1e-9)
                 if train:
                     opt.zero_grad()
                     if init_ref is not None:
@@ -152,10 +173,28 @@ def main() -> None:
                 tot_ce += float(ce[ok].sum())
                 tot_hit += float(((logq.argmax(1) == p.argmax(1)) & ok).sum())
                 tot_n += float(ok.sum())
+                if not train:               # 逐类 CE / top1命中 / 行数
+                    okb = ok.cpu().numpy(); cb = cls_np[b]
+                    hit = ((logq.argmax(1) == p.argmax(1)) & ok)
+                    for c in np.unique(cb[okb]):
+                        m = torch.from_numpy((cb == c) & okb).to(dev)
+                        by_cls[int(c)]["ce"] += float(ce[m].sum())
+                        by_cls[int(c)]["hit"] += float(hit[m].sum())
+                        by_cls[int(c)]["n"] += float(m.sum())
         return tot_ce / max(tot_n, 1), tot_hit / max(tot_n, 1), tot_n
 
     print("[vprior] 均匀基线 CE = ln(271) = %.3f ；随机 top1 = 1/271 = %.2f%%"
           % (np.log(271), 100 / 271), flush=True)
+    _w_tot = wg[torch.from_numpy(cls_np)].sum()
+    print("[vprior] 权重: norm=%s  原始 mean=%.3f -> 归一 mean=%.3f；**加权占比** top8 = %s"
+          % (args.weight_norm, float(wt_raw.mean()), float(wt.mean()),
+             ", ".join("%d:%.1f%%" % (c, 100.0 * float(wg[torch.from_numpy(cls_np) == c].sum())
+                                      / max(float(_w_tot), 1e-9))
+                       for c in sorted(n_cls_rows, key=lambda c: -n_cls_rows[c])[:8])),
+          flush=True)
+    print("[vprior] 行数占比 top8 = %s"
+          % ", ".join("%d:%d" % (c, n_cls_rows[c])
+                      for c in sorted(n_cls_rows, key=lambda c: -n_cls_rows[c])[:8]), flush=True)
     base_ce, base_hit, _ = run(val_idx, False)
     print("[vprior] **训练前** val: CE=%.4f  top1命中=%.2f%%" % (base_ce, 100 * base_hit), flush=True)
 
@@ -175,6 +214,13 @@ def main() -> None:
         print("[vprior] epoch %2d/%d  train CE=%.4f top1=%.2f%% | val CE=%.4f top1=%.2f%%  "
               "(%.0fs)%s" % (ep, args.epochs, tr_ce, 100 * tr_hit, va_ce, 100 * va_hit,
                              time.time() - t0, flag), flush=True)
+        _rows = sorted(n_cls_rows, key=lambda c: -n_cls_rows[c])[:8]
+        print("       逐类 val: " + "  ".join(
+            "%d(%.0f%%) CE=%.3f hit=%.0f%%" % (
+                c, 100.0 * by_cls[c]["n"] / max(sum(by_cls[x]["n"] for x in by_cls), 1e-9),
+                by_cls[c]["ce"] / max(by_cls[c]["n"], 1e-9),
+                100.0 * by_cls[c]["hit"] / max(by_cls[c]["n"], 1e-9)) for c in _rows),
+            flush=True)
 
     print("[vprior] 最佳 val CE=%.4f @epoch %d ⇒ %s" % (best[0], best[1], args.out), flush=True)
     print("[vprior] 判据1（CE 从 %.4f 降到 %.4f，降 %.1f%%）；判据2（top1 %.2f%% → %.2f%%）"
