@@ -3508,3 +3508,79 @@ H3 头对头 128 对；全部 256/4）。**但实测速率是 ~48 s/局（16 wor
 
   ⚠️ 注意这条只说明"**新 > 旧**"（自指比较：两侧同一个策略网），
   **不说明**这个 agent 在绝对意义上有多强（那要和 rule_v4 等外部对手打，见 §6 判据 3）。
+
+## 2026-09-20 00:21:32 — overnight_rv4_then_256
+
+- **commit**: `04123ca` (dirty: 17 files)
+- **exit**: 0，用时 27589s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+O=$OLD; N=$NEW
+EV="--opponent rule_v4 --bundle-mcts --native-engine --iterations 256 --max-depth-rounds 4 --k 24 --t-class 0.5 --t-pos 1.0 --search-mode pos-only --skip-single-candidate --workers 16"
+echo "########## 版本1 · vs rule_v4（4 批 seed × 64 = 256 局/臂）##########"
+echo "#### R1 旧价值网 vs rule_v4（粗参照：历史同协议 ≈42.2%）####"
+$PY -u $E --checkpoint $O $EV --games 64 --seed 0
+$PY -u $E --checkpoint $O $EV --games 64 --seed 64
+$PY -u $E --checkpoint $O $EV --games 64 --seed 128
+$PY -u $E --checkpoint $O $EV --games 64 --seed 192
+echo "#### R2 新价值网 vs rule_v4（主：与 R1 同 seed 配对）####"
+$PY -u $E --checkpoint $N $EV --games 64 --seed 0
+$PY -u $E --checkpoint $N $EV --games 64 --seed 64
+$PY -u $E --checkpoint $N $EV --games 64 --seed 128
+$PY -u $E --checkpoint $N $EV --games 64 --seed 192
+echo "########## 版本2 · 256 迭代下的启发式菜单臂 ##########"
+M="--k 24 --menu-random 24 --search-iters 256 --search-depth 4 --workers 16 --seed 0"
+echo "#### H1 搜索(新) vs first @256/4 ####"
+$PY -u $S --our search --opp first $M --pairs 128 --ckpt-our $N --ckpt $O
+echo "#### H3 搜索头对头：search(新) vs search(旧) @256/4 ####"
+$PY -u $S --our search --opp search $M --pairs 128 --ckpt-our $N --ckpt-opp $O
+  ```
+- **output**: `training_history/runs/20260920_002132_overnight_rv4_then_256/output.log`
+- **result**: 🔴🔴 **决定性的一条：只换价值网，对外棋力 18.4% → 32.4%（+14.1pp，p=0.0003）。**
+
+  ### R1/R2：vs rule_v4（4 批 seed × 64 = 256 局/臂，同 seed 集、同协议）
+
+  | 臂 | 各批胜率 | 合计 | 配对 |
+  |---|---|---|---|
+  | **R1 旧价值网** | 20.3 / 21.9 / 17.2 / 14.1% | **18.4%**（47W/256）| — |
+  | **R2 新价值网** | 32.8 / 35.9 / 34.4 / 26.6% | **32.4%**（83W/256）| **+14.1pp**，SE 0.037，**t=+3.81** |
+
+  **配对检验（逐局行按 seed 配对，256 对）**：McNemar **旧赢新不赢 29 / 新赢旧不赢 65**
+  ⇒ χ²=13.03，**p=0.0003**。两侧 `class_state`/`pos_state` **逐位相同** ⇒ 唯一变量是 `value_state`。
+
+  🔎 **一个漂亮的复现**：R1 的 **47W/256 = 18.4%** 与历史 `vprior_verify` 表里
+  "**未训练基线 18.4%（47W）**"**逐位相同** ⇒ 台子/协议与历史一致，两边的数可以直接对。
+  （对照：position 那条线训完 `posnet_r1` 是 42.2%。⇒ **仅重训价值网这一下就拿到
+  整条 position 先验线增益的 ~2/3，而且完全没碰 class/pos 两网。**）
+
+  ✅ **混淆检查（必要，因为价值量级会影响 PUCT 里"价值 vs 探索"的配比）**：
+  两个网在同一批 4096 个真实决策点上输出**同尺度** ——
+  旧 `|v|均值 0.1542 / std 0.2209`、新 `0.1539 / 0.2165`（tanh 后 std 0.2045 / 0.2010）
+  ⇒ **不是"输出幅度变了"造成的假象**，差异在"哪些局面给高分"。
+
+  ### H1/H3：启发式菜单臂，**补齐到 256 迭代**（我先前砍到 64 的错误已修）
+
+  | 臂 | 256/4（正确）| 对照 64/4（我错的）|
+  |---|---|---|
+  | **H1** `search`(新) vs `first` | **0.5547**（SE 0.0289，t=**+1.89**）| 0.5273（t=+0.88）|
+  | **H3** `search`(新) vs `search`(旧) | **0.4961**（SE 0.0285，t=−0.14）| 0.5664（t=+2.29）|
+
+  🔴 **H3 是一个重要的方法学发现：把迭代数从 64 提到 256，"新 > 旧"在启发式菜单里消失了
+  （0.5664 → 0.4961）。** 解释：**迭代少时叶子评估主导选择**（价值网好就赢），
+  **迭代够多时搜索能自己补偿叶子评估的噪声** ⇒ **浅搜索会高估价值网的作用**。
+  ⇒ 这也**追认**了 64 迭代那批（S1/S2/S3/F1/F2）不可用。
+  H1 则相反方向：迭代够了，搜索才勉强超过 `first`（0.5547, t=1.89，边际显著）。
+
+  ### 汇总：价值网到底在哪儿起作用
+
+  | 场合 | 新 vs 旧 |
+  |---|---|
+  | **部署/采集口径**（候选来自策略网=闪电，256/4，svs）| **+11.7pp**（0.6172，t=+4.19）|
+  | **对外棋力**（vs rule_v4，256 局）| **+14.1pp**（18.4%→32.4%，p=0.0003）|
+  | 启发式菜单（候选来自官方 top-24 随机子集，256/4）| **0**（0.4961）|
+  | 启发式菜单（同上，但只给 64 迭代）| +6.6pp（浅搜索的高估）|
+
+  ⇒ **价值网的品质在"候选来自策略网"（= 真实部署）时很关键，在启发式菜单里不关键。**
+  `heuristic_candidates_match` 这条线（我为了避开"用弱手写评分当尺子"而搭的）本身不是好台子；
+  真正说得清问题的是 svs / vs rule_v4。
