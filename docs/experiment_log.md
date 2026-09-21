@@ -3790,3 +3790,45 @@ done
   🐛 **过程瑕疵（不影响数据）**：run_logged 报 exit 1 —— 只是**最后汇总打印**里我用了 `Counter`
   却没在 `main()` 里 import（只在 `_worker` 里 import 过）。64 局数据完整，上面统计是我自己从
   逐局行重算的。已修（加模块级 import）。
+
+## 2026-09-21 18:53:59 — svs_valueprior_vs_A1map
+
+- **commit**: `5718895` (dirty: 17 files)
+- **exit**: 0，用时 25682s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_search_vs_search.py --a training_history/vprior/posnet_A1_km1_m32.pt --b training_history/vprior/posnet_A1_km1_m32.pt --pos-prior-a value --pos-prior-b policy --ban-class 17 --search-mode joint --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --pairs 32 --workers 16 --native-engine
+  ```
+- **output**: `training_history/runs/20260921_185359_svs_valueprior_vs_A1map/output.log`
+- **result**: 🔴 **判别实验给出结论：1-ply 偏好在"塔/经济"regime 里没有可利用的信息。**
+
+  **配置**（用户 2026-09-21 提出）：与 `A vs A1`（0.4375）**同一台子**（joint + `--ban-class 17`、
+  256/4、32 对镜像、同 seed 集），**两侧用同一个 ckpt**（都挂 A1 的位置网）⇒ 唯一变量是
+  A 侧的**根节点先验**：`--pos-prior-a value`（1-ply 价值 z-score，不蒸馏）vs `--pos-prior-b policy`。
+
+  | | 数值 |
+  |---|---|
+  | A 逐局 | 30W/34L = 46.9% |
+  | **A 配对胜率** | **0.4688**（SE 0.0633，**t = −0.49**，n.s.）|
+  | 决定性 | 64/64 = 100%，平均 265 回合 |
+  | 出招构成 | A：建塔 60.1 / 降级 23.0 / 升级 16.9%；B：建塔 64.1 / 降级 19.8 / 升级 15.0 / 超武 1.1% |
+
+  **与同台子的另一条并排**：
+
+  | 臂 vs（同一参照：A1 的随机图）| 配对胜率 | t |
+  |---|---|---|
+  | A = **多类训练出来的图** | 0.4375 | −1.07 |
+  | **1-ply 价值先验（不蒸馏）** | **0.4688** | −0.49 |
+
+  ⇒ 🔴 **"老师"本身就不比随机图好**（0.469，n.s.）⇒ 那么"学生"（A）不比 A1 好就完全解释了：
+  **A 只是给采样加了一个没有信息的偏置**（§5.1 的 H1 成立）。
+  ⇒ **修法不是"提高蒸馏保真度"，而是换更深的目标**（§4 第二阶段：visit / 根节点子值）——
+  因为 §1.4 已证 **256 迭代搜索的选点（0.5391 / 43 胜局）远好于任何"一次性"选点**，
+  而 1-ply 价值 argmax 只有 0.3281（−22 局）。**搜索里有知识，但那份知识不在 1-ply 价值里。**
+
+  ⚠️ **两条限制**：
+  1. `value` 那条路额外把"解不出来的格"掩掉了（历史测过约 +6.3pp 来自这个过滤）⇒ 严格说
+     "价值信息"这一项还差一个 `uniform` 对照臂才能完全隔离（同枚举同掩码、权重全等）。
+     但既然 `value` **带着**这个有利的过滤都只到 0.469，**过滤不太可能是正向的**（否则会看到 >0.5）。
+  2. 这只说明"在这个（禁闪电、塔/经济）regime 里 1-ply 偏好没有信息"，**不否定**它在
+     **闪电 regime** 里的价值（那里历史读数 +16.4pp、p=0.0037 级别的证据）。
