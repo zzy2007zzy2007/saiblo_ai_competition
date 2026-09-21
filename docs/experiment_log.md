@@ -3238,7 +3238,8 @@ echo '#### 2E 搜索(新价值网=A2) over (top-24 U 闪电) vs first ####'
 D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/heuristic_candidates_match.py --our search --opp first --k 24 --menu-lightning --search-iters 64 --search-depth 4 --pairs 128 --workers 16 --seed 0 --ckpt training_history/inject_ex02/valnet_A2.pt
   ```
 - **output**: `training_history/runs/20260919_200346_menu_lightning_arms/output.log`
-- **result**: _待填_
+- **result**: ❌ **启动失败（exit 2，69s）**——这次启动时 `--menu-lightning` 开关还没实现 ⇒
+  5 个臂全部 argparse 报错。**无结果**，仅作排错记录（同一套臂后来在 `200635` 那次重跑，也被中止）。
 
 ## 2026-09-19 20:13:26 — random_menu24_arms
 
@@ -3611,3 +3612,142 @@ $PY -u $S --our search --opp search $M --pairs 128 --ckpt-our $N --ckpt-opp $O
   调 `t_pos`，只需要**钉类轮换**覆盖其他通道。
 - §4.4 的"训尖 ⇒ room 变小"从"必须设计"降级为**监控项**（已训的闪电在 t_pos=1.0 下仍 24 个候选）。
 - 教训：**"候选数 = 1"要先问"这个类这回合能不能执行"，再谈"图尖不尖"。**
+
+## 2026-09-20 19:17:21 — vp_arms_km1_multi
+
+- **commit**: `1be76b4` (dirty: 17 files)
+- **exit**: 0，用时 6133s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+D=training_history/vprior
+echo "#### B: K=1 M=0（现状口径；应与旧 vp_400 同分布）####"
+$PY -u $C --checkpoint $V --games 400 --workers 16 --seed 910101 --out $D/vp_B_km1.npz --multi-class-k 1 --max-cells 0
+echo "#### A1: K=1 M=32（只差 M 封顶，归因对照）####"
+$PY -u $C --checkpoint $V --games 400 --workers 16 --seed 910101 --out $D/vp_A1_km1_m32.npz --multi-class-k 1 --max-cells 32
+echo "#### A: K=5 M=32 lambda=0.2（主：多类记录）####"
+$PY -u $C --checkpoint $V --games 400 --workers 16 --seed 910101 --out $D/vp_A_k5_m32.npz --multi-class-k 5 --max-cells 32 --row-weight-lambda 0.2
+  ```
+- **output**: `training_history/runs/20260920_191721_vp_arms_km1_multi/output.log`
+- **result**: ✅ 三臂采集完成（6133s）。**三臂跑的是同一批 400 局**（K/M/λ 只改"记录"不改"行为"，
+  §3.4 的行为/监督解耦 ⇒ 回合数三臂完全相同 301,648）。
+
+  | 臂 | 配置 | 行数（行/局）| 价值网前向/局 | 覆盖类 | 守卫丢弃 |
+  |---|---|---|---|---|---|
+  | B | K=1, M=0 | 25,068（62.7）| 16,984 | **1** | 0/0 |
+  | A1 | K=1, M=32 | **25,068**（62.7）| **2,005** | **1** | 0/0 |
+  | A | K=5, M=32, λ=0.2 | **350,793**（877.0，14.0×）| 28,063（**1.65×**）| **20** | 0/0 |
+
+  * **B 与 A1 行数逐位相同（25,068）** ⇒ M 封顶只改"每行多少格"，不改"记哪些行"（归因对照该有的性质）。
+  * 成本 1.65×（比计划 §3.2 估的 5~6× 更便宜：M=32 封顶省下的抵消了 5 倍类数）。
+  * 闪电的行占比 100% → 100% → **6.7%**（A 臂；加权后占 35.7% 的权重预算）。
+  * **守卫（强制格校验 + 退化行检查）在两臂各 400 局里都丢弃 0 行** —— 说明 §1.7 那个
+    "买不起的超武 ⇒ 自动降级 ⇒ 错标"的坑在本批数据里没有发生（对照：旧数据也是 0，见 vp_400）。
+
+## 2026-09-20 21:01:37 — vp_train_three_arms
+
+- **commit**: `14a9bb0` (dirty: 18 files)
+- **exit**: 0，用时 6435s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+D=training_history/vprior
+R="--epochs 60 --batch-size 256 --lr 1e-3 --seed 0"
+echo "#### 训练 B（K=1 M=0，现状口径）####"
+$PY -u $T --ckpt $V --data $D/vp_B_km1.npz $R --out $D/posnet_B_km1.pt
+echo "#### 训练 A1（K=1 M=32，M 封顶对照）####"
+$PY -u $T --ckpt $V --data $D/vp_A1_km1_m32.npz $R --out $D/posnet_A1_km1_m32.pt
+echo "#### 训练 A（K=5 M=32，主：多类记录）####"
+$PY -u $T --ckpt $V --data $D/vp_A_k5_m32.npz $R --out $D/posnet_A_k5_m32.pt
+  ```
+- **output**: `training_history/runs/20260920_210137_vp_train_three_arms/output.log`
+- **result**: ✅ 三个位置网训完（6435s；B/A1 各 ~7min，A 因 14× 行数约 93min）。
+
+  | 臂 | 最佳 val CE | **超出均匀的 nats** | val top1 | 闪电通道 hit | 其他 19 通道 hit |
+  |---|---|---|---|---|---|
+  | B（271 格）| 5.1542 @ep60 | **0.448** | 37.6% | 38% | —（未训）|
+  | A1（32 格）| 3.0601 @ep48 | **0.406** | 51.6% | 52% | —（未训）|
+  | A（32 格，20 类）| 3.0414 @ep60 | **0.424** | 75.5% | 46% | **80~82%** |
+
+  * ⚠️ **原始 CE 不可跨臂比**（271 格 vs 32 格，均匀基线 ln(271)=5.602 vs ln(32)=3.466）；
+    换成"**超出均匀多少 nats**"后三臂几乎相同（0.41~0.45）⇒ **M 封顶没有把任务变简单**。
+  * **机制生效**：A 的 19 个新通道从训练前 2.11% 训到 **80~82%**（而 B/A1 里它们不存在于数据中）。
+  * 曲线形态正常（单调下降、无 NaN、train−val 差 0.006~0.05 nats）。
+  * **归因前提逐位校验**：三臂 `class_state`/`value_state` 与 `valnet_A2` **逐位相同**、
+    `pos_state` 各 80/94 张量变化 ⇒ 对外比较只差位置网。
+  * **等价性**（另做的对照）：权重全 1 时（= B 臂）新旧训练器的三个 state **逐位相同** ⇒ B 是旧 recipe。
+  * 速度：A 与 B 的**每 step 耗时相同**（68 vs 71 ms）⇒ 慢纯粹是步数多（1,370 vs 98 step/epoch）。
+
+## 2026-09-20 22:49:13 — vp_net_criteria
+
+- **commit**: `14a9bb0` (dirty: 18 files)
+- **exit**: 0，用时 6536s
+- **cmd**:
+  ```bash
+  bash -c export PYTHONIOENCODING=utf-8
+echo "########## 判据1：只换闪电落点 vs 完整 rule_v4（历史和 posnet_r1 = 0.4922）##########"
+echo "#### C1-guard: NULL 臂（我方也用原版，应恰好 0.5000）####"
+$PY -u $L --null --pairs 32 --workers 16 --seed 0
+echo "#### C1-B: posnet_B（K=1 M=0）####"
+$PY -u $L --pos-source net --ckpt $PB --pairs 64 --workers 16 --seed 0
+echo "#### C1-A1: posnet_A1（K=1 M=32）####"
+$PY -u $L --pos-source net --ckpt $PA1 --pairs 64 --workers 16 --seed 0
+echo "#### C1-A: posnet_A（K=5 M=32，主）####"
+$PY -u $L --pos-source net --ckpt $PA --pairs 64 --workers 16 --seed 0
+echo "########## 判据2：vs rule_v4（4 批 seed x 64 = 256 局/臂，同协议）##########"
+EV="--opponent rule_v4 --bundle-mcts --native-engine --iterations 256 --max-depth-rounds 4 --k 24 --t-class 0.5 --t-pos 1.0 --search-mode pos-only --skip-single-candidate --workers 16"
+for arm in B:$PB A1:$PA1 A:$PA; do
+  nm="${arm%%:*}"; ck="${arm#*:}"
+  for sd in 0 64 128 192; do
+    echo "#### C2-$nm seed=$sd ####"
+    $PY -u $E --checkpoint $ck $EV --games 64 --seed $sd
+  done
+done
+  ```
+- **output**: `training_history/runs/20260920_224913_vp_net_criteria/output.log`
+- **result**: 🔴 **本轮最硬的一条结论 + 一条"这两把尺子按构造读不到目标"的确认。**
+
+  **判据1（只换闪电落点 vs 完整 rule_v4，64 对）**
+
+  | 臂 | 配对胜率 | SE | t |
+  |---|---|---|---|
+  | NULL 守卫（我方也用原版）| **0.5000** | 0.0000 | 台子精确 ✓ |
+  | **B** | **0.5938** | 0.0444 | **+2.11** |
+  | A1 | 0.5469 | 0.0412 | +1.14 |
+  | A | 0.5391 | 0.0463 | +0.84 |
+  | *历史 `posnet_r1`* | *0.4922* | — | — |
+
+  **判据2（vs rule_v4，256 局/臂，4 批 seed 同协议，全部用同一个新价值网）**
+
+  | 臂 | 各批 | 合计 |
+  |---|---|---|
+  | R2（**旧**位置网 + 新价值网）| 32.8 / 35.9 / 34.4 / 26.6% | **32.4%** |
+  | B | 32.8 / 43.8 / 53.1 / **67.2**% | 49.2% |
+  | A1 | 50.0 / 35.9 / 53.1 / 42.2% | 45.3% |
+  | **A** | **54.7 / 54.7 / 53.1 / 54.7%** | **54.3%** |
+  | *历史 `posnet_r1`（旧价值网）* | — | *42.2%* |
+
+  **配对 McNemar（全 256 格，(先/后手,seed) 配对）**：
+
+  | 对比 | 差 | 仅前者赢 / 仅后者赢 | p |
+  |---|---|---|---|
+  | **B vs R2**（只差 `pos_state`）| **+16.8pp** | 87 / 44 | **0.00024** |
+  | A vs A1（隔离"多类"）| +9.0pp | 72 / 49 | 0.046 |
+  | A vs B | +5.1pp | 72 / 59 | 0.29 |
+  | A1 vs B（隔离"M 封顶"）| −3.9pp | 51 / 61 | 0.40 |
+
+  ⇒ **① 本轮真正的收获（与"多类"无关）**：**用改进后的价值网重训位置网值 +16.8pp
+  （32.4% → 49.2%，p=0.00024）**。B 与 R2 只差 `pos_state`（类网/价值网/seed 集/协议全同）⇒
+  干净 A/B ⇒ **(a) 线与 position 线可叠加**：价值网的改进不只自身值 +14.1pp，
+  还通过"更好的 1-ply 目标"再带动位置网（多类版 A 到 54.3%，比历史最好 42.2% 高 12pp）。
+
+  ⇒ **② "多类记录"在两把尺子上最多勉强正向**（A vs A1 +9.0pp、p=0.046，且效应几乎全来自
+  "我方当后手"那一半；A vs B 不显著），判据1 上还略负（不显著）。
+  **而且不能据此说它有效**：两把尺子**按构造都读不到那 19 个通道**——
+  判据1 只改闪电落点（只读 `action_map[17]`）；判据2 的类钉在类网 argmax 上
+  （实测诊断行 `diff[class=0]`，453 回合类一次未变）⇒ 只有第 17 通道被读。
+  ⇒ 这里测到的任何差异**只能归因于共享骨干的间接效应**（14× 数据 + 20 类目标当正则）。
+  **正确的测法是"禁闪电 + joint 搜索"**（用户提出的，见下条 `svs_joint_ban17`）。
+
+  ⇒ ③ **一个值得记但未检验的现象**：A 的四批 seed 极稳定（54.7/54.7/53.1/54.7），
+  而 B 的跨度是 32.8→67.2%。提示"在 20 类数据上训出来的图对 seed 集更鲁棒"。
