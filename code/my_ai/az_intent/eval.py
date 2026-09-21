@@ -32,6 +32,46 @@ for p in (_REPO, _CODE):
 import numpy as np
 
 
+def _legal_nonlight_classes(state, player) -> list:
+    """该玩家这一回合**可执行且不是闪电(17)/HOLD(23)** 的类。
+
+    用解码器自己的 mask 推（`intent_decoding=True`）⇒ 已含"买得起/冷却好/有合法格"这些条件，
+    所以钉到这些类时一定解得出操作。用途：见 `--pin-class cycle`。"""
+    from my_ai.decoder import make_class_mask, make_position_masks
+    pm = make_position_masks(state, player, intent_decoding=True)
+    cm = make_class_mask(state, player, position_mask=pm, intent_decoding=True)
+    # ⚠️ 必须排除 17-20（超武）：`intent_decoding=True` 下**买不起的超武仍在 mask 里**，
+    # 但解码器会走"读通道 16 的自动降级" ⇒ 钉类名义上是 18/19/20，实际执行/读取的是 16
+    # ⇒ 那几回合的"钉类"标注是错的（2026-09-21 实测：钉 18/19/20 都执行 DOWNGRADE）。
+    # 这与 `collect_value_prior.py` 的 `_op_matches_cell` 守卫是同一个坑，只是那里靠
+    # "没有塔 ⇒ 自动降级无位置 ⇒ 返回 None ⇒ 整行被丢"侥幸躲开了，而本台子智能体有塔。
+    _SUPER = {17, 18, 19, 20}
+    return [c for c in range(len(cm))
+            if c != 23 and c not in _SUPER and cm[c] and pm[c].any()]
+
+
+def _make_pinned_net_fn(net_fn, holder):
+    """把 head logits 改成"argmax = holder['cls']" ⇒ `pos_pin='argmax'` 就钉在它上面。
+
+    `holder['cls'] is None` 时原样返回（= 原行为）。核心是**不改搜索代码**：`BundleMCTS`
+    在 pos-only 下自己把类钉到"head 的 argmax"，我们只把它引导到想要的类。
+    动机（用户 2026-09-21）：`pos_prior_fn` 只在"类被钉住"时生效 ⇒ 要测"1-ply 价值先验在
+    **非闪电** regime 下的价值"，必须能从外部钉一个非闪电类（joint 模式下类在采样、
+    没有单一钉类，钩子不会触发）。见 docs/az_posnet_v2_plan.md §5.1。
+    """
+    def f(state, player):
+        out = net_fn(state, player)
+        c = holder.get("cls")
+        if c is None:
+            return out
+        hl = [np.array(h, copy=True) for h in out["head_logits"]]
+        for arr in hl:
+            arr[:] = -1e9
+            arr[int(c)] = 1e9
+        return {**out, "head_logits": hl}
+    return f
+
+
 def _make_value_pos_prior(feat, vmodel, mode="value"):
     """位置先验 = **价值网在钉类合法格上的 1-ply z-score**（只在根节点算）。
 
@@ -101,7 +141,7 @@ def _make_value_pos_prior(feat, vmodel, mode="value"):
 
 
 def _worker(args: tuple) -> dict:
-    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin, skip_single_candidate, pos_prior = args
+    ckpt_path, iterations, max_depth_rounds, seed, our_player, opponent, hotstart, no_search, select_by_prior, intent_decoding, one_head, bundle_mcts, depth0, value_tanh, value_rel_to_abs, k, c_puct, t_class, t_pos, self_raw_opponent, max_rounds, native_engine, random_action_prob, search_mode, pos_pin, skip_single_candidate, pos_prior, pin_class = args
     import torch
     torch.set_num_threads(1)
 
@@ -174,6 +214,20 @@ def _worker(args: tuple) -> dict:
 
         pol_model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat, value_tanh=value_tanh,
                                                    value_rel_to_abs=value_rel_to_abs)
+        _pin = {"cls": None}
+        if pin_class != "off":
+            net_fn = _make_pinned_net_fn(net_fn, _pin)
+
+        def _set_pin(player):
+            """每次决策前设好要钉的类（序列只由局势决定 ⇒ 各臂可比）。"""
+            if pin_class == "off":
+                return
+            if pin_class == "cycle":
+                cands = _legal_nonlight_classes(state, player)
+                _pin["cls"] = (int(cands[(state.round_index + player) % len(cands)])
+                               if cands else None)
+            else:
+                _pin["cls"] = int(pin_class)
         if depth0:
             from my_ai.az_intent.az_depth0_greedy import Depth0Greedy
             bmcts = Depth0Greedy(net_fn, iterations=iterations, k=k,
@@ -213,6 +267,7 @@ def _worker(args: tuple) -> dict:
             return ops, intents
 
         def our_play(player):
+            _set_pin(player)
             res = bmcts.search(state, player, temperature=0.0)
             chosen = res.chosen_bundle
             diag["turns"] += 1
@@ -310,6 +365,10 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=str, default=None, help="trained AZ checkpoint (.pt)")
     parser.add_argument("--baseline-hotstart", type=str, default=None, help="ES checkpoint to eval as baseline")
     parser.add_argument("--opponent", type=str, default="rule_v4", choices=["rule_v4", "example"])
+    parser.add_argument("--pin-class", type=str, default="off",
+                        help="外部钉类（配合 --search-mode pos-only）：'off'=原行为；'cycle'=按回合在"
+                             "**合法非闪电类**里轮换；或直接给类号（如 11=建塔）。用途：让搜索去读"
+                             "位置网的非闪电通道（joint 模式下读不到）。见 az_posnet_v2_plan.md §5.1")
     parser.add_argument("--games", type=int, default=8)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--iterations", type=int, default=32)
@@ -390,7 +449,7 @@ def main() -> None:
          args.t_class, args.t_pos,
          args.self_raw_opponent, args.max_rounds, args.native_engine,
          args.random_action_prob, args.search_mode, args.pos_pin,
-         args.skip_single_candidate, args.pos_prior)
+         args.skip_single_candidate, args.pos_prior, args.pin_class)
         for s in range(args.games)
     ]
     if args.workers > 1:

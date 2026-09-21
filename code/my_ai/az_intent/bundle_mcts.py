@@ -316,10 +316,18 @@ class BundleMCTS:
             class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
                          for p in class_probs_arg]
 
-        # 可选的外部位置先验：只改被钉类那几条通道上的 action_map 值（= 改位置采样分布）。
-        if self.pos_prior_fn is not None and pinned is not None:
+        # 可选的外部位置先验：改若干条**类通道**上的 action_map 值（= 改位置采样分布）。
+        # 2026-09-21 **放宽门控**（用户 2026-09-21）：joint 模式也在**根节点**生效——此时没有
+        # "被钉的类"，就把**全部合法类**交给回调（价值网只对"位置"有发言权，类仍由类网采样）。
+        # 动机：要测"1-ply 价值偏好当位置先验"就必须允许 joint（pos-only 的"外部钉类"会
+        # 把 agent 变成按指定类出招的怪东西，见 docs/az_posnet_v2_plan.md §5.1）。
+        # 非根节点由回调自己返回 None（`_make_value_pos_prior` 就是这样）⇒ 成本只在根节点付一次。
+        # ⚠️ 注意：调用方若在 **joint** 模式下传了这个回调，行为就与之前不同了（之前 joint 下被静默忽略）。
+        _prior_classes = (pinned if pinned is not None
+                          else [c for c in range(len(base_cls_mask)) if base_cls_mask[c]])
+        if self.pos_prior_fn is not None and len(_prior_classes):
             am2 = self.pos_prior_fn(node.state, node.player, net_out,
-                                    [int(c) for c in pinned], node is self.last_root)
+                                    [int(c) for c in _prior_classes], node is self.last_root)
             if am2 is not None:
                 net_out = {**net_out, "action_map": am2}
 

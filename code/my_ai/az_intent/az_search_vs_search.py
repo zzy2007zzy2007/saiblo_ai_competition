@@ -52,7 +52,7 @@ def _ban_classes(net_fn, banned):
 def _worker(args: tuple) -> dict:
     (a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos,
      native_engine, flip, a_rel_abs, b_rel_abs, a_tanh, b_tanh,
-     search_mode, skip_single, k, ban) = args
+     search_mode, skip_single, k, ban, a_prior, b_prior) = args
     import torch
     torch.set_num_threads(1)
 
@@ -76,10 +76,27 @@ def _worker(args: tuple) -> dict:
     _m = dict(iterations=iterations, max_depth_rounds=max_depth_rounds, k=k,
               t_class=t_class, t_pos=t_pos, search_mode=search_mode,
               skip_single_candidate=skip_single)
+    def _make_prior(mode, ckpt_path, net_fn):
+        """逐侧位置先验：'policy'=用该侧位置网自己的图（默认，无钩子）；'value'=根节点上换成
+        1-ply 价值网的 z-score；'uniform'=同样的枚举但权重全等（对照）。
+
+        'value' 用的价值网取自**该侧 ckpt 自己的 value_state** ⇒ 两侧必须是同一份价值网
+        （本项目里 `posnet_*` 与 `posnet_r1` 都可挂同一个新价值网，或用 `--ckpt-our/--ckpt-opp`
+        之外的拼法保证）。见 docs/az_posnet_v2_plan.md §5.1。"""
+        if mode == "policy":
+            return None
+        from my_ai.az_intent.eval import _make_value_pos_prior
+        vm = None
+        if mode == "value":
+            from my_ai.az_intent.az_selfplay import load_three_models
+            _, _, vm = load_three_models(ckpt_path)
+        return _make_value_pos_prior(feat, vm, mode=mode)
+
     net_fn_a = _ban_classes(net_fn_a, ban)
     net_fn_b = _ban_classes(net_fn_b, ban)
-    mcts_a = BundleMCTS(net_fn_a, seed=seed, **_m)
-    mcts_b = BundleMCTS(net_fn_b, seed=seed + 1, **_m)
+    mcts_a = BundleMCTS(net_fn_a, seed=seed, pos_prior_fn=_make_prior(a_prior, a_path, net_fn_a), **_m)
+    mcts_b = BundleMCTS(net_fn_b, seed=seed + 1,
+                        pos_prior_fn=_make_prior(b_prior, b_path, net_fn_b), **_m)
 
     # alternate which model is P0; --flip-sides inverts the assignment so the SAME
     # seed can be replayed with swapped sides -> pairs with the unflipped run
@@ -152,6 +169,12 @@ def main() -> None:
     parser.add_argument("--b-rel-to-abs", type=float, default=0.0, help="same, for B")
     parser.add_argument("--a-no-tanh", action="store_true", help="A: keep raw value (no tanh)")
     parser.add_argument("--b-no-tanh", action="store_true", help="B: keep raw value (no tanh)")
+    parser.add_argument("--pos-prior-a", type=str, default="policy",
+                        choices=["policy", "value", "uniform"],
+                        help="A 侧的位置先验来源：policy=位置网自己的图（默认）；value=**1-ply 价值网**"
+                             "在根节点上的 z-score（不蒸馏的形态）；uniform=同样枚举但等权（对照）")
+    parser.add_argument("--pos-prior-b", type=str, default="policy",
+                        choices=["policy", "value", "uniform"], help="B 侧同上")
     parser.add_argument("--ban-class", type=int, nargs="+", default=None,
                         help="禁用这些类（把 head logits 压到 -1e9）。用途：--ban-class 17 禁闪电，"
                              "让 joint 搜索去读位置网的其他通道；见 docs/az_posnet_v2_plan.md §5")
@@ -174,7 +197,8 @@ def main() -> None:
     _common = (args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
                args.native_engine, args.a_rel_to_abs, args.b_rel_to_abs,
                not args.a_no_tanh, not args.b_no_tanh,
-               args.search_mode, args.skip_single_candidate, args.k, args.ban_class)
+               args.search_mode, args.skip_single_candidate, args.k, args.ban_class,
+               args.pos_prior_a, args.pos_prior_b)
     if args.pairs > 0:
         jobs = [(args.a, args.b, args.seed + s) + _common[:5] + (fl,) + _common[5:]
                 for s in range(args.pairs) for fl in (False, True)]
