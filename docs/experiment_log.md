@@ -4082,3 +4082,91 @@ done
 
   **顺带修的工具**：`_tmp_ladder.py` 加 `--reanalyze`（改汇总逻辑后不必重跑对局）、同名 AI 时禁用配对分
   并提示、改读 `winner_side`；bridge 的 RESULT 增加 `winner_side`。
+
+## 2026-09-22 17:59:55 — ladder_A2a_rv4_vs_champion
+
+- **commit**: `9a44352` (dirty: 17 files)
+- **exit**: 127，用时 405s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A2a_rv4_vs_champion --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260922_175955_ladder_A2a_rv4_vs_champion/output.log`
+- **result**: _待填_
+
+## 2026-09-22 18:07:00 — ctrl_rv4_self_orig_runner
+
+- **commit**: `9a44352` (dirty: 18 files)
+- **exit**: 0，用时 98s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/run_cpp_ai_match.py --seed 7 --ai0 code/test_match/rv4_pkg/main.py --ai1 code/test_match/rv4_pkg/main.py --op-log training_history/cpp_ai_matches/rv4_self_seed7_oplog.txt
+  ```
+- **output**: `training_history/runs/20260922_180700_ctrl_rv4_self_orig_runner/output.log`
+- **result**: ✅ **对照通过：`rule_v4` 在原来的 `run_cpp_ai_match.py`（官方 `main.exe` 裁判）下打得正常。**
+
+  **目的**：用 known-good 的确定性 AI（rule_v4）跑一局，检查**原来那个走协议、裁判是 main.exe 的 runner**
+  还健不健康。两侧都是 `rv4_pkg/main.py`，seed 7，`--op-log` 记录每次回包。
+
+  **读数**：`end_state ["OK","OK"]`（**全程无非法操作**）、p1 胜（`end_info {"0":0,"1":1}`）、
+  对局在 **~326 回合**结束（652 次 listen 回包 ÷ 2）。op-log 统计：
+
+  | | 回包条数 | **真出招**（非空）|
+  |---|---|---|
+  | p0 | 326 | **33**（10%）|
+  | p1 | 326 | **52**（16%）|
+
+  出招**散布全整局**（第一次在 r42 —— 正好对上 rule_v4"前 ~30 回合攒钱不出手"的设计），
+  四类都有：`21 x y`（闪电）、`11 x y`（建塔）、`12 n m`（升级）、`13 n`（降级）。
+  ⇒ **原来那条协议路 + main.exe 裁判 + `rv4_pkg` 壳都是健康的**，rule_v4 仍是合格的 known-good 对照。
+  而且它自战在 main.exe 下 ~326 回合结束，与 bridge 下的 294–378 一致 ⇒ 两个 harness 对该 AI 的对局形态一致。
+
+  🐛 **过程瑕疵（不影响对局）**：该 runner 报 `rounds_recorded: 0` —— 它统计的是
+  `workdir/replay_seed7.json`，该文件没写成/没读到；顺带 `ai0_stderr`/`ai1_stderr` 也是空字符串。
+  ⚠️ 我自己在这条上**先误读过一次**：只看 op-log 的头尾就说"rule_v4 全程空过、不正常"，
+  完整统计（567 空 / 85 非空、散布全整局）才推翻它 —— 又一次"拿一小段窗口下结论"。
+
+## 2026-09-22 19:25:26 — ctrl_rv4_self_inprocess
+
+- **commit**: `9a44352` (dirty: 18 files)
+- **exit**: 0，用时 67s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/rule_v4_lightning_match.py --null --pairs 8 --seed 7 --workers 8
+  ```
+- **output**: `training_history/runs/20260922_192526_ctrl_rv4_self_inprocess/output.log`
+- **result**: ✅✅ **对照通过：进程内程序与协议 bridge 跑出的是同一盘棋（16/16 逐局完全一致）。**
+
+  **目的**（用户 2026-09-22 提出）：`A1` 刚用**协议 bridge** 跑过 rule_v4 自对弈；用户要求用
+  **原来那个不走 stdin/stdout 的进程内测试程序**再跑一遍，看两条路**是否一样**。
+
+  **配置**：`code/test_match/rule_v4_lightning_match.py --null --pairs 8 --seed 7 --workers 8`
+  ⇒ seed 7–14、每个 seed 跑 `our_player=0/1` 两局 = **16 局**，正好与 A1 的 16 局一一对应。
+  `--native-engine` 默认 True ⇒ **用的就是 bridge 那套 `GameStateFacade`（同一个引擎）**
+  ⇒ 唯一变量是"**进程内直连**"还是"**协议 bridge**"。wall 67s。
+
+  **逐局对照（`rounds`、`hp0`、`hp1`、胜方三项全对齐，16/16）**：
+
+  | token | 协议 bridge (rounds,hp0,hp1) | 进程内 (rounds,hp0,hp1) | 胜方 |
+  |---|---|---|---|
+  | 7 / 7r | (326, 0, 16) | (326, 0, 16) | p1 |
+  | 8 / 8r | (352, 0, 11) | (352, 0, 11) | p1 |
+  | 9 / 9r | (375, 4, 0) | (375, 4, 0) | p0 |
+  | 10 / 10r | (294, 0, 16) | (294, 0, 16) | p1 |
+  | 11 / 11r | (322, 15, 0) | (322, 15, 0) | p0 |
+  | 12 / 12r | (375, 0, 11) | (375, 0, 11) | p1 |
+  | 13 / 13r | (378, 7, 0) | (378, 7, 0) | p0 |
+  | 14 / 14r | (358, 6, 0) | (358, 6, 0) | p0 |
+
+  ⇒ **协议层（分帧、收发次序、局面文本生成、操作解析）不改变对局** ⇒ **bridge 是忠实的**。
+  （同 seed 的 `N` 与 `Nr` 读数相同，正因为两边是同一个程序、`N`/`Nr` 里执先手的都是 rule_v4
+  ⇒ 两局是同一盘棋；这也再次解释了 A1 的"配对分"为什么退化。）
+
+  **`--null` 的零方差签名（顺带解决了 A1 的签名疑惑）**：
+  `配对胜率均值 = 0.5000, SE = 0.0000, 偏离 0.5 的 pair 数 = 0/8, 净胜局 = 0`
+  ⇒ "**每一对里我方恰好赢一局**"，镜像严格抵消。该程序 docstring 写的 `1.0000` 是同一件事的
+  **求和口径**（赢一局 = 1.0），而代码用**均值口径**（赢一局/2 = 0.5）；两句等价，但同一份文档里
+  两种口径混用会误导（已把 docstring 改成两种口径都写明）。这也解释了记忆里
+  `feedback_known_good_control_for_harness.md` 那条"32/32 pairs = 1.0"。
+  **⇒ 正确读法：同 AI 镜像 = 「每对恰好一胜一负、方差 0」；求和口径记 1.0、均值口径记 0.5。**
+  我先前在 A1 里报出"全 2.0"，是因为拿 winner 的**标签**去比 AI0 的标签（同名标签区分不出两侧）。
