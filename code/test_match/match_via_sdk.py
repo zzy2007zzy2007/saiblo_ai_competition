@@ -146,8 +146,14 @@ class ProcIO:
                     out = bytes(self._buf[:size])
                     del self._buf[:size]
                     return out
+                have = len(self._buf)
+                head = bytes(self._buf[:64])
             if time.monotonic() > deadline:
-                raise TimeoutError(f"timed out reading {self._label} (need {size}B, have {len(self._buf)}B)")
+                # dump 原始字节：用来分辨"AI 写包有 bug"还是"我们的分帧错位"
+                # （实测 seed11 第 84 回合：声明 50B、只到 12B）
+                raise TimeoutError(
+                    f"timed out reading {self._label} (need {size}B, have {have}B) "
+                    f"buf_head_hex={head.hex()} buf_head_repr={head!r}")
             if self._done.is_set():
                 with self._lock:
                     if len(self._buf) == 0:
@@ -470,6 +476,15 @@ def main() -> int:
         if r.get("exception"):
             print(f"  异常: {r['exception']}", flush=True)
             print(r.get("traceback", ""), flush=True)
+            # ⚠️ **异常终止的局不是结果**：绝不能报成一个胜者（实测 seed11 第 84 回合超时，
+            # 老代码却打出 winner=runnerup ⇒ 一个截断的局被当成战果）。标 INVALID 且不计分。
+            _hp = r.get("base_hp") or [0, 0]
+            _cn = r.get("coins") or [0, 0]
+            print(f"  RESULT seed={seed} p0={r.get('p0_label', 'p0')} p1={r.get('p1_label', 'p1')} "
+                  f"winner=INVALID verdict=aborted exc={type(r.get('exception')).__name__} "
+                  f"rounds={r.get('rounds')} terminal={bool(r.get('terminal'))} "
+                  f"base_hp={_hp[0]},{_hp[1]} coins={_cn[0]},{_cn[1]}", flush=True)
+            continue
 
         winner = r.get("winner")           # 引擎自己的 winner；None = 还没判
         hp = r.get("base_hp") or [0, 0]

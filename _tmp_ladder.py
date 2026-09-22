@@ -170,8 +170,12 @@ def main() -> int:
             f"{g['act']['p1']}/{g['ops']['p1']} {dict(g['hist']['p1'].most_common(3))}",
             g["rc"]), flush=True)
 
-    wins = collections.Counter(g["winner"] for g in games if g["winner"])
+    invalid = [g["token"] for g in games if not g["winner"] or g["winner"] == "INVALID"]
+    wins = collections.Counter(g["winner"] for g in games
+                               if g["winner"] and g["winner"] != "INVALID")
     print(f"\n=== 胜负汇总: {dict(wins)} ===", flush=True)
+    if invalid:
+        print(f"  !! 无效局（异常终止/截断，不计分）: {invalid}", flush=True)
     verdicts = collections.Counter(g["verdict"] for g in games if g["verdict"])
     print(f"判词来源: {dict(verdicts)}  (engine=官方5级级联; hp_tiebreak=非官方兜底)", flush=True)
     if verdicts.get("hp_tiebreak"):
@@ -197,7 +201,7 @@ def main() -> int:
             sc = 0.0
             ok = True
             for g in pairs[s]:
-                if not g["winner"]:
+                if not g["winner"] or g["winner"] == "INVALID":
                     ok = False
                     break
                 ai0_label = g["p1_label"] if g["token"].endswith("r") else g["p0_label"]
