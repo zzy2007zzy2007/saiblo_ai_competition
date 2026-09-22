@@ -3961,3 +3961,85 @@ done
 
   ✅ **环境读数（正面）**：16 局 `ill=0`、`exc=0` ⇒ bridge/`GameStateFacade` 对两个 C++ AI 全程接受其操作，
   没有 desync 弃权（对照 `memory/project_champion_runnerup_cpp_match.md` 当年 `main.exe` 的 0-op 噩梦）。
+
+## 2026-09-22 16:56:11 — DET_seed11_run1
+
+- **commit**: `12c005e` (dirty: 18 files)
+- **exit**: 1，用时 347s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=DET_11_run1 --jobs=1 11
+  ```
+- **output**: `training_history/runs/20260922_165611_DET_seed11_run1/output.log`
+- **result**: ⏹ 中止于第 84 回合（`TimeoutError: timed out reading ai_cpp_lure_v4 (need 50B, have 12B)`）。
+  当时我把它归因成"我在它旁边跑集成冒烟抢了 CPU"——**这个归因是错的**。四跑合并的结论见
+  `DET3_seed11_hexdump` 的 result：**这两个 AI 的对局本身不可复现**，与 CPU 争抢无关。
+
+## 2026-09-22 17:02:51 — DET2_seed11_run1
+
+- **commit**: `115aa1c` (dirty: 18 files)
+- **exit**: 0，用时 524s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=DET2_11_run1 --jobs=1 11
+  ```
+- **output**: `training_history/runs/20260922_170251_DET2_seed11_run1/output.log`
+- **result**: ❌ 空闲机器上重跑，**仍然**停在第 84 回合，读数与上一遍逐字段相同（`rounds=84` / `hp=(44,45)` /
+  出招构成一致）⇒ 推翻"是 CPU 争抢造成的"。四跑合并的结论见 `DET3_seed11_hexdump` 的 result。
+
+## 2026-09-22 17:11:36 — DET2_seed11_run2
+
+- **commit**: `0eeeb9b` (dirty: 18 files)
+- **exit**: 0，用时 523s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=DET2_11_run2 --jobs=1 11
+  ```
+- **output**: `training_history/runs/20260922_171136_DET2_seed11_run2/output.log`
+- **result**: ❌ 与 run1 **逐字段完全相同**（当时让我以为"对局是确定性的"）。四跑合并的结论见
+  `DET3_seed11_hexdump` 的 result：与 DET3 一比才看出**棋局其实不同** ⇒ 不可复现。
+
+## 2026-09-22 17:21:57 — DET3_seed11_hexdump
+
+- **commit**: `dc91dc1` (dirty: 20 files)
+- **exit**: 0，用时 1424s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=DET3_11 --jobs=1 11
+  ```
+- **output**: `training_history/runs/20260922_172157_DET3_seed11_hexdump/output.log`
+- **result**: 🔴 **决定性发现：这两个 AI 的对局不可复现（同 seed 跑出不同的棋局）——既不是 CPU 争抢，也不是收发卡顿。**
+
+  这条是**四跑合起来**才看清的（前三条见上面 `DET_seed11_run1` / `DET2_seed11_run1` / `DET2_seed11_run2`）：
+
+  | 运行 | 并行度 | 结果 | 第 84 回合的局面 |
+  |---|---|---|---|
+  | DET_seed11_run1 | 1 | 第 84 回合超时中止 | — |
+  | DET2_seed11_run1 | 1 | 同上，`hp=(44,45)` | 5 塔 / 11 蚁 |
+  | DET2_seed11_run2 | 1 | **与 run1 逐字段相同** | 5 塔 / 11 蚁（同 run1）|
+  | DET3_seed11_hexdump | 1 | **打满 512 回合**，`verdict=engine`，hp 23:29 | **3 塔 / 9 蚁，位置与 ID 全不同** |
+
+  ⇒ DET3 与 DET2 **在第 84 回合就已经是不同的棋局** ⇒ 分歧发生在更早，**是 AI 的决策不可复现**，
+  而不是"同一盘棋在收发时抖了一下"。我原先"棋局相同、只是时序抖动"的假设被这条直接否掉。
+
+  **同时否掉我自己先前两条假设**：
+  - ❌ "第 84 回合中止是我在旁边跑冒烟抢 CPU 造成的" —— DET2 两遍在**完全空闲**的机器上仍停在同一点。
+  - ❌ "CPU 条件改变了每回合成本" —— DET3 是 512 回合 × 2.8 s/回合、DET2 是 84 回合 × 2.6 s/回合，
+    **每回合成本一样**，差别只在回合总数 ⇒ 不是负载导致的变慢。
+
+  **归因**：bridge 是确定性 Python（facade + 固定循环），局面文本由同一份 `state_to_text` 生成 ⇒
+  不可复现只能来自**两个黑盒 AI 自身**（最可能：墙钟预算，或进程相关的哈希/指针序遍历）。**他人的二进制我们改不了。**
+
+  **对方法论的三条后果（重要）**：
+  1. **逐 seed 跨批对照无效** —— 08-10 那份逐 seed 名单与今天 16 路那波的"翻转"（seed 9/11）根因在此，
+     **不是并行度**。只有**同批内的聚合胜率**（多局）才有意义。
+  2. **A1 的"镜像每对必然 1W+1L、方差 0"签名不能用在冠军/亚军上**（它们不可复现）；**但可以用在 rule_v4 上**
+     （纯 Python 确定性）。这正是 `champ_ladder_plan.md` §8 把 A1 设计成"rule_v4 打自己"的原因：它把
+     **harness 的确定性**与 **AI 侧的不确定性**分开了。
+  3. 1 路下 seed 11 有 **3/4** 次卡在第 84 回合（"声明 50B、实到 12B"，而亚军自己的日志显示那一步
+     1.8 秒就算完了）⇒ 长跑要按"偶发中止"来设计：异常局标 `INVALID` 不计分（已修 `57724c0`），必要时重试。
+
+  🐛 **顺带修掉的两个真问题**（均已提交 `57724c0`）：① 异常终止的局原来照样打出 `winner=runnerup`
+  —— 一个 84 回合的半截局被当成战果；现在打 `winner=INVALID verdict=aborted` 且不计分、不参与配对。
+  ② 超时错误现在 dump 收到的原始字节（hex + repr），用于分辨"AI 写包 bug"与"我们分帧错位"；
+  这次没复现所以没抓到 dump，工具留着备用。
