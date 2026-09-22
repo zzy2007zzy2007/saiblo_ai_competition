@@ -4241,3 +4241,31 @@ done
   一句话：**P2 与 P3（Python 引擎 + 官方 `resolve_turn`）8/8 逐字段完全相同**，而 **P1（C++ facade）8/8 都不同**，
   且**胜负在 4/8 个 seed 上翻转** ⇒ **差异全来自引擎，结算 API 等价**。
   本臂就是用来做这个隔离的（`--python-engine` 是本轮为此新加的开关）。
+
+## 2026-09-22 — 环境自检：**我们的对战程序是正确的**（用户提出"确认程序对不对"，不走 run_logged）
+
+用户 2026-09-22 的收尾要求：不要继续考古两个引擎为何不同，**只确认我们现在的对战程序是否可信**。
+四层逐一验完，**结论：可信**。命令与读数（都是现成的项目自带工具，非新写）：
+
+| # | 层 | 工具 | 读数 |
+|---|---|---|---|
+| ① | 我们的 C++ 引擎 == **官方二进制**？ | `code/cpp_engine/test_official_consistency.py --rounds 30` | ✅ **30 rounds fully consistent**（精确：基地 HP/金币/基地等级/武器冷却；子集：塔、蚂蚁）|
+| ① | 定向操作覆盖 | `code/cpp_engine/test_official_ops.py` | ✅ **all 14 curated op-type rounds consistent**（建/升/降/闪电/EMP/偏转/闪避/兵营/蚂蚁升级/基地升级/EMP 区域…）|
+| ② | 我们的程序**用的是哪个引擎**？ | `_tmp_audit_eval_cmds.py`（审计实验日志）| ✅ 全部 **C++**：`eval.py` 14/14、`az_search_vs_search.py` 6/6 显式带 `--native-engine`；`collect_value_prior.py`/`heuristic_candidates_match.py` 的**默认值即 True** |
+| ③ | harness 忠不忠实 | 本日：进程内 vs 协议 **16/16 逐字段一致**；`resolve_turn` ≡ `apply_operation_list`（P2=P3 8/8）| ✅ |
+| ④ | 判词 / 异常局 | 本日：官方 5 级级联；异常截断标 `INVALID` 不计分；所有 run `ill=0` | ✅ |
+
+**Python 引擎错在哪（量化，`test_consistency.py --rounds 120`，6 个 seed）**：**0/6 seeds 一致**，
+最早第 16 回合就分叉；错法是"**接受了官方会拒绝的操作/地图合法性不同**"——例如 seed 1 r16 里
+Python 侧多出一座塔 `(0, 11, 2, 1, 0, 10, 10)` 而 C++（=官方）侧没有；seed 42 r17 蚂蚁位置
+`(7,13,10)` vs `(7,15,11)`。这正是 08-08 那条 NOTE 记录的"Python SDK drifts
+（99/361 地图合法性格子 + build-highland / weapon-VOID 等合法性差异）"。
+
+⇒ **今天那条"4/8 胜负翻转"由此完全解释**：那是 **Python（错的那一边）**造成的，**我们的对战程序根本不走它**
+⇒ **当时想做的两个考古（引擎根因 / 文本序列化）确实没有必要**。
+
+⚠️ **一个诚实的覆盖边界**：`test_official_consistency.py` **故意不比蚂蚁的 `age`**（其头注明说：
+replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录，不是完整快照）⇒
+08-10 那个 `main.exe age=0 vs 其他 age=1` 的问题**正落在这个测试覆盖不到的地方**，仍未归因；
+但它对**我们**没有实际影响：我们走 pyd + bridge，而三个独立 AI（冠军 / rule_v4 / 我们自己的壳）
+都能正常解析这条路的局面文本。
