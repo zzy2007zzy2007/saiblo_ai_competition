@@ -32,6 +32,15 @@ REPO = Path(__file__).resolve().parent
 LOG_ROOT = REPO / "match_results" / "ladder_logs"
 TIMEOUT = 7200
 
+# 本脚本自己的 stdout/stderr 会被 run_logged 重定向进文件，此时 Python 用 **cp936** ⇒
+# 中文变乱码、emoji 直接 UnicodeEncodeError 崩掉（实测踩到：打印 "⚠️" 时异常退出，
+# 把整个汇总吃掉）。强制 UTF-8 + replace，任何字符都不会再让脚本死。
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        pass
+
 RESULT_RE = re.compile(
     r"RESULT seed=(\d+) p0=(\S+) p1=(\S+) winner=(\S+) verdict=(\S+) engine_winner=(\S+) "
     r"rounds=(\S+) terminal=(\S+) base_hp=(\d+),(\d+) coins=(\d+),(\d+)")
@@ -166,9 +175,9 @@ def main() -> int:
     verdicts = collections.Counter(g["verdict"] for g in games if g["verdict"])
     print(f"判词来源: {dict(verdicts)}  (engine=官方5级级联; hp_tiebreak=非官方兜底)", flush=True)
     if verdicts.get("hp_tiebreak"):
-        print("  ⚠️ 有 hp_tiebreak 的局 ⇒ 那些局的胜负不是官方规则算的，别当结论用。", flush=True)
+        print("  !! 有 hp_tiebreak 的局 => 那些局的胜负不是官方规则算的，别当结论用。", flush=True)
     if wins.get("draw"):
-        print("  ⚠️ 出现 draw ⇒ 判词一定不是官方的（官方级联第⑤级恒判 P0，从不平局）。", flush=True)
+        print("  !! 出现 draw => 判词一定不是官方的（官方级联第5级恒判 P0，从不平局）。", flush=True)
 
     # ---- 僵局检查：永远空过会让"对称签名"假通过 ----
     dead = [g["token"] for g in games if g["ops"]["p0"] + g["ops"]["p1"] <= 2]

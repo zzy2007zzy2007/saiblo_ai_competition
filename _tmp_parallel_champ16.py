@@ -27,6 +27,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
 LOG_DIR = REPO / "match_results" / "champ16_logs"
+
+# 同 _tmp_ladder.py：被 run_logged 重定向到文件时 Python 用 cp936 ⇒ 中文乱码 / emoji 崩溃。
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except (AttributeError, ValueError):
+        pass
 TOKENS = sys.argv[1:] or [str(s) for s in range(7, 23)]
 TIMEOUT = 7200  # 单局上限；多路并行有 CPU 争抢，留足余量
 

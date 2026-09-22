@@ -20,6 +20,11 @@ set -u
 REPO="D:/2026智能体大赛_新2"
 cd "$REPO" || exit 1
 
+# stdout 被重定向进 output.log 时，Windows 下 Python 会用 cp936 ⇒ 中文全乱码；更要命的是
+# 无法编码的字符（emoji 等）会直接 UnicodeEncodeError 把脚本打断
+# （2026-09-22 实测：_tmp_ladder.py 打印 "⚠️" 时崩掉，整个汇总被吃掉）。统一成 UTF-8。
+export PYTHONIOENCODING=utf-8
+
 NAME="${1:?用法: bash code/run_logged.sh <实验名> <命令...>}"
 shift
 if [ $# -eq 0 ]; then

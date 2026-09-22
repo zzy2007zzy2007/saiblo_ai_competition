@@ -56,7 +56,11 @@ def _label_of(exe: Path) -> tuple[str, bool]:
     return safe, is_magica
 
 
-TIMEOUT_SECONDS = 120.0
+TIMEOUT_SECONDS = 300.0
+# 2026-09-22：120 → 300。原值在机器被别的进程抢 CPU 时会把整局掐断
+# （实测 DET_seed11_run1：第 84 回合亚军那步 >120s，报
+#  "timed out reading ai_cpp_lure_v4 (need 50B, have 12B)"，整局作废）。
+# 它只是"卡死检测"的门限，不影响正常对局的结果。
 TRACE_OPS = "--trace-ops" in sys.argv
 
 DUMP_ROUND = None
