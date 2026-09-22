@@ -112,7 +112,7 @@
 
 | 步 | 命令（`P` = `D:/anaconda3/envs/pytorch-gpu/python.exe`） | **预期读数（跑之前写死）** |
 |---|---|---|
-| **A1** | `bash code/run_logged.sh ladder_A1_rv4_self $P -u _tmp_ladder.py --tag=A1_rv4_self --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r` | **每一对 AI0 得分 = 1.0，方差 = 0.0000**；`verdict=engine`；`ill=0`；**僵局检查 = 无**（rule_v4 会出招）；两局逐字段（rounds/base_hp/coins）**完全相同** |
+| **A1** | `bash code/run_logged.sh ladder_A1_rv4_self $P -u _tmp_ladder.py --tag=A1_rv4_self --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r` | 🔴 **原写"每对 AI0 得分 = 1.0、方差 0"是错的（2026-09-22 已跑，见下）**。正确签名：**两局读数逐字段完全相同**（确定性 ✓）+ **p0/p1 胜场接近各半**（无侧偏）+ `verdict=engine` + `ill=0` + 无僵局 |
 | **A2a** | `bash code/run_logged.sh ladder_A2_rv4_vs_champion $P -u _tmp_ladder.py --tag=A2a --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 7r 8 8r 9 9r 10 10r` | rule_v4 胜率 **≈ 0%**（配对得分 ≈ 0.0）。**非 0 就是环境可疑的信号**，不是"rule_v4 变强" |
 | **A2b** | 同上，`--ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe` | 同上 |
 | **B1** | `AZAI_CKPT=<选定> AZAI_ITERS=256 AZAI_DEPTH=4 ... $P -u _tmp_ladder.py --tag=B1_us_vs_rv4 --jobs=6 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r ... 14 14r` | 我们 vs rule_v4（**这一格现在完全没测过**）|
@@ -124,6 +124,25 @@
 ⚠️ **跑之前必须确认机器空闲**：实测 `DET_seed11_run1` 就是因为我在它旁边跑集成冒烟抢了 CPU，
 第 84 回合报 `timed out reading ai_cpp_lure_v4` 整局作废（当时门限还是 120s，现已改 300s）。
 **同一个 seed 的对照必须同批、同并行度**——`mirror8x2` 那次已经证明 6 路与 16 路跑出的胜负会翻转。
+
+### 8.0 ✅ A1（rule_v4 打自己）已跑 —— **环境通过了，但我预注册的签名被我自己的推导打错**
+
+seed 7–14 各两局、8 路、总 wall 233s（**单局只要 1.5–2.0 min**，rule_v4 不搜索）。完整读数见
+`docs/experiment_log.md` 的 `ladder_A1_rv4_self`。三条硬结论：
+
+1. **确定性 ✓**：8 对**全部"读数逐字段相同"**（rounds / 残血 / 金币 / 双方操作数与构成全一致）。
+2. **无侧偏 ✓**：p0 赢 8 局、p1 赢 8 局。
+3. **无僵局 + 判词官方 ✓**：双方各出 31–56 个操作；16 局全部 `verdict=engine`；`ill=0`。
+
+🔴 **我的签名推导错了**：我写"每对必然一胜一负 ⇒ 配对分 1.0、方差 0"，实跑却是 **16 局全 2.0、方差 0**。
+机制：**A1 里 AI0 与 AI1 是同一个程序（标签都是 `main`）**，`N` 与 `Nr` 里**执先手的都是 rule_v4**
+⇒ **两局是同一盘棋**；而配对分是拿 winner 的**标签**去比 AI0 的标签 ⇒ 标签相同就无脑算 AI0 赢。
+⇒ **同一个 AI 打自己时，镜像不提供"先手互换"的信息**，只能做确定性检查；**侧偏要用"哪一侧赢"来测**，
+而侧别必须由 bridge 显式给出 —— 已给 RESULT 加 **`winner_side=p0|p1|draw`**（与标签无关，同名 AI 也能读）。
+⚠️ 那个 1.0 签名的**正确适用场景是两个不同的 AI**（A2/B）：那时 `N`/`Nr` 才是两盘不同的棋。
+
+**附带形态差异**：rule_v4 自战 **16/16 靠打爆基地**在 294–378 回合结束（从没打满 512）；
+冠军 vs 亚军 **15/16 打满 512** 靠残血判 —— 完全不同的两种对局形态。
 
 ### 8.1 ⚠️ 已证实：**冠军/亚军的对局不可复现**（2026-09-22，四跑）
 

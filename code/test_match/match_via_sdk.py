@@ -495,14 +495,19 @@ def main() -> int:
         if winner is not None and winner in (0, 1):
             verdict = "engine"
             winner_ai = p0_lab if winner == 0 else p1_lab
+            winner_side = "p0" if winner == 0 else "p1"
         else:
             verdict = "hp_tiebreak"
             winner_ai = p0_lab if hp[0] > hp[1] else (p1_lab if hp[1] > hp[0] else "draw")
+            winner_side = ("p0" if hp[0] > hp[1] else ("p1" if hp[1] > hp[0] else "draw"))
         wins[winner_ai] = wins.get(winner_ai, 0) + 1
-        print(f"  >>> {winner_ai} 胜 <<<", flush=True)
+        print(f"  >>> {winner_ai}({winner_side}) 胜 <<<", flush=True)
+        # winner_side 是**标签之外**的独立信息：两个 AI 同名时（例如 A1 里都是 main）
+        # 只有它能告诉你赢的是哪一侧。标签用于区分不同 AI，侧别用于镜像配对与侧偏检查。
         print(f"  RESULT seed={seed} p0={p0_lab} p1={p1_lab} winner={winner_ai} "
-              f"verdict={verdict} engine_winner={winner} rounds={r.get('rounds')} "
-              f"terminal={bool(r.get('terminal'))} base_hp={hp[0]},{hp[1]} "
+              f"winner_side={winner_side} verdict={verdict} engine_winner={winner} "
+              f"rounds={r.get('rounds')} terminal={bool(r.get('terminal'))} "
+              f"base_hp={hp[0]},{hp[1]} "
               f"coins={(r.get('coins') or [0, 0])[0]},{(r.get('coins') or [0, 0])[1]}", flush=True)
 
     print(f"\n{'='*70}\n汇总: {json.dumps(wins, ensure_ascii=False)}\n{'='*70}")

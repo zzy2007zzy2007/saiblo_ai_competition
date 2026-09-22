@@ -42,17 +42,19 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 RESULT_RE = re.compile(
-    r"RESULT seed=(\d+) p0=(\S+) p1=(\S+) winner=(\S+) verdict=(\S+) engine_winner=(\S+) "
-    r"rounds=(\S+) terminal=(\S+) base_hp=(\d+),(\d+) coins=(\d+),(\d+)")
+    r"RESULT seed=(\d+) p0=(\S+) p1=(\S+) winner=(\S+) (?:winner_side=(\S+) )?verdict=(\S+) "
+    r"engine_winner=(\S+) rounds=(\S+) terminal=(\S+) base_hp=(\d+),(\d+) coins=(\d+),(\d+)")
 OPS_RE = re.compile(r"\[round (\d+)\] p(\d)\((\w+)\) .*-> \[(.*)\]$")
 
 
 def parse_cli(argv: list[str]) -> tuple[dict, list[str]]:
-    cfg = {"tag": "ladder", "jobs": 8, "ai0": None, "ai1": None}
+    cfg = {"tag": "ladder", "jobs": 8, "ai0": None, "ai1": None, "reanalyze": False}
     toks: list[str] = []
     for a in argv:
         if a.startswith("--tag="):
             cfg["tag"] = a.split("=", 1)[1]
+        elif a == "--reanalyze":
+            cfg["reanalyze"] = True
         elif a.startswith("--jobs="):
             cfg["jobs"] = int(a.split("=", 1)[1])
         elif a.startswith("--ai0="):
@@ -90,9 +92,10 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
 
 def read_game(log_path: Path, token: str) -> dict:
     txt = log_path.read_text(encoding="utf-8", errors="replace")
-    g: dict = {"token": token, "winner": None, "verdict": None, "engine_winner": None,
+    g: dict = {"token": token, "winner": None, "winner_side": None, "verdict": None,
+               "engine_winner": None,
                "rounds": None, "terminal": None, "hp": None, "coins": None,
-               "p0_label": None, "p1_label": None, "illegal": 0,
+               "p0_label": None, "p1_label": None, "same_label": False, "illegal": 0,
                "ops": collections.Counter(), "act": collections.Counter(),
                "hist": collections.defaultdict(collections.Counter)}
     for ln in txt.splitlines():
@@ -101,10 +104,18 @@ def read_game(log_path: Path, token: str) -> dict:
         m = RESULT_RE.search(ln)
         if m:
             g["p0_label"], g["p1_label"] = m.group(2), m.group(3)
-            g["winner"], g["verdict"], g["engine_winner"] = m.group(4), m.group(5), m.group(6)
-            g["rounds"], g["terminal"] = m.group(7), m.group(8)
-            g["hp"] = (int(m.group(9)), int(m.group(10)))
-            g["coins"] = (int(m.group(11)), int(m.group(12)))
+            g["same_label"] = (m.group(2) == m.group(3))
+            g["winner"] = m.group(4)
+            g["winner_side"] = m.group(5)          # 新格式才有；旧日志为 None
+            g["verdict"], g["engine_winner"] = m.group(6), m.group(7)
+            g["rounds"], g["terminal"] = m.group(8), m.group(9)
+            g["hp"] = (int(m.group(10)), int(m.group(11)))
+            g["coins"] = (int(m.group(12)), int(m.group(13)))
+            # 旧日志（无 winner_side）的兜底：HP 不等时按 HP 判侧（与官方级联第①级一致）。
+            # ⚠️ 这只是读旧日志用的近似，不是"重新判胜负"；HP 相等时留 None，不猜。
+            if g["winner_side"] is None and g["verdict"] != "aborted":
+                h0, h1 = g["hp"]
+                g["winner_side"] = "p0" if h0 > h1 else ("p1" if h1 > h0 else None)
         m = OPS_RE.search(ln)
         if m:
             who, ops = "p" + m.group(2), m.group(4)
@@ -136,21 +147,26 @@ def main() -> int:
     print(f"[ladder] tokens={tokens}  logs={out_dir}", flush=True)
 
     results: dict[str, tuple[int, float]] = {}
-    lock = threading.Lock()
-    sem = threading.Semaphore(cfg["jobs"])
-    t0 = time.time()
-    threads = [threading.Thread(target=run_one,
-                                args=(t, out_dir / f"{t}.log", fwd, sem, results, lock))
-               for t in tokens]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    wall = time.time() - t0
-    dts = [d for _, d in results.values()]
-    if dts:
-        print(f"\n[ladder] 全部结束 wall={wall:.1f}s  单局 min/med/max = "
-              f"{min(dts)/60:.1f}/{sorted(dts)[len(dts)//2]/60:.1f}/{max(dts)/60:.1f} min", flush=True)
+    if cfg["reanalyze"]:
+        # 只重新解析已存在的日志（改了汇总逻辑后不必重跑对局）
+        print("[ladder] --reanalyze：跳过对局，直接解析已有日志", flush=True)
+    else:
+        lock = threading.Lock()
+        sem = threading.Semaphore(cfg["jobs"])
+        t0 = time.time()
+        threads = [threading.Thread(target=run_one,
+                                    args=(t, out_dir / f"{t}.log", fwd, sem, results, lock))
+                   for t in tokens]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        wall = time.time() - t0
+        dts = [d for _, d in results.values()]
+        if dts:
+            print(f"\n[ladder] 全部结束 wall={wall:.1f}s  单局 min/med/max = "
+                  f"{min(dts)/60:.1f}/{sorted(dts)[len(dts)//2]/60:.1f}/{max(dts)/60:.1f} min",
+                  flush=True)
 
     games = []
     for t in tokens:
@@ -187,14 +203,36 @@ def main() -> int:
     dead = [g["token"] for g in games if g["ops"]["p0"] + g["ops"]["p1"] <= 2]
     print(f"僵局嫌疑（全场双方操作总数 ≤2）: {dead if dead else '无'}", flush=True)
 
+    # ---- 先手侧统计（来自 RESULT 的 winner_side，与标签无关 ⇒ 两个 AI 同名时也能用）----
+    side = collections.Counter()
+    for g in games:
+        if not g["winner"] or g["winner"] == "INVALID":
+            continue
+        side[g["winner_side"] or "不可判(HP 相等且无 winner_side)"] += 1
+    print(f"\n=== 先手侧胜负: {dict(side)} ===", flush=True)
+    if side.get("不可判(HP 相等且无 winner_side)"):
+        print("  !! 有局判不出侧别（旧日志且 HP 相等）——请用新 bridge 重跑以获得 winner_side。",
+              flush=True)
+
     # ---- 镜像配对（AI0 得分 / 2）----
+    # ⚠️ 只有**两个 AI 不同**时这个读数才成立（那时 N/Nr 是先手互换的两盘棋）。
+    # 若 AI0 == AI1：N 与 Nr 里执先手的都是同一个程序 ⇒ 两局是**同一盘棋**、胜负必然相同，
+    # 而 winner 只有标签、区分不出是哪一边 ⇒ 得分恒为 2.0（我就这样把 A1 误读过一次）。
     seeds_seen: dict[int, list[dict]] = collections.defaultdict(list)
     for g in games:
         s = re.match(r"(\d+)", g["token"])
         if s:
             seeds_seen[int(s.group(1))].append(g)
     pairs = {s: v for s, v in seeds_seen.items() if len(v) == 2}
-    if pairs:
+    if pairs and any(g["same_label"] for g in games):
+        print(f"\n=== 镜像配对: {len(pairs)} 对 —— 两个 AI 相同（同标签），配对分**不可用**；"
+              f"改用上面的「先手侧胜负」。这里只做**确定性检查** ===", flush=True)
+        for s in sorted(pairs):
+            tok = [g["token"] for g in pairs[s]]
+            readouts = {(g["rounds"], str(g["hp"]), str(g["coins"]), g["winner"]) for g in pairs[s]}
+            same = "读数逐字段相同 ✓" if len(readouts) == 1 else f"读数不同! {readouts}"
+            print(f"  seed {s}: {tok} -> {same}", flush=True)
+    elif pairs:
         print(f"\n=== 镜像配对（AI0 得分 / 2）: {len(pairs)} 对 ===", flush=True)
         vals: list[float] = []
         for s in sorted(pairs):
@@ -214,7 +252,7 @@ def main() -> int:
             mean = sum(vals) / len(vals)
             var = sum((x - mean) ** 2 for x in vals) / len(vals)
             print(f"  均值 = {mean:.3f}  方差 = {var:.4f}   "
-                  f"（完全相同 AI 的预期 = 1.000 / 0.0000）", flush=True)
+                  f"（等强度 AI 的预期 = 1.000 / 0.0000）", flush=True)
     return 0
 
 
