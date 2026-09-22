@@ -104,3 +104,30 @@
 5. **A3** 口径对照（tie-break vs 官方 score map）。
 6. **B** 包装我们的 AI → 跑"我们 vs rule_v4 / 亚军 / 冠军"。
 7. 记档：把阶梯表写进 `docs/experiment_log.md`，并把"环境是否健康"单独写成一条结论。
+
+## 8. 预注册：具体命令与预期读数（2026-09-22 写死，跑之前）
+
+运行器 = `_tmp_ladder.py`（并行跑 bridge、只读 `RESULT` 行、报镜像配对）。**每个 seed 跑两局**
+（`N` = AI0 先手、`Nr` = AI1 先手）。并行度按实测拐点取 **8**（不要 16）。
+
+| 步 | 命令（`P` = `D:/anaconda3/envs/pytorch-gpu/python.exe`） | **预期读数（跑之前写死）** |
+|---|---|---|
+| **A1** | `bash code/run_logged.sh ladder_A1_rv4_self $P -u _tmp_ladder.py --tag=A1_rv4_self --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r` | **每一对 AI0 得分 = 1.0，方差 = 0.0000**；`verdict=engine`；`ill=0`；**僵局检查 = 无**（rule_v4 会出招）；两局逐字段（rounds/base_hp/coins）**完全相同** |
+| **A2a** | `bash code/run_logged.sh ladder_A2_rv4_vs_champion $P -u _tmp_ladder.py --tag=A2a --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 7r 8 8r 9 9r 10 10r` | rule_v4 胜率 **≈ 0%**（配对得分 ≈ 0.0）。**非 0 就是环境可疑的信号**，不是"rule_v4 变强" |
+| **A2b** | 同上，`--ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe` | 同上 |
+| **B1** | `AZAI_CKPT=<选定> AZAI_ITERS=256 AZAI_DEPTH=4 ... $P -u _tmp_ladder.py --tag=B1_us_vs_rv4 --jobs=6 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r ... 14 14r` | 我们 vs rule_v4（**这一格现在完全没测过**）|
+| **B2/B3** | 同 B1，`--ai1` 换成冠军 / 亚军 | 我们 vs 冠军 / 亚军（目标本身）|
+
+**读 A1 的一个额外好处**：`rule_v4` 是纯 Python 确定性代码（没有墙钟预算）⇒ A1 把"**harness 的确定性**"
+与"**AI 侧的时间依赖**"分开了。即使冠军那种时间依赖的不确定性存在，A1 仍应给出干净的 1.0。
+
+⚠️ **跑之前必须确认机器空闲**：实测 `DET_seed11_run1` 就是因为我在它旁边跑集成冒烟抢了 CPU，
+第 84 回合报 `timed out reading ai_cpp_lure_v4` 整局作废（当时门限还是 120s，现已改 300s）。
+**同一个 seed 的对照必须同批、同并行度**——`mirror8x2` 那次已经证明 6 路与 16 路跑出的胜负会翻转。
+
+### 8.1 待用户拍板（B 的前置）
+
+壳从环境变量读搜索配置（默认 `iters=256 depth=4 mode=joint pospin=argmax t_class=0.5
+t_pos=1.0 temp=1e-6`）。**B 要报强度，"我们"必须是项目的"最强已知"那一套**，而记忆里对
+rule_v4 最好的读数是 `r69p+v50v` / `az_mix_gen0120p_v50v` 那一族（46.9%），
+与近期的 `posnet_A_k5_m32` + `valnet_A2` **不是同一条线** ⇒ 用哪套当"我们"需用户指定。
