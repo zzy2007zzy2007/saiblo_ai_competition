@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shlex
 import struct
 import subprocess
 import sys
@@ -39,6 +40,28 @@ RUNNERUP_EXE = (REPO_ROOT / "其他版本ai" / "saiblo-30th-AI" / "Game1"
 # 例如阶梯计划的 A1（rule_v4 打自己）与 A2（rule_v4 打冠军/亚军）。
 AI0_EXE: Path | None = None
 AI1_EXE: Path | None = None
+
+# 通用接入口的其余部分：每个 AI 还可以带自己的 argv / env / cwd。
+# 目的：**任意设计、任意语言**的协议 AI 都能当参数接进来，不必迁就我们的技术路径。
+# 协议本体见 docs/protocol_ai_spec.md；最小示例见 code/test_match/example_ai.py。
+AI_SPEC: dict[int, dict] = {
+    0: {"args": (), "env": {}, "cwd": None},
+    1: {"args": (), "env": {}, "cwd": None},
+}
+
+
+def _parse_env(spec: str) -> dict[str, str]:
+    """`--ai0-env=K=V;K2=V2` → dict。"""
+    out: dict[str, str] = {}
+    for part in spec.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" not in part:
+            raise ValueError(f"环境变量要用 K=V 形式，收到 {part!r}")
+        k, v = part.split("=", 1)
+        out[k.strip()] = v
+    return out
 
 
 def _label_of(exe: Path) -> tuple[str, bool]:
@@ -205,7 +228,14 @@ def state_to_text(state: GameState) -> str:
 
 
 def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: dict | None = None,
-             strip_cr: bool = False) -> tuple[subprocess.Popen, ProcIO]:
+             strip_cr: bool = False, argv: tuple[str, ...] = (), cwd: Path | None = None,
+             ) -> tuple[subprocess.Popen, ProcIO]:
+    """启动一个 AI。
+
+    **通用接入口**：`argv`（额外命令行参数）、`cwd`（工作目录）、`extra_env`（环境变量）
+    都是参数 ⇒ 任意设计、任意语言写的协议 AI 都能当参数接进来，不必迁就我们的技术路径。
+    详细协议见 `docs/protocol_ai_spec.md`。
+    """
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)
@@ -214,12 +244,12 @@ def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: di
         # 抄自 code/test_match/run_cpp_ai_match.py:65-70（code/test_match/rv4_pkg/main.py
         # 就是靠这个跑的）——本文件原来只支持可执行文件，所以 rule_v4 这类 Python AI 进不来。
         env["PYTHONPATH"] = str(REPO_ROOT / "Ant-Game") + os.pathsep + env.get("PYTHONPATH", "")
-        cmd = [sys.executable, str(exe)]
+        cmd = [sys.executable, str(exe), *argv]
     else:
-        cmd = [str(exe)]
+        cmd = [str(exe), *argv]
     proc = subprocess.Popen(
         cmd,
-        cwd=exe.parent,
+        cwd=str(cwd) if cwd else str(exe.parent),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=stderr_path.open("wb"),
@@ -254,10 +284,15 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
                     "ANTWAR_MAGICA_RUNTIME_ARTIFACT_DIR": r"e:\magica_runtime"}
         return {"ANTGAME_CPP_BASELINE_DEBUG": "summary"}
 
-    proc0, io0 = start_ai(p0_exe, 0, seed, stderr0, extra_env=ai_env(p0_magica),
-                          strip_cr=not p0_magica)
-    proc1, io1 = start_ai(p1_exe, 1, seed, stderr1, extra_env=ai_env(p1_magica),
-                          strip_cr=not p1_magica)
+    # AI 的 argv/env/cwd 跟着 **AI 的身份**（ai0/ai1）走，不跟着"谁执先手"走
+    s0 = AI_SPEC[0] if not runnerup_first else AI_SPEC[1]
+    s1 = AI_SPEC[1] if not runnerup_first else AI_SPEC[0]
+    env0 = {**ai_env(p0_magica), **s0["env"]}
+    env1 = {**ai_env(p1_magica), **s1["env"]}
+    proc0, io0 = start_ai(p0_exe, 0, seed, stderr0, extra_env=env0,
+                          strip_cr=not p0_magica, argv=s0["args"], cwd=s0["cwd"])
+    proc1, io1 = start_ai(p1_exe, 1, seed, stderr1, extra_env=env1,
+                          strip_cr=not p1_magica, argv=s1["args"], cwd=s1["cwd"])
 
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
     result: dict = {"seed": seed, "champion_first": p0_magica,
@@ -391,6 +426,18 @@ def main() -> int:
             AI0_EXE = Path(arg.split("=", 1)[1]).resolve()
         elif arg.startswith("--ai1="):
             AI1_EXE = Path(arg.split("=", 1)[1]).resolve()
+        elif arg.startswith("--ai0-args="):
+            AI_SPEC[0]["args"] = tuple(shlex.split(arg.split("=", 1)[1]))
+        elif arg.startswith("--ai1-args="):
+            AI_SPEC[1]["args"] = tuple(shlex.split(arg.split("=", 1)[1]))
+        elif arg.startswith("--ai0-env="):
+            AI_SPEC[0]["env"] = _parse_env(arg.split("=", 1)[1])
+        elif arg.startswith("--ai1-env="):
+            AI_SPEC[1]["env"] = _parse_env(arg.split("=", 1)[1])
+        elif arg.startswith("--ai0-cwd="):
+            AI_SPEC[0]["cwd"] = Path(arg.split("=", 1)[1]).resolve()
+        elif arg.startswith("--ai1-cwd="):
+            AI_SPEC[1]["cwd"] = Path(arg.split("=", 1)[1]).resolve()
         elif arg.isdigit():
             seeds.append((int(arg), False))
         elif arg.endswith("r") and arg[:-1].isdigit():
@@ -403,6 +450,13 @@ def main() -> int:
     a0, a1 = AI0_EXE or CHAMPION_EXE, AI1_EXE or RUNNERUP_EXE
     print(f"[bridge] AI0={a0}", flush=True)
     print(f"[bridge] AI1={a1}", flush=True)
+    for _i, _p in ((0, a0), (1, a1)):
+        _s = AI_SPEC[_i]
+        print(f"[bridge] AI{_i} spec: args={list(_s['args'])} cwd={_s['cwd']} env={_s['env']}",
+              flush=True)
+    # 裁判身份必须显式可见：main.exe 与我们的 cpp_engine 不是风格差异，是"正常对局"与
+    # "两个 AI 全程静默弃权"的分界（2026-08-10），而且三份引擎源码逐字节相同、源码比对也发现不了。
+    print("[bridge] judge=cpp_engine (in-process GameStateFacade)", flush=True)
     print(f"[bridge] max_rounds={max_rounds}  seeds={seeds}", flush=True)
 
     wins: dict[str, int] = {}
