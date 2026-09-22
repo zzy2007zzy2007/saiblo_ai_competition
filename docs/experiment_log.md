@@ -4170,3 +4170,74 @@ done
   `feedback_known_good_control_for_harness.md` 那条"32/32 pairs = 1.0"。
   **⇒ 正确读法：同 AI 镜像 = 「每对恰好一胜一负、方差 0」；求和口径记 1.0、均值口径记 0.5。**
   我先前在 A1 里报出"全 2.0"，是因为拿 winner 的**标签**去比 AI0 的标签（同名标签区分不出两侧）。
+
+## 2026-09-22 21:24:44 — P3_rv4_self_resolve_turn
+
+- **commit**: `6ce9eb3` (dirty: 18 files)
+- **exit**: 0，用时 638s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_rv4_self_resolve_turn.py 7 8 9 10 11 12 13 14
+  ```
+- **output**: `training_history/runs/20260922_212444_P3_rv4_self_resolve_turn/output.log`
+- **result**: 🔴🔴 **三路径对照：引擎差异是"一阶变量"，回合结算 API 是等价的；rule_v4 自对弈 4/8 个 seed 的胜负因引擎翻转。**
+
+  用户 2026-09-22 提出（"rule_v4 挺快，实验不费时间"）。**目的**：把两个正交变量分开量化——
+  「引擎」（Python SDK vs 我们的 C++ facade）与「回合结算 API」（`apply_operation_list`+`advance_round`
+  vs 官方 `resolve_turn`+`to_public_round_state`）。三路径、同 seed 7–14、两侧都是原版 rule_v4：
+
+  | 路径 | 引擎 | 结算 API |
+  |---|---|---|
+  | **P1** | **C++** facade | `apply_operation_list` + `advance_round` |
+  | **P2** | **Python** SDK | 同上 |
+  | **P3** | **Python** SDK | **`resolve_turn`** + `to_public_round_state` |
+
+  命令：P1 = `rule_v4_lightning_match.py --null --pairs 8 --seed 7`；
+  P2 = 同上 `+ --python-engine`（本轮新加，用来强制关掉 `native_engine` 的默认 True）；
+  P3 = `_tmp_rv4_self_resolve_turn.py 7 8 … 14`（照抄 `vs_rule_v4.py` 的循环；**故意不用 `run_match.py`**
+  ——它的 `GameState.initial` 没传 `cold_handle_rule_illegal`，会把第二个变量也一起改掉）。
+
+  | seed | P1（回合, hp0:hp1）| P2 | P3 | 一致 |
+  |---|---|---|---|---|
+  | 7 | 326, 0:16 | 386, 0:1 | 386, 0:1 | **P2=P3** |
+  | 8 | 352, 0:11 | 351, 0:17 | 351, 0:17 | **P2=P3** |
+  | 9 | 375, **4:0** | 321, **0:21** | 321, **0:21** | **P2=P3** |
+  | 10 | 294, **0:16** | 351, **9:0** | 351, **9:0** | **P2=P3** |
+  | 11 | 322, **15:0** | 327, **0:15** | 327, **0:15** | **P2=P3** |
+  | 12 | 375, 0:11 | 383, 0:10 | 383, 0:10 | **P2=P3** |
+  | 13 | 378, 7:0 | 336, 8:0 | 336, 8:0 | **P2=P3** |
+  | 14 | 358, **6:0** | 323, **0:8** | 323, **0:8** | **P2=P3** |
+
+  **两条硬结论**：
+  1. **`resolve_turn` ≡ `apply_operation_list`+`advance_round`**：同引擎下 P2 与 P3 **8/8 逐字段相同**
+     ⇒ **结算 API 不是隐藏变量**（也顺带说明 `vs_rule_v4.py`/`run_match.py` 那条路在"规则"上没有和我们分家
+     ——分家的只有引擎）。
+  2. **C++ facade ≠ Python SDK 引擎，且是一阶差异**：P1 对 8/8 个 seed 都不等于 P2/P3；
+     **胜负在 4/8 个 seed 上翻转**（seed 9/11/14：P1 判 p0、P2/P3 判 p1；seed 10 反向）。
+     回合数最多差 ~60（seed 7：326 vs 386），残血最多差 ~16 点。
+
+  **实践含义**：历史读数**全在 C++ 引擎上**（`eval.py` 14/14、`az_search_vs_search.py` 6/6 显式带
+  `--native-engine`；`collect_value_prior.py`/`heuristic_candidates_match.py` 默认值就是 True）⇒ 历史内部自洽；
+  但**跨引擎比较不可用**，且同一件事换引擎可能改掉几十个百分点（这里只是自对弈就 4/8 翻转；
+  对手强弱有别时只会更大）。**同一实验的不同臂必须钉死同一引擎。**
+
+  🎯 **副产品（重要）**：这给了那个**悬了很久的"Python vs C++ 引擎差异"第一个最小可复现例子**
+  （08-10 那次没归因成，我还否掉了"源码版本不同"——三份 `game/src` 逐字节相同）。
+  现在只要把两条路**每回合局面 dump 出来逐行对拍**，就能定位**第一次分歧在第几回合、差在哪个字段**
+  （蚂蚁 age？伤害取整？塔冷却？）。
+
+## 2026-09-22 21:35:23 — P2_rv4_self_python_engine
+
+- **commit**: `6ce9eb3` (dirty: 19 files)
+- **exit**: 0，用时 199s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/rule_v4_lightning_match.py --null --pairs 8 --seed 7 --workers 8 --python-engine
+  ```
+- **output**: `training_history/runs/20260922_213523_P2_rv4_self_python_engine/output.log`
+- **result**: 🔴 **三路径对照的 P2 臂（Python SDK 引擎 + `apply_operation_list`）——完整分析与结论见上一条
+  `P3_rv4_self_resolve_turn`。**
+
+  一句话：**P2 与 P3（Python 引擎 + 官方 `resolve_turn`）8/8 逐字段完全相同**，而 **P1（C++ facade）8/8 都不同**，
+  且**胜负在 4/8 个 seed 上翻转** ⇒ **差异全来自引擎，结算 API 等价**。
+  本臂就是用来做这个隔离的（`--python-engine` 是本轮为此新加的开关）。

@@ -104,8 +104,13 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--native-engine", action="store_true", default=True)
+    ap.add_argument("--python-engine", action="store_true",
+                    help="强制用 Python SDK 引擎（覆盖 --native-engine 的默认 True）。"
+                         "用途：隔离「引擎」这个变量——同一个 AI、同一批 seed，只换引擎对比。"
+                         "见 docs/experiment_log.md 的引擎对照条。")
     ap.add_argument("--max-rounds", type=int, default=512)
     a = ap.parse_args()
+    native = a.native_engine and not a.python_engine
     pos_source = None if a.null else (None if a.pos_source == "none" else a.pos_source)
     tag = ("NULL(原版 vs 原版)" if a.null else
        f"mode={a.mode} opp={a.opp_mode} pos_source={pos_source}")
@@ -114,7 +119,7 @@ def main() -> None:
     for i in range(a.pairs):
         s = a.seed + i
         for pl in (0, 1):
-            jobs.append((s, pl, pos_source, a.ckpt, a.native_engine, a.max_rounds,
+            jobs.append((s, pl, pos_source, a.ckpt, native, a.max_rounds,
                          a.mode, a.opp_mode, a.null))
 
     import multiprocessing as mp
