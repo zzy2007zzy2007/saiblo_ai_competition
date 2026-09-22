@@ -4092,7 +4092,9 @@ done
   D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A2a_rv4_vs_champion --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
   ```
 - **output**: `training_history/runs/20260922_175955_ladder_A2a_rv4_vs_champion/output.log`
-- **result**: _待填_
+- **result**: ⏹ **用户主动中止**（`exit 127` 是我 kill 掉整棵进程树造成的，不是失败）。中止后改跑了一个
+  更基础的对照（见 `ctrl_rv4_self_orig_runner` / `ctrl_rv4_self_inprocess`），确认环境正常后
+  **于 22:07 重跑并完成**——完整结果见 `## 2026-09-22 22:07:05 — ladder_A2a_rv4_vs_champion`。
 
 ## 2026-09-22 18:07:00 — ctrl_rv4_self_orig_runner
 
@@ -4269,3 +4271,81 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
 08-10 那个 `main.exe age=0 vs 其他 age=1` 的问题**正落在这个测试覆盖不到的地方**，仍未归因；
 但它对**我们**没有实际影响：我们走 pyd + bridge，而三个独立 AI（冠军 / rule_v4 / 我们自己的壳）
 都能正常解析这条路的局面文本。
+
+## 2026-09-22 22:07:05 — ladder_A2a_rv4_vs_champion
+
+- **commit**: `b0ab76a` (dirty: 17 files)
+- **exit**: 0，用时 1417s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A2a_rv4_vs_champion --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260922_220705_ladder_A2a_rv4_vs_champion/output.log`
+- **result**: ✅✅ **A2 通过（环境探针）：`rule_v4` 对冠军 0/16、对亚军 0/16 —— 合计 0/32。环境健康。**
+
+  **设计**（`champ_ladder_plan.md` §8 预注册）：8 个 seed（7–14）× 镜像（`N` = rule_v4 先手、`Nr` = 冠军先手）
+  = **16 局**，`--jobs=8`，裁判 = `code/cpp_engine`（`verdict=engine` 是官方 5 级级联），A2b 同构换亚军。
+  两批**串行**（避开两批的 rule_v4 写同一份 stderr 日志）。
+
+  **A2a：冠军 16 : rule_v4 0**（用时 1417s）
+  | token | 回合 | hp (p0,p1) | 胜方 | rule_v4 出招 | 冠军出招 |
+  |---|---|---|---|---|---|
+  | 7 | 324 | 0, 30 | 冠军 | 28 回合/28 op | 143/221 |
+  | 8 | 333 | 0, 36 | 冠军 | 34/34 | 138/205 |
+  | 9 | 437 | 0, 31 | 冠军 | 50/50 | 180/273 |
+  | 10 | 385 | 0, 31 | 冠军 | 38/38 | 154/234 |
+  | 11 | 378 | 0, 41 | 冠军 | 34/34 | 131/189 |
+  | 12 | 374 | 0, 36 | 冠军 | 37/37 | 151/220 |
+  | 13 | 344 | 0, 34 | 冠军 | 31/31 | 115/184 |
+  | 14 | 360 | 0, 33 | 冠军 | 31/31 | 120/179 |
+  | 7r–14r | 311–409 | （rule_v4 侧为 0）| 冠军 | 31–42/31–42 | 88–158/125–267 |
+
+  **A2b：亚军 16 : rule_v4 0**（用时 1744s）：同构。15/16 局 rule_v4 基地被打到 0（回合 311–467）；
+  唯一例外 seed 7 打满 512 回合、rule_v4 剩 3 血（hp 3:13）。
+
+  **判读**：
+  1. **探针通过**（用户 2026-09-22 提出）："rule_v4 的胜率不是 0% 就说明环境有问题" ⇒ 实测 **0/32**，
+     **环境健康**。这也又一次验证了 bridge/裁判/协议：32 局 **`ill=0`、全部 `verdict=engine`、
+     无 `INVALID`、无僵局**。
+  2. **镜像配对分 = 0.000、方差 0.0000（两批各 8/8 对）** ⇒ rule_v4 **执先手与执后手都输**，
+     **没有"换边就能赢"的口子**；先手侧 p0 8 / p1 8 ⇒ 无侧偏。这是**实力差**。
+  3. **不是"输在残血"**：几乎每局 rule_v4 的基地都被打到 0 ⇒ 前两名是**把它打爆**，而不是靠打满
+     512 回合比残血赢（对比：冠军 vs 亚军 15/16 是打满回合比残血）。
+  4. **活动量差 4–5 倍**：冠军 115–180 个出招回合 / 179–273 op，rule_v4 只有 28–50 / 28–52。
+
+  **阶梯现状（三格已在同一把尺子上、同一引擎）**：
+
+  | 对局 | 结果 | 备注 |
+  |---|---|---|
+  | rule_v4 vs 冠军 | **0/16** | 被爆基地（311–409 回合）|
+  | rule_v4 vs 亚军 | **0/16** | 被爆基地（311–467），1 局满回合 |
+  | 我们 vs rule_v4 | **30–47%**（最好 46.9%，CI 含 50%）| `eval.py`，C++ 引擎 |
+  | 我们 vs 冠军/亚军 | **未测**（B 臂，用户判断大概率 0%，暂缓）| — |
+
+  ⇒ **我们最多比 rule_v4 高一档（打平），而 rule_v4 在前两名面前是 0/32 且被打爆基地。**
+  ⇒ "打败冠军"的**上界**清楚了（不是"打平 rule_v4 就够"，得先**撑住它们的经济**）；
+  **下界仍空白**（我们 vs 它们未测）。⇒ **"稳定 >50% 打掉 rule_v4"仍是那个真正的第一里程碑**
+  （我们现在连这一步都还没稳）。
+
+  ⚠️ 读法提醒：**"0 胜/16 局"不等于胜率恰好 0**（95% 上界约 20%）；且那两个黑盒**不可复现**
+  ⇒ **只读聚合、不读逐 seed**。
+
+  ⚠️ 本批与 08-10 那份"rule_v4 对冠军/亚军 0%"的用户记忆一致——但注意**用户当时的读数没有记录在案**
+  （不是 run_logged 跑的），本轮是**第一次把它记进实验日志**。
+
+## 2026-09-22 22:30:43 — ladder_A2b_rv4_vs_runnerup
+
+- **commit**: `b0ab76a` (dirty: 18 files)
+- **exit**: 0，用时 1744s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A2b_rv4_vs_runnerup --jobs=8 --ai0=code/test_match/rv4_pkg/main.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260922_223043_ladder_A2b_rv4_vs_runnerup/output.log`
+- **result**: ✅✅ **A2b 通过：亚军 16 : rule_v4 0（用时 1744s）——完整判读见上一条 `A2a`（两批结论同构）。**
+
+  要点：**15/16 局 rule_v4 基地被打到 0**（结束于 311–467 回合），唯一例外 seed 7 打满 512 回合、
+  rule_v4 剩 3 血（hp 3:13）；**`ill=0`、全部 `verdict=engine`、无 `INVALID`、无僵局**；
+  **镜像配对分 = 0.000、方差 0.0000（8/8 对）**；先手侧 p0 8 / p1 8（无侧偏）。
+  亚军 33–118 个出招回合 / 111–191 op，rule_v4 31–66 / 33–66。
+  ⇒ 与 A2a 合起来：**rule_v4 对前两名合计 0/32，探针通过，环境健康**。
