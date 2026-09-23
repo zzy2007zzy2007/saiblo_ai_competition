@@ -41,7 +41,8 @@
 | `resolve_turn` ≡ `apply_operation_list`+`advance_round` | 三路径对照 P2=P3 8/8 | **强**（逐字段）|
 | **协议层不改变对局**（进程内直连 vs 协议 bridge 等价）| `ctrl_rv4_self_inprocess` vs `A1_rv4_self` 16/16 逐字段一致 | **强**（逐字段）|
 | `rule_v4` **确定性**（镜像两局读数逐字段相同）| `A1_rv4_self` 8/8 对 | **强** |
-| **冠军/亚军不可复现** ⇒ **只读聚合、不读逐 seed** | 四跑（`DET*`/`DET3_seed11_hexdump`）| **中**（只做了 1 个 seed 的四跑；其它 seed 未复测）|
+| **分帧 bug（已修）**：bridge 的 `strip_cr` 曾在读取层删流里的 `0x0D` 字节，而这条流带**二进制长度前缀** ⇒ 某次回包 payload 长度含 0x0D 时（13、269…）整条流错位、这局被超时掐断 | **hex dump 逐字节吻合**（payload 13 字节、误读长度 50=`0x32`='2'）+ `_tmp_test_framing.py` PASS | **强** |
+| **冠军/亚军不可复现** ⇒ **只读聚合、不读逐 seed** | 四跑（`DET*`/`DET3_seed11_hexdump`）| **存疑**（⚠️ **证据被分帧 bug 污染**：三次"卡在 r84"已确认就是那个 bug（`need 50B, have 12B` 同签名），不是 AI 的问题；但"第 84 回合棋盘不同"这一点仍未解释 ⇒ **必须重测**才能恢复/推翻）|
 | `rule_v4` vs 冠军 **0/16**、vs 亚军 **0/16**，且**被打爆基地** | `A2a` / `A2b` | **中**（配对、n=16/对手；"0"≠"恰为 0"，上界 ~20%）|
 | 历史读数**全部**在 C++ 引擎上（内部自洽）| `_tmp_audit_eval_cmds.py`：14/14、6/6 带 flag；两工具默认 True | **中**（只覆盖**进了日志**的 run）|
 | 判词是**官方 5 级级联**；官方**从不判平局**；异常截断局须标 `INVALID` | `game.cpp: judge_winner()`；bridge RESULT（commit `57724c0`）| **强**（读源码 + 实测一致）|

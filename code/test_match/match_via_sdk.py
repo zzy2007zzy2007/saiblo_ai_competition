@@ -116,6 +116,8 @@ class ProcIO:
         import threading
         self._proc = proc
         self._label = label
+        # ⚠️ 已废弃：读取层**绝不**删字节（会破坏二进制的长度前缀）。
+        # \r 规范化已移到 run_match 里对 **payload 解码后的文本**做。保留参数只为不改调用点。
         self._strip_cr = strip_cr
         self._buf = bytearray()
         self._lock = threading.Lock()
@@ -129,8 +131,13 @@ class ProcIO:
                     chunk = os.read(self._proc.stdout.fileno(), 65536)
                     if not chunk:
                         break
-                    if self._strip_cr:
-                        chunk = chunk.replace(b"\r", b"")
+                    # ⚠️ 绝不在这一层删字节：这条流里带着**二进制的 4 字节长度前缀**，
+                    # 删掉任何一个 0x0D 都会让整条流错位。
+                    # 实证（2026-09-23）：我方回包 "2\n13 10\n13 7\n" = **13 字节 = 0x0D**，
+                    # 前缀 `00 00 00 0D` 里的 0x0D 被删 ⇒ 桥读到 `00 00 00 32` = 50（'2'=0x32），
+                    # 于是它去等 50 字节、只等到 12 字节 ⇒ 这局被超时掐断。
+                    # 08-10 那个"seed 11 第 84 回合 need 50B have 12B"也是同一个 bug。
+                    # ⇒ \r 的规范化只能作用于 **payload 解码后的文本**（见 run_match）。
                     with self._lock:
                         self._buf.extend(chunk)
             finally:
@@ -312,10 +319,16 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
             # ===== 回合开始：player0（先手）先操作 =====
             payload0 = io0.read_packet()
             text0 = payload0.decode("utf-8", errors="replace")
+            if not p0_magica:
+                # \r 规范化只作用于 **payload 解码后的文本**（原来在读取层删字节 ⇒ 会破坏
+                # 二进制的长度前缀，见 ProcIO._reader 的注释与 2026-09-23 的实证）。
+                text0 = normalize_lines(text0)
             # player1 收到 player0 的操作（magica只接受\n结尾，归一化\r）
             send_line(io1, normalize_lines(text0) if p1_magica else text0)
             payload1 = io1.read_packet()
             text1 = payload1.decode("utf-8", errors="replace")
+            if not p1_magica:
+                text1 = normalize_lines(text1)
             # player0 收到 player1 的操作
             send_line(io0, normalize_lines(text1) if p0_magica else text1)
 
