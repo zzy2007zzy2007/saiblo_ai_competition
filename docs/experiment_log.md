@@ -4399,3 +4399,48 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ **把"第一步该修什么"指出来了，且与项目原诊断一致**：瓶颈**不是**搜索深度、也**不是**位置质量，
   而是"**塔/经济这条线在实战里没有产生行为**"（class 轴问题在目标对局上的直接确认）。
   ⇒ B 的完整读数按用户判断暂缓；**Step 0 已达成它的目的（技术前提 + 输法）**。
+
+## 2026-09-23 19:51:21 — B1_us_vs_champion
+
+- **commit**: `5cec3b6` (dirty: 17 files)
+- **exit**: 127，用时 100s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B1_us_vs_champion --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260923_195121_B1_us_vs_champion/output.log`
+- **result**: _待填_
+
+## 2026-09-23 19:57:13 — B1_us_vs_champion
+
+- **commit**: `5cec3b6` (dirty: 18 files)
+- **exit**: 0，用时 2741s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_TCLASS=0.5 AZAI_TPOS=1.0 AZAI_TEMP=1e-6 AZAI_VERIFY=1 AZAI_TRACE=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B1_us_vs_champion --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/ant-war2-magica-v3/magica_v3_O0.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260923_195713_B1_us_vs_champion/output.log`
+- **result**: 🔴 **B 基线（我们 vs 冠军）：冠军 16 : 我们 0。16 局同一种输法，且我们比 rule_v4 更被动。**
+
+  **协议（钉死，见 `goal_longrun_plan.md` §5）**：`AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt`、
+  `ITERS=256 DEPTH=4 MODE=joint POSPIN=argmax TCLASS=0.5 TPOS=1.0 TEMP=1e-6`；我方 =
+  `code/test_match/az_bridge_ai.py`；裁判 = `code/cpp_engine`（bridge）；8 seed × 镜像 = 16 局；`--jobs=8`；
+  用时 2741s。**这是全项目第一次拿到"我们 vs 冠军"的读数。**
+
+  | | 回合 | 我方基地 | 冠军基地 | 我方 出招/操作 | 冠军 出招/操作 |
+  |---|---|---|---|---|---|
+  | 16 局范围 | 288–412 | **全是 0（被打爆）** | 25–45 | **12–27 / 12–28** | 81–163 / 133–245 |
+
+  **判读**：
+  1. **0/16**（95% 上界约 20%）；**镜像配对分 0.000、方差 0.0000（8/8 对）** ⇒ 执先手与后手都输，
+     无"换边能赢"的口子；先手侧 p0 8 / p1 8 ⇒ 无侧偏。
+  2. **16 局全部 `verdict=engine`、`ill=0`、无僵局、无 `INVALID`** ⇒ 这 0/16 是干净读数，
+     不是 harness 问题。
+  3. **输法与 rule_v4 完全同形**（自己基地被打爆、对手基地几乎没掉；回合区间 288–412 与
+     rule_v4 的 324–437 重合）。
+  4. ⚠️ **我们比 rule_v4 还被动**：rule_v4 对冠军是 28–50 个操作，我们只有 **12–28**；而且
+     **闪电占一半以上**（7–11 次），**建塔只有 2–12 次** vs 冠军 47–91 次。
+
+  ⇒ 与 `B0_step0_smoke`（单局）一致，现在有 16 局支撑。**按用户 2026-09-23 定的立场**，
+  这是"训练方法学不会"的证据，**不是**"该加建塔先验"（`goal_longrun_plan.md` §2）。
+  ⇒ 基线落到章程 §3 与 `goal_register.md`；中期里程碑（vs rule_v4 ≥90%）才是提供梯度的那个。
