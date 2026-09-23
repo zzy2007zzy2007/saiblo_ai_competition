@@ -4444,3 +4444,32 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ 与 `B0_step0_smoke`（单局）一致，现在有 16 局支撑。**按用户 2026-09-23 定的立场**，
   这是"训练方法学不会"的证据，**不是**"该加建塔先验"（`goal_longrun_plan.md` §2）。
   ⇒ 基线落到章程 §3 与 `goal_register.md`；中期里程碑（vs rule_v4 ≥90%）才是提供梯度的那个。
+
+## 2026-09-23 20:42:54 — B2_us_vs_runnerup
+
+- **commit**: `31b6ed0` (dirty: 18 files)
+- **exit**: 0，用时 2999s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_TCLASS=0.5 AZAI_TPOS=1.0 AZAI_TEMP=1e-6 AZAI_VERIFY=1 AZAI_TRACE=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B2_us_vs_runnerup --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 7 8 9 10 11 12 13 14 7r 8r 9r 10r 11r 12r 13r 14r
+  ```
+- **output**: `training_history/runs/20260923_204254_B2_us_vs_runnerup/output.log`
+- **result**: 🔴 **B 基线第二臂（我们 vs 亚军）：亚军 15 : 我们 0（+1 局 `INVALID`）。**
+  加上 B1，**B 基线 = 我们 0/31**（对冠军 0/16、对亚军 0/15）。
+
+  **协议同 B1**（`goal_longrun_plan.md` §5）；8 seed × 镜像 = 16 局，`--jobs=8`。
+
+  **读数**：15 局已计分且**全是亚军胜**，**我方基地全是 0（被打爆）**，回合 302–449；
+  **镜像配对分 0.000 / 方差 0.0000**（seed 7 那对因 INVALID 不完整，其余 7 对全 0）；
+  先手侧 p1 8 / p0 7（无侧偏）；**15 局全部 `verdict=engine`、`ill=0`、无僵局**。
+  ⚠️ 我方出招 12–25 回合 / 12–25 操作（**闪电占一半以上**，建塔多为 2–9 次），
+  亚军 60–120 回合 / 99–200 操作 ⇒ 与 B1 同形：**我们比 rule_v4 还被动**。
+
+  🔴 **`7r` 那局 `INVALID`（第 135 回合）——查出了 bridge 的一个真 bug（已修，见 `3260330`）**：
+  `strip_cr` 在**读取层**删流里的 `0x0D`，而这条流带**二进制长度前缀**；我方 payload 恰好
+  `"2\n13 10\n13 7\n"` = **13 字节 = 0x0D** ⇒ 前缀被删成 `00 00 00`、桥读到 payload 首字节 `'2'=0x32`
+  ⇒ 把长度读成 **50**、只等到 12 字节 ⇒ 该局超时作废。**hex dump 逐字节吻合**。
+  ⇒ 这同时解释了 08-10 那个"seed 11 第 84 回合 `need 50B have 12B`"的悬案（同一个 bug），
+  因此"三次卡在 r84 = 两个黑盒不确定"的旧归因**作废**（寄存器那条已降为【存疑】）。
+  ⇒ **错位只会导致 `INVALID`，不会静默算成有效胜局** ⇒ 本表已计分的 15 局可信。
+  ⇒ 已用修好的 bridge 重跑 `7r`（`B2fix_rerun_7r`）。
