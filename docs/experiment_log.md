@@ -4473,3 +4473,28 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   因此"三次卡在 r84 = 两个黑盒不确定"的旧归因**作废**（寄存器那条已降为【存疑】）。
   ⇒ **错位只会导致 `INVALID`，不会静默算成有效胜局** ⇒ 本表已计分的 15 局可信。
   ⇒ 已用修好的 bridge 重跑 `7r`（`B2fix_rerun_7r`）。
+
+## 2026-09-23 21:33:01 — B2fix_rerun_7r
+
+- **commit**: `3260330` (dirty: 18 files)
+- **exit**: 0，用时 1176s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_TCLASS=0.5 AZAI_TPOS=1.0 AZAI_TEMP=1e-6 AZAI_VERIFY=1 AZAI_TRACE=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B2fix_rerun_7r --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 7r
+  ```
+- **output**: `training_history/runs/20260923_213301_B2fix_rerun_7r/output.log`
+- **result**: ✅ **分帧 bug 在真实对局里的验证：同一个 seed/token 以前第 135 回合被掐断，现在跑到自然结束。**
+
+  **配置**：与 B2 完全相同的钉死协议，`--jobs=1`，token `7r`（亚军先手、我方执 p1）；用时 1176s（19.6 min）。
+
+  `RESULT seed=7 p0=runnerup p1=az_bridge_ai winner=runnerup winner_side=p0 verdict=engine
+  engine_winner=0 rounds=374 terminal=True base_hp=34,0 coins=677,79`
+
+  - **第 135 回合那个掐断消失了** ⇒ 修复（`3260330`）在真实对局里生效；
+  - 我方壳逐回合对拍：**374 回合全程 `mismatch=0`、`illegal=0`**，"对拍不一致"次数 = **0**；
+  - 这次还打出了 `退出报告: rounds=374 mismatch=0 illegal=0` —— 说明壳是**正常退出**的
+    （此前都是被 bridge kill，所以看不到那行）；
+  - 结果仍是亚军胜（我方基地被打爆）⇒ **B 基线更新为 0/32**（冠军 0/16、亚军 0/16），
+    95% 上界约 **8.9%**。
+
+  ⇒ 一局同时办了三件事：验证修复、补齐 seed 7 的镜像对（现在 8 对完整）、把基线从 0/31 收到 0/32。
