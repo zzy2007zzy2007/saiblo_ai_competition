@@ -108,6 +108,42 @@ git config core.sshCommand '"C:/Windows/System32/OpenSSH/ssh.exe" -i "C:/Users/�
 顺带确认：`git.tsinghua.edu.cn` 的 ED25519 主机密钥指纹是
 `SHA256:zYgtTfwQdCJCMA0GQGRq06ldQGNlNIxoKPDfFfW2kZc`，与首次连接时提示的一致，可以放心 `yes`。
 
+## 提交身份重写（2026-09-25）
+
+原来所有提交都是 `gitea <gitea@localhost>`（全局 git 配置就是这两个值），推到 GitHub 上就显示成
+一个识别不了的人。现在身份改成：
+
+```
+user.name  = zzy2007zzy2007
+user.email = 263590731+zzy2007zzy2007@users.noreply.github.com
+```
+
+邮箱用 noreply 形式（`<GitHub 数字 ID>+<用户名>@users.noreply.github.com`）才能让 GitHub 把提交
+关联到账号，同时不暴露真实邮箱。这两个值是 **`--global`**，所以本机所有仓库的新提交都用这个身份。
+
+历史也一起重写了（不只是以后的提交）：在临时克隆里用 `git filter-branch --env-filter`
+把 403 个提交的 author/committer 全换成上面的身份，**tree 一个字节都没变**，然后：
+
+1. `git push --force` 到清华 GitLab（实测没被保护规则拦住，强制推送是允许的）
+2. 本地 `git reset --soft <新 master>` —— 只挪分支指针，**index 和工作区都没动**
+   （重写前后工作区都是 17 个已跟踪改动 / 139 个未跟踪项，完全一致）
+3. GitHub 那边靠 Actions 镜像自动 force 覆盖过去
+
+结果：三个远端的 `master` 都是 `6318ded`；GitHub API 查下来 403 个提交的 `author.login`
+全是 `zzy2007zzy2007`（连最早那批也关联上了）。
+
+**后果 / 注意**：
+
+- **所有 commit SHA 都变了**（`ce3e5ae…` → `6318ded…`）。任何已有的旧克隆都会和新历史分叉，
+  要么重新 clone，要么 `git fetch --all && git reset --hard origin/master`。
+- 旧历史还在本地分支 `backup-before-identity-rewrite`（指向旧的 `ce3e5ae`）上；
+  确认没问题后可以 `git branch -D backup-before-identity-rewrite` 删掉。
+- `gitea` 那个本地远端还停在旧血统上（而且落后 300+ 个提交），已经**不能直接推**了（要 `--force`）。
+  目前没有任何脚本会推它。
+- 顺带把原先只设在本仓库的 `core.sshCommand` 改成了 **全局**设置
+  （`C:/Windows/System32/OpenSSH/ssh.exe` + 指定密钥），这样临时克隆和其他仓库也不会再退回那个
+  读不到 `~/.ssh` 的 MSYS ssh。
+
 ## 待办 / 已知问题
 
 1. ~~临时分支 `_authcheck`~~ **已解决**：做写入权限自检时推过它，当时仓库是空的，
