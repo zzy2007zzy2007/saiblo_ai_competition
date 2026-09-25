@@ -1,0 +1,58 @@
+name: sync-from-tsinghua-gitlab
+
+# 把清华 GitLab 的 zengzy25/saiblo_ai_competition 单向镜像到本仓库。
+#
+# 为什么这份文件必须同时存在于清华 GitLab 那边：
+#   本工作流用 `git push --mirror` 把 GitHub 强制对齐成 GitLab 的样子，
+#   如果 GitLab 里没有这个文件，下一次同步就会把它从 GitHub 上删掉，
+#   工作流自己就消失了。所以这份文件在两边都有一份（内容相同）。
+#
+# 需要的 secret（GitHub 仓库 Settings → Secrets and variables → Actions）：
+#   GITLAB_TOKEN  清华 GitLab 的 deploy token（只勾 read_repository 即可）
+#   可选 GITLAB_USER  不填则默认按 `oauth2` 当用户名
+#     —— 如果建 deploy token 时把 username 留成默认的 gitlab+deploy-token-N，
+#        就把那个用户名填进 GITLAB_USER secret。
+#
+# 注意：
+#   - cron 用 UTC，且 GitHub 的定时任务不精确（高峰期会晚几分钟）
+#   - 仓库 60 天无任何活动，定时工作流会被 GitHub 自动停用
+#   - push --mirror 会删掉 GitHub 上 GitLab 里没有的分支/标签，
+#     所以别直接在 GitHub 上开分支干活
+
+on:
+  schedule:
+    - cron: '17 * * * *' # 每小时第 17 分钟（UTC）
+  workflow_dispatch: # 也支持手动点一下触发
+
+permissions:
+  contents: write # 让内置 GITHUB_TOKEN 可以推送
+
+concurrency:
+  group: sync-from-tsinghua-gitlab
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Tsinghua GitLab repo (mirror)
+        env:
+          GITLAB_USER: ${{ secrets.GITLAB_USER }}
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -euo pipefail
+          USERNAME="${GITLAB_USER:-oauth2}"
+          git clone --mirror \
+            "https://${USERNAME}:${GITLAB_TOKEN}@git.tsinghua.edu.cn/zengzy25/saiblo_ai_competition.git" \
+            repo.git
+
+      - name: Push mirror to GitHub
+        working-directory: repo.git
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git push --mirror \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          echo "== 同步完成，当前远端分支 =="
+          git ls-remote --heads "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
