@@ -38,6 +38,44 @@ git 读写权限是够的，但它没有 `api` scope，改不了项目设置、�
 | --- | --- |
 | `076d95e` | 全量历史，355 个提交 / 388MB（含上面那批历史检查点） |
 | `ef15ee8` | 补 `.gitignore`（约 280GB 大数据目录）+ `其他版本ai` 源码入库 |
+| `59b618c` | 加 GitHub Actions 定时镜像工作流（见下节） |
+
+## GitHub 自动镜像（Actions 每小时同步）
+
+GitHub 镜像仓库：https://github.com/zzy2007zzy2007/saiblo_ai_competition （**public**）
+
+GitHub 自己**没有**"定时拉取镜像"功能（GitLab 有 Pull Mirror，GitHub 只有一次性 Import），
+所以用 GitHub Actions 的 `on: schedule` 定时触发，见
+`.github/workflows/sync-from-gitlab.yml`：
+
+```
+git clone --mirror  https://<user>:<token>@git.tsinghua.edu.cn/...   # 拉清华
+git push --mirror   https://x-access-token:<GITHUB_TOKEN>@github.com/...  # 推到 GitHub
+```
+
+配置齐了这些才能跑：
+
+1. **清华侧**：项目 Settings → Repository → Deploy tokens，建一个
+   **username = `oauth2`**、scope 只勾 **`read_repository`** 的 deploy token
+   （仓库是私有的，必须给读权限；username 填 `oauth2` 才能对上 workflow 里默认的用户名，
+   否则得另外配一个 `GITLAB_USER` secret）。
+2. **GitHub 侧**：Settings → Secrets and variables → Actions → 新建 secret
+   **`GITLAB_TOKEN`** = 上面那个 deploy token 的值。
+3. **GitHub 侧**：Settings → Actions → General → Workflow permissions 改成
+   **Read and write permissions**。默认的 read-only 会让 `push --mirror` 直接 403。
+4. **workflow 文件必须两边都有**：`push --mirror` 会让 GitHub 完全对齐 GitLab，
+   GitHub 上有、GitLab 上没有的文件下次同步就会被删掉（包括这个 workflow 自己）。
+
+已验证：手动触发 run #1（`36107712370`），mirror job 1m4s 成功（clone 49s + push 12s），
+之后 GitHub 与清华 GitLab 的 `master` 指向同一个 commit。
+
+**注意**：
+
+- cron 是 UTC 且不精确（高峰期会晚几分钟）；仓库 60 天无活动，定时工作流会被自动停用。
+- `push --mirror` 会**删掉** GitHub 上 GitLab 里没有的分支/标签，所以别直接在 GitHub 上开分支干活。
+- 想改同步频率就改 workflow 里的 `cron`；文件改了记得**同时**更新两边（或只改 GitLab 那份，
+  等下一次同步覆盖 GitHub 那份——但下一次同步前 GitHub 上的旧 file 仍在生效）。
+
 
 ## 坑：Git for Windows 的 MSYS `ssh` 读不到 `~/.ssh`（中文用户名）
 
@@ -72,14 +110,12 @@ git config core.sshCommand '"C:/Windows/System32/OpenSSH/ssh.exe" -i "C:/Users/�
 
 ## 待办 / 已知问题
 
-1. **临时分支 `_authcheck` 还没删掉**：做写入权限自检时推过它，当时仓库是空的，
-   GitLab 把它设成了默认分支。默认分支**已经改成 `master` 了**（远端 HEAD 现在指向 master），
-   但用命令行删它会被拒：`remote: GitLab: You can only delete protected branches using
-   the web interface.`（它当年是默认分支所以被自动保护）。只能去网页删：
-   https://git.tsinghua.edu.cn/zengzy25/saiblo_ai_competition/-/branches →
-   找到 `_authcheck` 点删除；若报受保护，先去
-   `/-/settings/repository` 的 Protected branches 删掉那条规则再回来删。
-   它只指向第 8 个提交 `22f8a94`，删掉不影响 master。
+1. ~~临时分支 `_authcheck`~~ **已解决**：做写入权限自检时推过它，当时仓库是空的，
+   GitLab 把它设成了默认分支。默认分支改回 `master` 后，用命令行删它会被拒
+   （`You can only delete protected branches using the web interface.`，它当年是默认分支
+   所以被自动保护）。后来在网页上删掉了；GitHub 镜像那边也跟着消失了
+   （`push --mirror` 会 prune 掉 GitLab 里没有的分支）。**教训：往空仓库做写入权限自检时，
+   别用 `master`/`main` 之外的分支名——第一个推上去的分支会被设成默认分支。**
 2. **`.gitmodules` 改成 GitHub 上游了**：原来写的是 `./Ant-Game`（相对 URL），在这个
    仓库上会解析成 `git.tsinghua.edu.cn/zengzy25/Ant-Game`——那个项目不存在；而原来钉的
    提交 `ef9e653` GitHub 上也没有（它比 GitHub 的 main `0a6bee4` 多两个本地提交：
@@ -93,3 +129,5 @@ git config core.sshCommand '"C:/Windows/System32/OpenSSH/ssh.exe" -i "C:/Users/�
 3. 工作区还有大量未提交改动（`code/`、`docs/`、根目录一堆 `_tmp_*`），推送时**没有**一起提交；
    同步远端就一条命令：`git push tsinghua master`（另一个会话还在同一工作区持续提交，
    所以远端会不断落后，想起来就推一次）。`gitea` 那个本地远端一直没推，比 master 落后更多。
+   **GitHub 那边已经不用手动推了**：只要推到了清华 GitLab，Actions 每小时会自动镜像过去
+   （想立刻同步就去 Actions 页面手动 Run workflow）。
