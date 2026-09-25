@@ -1,3 +1,12 @@
 [submodule "Ant-Game"]
 	path = Ant-Game
 	url = https://github.com/LorenzLorentz/Ant-Game.git
+[submodule "其他版本ai/saiblo-30th-AI"]
+	path = 其他版本ai/saiblo-30th-AI
+	url = https://github.com/omegafantasy/saiblo-30th-AI.git
+[submodule "其他版本ai/ant-war2-magica-v3"]
+	path = 其他版本ai/ant-war2-magica-v3
+	url = https://gitee.com/ylf11235/ant-war2-magica-v3.git
+[submodule "其他版本ai/Antwat_2/Ant-Game"]
+	path = 其他版本ai/Antwat_2/Ant-Game
+	url = https://github.com/LorenzLorentz/Ant-Game.git
