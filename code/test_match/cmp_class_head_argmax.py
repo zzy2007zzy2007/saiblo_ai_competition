@@ -51,23 +51,30 @@ def main() -> int:
     ss = torch.from_numpy(stats[dec_idx[ids]].astype(np.float32))
     cls_t = torch.from_numpy(cls_pad)
 
-    def argmaxes(ckpt: str) -> np.ndarray:
+    def argmaxes(ckpt: str) -> tuple[np.ndarray, np.ndarray]:
+        """返回 (在被评估类集合上的 argmax, **全 24 类**的 argmax)。
+
+        ⚠️ 后者才是**部署时真正用的**：`bundle_mcts.py:311` 的 `pos_pin=argmax` 取的是
+        `int(np.argmax(hl))`（**不套类掩码**）⇒ 若这个 argmax 不可执行，整回合就退化成 HOLD。
+        """
         cm, _pm, _vm = load_three_models(ckpt)
         cm.eval()
         out = np.full((len(ids), 3), -1, dtype=np.int64)
+        full = np.full((len(ids), 3), -1, dtype=np.int64)
         with torch.no_grad():
             for s in range(0, len(ids), a.batch):
                 o = cm(xs[s:s + a.batch], ss[s:s + a.batch])
                 logit = torch.stack([o[f"head{h+1}_logits"] for h in range(3)], dim=1)  # (B,3,C)
+                full[s:s + a.batch] = logit.argmax(dim=-1).numpy()
                 c = cls_t[s:s + a.batch]
                 safe = c.clamp(min=0)
                 g = torch.gather(logit, 2, safe)
                 g = torch.where(c >= 0, g, torch.full_like(g, float("-inf")))
                 out[s:s + a.batch] = g.argmax(dim=-1).numpy()
-        return out
+        return out, full
 
-    A = argmaxes(a.a)
-    B = argmaxes(a.b)
+    A, A_full = argmaxes(a.a)
+    B, B_full = argmaxes(a.b)
     m = mask.astype(bool)
     same_all = (A == B)
     print(f"\n=== 旧类头 vs 新类头（只在被评估类集合上比 argmax）===")
@@ -77,6 +84,17 @@ def main() -> int:
         sel = m[:, h]
         if sel.sum():
             print(f"  head{h}: n={int(sel.sum())}  不变 {same_all[sel, h].mean():.2%}")
+    full_same = (A_full == B_full)
+    print(f"\n=== **全 24 类**的 argmax（= 部署真正用的那个）===")
+    print(f"全部 (决策, head) 对 = {full_same.size}")
+    print(f"argmax 不变的比例 = {full_same.mean():.2%}")
+    for h in range(3):
+        print(f"  head{h}: 不变 {full_same[:, h].mean():.2%}")
+    import collections as _c
+    hist_old = _c.Counter(A_full[:, :].ravel().tolist())
+    hist_new = _c.Counter(B_full[:, :].ravel().tolist())
+    print("旧全 argmax 类分布（前 8）:", hist_old.most_common(8))
+    print("新全 argmax 类分布（前 8）:", hist_new.most_common(8))
     # 换成"类 id"再比一次（不同类就算变）
     clsA = np.take_along_axis(cls_pad, np.clip(A, 0, None)[:, :, None], axis=2)[:, :, 0]
     clsB = np.take_along_axis(cls_pad, np.clip(B, 0, None)[:, :, None], axis=2)[:, :, 0]
