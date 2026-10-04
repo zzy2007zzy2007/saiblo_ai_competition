@@ -102,12 +102,15 @@ def main() -> int:
     ap.add_argument("--boot", type=int, default=10000)
     ap.add_argument("--boot-seed", type=int, default=20261005)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--logs-root", default=None,
+                    help="日志根目录（默认 match_results/ladder_logs）；"
+                         "用于自检与独立验证时指向别处")
     ap.add_argument("--invalid-threshold", type=float, default=0.10,
                     help="无效局比例超过它 ⇒ 整批标 INVALID（预注册 §4 写死 10%%）")
     args = ap.parse_args()
 
     seeds = parse_seeds(args.seeds)
-    out_dir = LOG_ROOT / args.tag
+    out_dir = (Path(args.logs_root) if args.logs_root else LOG_ROOT) / args.tag
     if not out_dir.is_dir():
         print(f"!! 找不到日志目录 {out_dir}")
         return 2
