@@ -82,7 +82,7 @@
 
 | 问题 | 计划 / 状态 |
 |---|---|
-| **我们 vs `rule_v4` 在当前钉死协议下的基线**（历史 46.9% 是旧协议）| 待跑（rule_v4 一局 1.5–2 分钟）|
+| **我们 vs `rule_v4` 在当前钉死协议下的基线**（历史 46.9% 是旧协议）| 🔵 **正在跑**（2026-10-05 01:29 启动）：`B3_baseline_rulev4_128`，128 局 = seed `7..70`×镜像，`--jobs=8`，预注册见 `docs/prereg_20261005_baseline_vs_rulev4_128.md`；日志 `match_results/ladder_logs/B3_baseline_rulev4_128/`；预期 ~6.7 h（实测 ~190 回合/15 min）。**跑完用** `code/test_match/analyze_paired.py --tag=B3_baseline_rulev4_128` 出配对分。⚠️ 同线历史读数：`posnet_A_k5_m32` 在**旧口径**（`eval.py`，256 局）是 **54.3%** ⇒ 先验预期 50–55%（不是 46.9%）|
 | `rule_v4` 每局**建塔数**（机制基线）| 待跑 |
 | 方法层假设 **H1**（信用分配 / 96% HOLD 标签不平衡）| 待设计便宜判据 |
 | 方法层假设 **H2**（价值标签视野 `tau`）| 已有先例 tau20→50 让 search-vs-search 43.75%→81.2% |
