@@ -29,6 +29,18 @@
   `skip` 与不 skip 的 `chosen_bundle/bundles/visit_policy/intent_counts` **逐位相同**（同上注释）。
 - 为什么 A1/A2 都要：`MODE` 是**类轴要不要搜**的分界，历史上一直没在**本判据**下比过。
 
+### 2.1 开跑前的逐项对齐核对（2026-10-05 04:2x，代码级）
+
+- 历史 54.3% 的 eval 命令**没有**传 `--pos-prior` ⇒ `eval.py:397` 默认 `"policy"` ⇒
+  `:236-242` 里 `_ppf = None` ⇒ **没有外部位置先验**。
+  而 `az_bridge_ai.py` 构造 `BundleMCTS` 时**也不传** `pos_prior_fn` ⇒ **这一项对齐**。
+- 其余逐项对齐：`--iterations 256`、`--max-depth-rounds 4`、`--k 24`、`--t-class 0.5`、
+  `--t-pos 1.0`、`--search-mode pos-only`、`--skip-single-candidate`、
+  `sample_mult`（`eval.py` 不传 ⇒ 默认 15；本臂显式 =15）。
+- **唯一已知差异 = 采集/执行路径**（`eval.py` 进程内 vs bridge 子进程协议）⇒ 这正是 §4b 要查的。
+- `skip_single_candidate` 在我们这条路径上安全：`az_bridge_ai.py:205-208` 的 `decide()`
+  **只读 `res.chosen_bundle`**，不读 `last_root`（skip 只是让 `last_root` 没有展开的子树）。
+
 ## 3. 样本量与成本（**先写死**；快读数 = 验收 seed 列表的前缀，章程 §2）
 
 > **修订记录**：本节的成本假设在首次写下 20 分钟后被自检实测替换
