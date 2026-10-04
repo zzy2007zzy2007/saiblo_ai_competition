@@ -4498,3 +4498,43 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
     95% 上界约 **8.9%**。
 
   ⇒ 一局同时办了三件事：验证修复、补齐 seed 7 的镜像对（现在 8 对完整）、把基线从 0/31 收到 0/32。
+
+## 2026-10-05 01:29:37 — B3_baseline_rulev4_128
+
+- **commit**: `9b5eb3a` (dirty: 4 files)
+- **exit**: 0，用时 15448s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B3_baseline_rulev4_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261005_012937_B3_baseline_rulev4_128/output.log`
+- **result**: 🔴 **钉死协议下的基线（验收尺寸）：`vs rule_v4` 配对胜率 `p̂ = 0.0391`**（64 对 / 128 局，
+  2-0:**0** / 1-1:5 / 0-2:59；cluster-bootstrap 95% CI **[0.0078, 0.0703]**；Wilson [0.0168, 0.0882]）。
+  **整批干净**：128/128 `verdict=engine`、`illegal=0`、无 `INVALID`、无缺失、无 `hp_tiebreak`
+  ⇒ 过预注册 §4 的有效性门槛（无效+缺失 0%）。
+  **比赛用时 15448 s（4.29 h）**，单局 12–19 min（8 并行）。
+  **先手侧**：执先手 2 胜 62 负、执后手 3 胜 61 负（**无侧偏**）。
+  **机制读数（观测，不是优化目标）**：我方 出招 **15.4** 回合/局（中位 15，7–25）、建塔 5.2、升塔 0.1、
+  闪电 8.5；对手（rule_v4）出招 **43.2** 回合、建塔 14.0、升塔 9.2、闪电 7.9；平均 313 回合/局。
+  ⇒ 我方**只在自己 4.9% 的回合里出招**，且**几乎从不升塔**（0.1 次/局）。
+  **判定**：**未达 70%**（差 66pp）。预注册的 **P1（p̂∈[0.35,0.60]）被证伪**、
+  **P2（我方建塔中位≤12、出招中位≤30）符合**、**P2b（rule_v4 建塔显著高于我方）符合**。
+  ⚠️ **这条读数与"同 ckpt 的历史 54.3%"差 ~50pp**，而两者的**唯一已知差异是搜索配置 +
+  执行路径**：历史 = `k24/sm15/pos-only/skip1` 且 ~1.8 min/局；钉死 = `k1/sm1/joint`（搜索≈空转）
+  且 12–19 min/局（发现见 `docs/finding_pinned_config_thin_search_20261005.md`）。
+  ⇒ **下一步就是配置阶梯**（预注册 `docs/prereg_20261005_search_config_ladder.md`；A1 闸门已实测
+  **1.4 min/局**，与预测一致）。
+
+## 2026-10-05 05:47:34 — C1_a1_gate
+
+- **commit**: `3739853` (dirty: 5 files)
+- **exit**: 0，用时 82s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a1_gate --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7
+  ```
+- **output**: `training_history/runs/20261005_054734_C1_a1_gate/output.log`
+- **result**: ✅ **成本闸门通过**：A1（`k=24/sm=15/pos-only/skip1`）单局 **1.4 min**（预注册 §3 上限 6 min）。
+  ⇒ 与"钉死配置 12–19 min/局"相比**快 ~11×**，与"厚配置在多数回合触发 `skip`"的机制预测一致
+  （`bundle_mcts.py:400-409`：单候选时 256 次迭代是纯浪费）。
+  ⇒ 按预注册继续跑 **A1 筛查 32 局**（seed `7..22`），tag = `C1_a1_hist32`。
