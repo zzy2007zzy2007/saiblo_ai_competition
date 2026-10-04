@@ -40,6 +40,8 @@ def main():
     parser.add_argument("--action-dropout", type=float, default=0.0, help="action dropout rate (simulate training condition)")
     parser.add_argument("--ind", type=int, default=None,
                         help="population index to diagnose (default: TOP1/mean)")
+    parser.add_argument("--logit-detail", type=str, default=None,
+                        help="comma-separated turn numbers to show raw logits (e.g. '0,20,50,100')")
     parser.add_argument("--log-dir", type=str, default=None,
                         help="log directory (dual output to terminal + file)")
     args = parser.parse_args()
@@ -76,7 +78,8 @@ def main():
     p("\n" + "-" * 60)
     p("HEAD ANALYSIS vs ExampleAI")
     p("-" * 60)
-    diagnose_heads(args.ckpt, seed=args.seed, num_heads=num_heads, log=log, action_dropout=args.action_dropout, ind=args.ind)
+    logit_turns = [int(x) for x in args.logit_detail.split(",")] if args.logit_detail else None
+    diagnose_heads(args.ckpt, seed=args.seed, num_heads=num_heads, log=log, action_dropout=args.action_dropout, ind=args.ind, logit_detail_turns=logit_turns)
 
 
 if __name__ == "__main__":

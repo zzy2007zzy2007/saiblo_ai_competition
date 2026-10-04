@@ -62,8 +62,14 @@ def launch(proc: Path, stderr_path: Path):
     # add C:/mingw64/bin to PATH so MinGW runtime DLLs resolve
     env = dict(os.environ)
     env["PATH"] = r"C:/mingw64/bin" + os.pathsep + env.get("PATH", "")
+    if proc.suffix == ".py":
+        # Python protocol AI: run main.py with the Ant-Game root on PYTHONPATH
+        env["PYTHONPATH"] = str(REPO / "Ant-Game") + os.pathsep + env.get("PYTHONPATH", "")
+        cmd = [sys.executable, str(proc)]
+    else:
+        cmd = [str(proc)]
     return subprocess.Popen(
-        [str(proc)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=handle, env=env,
     )
 
@@ -75,6 +81,8 @@ def main() -> int:
     ap.add_argument("--ai1", type=Path, default=RUNNERUP, help="player 1 binary")
     ap.add_argument("--workdir", type=Path, default=REPO / "training_history" / "cpp_ai_matches")
     ap.add_argument("--max-rounds", type=int, default=0, help="0 = let the game end naturally")
+    ap.add_argument("--op-log", type=Path, default=None, help="append each AI op reply to this file")
+    ap.add_argument("--state-log", type=Path, default=None, help="append each round-state content forwarded to AIs")
     args = ap.parse_args()
 
     workdir = args.workdir
@@ -96,7 +104,10 @@ def main() -> int:
         )
 
         init = {"player_list": [1, 1], "player_num": 2,
-                "config": {"random_seed": args.seed}, "replay": replay_path.as_posix()}
+                "config": {"random_seed": args.seed,
+                            "movement_policy": "enhanced",
+                            "cold_handle_rule_illegal": True},
+                "replay": replay_path.as_posix()}
         write_all(game.stdin, packet(init))
 
         rounds = 0
@@ -112,10 +123,17 @@ def main() -> int:
             message = json.loads(payload.decode("utf-8"))
             if isinstance(message, dict) and "player" in message and "content" in message:
                 for player, content in zip(message["player"], message["content"]):
+                    if args.state_log and content.strip():
+                        with open(args.state_log, "a", encoding="utf-8") as f:
+                            f.write(f"r{message.get('state','?')} p{player} {content[:400]!r}\n")
                     write_all(ai[int(player)].stdin, content.encode("utf-8"))
             if isinstance(message, dict) and message.get("listen"):
                 for player in message["listen"]:
                     ai_packet = read_ai_packet(ai[int(player)], names[int(player)])
+                    op_text = ai_packet[4:].decode("latin1", errors="replace")
+                    if args.op_log:
+                        with open(args.op_log, "a", encoding="utf-8") as f:
+                            f.write(f"r{message.get('state','?')} p{player} {op_text!r}\n")
                     reply = {"player": int(player), "content": ai_packet.decode("latin1"), "time": 0}
                     write_all(game.stdin, packet(reply))
                     rounds += 1
@@ -127,7 +145,11 @@ def main() -> int:
                 result["forced_stop"] = rounds
                 break
 
-        game.wait(timeout=5)
+        try:
+            game.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            game.terminate()
+            game.wait(timeout=5)
         for p in ai:
             if p is not None:
                 try:

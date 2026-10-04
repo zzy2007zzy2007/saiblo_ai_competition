@@ -26,8 +26,11 @@ for p in (_REPO / "Ant-Game", _CODE):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-KEEP = ("board", "stats", "class_mask", "position_mask",
-        "intent_counts", "visit", "recorded_action_map")
+# 字段**全保留**（2026-09-16 用户确认：磁盘不紧张了，不做投影）。
+# 之前丢 `value_target`/`bundles`/`recorded_head_logits`/`player` 是为了瘦身，
+# 但 A+V 分支需要 `value_target`（价值网标签），且保留全部字段便于以后换分析口径。
+# **样本仍筛 2.8%**：那是为了让数据集装得进内存（load_samples 全量载入），
+# 不是为省磁盘；每轮原始 pkl 也保留在盘上。
 
 
 def main() -> None:
@@ -54,7 +57,7 @@ def main() -> None:
         with open(f, "rb") as fh:
             samples = pickle.load(fh)["samples"]
         n_in += len(samples)
-        kept = [{k: s[k] for k in KEEP if k in s} for s in samples if has_pos(s)]
+        kept = [s for s in samples if has_pos(s)]   # 字段全保留，只筛样本
         n_keep += len(kept)
         with open(out / f.name, "wb") as fh:
             pickle.dump({"samples": kept}, fh)

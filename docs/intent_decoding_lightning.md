@@ -16,9 +16,16 @@
 
 模型只需要学"什么时候武器好"，不需要学"怎么凑钱"。
 
-## 兼容性
+## 开关控制
 
-默认开启。旧 checkpoint 加载后解码器自动应用新逻辑——模型结构不变，只有 decode 行为变化（金币不足时拆塔而非 HOLD），不需要额外传参。
+加 `--intent-decoding` 参数（`store_true`，默认 True）。旧模型加载时如需恢复原始行为可传 `--no-intent-decoding`（argparse 自动生成）。
+
+```python
+p.add_argument("--intent-decoding", default=True, action=argparse.BooleanOptionalAction)
+```
+
+开启时：class_mask 不检查金币，decoder 在金币不足时自动拆塔。
+关闭时：行为与旧版完全一致。
 
 ## 改动点
 

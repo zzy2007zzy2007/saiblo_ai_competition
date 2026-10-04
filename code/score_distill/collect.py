@@ -86,6 +86,7 @@ def _worker(seed: int, out_dir: str) -> dict:
     score_map_arr = np.stack(score_maps, axis=0).astype(np.float16)       # (T, 24, 19, 19)
     class_scores_arr = np.stack(class_scores_list, axis=0).astype(np.float32)  # (T, 24)
 
+    print(".", end="", flush=True)
     np.savez_compressed(path,
         board=np.stack(boards, axis=0).astype(np.float16),
         stats=np.stack(statss, axis=0).astype(np.float16),
@@ -100,7 +101,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--games", type=int, default=500, help="number of games")
     parser.add_argument("--workers", type=int, default=8, help="parallel workers")
-    parser.add_argument("--out-dir", type=str, default="score_data",
+    parser.add_argument("--out-dir", type=str, default="data/score_data",
                         help="output directory")
     args = parser.parse_args()
 

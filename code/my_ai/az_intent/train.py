@@ -27,14 +27,26 @@ for p in (_REPO, _CODE):
 
 
 def make_net_fn(model, feature_extractor, max_actions: int = 96,
-                value_tanh: bool = True):
+                value_tanh: bool = True, value_rel_to_abs: float = 0.0):
     """Wrap the torch model into the net_fn interface used by MCTS/self-play.
 
     ``value`` is passed through tanh so the search Q is always bounded (the
     value head is re-initialized but may output large values early on).
     ``value_tanh=False`` keeps the raw value-head output (experiment: tanh
     saturates large abs-label-trained value heads, flattening discrimination).
+
+    ``value_rel_to_abs`` (0 = off) reconstructs an ABSOLUTE value from a head
+    trained on RELATIVE labels (label = (weighted_future_hp - d_t)/20 * scale):
+
+        value = raw / value_rel_to_abs + d_t / HP_SCALE
+
+    because d_t + (future_avg - d_t) = future_avg.  This gives the search the
+    absolute evaluation it needs while the head was trained on a label that
+    CANNOT be fit by copying stats[1] (the shortcut).  Use with
+    ``value_tanh=False`` — a scale>1 head outputs |raw| > 1 and tanh saturates.
     """
+    from my_ai.az_intent.mcts import HP_SCALE
+
     def net_fn(state, player):
         model.eval()  # inference path: no dropout, fixed BN
         obs = feature_extractor.encode_observation(state, player, np.zeros(max_actions))
@@ -45,6 +57,8 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96,
         heads = [out[f"head{i + 1}_logits"].squeeze(0).numpy() for i in range(model.num_heads)]
         v_t = out["value"].squeeze(0)
         value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
+        if value_rel_to_abs > 0.0:
+            value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
         return {
             "action_map": out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
@@ -54,13 +68,16 @@ def make_net_fn(model, feature_extractor, max_actions: int = 96,
 
 
 def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions: int = 96,
-                      value_tanh: bool = True):
+                      value_tanh: bool = True, value_rel_to_abs: float = 0.0):
     """net_fn over two independent networks (policy + value) — docs/az_split_policy_value_plan.md.
 
     Same interface as make_net_fn so the MCTS is agnostic.  ``value`` is passed
     through tanh (bounded Q), matching the single-model path.
     ``value_tanh=False`` keeps the raw value-head output (experiment).
+    ``value_rel_to_abs`` as in make_net_fn (relative-label head -> absolute value).
     """
+    from my_ai.az_intent.mcts import HP_SCALE
+
     def net_fn(state, player):
         policy_model.eval()
         value_model.eval()
@@ -74,6 +91,8 @@ def make_split_net_fn(policy_model, value_model, feature_extractor, max_actions:
                  for i in range(policy_model.num_heads)]
         v_t = v_out["value"].squeeze(0)
         value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
+        if value_rel_to_abs > 0.0:
+            value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
         return {
             "action_map": p_out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,

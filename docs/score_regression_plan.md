@@ -155,12 +155,37 @@ if lambda_pos > 0 and "score_map" in batch:
 --lambda-class 0 --lambda-soft 0.3 --lambda-score 1.0 --lambda-pos 1.0 --lambda-map 0.5
 ```
 
+## 两阶段流程
+
+### Phase 1：评分蒸馏预训练（一次性）
+
+用独立的 `collect_scores.py` 收集数据 → 训练一个 `score_pretrained.pt`。
+
+```
+ExampleAI 对弈 → 每步算 score_map(24×19×19) → 存 npz
+                                        ↓
+                              score_distill_train.py
+                             (纯 MSE 拟合评分)
+                                        ↓
+                              score_pretrained.pt
+```
+
+预训练模型的特点是：backbone 学会提取局面特征（压力、距离、优先级等），输出的 logits 反映 ActionCatalog 的启发式评分。
+
+### Phase 2：GA 进化
+
+`ga_ss_train --checkpoint score_pretrained.pt` 正常跑 GA，后续训练在预训练基础上进化。
+
+### 优势
+
+- 数据收集和 GA 解耦，收集一次可复用
+- 预训练模型有健康的 backbone，GA 的 mutation 不会让它塌缩（已有特征提取能力）
+- 和之前 `distill_data_v2/model_all_bal.pt → ss_train` 的模式一致
+
 ## 实现步骤
 
 1. `decoder.py` 添加 `decode_single_cell(class_id, x, y, state, player) → Operation | None`
 2. `ActionCatalog` 添加 `score_operation(op, state, player) → float`
 3. 独立程序 `code/my_ai/collect_scores.py` 收集 `score_map` + `class_scores` 存入 npz
-4. `SSDataset` 加载新字段 `score_map`, `class_scores`
-5. `ss_supervised_update` 新增 score loss + position loss
-6. ga_ss_train CLI 参数 `--lambda-score`, `--lambda-pos`
-7. 用收集的数据跑蒸馏训练，替代当前的 BC 训练
+4. 独立训练脚本 `code/my_ai/score_distill_train.py`（基于 ss_supervised_update 加 score loss）
+5. 产出 `score_pretrained.pt` 作为 ga_ss_train 的初始 checkpoint

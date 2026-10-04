@@ -22,6 +22,8 @@ def _ppo_rollout_and_save(
     bn_stats: dict | None = None,
     intent_decoding: bool = True,
     pos_temperature: float = 0.0,
+    lambda_shape: float = 0.0,
+    gamma_shape: float = 0.99,
 ) -> dict:
     """Run one game, save trajectory for PPO training.
 
@@ -155,6 +157,16 @@ def _ppo_rollout_and_save(
         color = "\033[93m"
     reset = "\033[0m"
     print(f"{color}.{reset}", end="", flush=True)
+
+    # Potential-based reward shaping: r'_t = r_t + λ(γV(s_{t+1}) - V(s_t)).
+    # Applied after the game ends (all V(s) known).  V(s_{T}) = 0 (terminal).
+    if lambda_shape > 0:
+        vals = np.array(values, dtype=np.float32)      # V(s_0)..V(s_{T-1})
+        shaped = np.zeros(len(rewards), dtype=np.float32)
+        for t in range(len(rewards)):
+            v_next = vals[t + 1] if t + 1 < len(vals) else 0.0
+            shaped[t] = lambda_shape * (gamma_shape * v_next - vals[t])
+        rewards = [r + s for r, s in zip(rewards, shaped)]
 
     # Save to npz
     path = Path(rollout_dir) / f"ppo_seed{seed:06d}.npz"

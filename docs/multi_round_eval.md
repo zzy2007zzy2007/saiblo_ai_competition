@@ -45,6 +45,36 @@ R3: 24 × 24 = 576
 
 每轮独立调用 `_select_opponents`，对手池不变但采样不同，避免某一轮被特别强/弱的对手偏置结果。
 
+### 多轮分数累积
+
+每轮对各幸存者的分数做累加，最终 fitness = 总分 / 总局数：
+
+```python
+total_scores = np.zeros(pop_size)   # 累加所有轮的得分
+total_games = np.zeros(pop_size)    # 累加所有轮的局数
+survivors = list(range(pop_size))
+
+while len(survivors) > k:
+    # 评估本轮幸存者
+    n_games = len(opp_params) * 2
+    scores = ...  # (len(survivors), n_games)
+    fitness = scores.mean(axis=1)
+    
+    # 累加
+    total_scores[survivors] += scores.sum(axis=1)
+    total_games[survivors] += n_games
+    
+    # 轮次间排序使用本轮 fitness（短期精度已够区分谁该淘汰）
+    # 最终 fitness 使用全部累加数据（更高精度）
+    order = np.argsort(fitness)[::-1]
+    survivors = [survivors[i] for i in order[:max(k, len(survivors)//2)]]
+
+# 最终适应度：全部轮次平均
+final_fitness = total_scores[survivors] / total_games[survivors]
+```
+
+三轮累积后幸存者每人打 72 局，最终排序精度 ±0.12 而不是 ±0.20。评估量不增加。
+
 ### 幸存者索引
 
 维护 `survivors = list(range(pop_size))`（初始）。每轮只评估 `[ga_pop[i] for i in survivors]`，淘汰后更新 `survivors`。最终 `survivors[:k]` 即为 top_k。

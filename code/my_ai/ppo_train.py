@@ -383,6 +383,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="sampling temperature for class exploration")
     p.add_argument("--pos-temperature", type=float, default=0.0,
                    help="sampling temperature for position selection (0=argmax)")
+    p.add_argument("--lambda-shape", type=float, default=0.0,
+                   help="potential-based reward shaping weight (0=off)")
+    p.add_argument("--gamma-shape", type=float, default=0.99,
+                   help="discount for reward shaping (matches --gamma)")
     p.add_argument("--num-heads", type=int, default=3,
                    help="number of policy heads")
     p.add_argument("--no-bn", action="store_true",
@@ -650,6 +654,8 @@ def main():
                 bn_stats,
                 not args.no_intent_decoding,
                 args.pos_temperature,
+                args.lambda_shape,
+                args.gamma_shape,
             ))
 
         results = run_tasks(pool, _ppo_rollout_and_save, tasks, interrupted)

@@ -30,18 +30,39 @@ for p in (_REPO / "Ant-Game", _REPO / "code"):
 CONFIGS = [("base k24 it256 tp0.3", 24, 0.3, 256, 15),
            ("k128 it1024 tp1.0", 128, 1.0, 1024, 15)]
 
+# 2026-09-18：k × 迭代数二维扫描（t_pos=1.0），见 _tmp_search_consistency_sweep.py 同名注释。
+CONFIGS_GRID2D = [("k24  it256  tp1", 24, 1.0, 256, 15),
+                  ("k24  it1024 tp1", 24, 1.0, 1024, 15),
+                  ("k24  it4096 tp1", 24, 1.0, 4096, 15),
+                  ("k96  it1024 tp1", 96, 1.0, 1024, 15)]
+
+# 2026-09-18：**价值先验下**的目标可复现性（配 --pos-prior value）。
+# 用户澄清："缩 k"的原意是让**生成训练数据**可负担 —— 拿 MCTS visit 当目标时
+# k=200/it=8192 才让 visit 相对稳定（一致率 18.8%），但 5.5 分钟/次没法批量生成；
+# 希望有先验后 k 降到**几十**就够。这里扫 k∈{24,48} × t_pos∈{0.5,1.0}。
+CONFIGS_VALPRIOR = [("k24 tp0.5", 24, 0.5, 256, 15),
+                    ("k48 tp0.5", 48, 0.5, 256, 15),
+                    ("k24 tp1.0", 24, 1.0, 256, 15),
+                    ("k48 tp1.0", 48, 1.0, 256, 15)]
+
 
 def _run(job):
-    (label, k, t_pos, iters, sm), ckpt, ref_games, max_ref, nh = job
+    (label, k, t_pos, iters, sm), ckpt, ref_games, max_ref, nh, pos_prior = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.az_selfplay import make_initial_state, make_net_fn_from_ckpt
     from my_ai.az_intent.bundle_mcts import BundleMCTS
+    from my_ai.az_intent.eval import _make_value_pos_prior
     from my_ai.decoder import decode_network_output
 
     feat = FeatureExtractor(max_actions=96)
     policy_model, net_fn = make_net_fn_from_ckpt(ckpt, feat)
+    ppf = None
+    if pos_prior == "value":
+        from my_ai.az_intent.az_selfplay import load_three_models
+        _, _, _vm = load_three_models(ckpt)
+        ppf = _make_value_pos_prior(feat, _vm)
 
     def search(st, pl, seed, gturn, mode):
         m = BundleMCTS(net_fn, iterations=iters if mode == "cfg" else 256,
@@ -49,7 +70,7 @@ def _run(job):
                        sample_mult=sm, t_class=0.5,
                        t_pos=t_pos if mode == "cfg" else 0.3,
                        seed=seed * 1000 + gturn, search_mode="pos-only",
-                       skip_single_candidate=True)
+                       skip_single_candidate=True, pos_prior_fn=ppf)
         return m.search(st, pl, temperature=0.0), m
 
     # 参照局面：**按被测配置自己筛**（该配置下搜索候选数 >= 2 的回合 = 它真的有得选的地方）。
@@ -146,12 +167,27 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--t-pos-list", type=str, default=None,
                     help="逗号分隔；给了就生成 k24/it256 的 t_pos 扫描配置")
+    ap.add_argument("--grid2d", action="store_true",
+                    help="改用 k×迭代数 二维扫描配置（t_pos=1.0）")
+    ap.add_argument("--valprior-grid", action="store_true",
+                    help="改用价值先验下的 k∈{24,48}×t_pos∈{0.5,1.0} 配置")
+    ap.add_argument("--labels", type=str, default=None, help="只跑标签含该子串的配置")
+    ap.add_argument("--pos-prior", type=str, default="policy", choices=["policy", "value"],
+                    help="位置采样分布的来源：policy=位置网（现状）；value=价值网在钉类合法格上的 "
+                         "1-ply z-score（只在根节点算，复用 eval.py 的实现）")
     args = ap.parse_args()
-    cfgs = CONFIGS
+    cfgs = CONFIGS_VALPRIOR if args.valprior_grid else (CONFIGS_GRID2D if args.grid2d else CONFIGS)
+    if args.labels:
+        keys = [x.strip() for x in args.labels.split(",") if x.strip()]
+        cfgs = [c for c in cfgs if any(k in c[0] for k in keys)]
+        print("[sim] 只跑这些配置: " + str([c[0] for c in cfgs]), flush=True)
     if args.t_pos_list:
         cfgs = [("tp%-5g k24 it256" % tp, 24, tp, 256, 15)
                 for tp in (float(x) for x in args.t_pos_list.split(",") if x.strip())]
-    jobs = [(cfg, args.ckpt, args.ref_games, args.max_ref, args.num_heads) for cfg in cfgs]
+    jobs = [(cfg, args.ckpt, args.ref_games, args.max_ref, args.num_heads, args.pos_prior)
+            for cfg in cfgs]
+    print("[sim] pos_prior=%s，%d 个配置 × %d worker" % (args.pos_prior, len(cfgs), args.workers),
+          flush=True)
     import multiprocessing as mp
     with mp.Pool(args.workers) as pool:
         res = pool.map(_run, jobs)

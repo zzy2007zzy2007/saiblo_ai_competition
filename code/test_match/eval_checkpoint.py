@@ -89,12 +89,19 @@ def _worker(ckpt_path: str, seed: int, top1: bool = True, num_heads: int = 3, op
     for _ in range(MAX_ROUND):
         if state.terminal:
             break
-        ops_us = agent._choose_operations(state, our_player)
-        ops_opp = opp.choose_operations(state, opp_player)
+        # Tournament protocol: P0 acts first, then P1 decides AFTER seeing P0's
+        # executed ops (README 评测流程: 先手操作验证执行后转发给后手).
         if our_player == 0:
-            state.resolve_turn(ops_us, ops_opp)
+            ops_us = agent._choose_operations(state, 0)
+            state.apply_operation_list(0, ops_us)
+            ops_opp = opp.choose_operations(state, 1)
+            state.apply_operation_list(1, ops_opp)
         else:
-            state.resolve_turn(ops_opp, ops_us)
+            ops_opp = opp.choose_operations(state, 0)
+            state.apply_operation_list(0, ops_opp)
+            ops_us = agent._choose_operations(state, 1)
+            state.apply_operation_list(1, ops_us)
+        state.advance_round()
 
     hp_us = state.bases[our_player].hp
     hp_opp = state.bases[opp_player].hp
