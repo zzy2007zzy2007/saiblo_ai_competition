@@ -4633,3 +4633,27 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ **干预是"行为活的"**（`pos-only` 下类 = argmax ⇒ 部署行为确实变了），
   所以 32 局快读数是**有意义的**（而不是"改了权重但行为没变"）。
   ⇒ 下一步：按预注册 §2 跑 32 局快读数（tag `C2_class32`，seed `7..22`）。
+
+## 2026-10-05 06:46:32 — C1_a2_screen7_14
+
+- **commit**: `6b5164a` (dirty: 5 files)
+- **exit**: 0，用时 2767s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a2_screen7_14 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261005_064632_C1_a2_screen7_14/output.log`
+- **result**: 🟡 **配置阶梯 A2（厚 joint：`k24/sm15/joint/skip1`）快读数 `p̂ = 0.3750`**
+  （seed `7..14` = **8 对 / 16 局**；2-0:1 / 1-1:4 / 0-2:3；CI [0.125, 0.625]；全干净）。
+  **用时 2767 s（46 min）**，单局 **25.4–25.9 min**（闸门那局只有 13.9 min ⇒ 不同 seed 的局长差异大）。
+  **同 seed 对照（关键）**：**A1 在同样的 seed `7..14` 上是 `p̂ = 0.5000`**（2-0:1 / 1-1:6 / 0-2:1）
+  ⇒ **A2 = A1 − 12.5pp**，而且**慢 ~15×**（25.4 min/局 vs 1.7 min/局）。
+  **机制**：我方建塔 **0.1**（16 局里只有 1 局建了 1 座）、升塔 0.0、闪电 11.5、出招 11.6 回合/局；
+  对手建塔 17.2、升塔 10.4、闪电 10.1、出招 53.2；对局 416 回合。
+  **判定（诚实处理预注册的字面 vs 意图）**：
+  * 预注册 §4 的晋级规则是拿 **A0（钉死基线）** 当锚写的（`0.3750 ≥ 0.0625 + 0.10` ⇒ **字面上"达标"**）；
+  * 但**现在的操作配置已经是 A1（验收 `0.5312`）** ⇒ 要晋级必须**打得过 A1**。
+    **A2 在同 8 对上比 A1 低 12.5pp、且贵 15×** ⇒ **不晋级**（`n=8` 时这 12.5pp 本身不显著，
+    所以正确的说法是"**没有证据表明 joint 搜索更好，且它的代价高一个数量级**"，而不是"A2 更差"）。
+  * ⇒ 结论：**"让搜索去选类"这条（A2）不值得继续投**；类轴要动就走**蒸馏**（候选 C，正在读）。
+  ⚠️ 这条也暴露了预注册的一个缺陷（锚写错了对象）⇒ 已记档，**下次写臂时锚必须写"当前操作配置"**。
