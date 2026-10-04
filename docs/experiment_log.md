@@ -4538,3 +4538,24 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ 与"钉死配置 12–19 min/局"相比**快 ~11×**，与"厚配置在多数回合触发 `skip`"的机制预测一致
   （`bundle_mcts.py:400-409`：单候选时 256 次迭代是纯浪费）。
   ⇒ 按预注册继续跑 **A1 筛查 32 局**（seed `7..22`），tag = `C1_a1_hist32`。
+
+## 2026-10-05 05:48:56 — C1_a1_hist32
+
+- **commit**: `3739853` (dirty: 5 files)
+- **exit**: 0，用时 494s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a1_hist32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_054856_C1_a1_hist32/output.log`
+- **result**: 🟢🟢 **配置阶梯第一臂（A1 = 历史标准配置 `k24/sm15/pos-only/skip1`）快读数：`p̂ = 0.5000`**
+  （seed `7..22` = 16 对 / 32 局，2-0:**2** / 1-1:**12** / 0-2:**2**，cluster-bootstrap 95% CI **[0.375, 0.625]**）。
+  **整批干净**：32/32 `verdict=engine`、`illegal=0`、无 INVALID、无缺失。**用时 494 s（8.2 min）**，
+  单局 1.4–2.0 min（**比钉死配置快 ~11×**）。
+  **同一批 seed 上，钉死配置（A0）的快读数是 `0.0625`** ⇒ **配置修复的增量 = +43.75pp**（同 seed 配对口径）。
+  先手侧 7-9 / 后手侧 9-7（无侧偏）。对局 403 回合（比 A0 的 313 更长）。
+  **机制读数（观测）**：我方**建塔 0.0**、升塔 **0.0**、闪电 11.2、出招 11.2 回合/局
+  （`pos-only` 把类钉在策略 argmax ⇒ 我们的类轴几乎只会选"闪电"）；对手 `rule_v4` 建塔 16.5、升塔 9.8、闪电 9.6、出招 50.6。
+  ⇒ **判定：晋级验收**（预注册 §4 规则①：0.5000 ≥ 0.0625 + 0.10）；**未过 70% 门**（差 20pp）。
+  ⚠️ **性质**：这是**工程/配置修复**（把搜索从"空转"改回"真的有搜索"），**不是**"我们的方法学会了优化"。
+  ⚠️ 与历史 54.3% 的差距（-4.3pp）**不能直接解读**（历史是 `eval.py` 旧口径、256 局、非配对镜像）。
