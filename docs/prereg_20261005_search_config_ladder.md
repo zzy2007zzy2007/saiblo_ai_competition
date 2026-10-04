@@ -74,7 +74,9 @@
 ## 6. 成本与机器纪律
 
 - 每臂 `--jobs=8`，**一次只跑一个臂**（不同时开多个多进程程序；总进程 ≤16）。
-- 全部走 `code/run_logged.ps1`（tag：`C1_a1_hist32` / `C1_a2_joint32` / 晋级后用 `..._128`）。
+- 全部走 `code/run_logged.ps1`（tag：`C1_a1_gate` / `C1_a1_hist32` / `C1_a2_gate` / `C1_a2_joint16`）；
+  自动化脚本：`_tmp_c1_after_baseline.ps1`（等 B3 基线退出 → A1 闸门 → A1 筛查 → 判据统计；
+  **它只执行本预注册里写死的事**，不做任何选择或结论）。
 - 记录：`docs/experiment_log.md` 的 result + `goal_register.md` 一行结论。
 
 ## 7. 这批**不做**的事
