@@ -66,6 +66,29 @@
 5. **若某臂验收 ≥0.70** ⇒ 按章程 §5 走**机械门**（无上下文独立验证 + 记档 + 用户确认），
    且结论里**必须**写明"这是配置修复，不是方法有效"。
 
+## 4b. 诊断分支（**只在 A1 筛查也没起色时走**；先写死，避免事后即兴解释）
+
+> 触发条件：A1 的筛查 `p̂` **没有**比 A0 的 seed `7..22` 前缀（快读数 `p̂=0.0625`，见寄存器）
+> 高 ≥10pp。也就是说"**把搜索配置改厚并没有救回来**"。
+
+那么差异就不在配置，而在**别的东西**（ckpt / 桥壳 / 判据口径）。按下面顺序查，每步都给判据：
+
+1. **同一 ckpt 走 `eval.py` 自己的路径**（历史 54.3% 就是这条路）：
+   ```
+   EV="--opponent rule_v4 --bundle-mcts --native-engine --iterations 256 --max-depth-rounds 4 \
+       --k 24 --t-class 0.5 --t-pos 1.0 --search-mode pos-only --skip-single-candidate --workers 8"
+   $PY code/my_ai/az_intent/eval.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt \
+       $EV --games 64 --seed 0
+   ```
+   - 若这里也 **≈6%** ⇒ **设计者当年的 54.3% 无法复现** ⇒ 先查"那次的 ckpt/数据是否就是这一个"
+     （比对 ckpt 哈希/元数据）与"这几天的代码有没有改动"（`git log` 该目录）；
+   - 若这里 **≫6%（接近 54%）** ⇒ **差距来自桥壳/协议路径**（in-process vs 子进程协议），
+     下一步是**逐决策对拍**：同一个局面分别走 `az_bridge_ai` 的搜索 与 进程内 `BundleMCTS`，
+     在**相同 rng** 下比较 `chosen_bundle`（本仓已有"协议层不改变对局"的强证据，
+     但那是 **rule_v4 自对弈**，**不是我们自己的 AI**）⇒ 这是新证据方向。
+2. **只此一步**：不比"新旧协议读数"，只回答"同配置下两条路径是否给出同一个选择"（逐字段）。
+3. 若查出根因在桥壳 ⇒ 修桥壳后**重跑**基线（新 tag），并记档"旧基线作废"。
+
 ## 5. 有效性门槛（同 `prereg_20261005_baseline_vs_rulev4_128.md` §4）
 
 逐 token：`winner` 非 INVALID、`verdict=engine`、`illegal=0`、`terminal=True`；
