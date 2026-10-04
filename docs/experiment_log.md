@@ -4596,3 +4596,40 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   "我们的方法学会了优化" —— 报告时必须这么写。
   ⚠️ **下一步的瓶颈线索**：A1 下我方**建塔 = 0**（`pos-only` 把类钉死在策略 argmax，
   而继承来的类头几乎只会选"闪电"）⇒ **类轴**是当前最可疑的瓶颈（对应 H4 / 候选 C）。
+
+## 2026-10-05 06:32:35 — C1_a2_gate
+
+- **commit**: `e16c4fb` (dirty: 5 files)
+- **exit**: 0，用时 837s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a2_gate --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7
+  ```
+- **output**: `training_history/runs/20261005_063235_C1_a2_gate/output.log`
+- **result**: _待填_
+
+## 2026-10-05 06:55:33 — C2_class_prior_train
+
+- **commit**: `957536f` (dirty: 5 files)
+- **exit**: 0，用时 315s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_prior.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/vp_A_k5_m32.npz --epochs 30 --batch-size 256 --lr 1e-3 --target-tau 1.0 --val-frac 0.1 --seed 0 --out training_history/vprior/posnet_C_class.pt
+  ```
+- **output**: `training_history/runs/20261005_065533_C2_class_prior_train/output.log`
+- **result**: ✅ **候选 C 的类头训练完成**（`training_history/vprior/posnet_C_class.pt`）。
+  **配置**：`train_class_prior.py`（条件 CE、只在被评估的类上、`--target-tau 1.0`、lr 1e-3）、
+  **30 epoch、GPU、用时 309.8 s**；数据 = `vp_A_k5_m32.npz`，可用决策 **28,989 / 28,989**
+  （head 覆盖 86,884 对），train 26,091 / val 2,898（val 取尾部 ⇒ 近似局级切分）。
+  **读数**：条件 CE `train 1.3448 → 1.2916`、`val 1.3426 → 1.2965`（+3.6%）；
+  **但**训练器打印的"策略 argmax vs 价值 top-1 一致率"**几乎不动**（~41% → ~40.7%）——
+  与前提检验一致（~80% 的目标是**并列** ⇒ 软目标接近均匀 ⇒ 只改了概率质量、不改 top-1）。
+  **单变量核对（逐张量）**：`class_state` **42/94 张量变了**（最大绝对差 3060）；
+  **`pos_state` 0/94、`value_state` 0/94** ⇒ 手术干净。
+  ⚠️ **预注册 P-C3（一致率应上升）不成立** ⇒ 按预注册 §3 先查"到底有没有改行为"，
+  于是新写 `code/test_match/cmp_class_head_argmax.py` 在**同一批 9,646 个 (决策, head) 对**上比
+  **旧类头 vs 新类头**的 argmax：**49.75% 的对变了**（head0 38% / head1 64% / head2 47% 变化；
+  典型迁移 15→7、13→5、13→3、13→7、11→8 —— 从"产兵塔类"移到"战斗塔类"）
+  ⇒ **干预是"行为活的"**（`pos-only` 下类 = argmax ⇒ 部署行为确实变了），
+  所以 32 局快读数是**有意义的**（而不是"改了权重但行为没变"）。
+  ⇒ 下一步：按预注册 §2 跑 32 局快读数（tag `C2_class32`，seed `7..22`）。
