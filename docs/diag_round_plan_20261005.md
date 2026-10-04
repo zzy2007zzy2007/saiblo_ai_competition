@@ -49,6 +49,13 @@
   说明信用分配确实被 HOLD 淹没 ⇒ H1 值得做（干预 = 行权重按"非 HOLD 类"加权，重训 7–93 min）。
   若分歧**均匀散落**或主要在终局 ⇒ H1 的"加权非 HOLD"**不是**对症的修法，别做。
 - **成本**：分钟级（复用已有工具）；若写新脚本，另计。
+- **现成数据（2026-10-05 实查）**：仓库里已有多个 **400 局**的 `az_selfplay_seed*.pkl` 目录可供
+  `report_posnet_diag.py` 直接吃：`training_history/posnet_loop/pool/{r1..r5}`、
+  `training_history/inject_ex02/data`、`training_history/posnet_p2/{compact,raw}`；
+  `training_history/az_fixed/_v50pool336`（336 局）、`_polpool`/`_v50pool`（256 局）。
+  ⚠️ 它们**不是** `posnet_A_k5_m32` 自己的策略采的（是更早几代的），所以：
+  ① 若只是要看"**raw 与搜索分歧的结构**"这个机制，可先用它们（便宜）；
+  ② 若要它**代表当前 ckpt**，需重新采一小批（`collect_value_prior.py` 400 局≈6133 s ⇒ 20 局≈几分钟）。
 
 ## 3. D3（顺带）：类轴 / HOLD 结构体检（决定 H4 是否真的"打不开"）
 
