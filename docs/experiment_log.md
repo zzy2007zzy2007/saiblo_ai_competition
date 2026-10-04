@@ -4657,3 +4657,29 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
     所以正确的说法是"**没有证据表明 joint 搜索更好，且它的代价高一个数量级**"，而不是"A2 更差"）。
   * ⇒ 结论：**"让搜索去选类"这条（A2）不值得继续投**；类轴要动就走**蒸馏**（候选 C，正在读）。
   ⚠️ 这条也暴露了预注册的一个缺陷（锚写错了对象）⇒ 已记档，**下次写臂时锚必须写"当前操作配置"**。
+
+## 2026-10-05 07:33:12 — C2_class32
+
+- **commit**: `1af5881` (dirty: 5 files)
+- **exit**: 0，用时 492s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_C_class.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C2_class32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_073312_C2_class32/output.log`
+- **result**: ⚪ **候选 C 的快读数 `p̂ = 0.5000`**（seed `7..22` = 16 对 / 32 局；2-0:2 / 1-1:12 / 0-2:2；
+  CI [0.375, 0.625]；全干净）—— **与对照（A1）逐项相同**（对照也是 `0.5000`、
+  也是 2-0:2 / 1-1:12 / 0-2:2）。
+  **更硬的证据**：`C1_a1_hist32/7.log` 与 `C2_class32/7.log` 的 **sha256 完全相同**
+  （`CD036CA5…DDE8`）⇒ **两份 ckpt 在 A1 配置下打出的是同一盘棋**（逐字节）。
+  机制读数也一致：建塔 **0.0**、升塔 0.0、闪电 11.2、出招 11.2 回合/局、对局 403.2 回合。
+  🔴 **根因（同一小时查出来的，见预注册 `docs/prereg_20261005_pospin_playable.md` §4）**：
+  `code/test_match/cmp_class_head_argmax.py` 实测：类头对**全 24 类**的 argmax 在
+  **9,663 / 9,663** 个 (决策, head) 对上**恒为类 17（LIGHTNING）**（新旧类头都是 100%）；
+  而 `bundle_mcts.py:304-311` 在 `pos_pin=argmax` 时钉的正是这个**不套掩码**的 argmax
+  ⇒ "买不起闪电/冷却中"的回合整回合退化成 HOLD（与"出招仅 11.2/403 回合、建塔恒 0"吻合）。
+  ⇒ **C 改的只是"在被评估的 5 个合法类之间的相对偏好"，而部署路径根本不看这个**
+  ⇒ 零效果**可解释**，不是"蒸馏没训进去"（训练确实改了 42/94 张量、以及 49.75% 的**被评估类内** argmax）。
+  **判定**：按预注册 §4.2 记"**类头蒸馏（在被评估类内重排序）在本判据下测不到增益**"，
+  并升级为更强的结论：**只要 `pos_pin=argmax` 且类头塌缩在闪电上，任何"合法类之间重排序"的训练
+  都不可能改变行为** ⇒ 下一步转**部署语义**（候选 D：`pos_pin=playable`，零训练）。
