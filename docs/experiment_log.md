@@ -4559,3 +4559,40 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ **判定：晋级验收**（预注册 §4 规则①：0.5000 ≥ 0.0625 + 0.10）；**未过 70% 门**（差 20pp）。
   ⚠️ **性质**：这是**工程/配置修复**（把搜索从"空转"改回"真的有搜索"），**不是**"我们的方法学会了优化"。
   ⚠️ 与历史 54.3% 的差距（-4.3pp）**不能直接解读**（历史是 `eval.py` 旧口径、256 局、非配对镜像）。
+
+## 2026-10-05 06:00:44 — C1_a1_gate
+
+- **commit**: `2ceae8d` (dirty: 5 files)
+- **exit**: 0，用时 82s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a1_gate --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7
+  ```
+- **output**: `training_history/runs/20261005_060044_C1_a1_gate/output.log`
+- **result**: _待填_
+
+## 2026-10-05 06:02:06 — C1_a1_128
+
+- **commit**: `e95d1d9` (dirty: 5 files)
+- **exit**: 0，用时 1799s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C1_a1_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261005_060206_C1_a1_128/output.log`
+- **result**: 🟢 **配置阶梯 A1 的验收读数（128 局）：`p̂ = 0.5312`**
+  （seed `7..70` = 64 对；2-0:**18** / 1-1:**32** / 0-2:**14**；cluster-bootstrap 95% CI **[0.4453, 0.6172]**；
+  Wilson [0.4452, 0.6155]）。**整批干净**：128/128 `verdict=engine`、`illegal=0`、无 INVALID/缺失。
+  **用时 1799 s（30 min）**，单局 ~1.8 min（钉死配置那批要 4.29 h ⇒ **快 8.6×**）。
+  先手侧 31-33 / 后手侧 37-27（后手略好，n.s.）。
+  **机制（观测）**：我方**建塔 0.0、升塔 0.0**、闪电 11.3、出招 11.3 回合/局（对局 403 回合）；
+  `rule_v4` 建塔 16.5、升塔 9.9、闪电 9.7、出招 51.2。
+  **与基线的关系**：钉死配置（A0）验收 = **0.0391** ⇒ **配置修复的增量 = +49.2pp**。
+  **跨口径交叉验证**：历史 `eval.py`（旧口径、256 局、非配对镜像）给同一 ckpt **54.3%**，
+  与本批配对口径 **53.1%** 只差 1.2pp ⇒ 两条**独立的执行路径 + 统计口径**给出同一量级
+  ⇒ **顺带否掉了预注册 §4b 里"差距来自桥壳（进程内 vs 子进程）"这一支假设**：差距的根因是**配置**。
+  **判定**：**未过 70% 门（差 16.9pp）**；按预注册只记基线。
+  ⚠️ **性质**：这是**工程/配置修复**（把"空转的搜索"改回"真的有搜索"），**不是**
+  "我们的方法学会了优化" —— 报告时必须这么写。
+  ⚠️ **下一步的瓶颈线索**：A1 下我方**建塔 = 0**（`pos-only` 把类钉死在策略 argmax，
+  而继承来的类头几乎只会选"闪电"）⇒ **类轴**是当前最可疑的瓶颈（对应 H4 / 候选 C）。
