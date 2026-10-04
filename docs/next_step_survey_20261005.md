@@ -44,6 +44,26 @@
    （顶层 3 个 state，每个 state 94 张量，键如 `initial_conv.0.weight`）。
 4. **零假设臂**：先把 **A2 价值网**（terminal）按同法换进 `posnet_A` ⇒ 用来量"注入过程本身"的效应。
 
+## 3b. **三个头的"新鲜度"实测**（2026-10-05 04:0x，`code/test_match/cmp_three_net_heads.py`）
+
+逐张量比对（`torch.equal`，94 张量/state）：
+
+| 对比 | `class_state` | `pos_state` | `value_state` |
+|---|---|---|---|
+| `posnet_A_k5_m32` vs `valnet_A2` | **94/94 相同** | 14/94（不同）| **94/94 相同** |
+| `posnet_A_k5_m32` vs `three_mix_r10p_vw_pol_frozen` | **94/94 相同** | 14/94 | 49/94 |
+| `valnet_A2` vs `three_mix_r10p_vw_pol_frozen` | 94/94 | 94/94 | 49/94 |
+| `three_mix_frozen` vs `mix_r10p_vw_pol_frozen`（旧格式 ckpt）| —（无该 state）| — | 94/94 |
+
+⇒ **这条线上只有 `pos_state`（位置头）是新训的**；`class_state`（类/策略头）与
+`value_state`（价值头）都是**从更早的 ckpt 继承**（价值头 = `valnet_A2`，terminal 标签、
+2026-09-19 训练；类头 = `three_mix` 的三网拷贝，更早）。
+
+**推论（弱→中，待实验）**：既然**价值头是"1-ply 位置排序"的天花板**（位置头的训练目标就是
+模仿价值头的排序），而它训练时所依据的数据来自**更早的策略**，那么
+**"采一批新数据（用当前/新配置的策略）→ 重训价值头（顺带重训位置头）→ 再测"**
+就是这条主线上最标准的"方法在做优化"的实验，而且成本因为厚配置 ~10× 更快而变得可负担。
+
 ## 4. 本文给出的**判断**（可被推翻；推翻要照纪律走）
 
 - **H2 的字面路线（abs × tau50/100/200）在现线上大概率是零/负结果**，值得跑的唯一理由是
