@@ -27,15 +27,17 @@ $seedList = [int]$parts[0]..[int]$parts[1]
 $tokens = ($seedList | ForEach-Object { "$_", "${_}r" }) -join ' '
 
 # 等上一个 ladder 退出（机器纪律：一次只跑一个多进程程序）
-$deadline = (Get-Date).AddMinutes($WaitTimeoutMin); $saw = $false
+# ⚠️ 2026-10-05 修 bug：原逻辑要求"先看到有 ladder 在跑、再看它退出"才继续，
+#    若启动时**本来就没有** ladder，就会一直等到超时（实测白等 10 分钟）。
+#    正确语义 = "等它变成 0 个"，所以连续两次都为空就直接开工。
+$deadline = (Get-Date).AddMinutes($WaitTimeoutMin); $empty = 0
 while ((Get-Date) -lt $deadline) {
     $r = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -and $_.CommandLine -like '*_tmp_ladder.py*' })
-    if ($r.Count -gt 0) { $saw = $true }
-    elseif ($saw) { Write-Host "[c2] 上一个 ladder 已退出 $(Get-Date -Format 'HH:mm:ss')"; break }
+    if ($r.Count -eq 0) { $empty++; if ($empty -ge 2) { break } } else { $empty = 0 }
     Start-Sleep -Seconds 30
 }
-Start-Sleep -Seconds 10
+Start-Sleep -Seconds 5
 
 Write-Host "[c2] 快读数开始 $(Get-Date -Format 'HH:mm:ss')  tag=$Tag  ckpt=$Ckpt"
 & "$Repo/code/run_logged.ps1" -Name $Tag -CommandLine "$Py -u _tmp_ladder.py --tag=$Tag --jobs=$Jobs --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py $tokens"
