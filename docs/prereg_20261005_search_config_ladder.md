@@ -80,6 +80,13 @@
    $PY code/my_ai/az_intent/eval.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt \
        $EV --games 64 --seed 0
    ```
+   **ckpt 指纹（2026-10-05 03:5x 实读，供"是不是同一个文件"核对）**：
+   `training_history/vprior/posnet_A_k5_m32.pt`，6,756,299 B，mtime `2026-09-20 22:48:48`
+   （与产出它的 run `vp_train_three_arms` 的结束时间吻合），
+   **sha256 = `6FC38CB8ECBE9344C74C1EECFB3FD4BFEB5267960039D720DEABF94CB3F235D9`**。
+   另：`bundle_mcts.py` 最后一次改动是 **2026-09-21**（`6a9ffa9`，放宽 joint 模式下 1-ply 先验的门控）
+   —— **晚于** 54.3% 那次测量（run `20260920_224913`），但那条路径只在**传了 `pos_prior_fn`** 时生效，
+   而 `az_bridge_ai.py` **不传** ⇒ 对我们这条路径无影响（仍需在 4b 里实测确认）。
    - 若这里也 **≈6%** ⇒ **设计者当年的 54.3% 无法复现** ⇒ 先查"那次的 ckpt/数据是否就是这一个"
      （比对 ckpt 哈希/元数据）与"这几天的代码有没有改动"（`git log` 该目录）；
    - 若这里 **≫6%（接近 54%）** ⇒ **差距来自桥壳/协议路径**（in-process vs 子进程协议），
