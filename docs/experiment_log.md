@@ -4807,3 +4807,20 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   这**缩窄了候选集**（`t_pos=1.0` 下的采样分布随之变化）⇒ "变差"也可能来自**候选多样性下降**而非价值信息本身；
   但两种解释下结论一致：**这条先验路线不带来增益**。
   ⇒ **判定**：**"用我们自己的价值网当位置先验"到此为止**（预注册里 V/P 两条路线都关闭）。
+
+## 2026-10-05 11:21:17 — S1_tpos03_32
+
+- **commit**: `aa50674` (dirty: 4 files)
+- **exit**: 0，用时 484s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=0.3 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S1_tpos03_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_112117_S1_tpos03_32/output.log`
+- **result**: 🔴 **S1（`AZAI_TPOS=0.3`，位置采样更尖）：`p̂ = 0.3125`**（16 对；2-0:1 / 1-1:8 / 0-2:7；
+  CI [0.156, 0.469]）—— **对照 A1 是 `0.5000`** ⇒ **低 18.75pp**。
+  机制：我方闪电 11.1 次、建塔 0、对局 395 回合（与 A1 的 11.2 / 0 / 403 几乎一致）
+  ⇒ **变的只是"候选位置的多样性"**。
+  **解释（与 P2 互相印证）**：把采样变尖（或像 P2 那样把不可执行格直接置 −1e9）都会
+  **缩窄候选集**，而缩窄就变差 ⇒ **A1 的强度部分来自"`t_pos=1.0` 给出多样候选、再由搜索排序"**。
+  ⇒ **P-S1 的预测（0.45–0.60）不成立**（如实记）。
