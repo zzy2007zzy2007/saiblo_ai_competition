@@ -5329,4 +5329,10 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   env AZAI_CKPT=training_history/vprior/posnet_M1d.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1d_masked_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
   ```
 - **output**: `training_history/runs/20261005_204716_M1d_masked_16/output.log`
-- **result**: _待填_
+- **result**: 🔴 **M1d（全反频率权重 power=1.0 + `masked`）：`p̂ = 0.3750`**（8 对；2-0:2 / 1-1:2 / 0-2:4），
+  机制 **建塔 26.3/局、降级 13.3、闪电 8.33**（低于 P-E1 的 9 下限）⇒ **过度花钱、把闪电预算挤掉了**。
+  * ⇒ **行为克隆这条线到此判死**（三点连成一条曲线）：`power=0.5`（M1c）⇒ **不花钱、行为=A1、0.5000**；
+    `power=1.0`（M1d）⇒ **过度花钱、闪电被挤、0.3750**；中间没有一个权重能复现「富才花」这个**条件**。
+  * **为什么**：分类器的决策边界是「哪个类的预测概率最大」，与「这么打赢不赢」**无关**；
+    示范里花钱样本只有 426 条/类（0.8%），任何加权都只是在**召回**与**精度**之间挪，挪不出正确的条件。
+  * ⇒ 结论与寄存器一致：**必须换目标函数（值/Q 型回归）**，见预注册 `docs/prereg_20261005_qhead_class_decision.md`（M2）。
