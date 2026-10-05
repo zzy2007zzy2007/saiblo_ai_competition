@@ -5890,3 +5890,36 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
   ⇒ **16/32 局快读数对 ±10pp 级的效应基本没有判别力**；以后凡是要「宣布方法侧进展 / 换操作配置」，
   **一律直接跑 128 局**（约 40 min），不再拿快读数当依据。
+
+## 2026-10-06 02:57:01 — VT_k70
+
+- **commit**: `1257f15` (dirty: 6 files)
+- **exit**: 0，用时 215s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight kgeo --tau 70 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vk70.pt
+  ```
+- **output**: `training_history/runs/20261006_025701_VT_k70/output.log`
+- **result**: _待填_
+
+## 2026-10-06 03:00:37 — VK35_16
+
+- **commit**: `f055113` (dirty: 6 files)
+- **exit**: 0，用时 294s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk35.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK35_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_030037_VK35_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 03:05:31 — VK50c_16
+
+- **commit**: `f055113` (dirty: 6 files)
+- **exit**: 0，用时 313s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK50c_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_030531_VK50c_16/output.log`
+- **result**: _待填_
