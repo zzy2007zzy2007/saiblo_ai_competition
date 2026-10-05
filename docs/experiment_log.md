@@ -5249,3 +5249,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ```
 - **output**: `training_history/runs/20261005_191835_M1_distill_32/output.log`
 - **result**: _待填_
+
+## 2026-10-05 19:58:44 — M1b_train
+
+- **commit**: `474424c` (dirty: 6 files)
+- **exit**: 0，用时 349s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_reserve60_exec --epochs 20 --lr 1e-3 --beta 1000000 --class-weight auto --out training_history/vprior/posnet_M1b_masked.pt
+  ```
+- **output**: `training_history/runs/20261005_195844_M1b_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 20:04:34 — M1b_masked_32
+
+- **commit**: `474424c` (dirty: 7 files)
+- **exit**: 0，用时 252s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_M1b_masked.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1b_masked_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_200434_M1b_masked_32/output.log`
+- **result**: _待填_
