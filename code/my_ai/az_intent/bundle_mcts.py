@@ -97,6 +97,53 @@ def playable_class(
     return 23  # HOLD — nothing executable
 
 
+def reserve_class(
+    head_logits: np.ndarray,
+    action_map: np.ndarray,
+    class_mask: np.ndarray,
+    position_mask: np.ndarray,
+    state: BackendState,
+    player: int,
+    reserve_coins: int,
+    *,
+    spend_classes=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+    intent_decoding: bool = True,
+    max_probe: int = 24,
+) -> int:
+    """「留储备、花余钱」（候选 E，诊断臂；见 `docs/prereg_20261005_reserve_economy.md`）。
+
+    规则：① `argmax` 类**可执行** ⇒ 用它（= 闪电优先，与 A1 一致）；
+          ② 否则若 `state.coins[player] >= reserve_coins` ⇒ 在 `spend_classes`（建/升塔 0-16）
+             里取 **logits 最高且真能解码**的那个；
+          ③ 否则 ⇒ 返回 `argmax`（⇒ 该回合退化成 HOLD，与 A1 相同）。
+
+    动机：闪电是**冷却 35 回合**限制的（实测 11.3 次/局 ≈ 上限），金币大量闲置（局末 ~500）；
+    候选 D 之所以崩，是因为它没有储备概念、把金币花到买不起闪电（建塔成本 15→30→45→90→135…）。
+    """
+    from my_ai.decoder import decode_head
+
+    order = np.argsort(-np.asarray(head_logits, dtype=np.float32))
+    top = int(order[0])
+    # ① 首选（与 A1 相同的 argmax）能执行吗？
+    if decode_head(head_logits, action_map, class_mask.copy(), position_mask.copy(),
+                   state, player, class_id=top, temperature=0.0,
+                   pos_temperature=0.0, intent_decoding=intent_decoding) is not None:
+        return top
+    # ② 有储备富余 ⇒ 在"花钱类"里挑
+    if int(state.coins[player]) >= int(reserve_coins):
+        for cid in order[:max_probe]:
+            cid = int(cid)
+            if cid not in spend_classes or not class_mask[cid] or not position_mask[cid].any():
+                continue
+            op = decode_head(head_logits, action_map, class_mask.copy(), position_mask.copy(),
+                             state, player, class_id=cid, temperature=0.0,
+                             pos_temperature=0.0, intent_decoding=intent_decoding)
+            if op is not None:
+                return cid
+    # ③ 没富余 ⇒ 维持原样（HOLD）
+    return top
+
+
 def sample_bundle(
     net_out: dict,
     state: BackendState,
@@ -218,13 +265,14 @@ class BundleMCTS:
         search_mode: str = "joint",
         pos_pin: str = "argmax",
         class_pin_random_prob: float = 0.0,
+        reserve_coins: int = 90,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable"):
+        if pos_pin not in ("argmax", "playable", "reserve"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -245,6 +293,8 @@ class BundleMCTS:
         #   * 用 `self.rng` 抽 ⇒ 同一 seed 可复现；
         #   * **默认 0.0 ⇒ 整段代码不执行，原有行为逐位不变**（A0/A1 的读数不受影响）。
         self.class_pin_random_prob = float(class_pin_random_prob)
+        # 候选 E（诊断臂）：pos_pin="reserve" 时的"闪电储备"门槛（金币）。
+        self.reserve_coins = int(reserve_coins)
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -333,6 +383,12 @@ class BundleMCTS:
             if self.pos_pin == "playable":
                 pinned = [playable_class(hl, net_out["action_map"], base_cls_mask,
                                          base_pos_mask, node.state, node.player)
+                          for hl in head_logits_list]
+            elif self.pos_pin == "reserve":
+                # 候选 E（诊断）：闪电优先、有富余才花在建/升塔上（见 reserve_class 的注释）
+                pinned = [reserve_class(hl, net_out["action_map"], base_cls_mask,
+                                        base_pos_mask, node.state, node.player,
+                                        self.reserve_coins)
                           for hl in head_logits_list]
             else:
                 pinned = [int(np.argmax(hl)) for hl in head_logits_list]

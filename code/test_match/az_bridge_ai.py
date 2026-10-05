@@ -221,6 +221,8 @@ def build_engine(seed: int, player: int):
         skip_single_candidate=bool(int(_env("AZAI_SKIP1", "0"))),
         # 「类探索」（只用于**采集**，默认 0 = 关）：见 docs/class_head_outcome_plan.md
         class_pin_random_prob=float(_env("AZAI_CLASSPIN_PROB", "0")),
+        # 候选 E（诊断臂）：pos_pin=reserve 时的闪电储备门槛：见 docs/prereg_20261005_reserve_economy.md
+        reserve_coins=int(_env("AZAI_RESERVE", "90")),
         pos_prior_fn=ppf,
     )
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
