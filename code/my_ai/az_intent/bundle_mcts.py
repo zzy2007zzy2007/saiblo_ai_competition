@@ -359,6 +359,9 @@ class BundleMCTS:
         self.mc_every = int(mc_every)
         # M6b-ND（预注册 §6.1）：候选里的"最优经济类"是否**排除类 16（降级）**
         self.mc_no_downgrade = int(mc_no_downgrade)
+        # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
+        self.mc_taken = 0
+        self.mc_fallback = 0
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -493,8 +496,10 @@ class BundleMCTS:
                                                   base_cls_mask, base_pos_mask,
                                                   max_rounds=int(self.mc_horizon))
                         self.mc_last_scores = _sc
+                        self.mc_taken += 1
                         pinned = [int(_c)] * len(head_logits_list)
                     except Exception:  # noqa: BLE001
+                        self.mc_fallback += 1
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
                 else:
                     pinned = [int(np.argmax(hl)) for hl in head_logits_list]

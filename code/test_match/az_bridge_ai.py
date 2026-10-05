@@ -95,8 +95,16 @@ STATS = {"rounds": 0, "mismatch": 0, "illegal": 0}
 def _report(*_args) -> None:
     """收尾报告。bridge 在 finally 里会 kill 我们，所以 atexit/SIGTERM 都要挂上，
     否则"对拍次数"这个**状态同步的证据**会丢。"""
+    _mc = ""
+    try:
+        _mt = int(getattr(mcts, "mc_taken", 0))
+        _mf = int(getattr(mcts, "mc_fallback", 0))
+        if _mt or _mf:
+            _mc = f" mc_taken={_mt} mc_fallback={_mf}"
+    except Exception:  # noqa: BLE001
+        pass
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
-         f"illegal={STATS['illegal']}")
+         f"illegal={STATS['illegal']}{_mc}")
     sys.stderr.flush()
 
 
