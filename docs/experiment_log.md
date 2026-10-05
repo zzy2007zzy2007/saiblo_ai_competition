@@ -5336,3 +5336,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   * **为什么**：分类器的决策边界是「哪个类的预测概率最大」，与「这么打赢不赢」**无关**；
     示范里花钱样本只有 426 条/类（0.8%），任何加权都只是在**召回**与**精度**之间挪，挪不出正确的条件。
   * ⇒ 结论与寄存器一致：**必须换目标函数（值/Q 型回归）**，见预注册 `docs/prereg_20261005_qhead_class_decision.md`（M2）。
+
+## 2026-10-05 21:05:41 — M2_qhead_train
+
+- **commit**: `49de655` (dirty: 5 files)
+- **exit**: 0，用时 69s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_q_head.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_reserve60_exec --out training_history/vprior/qhead_M2.pt --epochs 30 --class-weight-power 0.5
+  ```
+- **output**: `training_history/runs/20261005_210541_M2_qhead_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 21:14:09 — M2_q_16
+
+- **commit**: `d2846de` (dirty: 6 files)
+- **exit**: 0，用时 6s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=q AZAI_POSPRIOR=off AZAI_Q_CKPT=training_history/vprior/qhead_M2.pt AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M2_q_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261005_211409_M2_q_16/output.log`
+- **result**: _待填_
