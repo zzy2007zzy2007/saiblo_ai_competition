@@ -328,7 +328,7 @@ class BundleMCTS:
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q"):
+        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q", "mc_light"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -452,6 +452,36 @@ class BundleMCTS:
                                                 base_pos_mask, node.state, node.player,
                                                 self.reserve_coins)
                           for hl in head_logits_list]
+            elif self.pos_pin == "mc_light":
+                # 方法侧 M6（见 code/my_ai/az_intent/mc_class.py + docs/prereg_20261006_mc_class.md）：
+                # **只在闪电可执行的回合**做"真跑到底"的蒙特卡洛比较：候选 {闪电, HOLD, 经济类}，
+                # 每个候选先打下去、再双方贪心打到终局，用**终局 HP 差**选类；其余回合 = A1（argmax ⇒ 闪电/HOLD）。
+                _AM = np.asarray(net_out["action_map"], dtype=np.float32)
+                _economy = None
+                _best_v = -np.inf
+                for _c in range(0, 17):
+                    if base_cls_mask[_c] and base_pos_mask[_c].any():
+                        _v = float(np.where(base_pos_mask[_c], _AM[_c], -np.inf).max())
+                        if _v > _best_v:
+                            _economy, _best_v = _c, _v
+                pinned = []
+                for _hl in head_logits_list:
+                    _hl = np.asarray(_hl, dtype=np.float32)
+                    _top = int(np.argmax(_hl))
+                    _can_light = bool(base_cls_mask[17] and base_pos_mask[17].any())
+                    if _top == 17 and _can_light:
+                        from my_ai.az_intent.mc_class import mc_choose_class
+                        _cands = [17, 23] + ([_economy] if _economy is not None else [])
+                        try:
+                            _c, _sc = mc_choose_class(
+                                self.net_fn, node.state, node.player, _cands, _hl, _AM,
+                                base_cls_mask, base_pos_mask)
+                            pinned.append(int(_c))
+                            self.mc_last_scores = _sc
+                        except Exception:  # noqa: BLE001
+                            pinned.append(_top)
+                    else:
+                        pinned.append(_top)
             elif self.pos_pin == "q":
                 # 「类条件价值」决策（方法侧 M2，预注册 docs/prereg_20261005_qhead_class_decision.md）：
                 # 在**合法类**里取 `argmax_c Q(s, c)`（Q 来自 `AZAI_Q_CKPT`，见 q_head.py）。
