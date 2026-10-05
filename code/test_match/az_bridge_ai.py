@@ -1,4 +1,4 @@
-"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
+﻿"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
 
 背景（`docs/champ_ladder_plan.md` §3.2 / §7.6）：我们**从来没有跟冠军/亚军打过**——
 我们的 AI 是 in-process 的，不会讲官方 stdin/stdout 协议。`code/test_match/rv4_pkg/`

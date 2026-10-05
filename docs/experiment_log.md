@@ -5299,4 +5299,12 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   env AZAI_CKPT=training_history/vprior/posnet_M1c.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1c_masked_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
   ```
 - **output**: `training_history/runs/20261005_202217_M1c_masked_32/output.log`
-- **result**: _待填_
+- **result**: 🟡 **M1c（修好权重 + `pos_pin=masked` + executed 标签）：`p̂ = 0.5000`**（2-0:2 / 1-1:12 / 0-2:2），
+  机制 **闪电 11.24/局、建塔 0** ⇒ **部署行为仍与 A1 完全一致**（A1 前缀也是 0.5000）。
+  * 训练侧：`--class-weight auto --class-weight-power 0.5` 生效（HOLD w=0.46 / 闪电 2.63 / 花钱类 9.03），
+    **跨局面 logit std 0.024 → 0.206**（8.6×）⇒ 类头确实是状态依赖的函数。
+  * 但 **argmax 仍然只选闪电或 HOLD**：训练数据里「花钱」分支只占 **0.8%**（每类 426 条 vs HOLD 16.7 万条），
+    开方反加权也不足以让稀有分支赢过 argmax。
+  * ⇒ **方法侧结论（本轮最有价值的一条）**：**「把稀有分支的行为克隆进 argmax 策略」这条路走不通**；
+    要让类轴真的动起来，必须换**训练信号**（值/Q 型目标，直接优化「这么打赢不赢」）
+    或换**数据形态**（让「花钱」分支在示范里占有足够质量）。M1b 的 0.0000 只作实现 bug 记档。
