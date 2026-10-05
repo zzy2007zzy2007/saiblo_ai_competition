@@ -5826,3 +5826,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   于是**少冲基地、多在中场清场**，**反而多赢 9.4pp**。
 - 这条同时印证了用户 2026-10-06 的提醒：**「预测当前局面好不好」不必与最终胜负一致** ——
   terminal 头对齐的是「最终胜负」（`r` 很高），但它把搜索带向了次优的战术。
+
+## 2026-10-06 01:53:09 — M5_k50_4
+
+- **commit**: `c96d7b1` (dirty: 6 files)
+- **exit**: 0，用时 1308s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=1 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=0 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M5_k50_4 --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r
+  ```
+- **output**: `training_history/runs/20261006_015309_M5_k50_4/output.log`
+- **result**: _待填_
+
+## 2026-10-06 02:1x — M5 + kgeo50 头（机制读数）：**kgeo50 不改类决策，它的增益来自"位置/瞄准"**
+
+- **cmd**: `AZAI_CKPT=posnet_Vk50.pt AZAI_MENU3=1 AZAI_MODE=joint AZAI_SKIP1=0 AZAI_VALUE_TANH=0 AZAI_REL2ABS=1.0 ... --tag=M5_k50_4`
+- **result**：4 局（2 对）**`p̂ = 0.7500`**（2-0:1 / 1-1:1 / 0-2:0；n=2 对 ⇒ **分数无信息**）；
+  **机制：建塔 68.8/局（对照：同菜单 + terminal 头 = 68.0；rel5 头 = 38.8）、闪电 12.2、出招 140.5**。
+- ⇒ **两条杠杆被分开了**：
+  1. **位置/瞄准轴（A1 用的）**：`kgeo50` 让价值网**更看重中场**（瞄准中位 3.0 → 6.0）⇒ **A1 配置 +9.4pp（32 局）**；
+  2. **类决策轴（M5 用的）**：`kgeo50` **几乎不影响**（建塔 68.8 ≈ 68.0）⇒ **M5 的"爱花钱"问题与这次增益无关**，
+     它是搜索**类评价**仍然弱的问题（只有 rel5 那种更短视野才会把建塔压到 38.8，但那是"少花"而非"花得对"）。
+- ⇒ **下一个便宜问题**：`kgeo50` 的 tau（50）是不是最优点？准备一个 **tau∈{35, 50, 70} × kgeo** 的小阶梯（成本 ~1h）。
