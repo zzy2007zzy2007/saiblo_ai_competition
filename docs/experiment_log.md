@@ -5601,3 +5601,78 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **result**: ✅ `mode=rel tau=30.0` ⇒ std 0.0615 / range [-0.323,+0.313]；
   **val MSE 0.0702 → 0.00261 @epoch 8**（常数基线 0.00381 ⇒ **好 31%**），`r=+0.082`。
   ⇒ **三个 rel 臂的一致读数**：视野对齐后**标签确实有局内分辨率**，但**这个量本身几乎学不出来**（相对常数基线只好 12%/20%/31%，`r≈0.065–0.082`）；对照 **terminal** 虽局内恒定却能学到 `r=0.62`（那是「谁领先」这种状态级信息）。⇒ **叶评价的动作分辨力问题被量化了**：不是「标签没视野」，而是「**短视野的未来优势变化本身低信噪比**」。
+
+## 2026-10-06 00:42:14 — VT_rel50
+
+- **commit**: `a370ee2` (dirty: 5 files)
+- **exit**: 0，用时 237s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight geo --tau 50 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vrel50.pt
+  ```
+- **output**: `training_history/runs/20261006_004214_VT_rel50/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:46:11 — VT_rel100
+
+- **commit**: `a370ee2` (dirty: 6 files)
+- **exit**: 0，用时 239s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight geo --tau 100 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vrel100.pt
+  ```
+- **output**: `training_history/runs/20261006_004611_VT_rel100/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:50:10 — VT_rel200
+
+- **commit**: `a370ee2` (dirty: 6 files)
+- **exit**: 0，用时 236s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight geo --tau 200 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vrel200.pt
+  ```
+- **output**: `training_history/runs/20261006_005010_VT_rel200/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:54:07 — VT_k50
+
+- **commit**: `a370ee2` (dirty: 6 files)
+- **exit**: 0，用时 235s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight kgeo --tau 50 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vk50.pt
+  ```
+- **output**: `training_history/runs/20261006_005407_VT_k50/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:58:03 — VT_k100
+
+- **commit**: `a370ee2` (dirty: 6 files)
+- **exit**: 0，用时 238s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight kgeo --tau 100 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vk100.pt
+  ```
+- **output**: `training_history/runs/20261006_005803_VT_k100/output.log`
+- **result**: _待填_
+## 2026-10-06 01:0x — 价值标签视野阶梯：**长 tau（50/100/200）与 kgeo**（手工补记）
+
+按用户 2026-10-06 的经验（tau 至少 ~50；另有 kgeo 标签；r 不可靠）扩了阶梯。全部只训 `value_state`
+（`class`/`pos` 逐位照抄），数据 = 自对弈 `data_pin002_100`（94,356 条，有塔 59%），`--epochs 8 --lr 1e-4 --freeze-bn`。
+
+| 臂 | 标签 | 跨局面 std | 最佳 val MSE | 常数基线 | 相对基线 |
+|---|---|---|---|---|---|
+| terminal（对照，现有头）| 整局终值 | **局内恒 0** | 0.0996 | — | — |
+| rel5 | `rel tau=5` | 0.0228 | 0.00046 | 0.00052 | +12% |
+| rel10 | `rel tau=10` | 0.0346 | 0.00095 | 0.00119 | +20% |
+| rel30 | `rel tau=30` | 0.0615 | 0.00261 | 0.00381 | +31% |
+| **rel50** | `rel tau=50` | 0.0778 | 0.00435 | — | — |
+| **rel100** | `rel tau=100` | 0.1038 | 0.00805 | — | — |
+| **rel200** | `rel tau=200` | 0.1318 | 0.01376 | 0.01639 | +16% |
+| **k50** | `rel + kgeo tau=50` | 0.1202 | 0.01061 | 0.01409 | +25% |
+| **k100** | `rel + kgeo tau=100` | 0.1560 | （训练中）| 0.02278 | — |
+
+⚠️ **按用户提醒，本表只作附录**：`r`（与目标的相关系数）**不作判别依据** —— 价值网预测「局面好不好」
+本来就不必与最终胜负一致（先坏后好的局）。**判别用判据 + M5 的机制读数（建塔数）**。
+⇒ 筛选（A1 配置 16 局、seed 7..14）与 M5 4 局读数由 `_tmp_vt_screen.ps1` / 手动接着跑。
