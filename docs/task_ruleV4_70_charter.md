@@ -140,6 +140,17 @@
   - 回 `goal-ready-20260925`（`6a29a87`）：章程**只有第①条**（"不许模仿前两名"，由 `351251f` 加入），
     **缺②③**；且口径是当时的 `32 局` / `seed 7..14`。
   - 三条反捷径是逐步加的：`351251f` 加①，`10de565` 加②，`fcedccf` 加③。
+
+  > **别信本节的散文，现场重算**（本节三轮改错都栽在"某版本有几条款"这类计数上）：
+  > ```bash
+  > git log --oneline --diff-filter=A -- docs/task_ruleV4_70_charter.md   # 章程首版是哪个提交
+  > for t in goal-start-20260924 goal-ready-20260925; do
+  >   printf '%s: ①=%s ②=%s ③=%s\n' "$t" \
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md | grep -c '禁止走')" \
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md | grep -c '手写启发式只能当')" \
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md | grep -c '默认只当')"
+  > done
+  > ```
   对一个"每轮都读章程"的活任务，这是最危险的一类"恢复"。
 - **正确的回退方式**：
   - 撤销最近若干提交 ⇒ **`git revert <sha...>`**（生成反向提交，历史与文档都保留）；
@@ -149,7 +160,8 @@
 - **tag 现状**：
   - `goal-start-20260924` —— 起跑前的快照（= `git show --stat ead49f5`：17 files；含当时遗留的未提交改动）；
     **仅供考古，不要用它回退**（那个时刻这份章程还不存在）；
-  - `goal-ready-20260925` —— 起跑就绪点（快照 + 首版章程）；
+  - `goal-ready-20260925` —— 起跑就绪点（快照 + 章程**第①条版**；**不是章程首版**，
+    首版是 `b73db9a`）；
   - `gov-20261005` —— **滚动 tag：始终指向治理文档的最新版本**（每次我们改章程/寄存器就往前挪：
     `git tag -f gov-20261005`）。**要回退代码时，先确认治理文档不回退**
     （必要时 cherry-pick 这个 tag 里的 docs 提交）。
