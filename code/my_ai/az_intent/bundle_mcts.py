@@ -475,10 +475,10 @@ class BundleMCTS:
                 for _hl in head_logits_list:
                     _hl = np.asarray(_hl, dtype=np.float32)
                     _cands = [23]
-                    if _decode_class_op(_hl, _AM, base_cls_mask, base_pos_mask,
-                                        node.state, node.player, 17) is not None:
+                    if _dq(_hl, _AM, base_cls_mask, base_pos_mask,
+                           node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
-                    if _economy is not None and _decode_class_op(
+                    if _economy is not None and _dq(
                             _hl, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
                             _economy) is not None:
                         _cands.append(_economy)
