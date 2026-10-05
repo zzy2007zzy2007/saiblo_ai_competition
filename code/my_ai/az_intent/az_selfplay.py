@@ -148,7 +148,7 @@ class ThreeNetPolicy:
 
 def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
                       max_actions: int = 96, value_tanh: bool = True,
-                      value_rel_to_abs: float = 0.0):
+                      value_rel_to_abs: float = 0.0, q_model=None):
     """net_fn over three independent networks — same interface as make_split_net_fn.
 
     ``action_map`` comes from the POS net, ``head_logits`` from the CLASS net,
@@ -170,17 +170,27 @@ def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
         value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
         if value_rel_to_abs > 0.0:
             value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
-        return {
+        out = {
             "action_map": p_out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
             "value": value,
         }
+        # 可选的「类条件价值」打分（方法侧 M2，见 docs/prereg_20261005_qhead_class_decision.md）：
+        # 用**冻结主干**的 state_emb（class 网的）拼上类 one-hot，过一个小 MLP ⇒ 24 个类的 Q 值。
+        if q_model is not None:
+            try:
+                emb = c_out["state_emb"].squeeze(0).detach().cpu().numpy()
+                out["state_emb"] = emb
+                out["q_classes"] = q_model.score_np(emb)
+            except Exception:  # noqa: BLE001  主干没暴露 state_emb 时静默跳过
+                pass
+        return out
 
     return net_fn
 
 
 def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True,
-                          value_rel_to_abs: float = 0.0):
+                          value_rel_to_abs: float = 0.0, q_ckpt: str = ""):
     """Build (anchor_model, net_fn) for a checkpoint — single or split.
 
     ``anchor_model`` is the policy network (used to record the anchor outputs
@@ -191,10 +201,14 @@ def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = 
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     if "class_state" in ckpt and "pos_state" in ckpt:
         class_model, pos_model, value_model = load_three_models(ckpt_path)
+        _q = None
+        if q_ckpt:
+            from my_ai.az_intent.q_head import QHead
+            _q = QHead.load(q_ckpt)
         return (ThreeNetPolicy(class_model, pos_model),
                 make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
                                   value_tanh=value_tanh,
-                                  value_rel_to_abs=value_rel_to_abs))
+                                  value_rel_to_abs=value_rel_to_abs, q_model=_q))
     if "value_state" in ckpt:
         from my_ai.az_intent.train import make_split_net_fn
         policy_model, value_model = load_split_models(ckpt_path)
