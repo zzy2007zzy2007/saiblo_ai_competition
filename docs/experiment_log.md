@@ -4996,3 +4996,29 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
 ⚠️ 因此**候选 Q2（判据分布数据）没有跑**：它的数据侧管线已备好（`ingest_bridge_dump.py`，
 冒烟 84.8% 敌方有塔），但既然价值头在"有塔数据"上都只能好 0.3%，
 再花 45 min（128 局采集+dump+训练）预期收益低于噪声底 —— **这条偏离如实记档**（未看任何 Q2 判据数据）。
+
+## 2026-10-05 15:2x — R_pilot_classoutcome（候选 R 最小先行版；**手工补记**：这条没走 run_logged）
+
+- **cmd（采集，16 局、开类探索 p=0.15 + 裸 dump）**:
+  `ash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_CLASSPIN_PROB=0.15 AZAI_DUMP_RAW_DIR=training_history/vprior/dump_r_exp16 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=R_collect16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  `
+- **cmd（ingest + 训练）**:
+  `ash
+  python -u code/my_ai/az_intent/ingest_bridge_dump.py --raw-dir training_history/vprior/dump_r_exp16 --ladder-tag R_collect16 --out-dir training_history/vprior/data_rv4_exp16
+  python -u code/my_ai/az_intent/train_class_outcome.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_rv4_exp16 --epochs 12 --lr 1e-3 --beta 0.5 --out training_history/vprior/posnet_R_class16.pt
+  `
+- **result**: ⚪ **最小先行版给出"机制不成立"的读数，因此不投后面的 128 局**。
+  * 采集：16 局用了 **~35 min**（比 A1 读数慢 ~10×：探索回合不再触发 skip）；
+    ingest 出 **5,488 条**（每条约 ~340 条/局，含 chosen_cls[3] + class_mask[24]）；
+    本批**优势均值 −0.386、>0 只占 22.8%** ⇒ p=0.15 的探索把对局显著打差（预期内）。
+  * 训练（12 epoch，20 s）：loss 5.49 → 4.95（能降），**但机制读数几乎不动**：
+    **跨局面 logit 标准差 0.0245 → 0.0253**（常数类头的基准就是 ~0.024）
+    ⇒ **类头没有变成依赖状态的函数**。
+  * **解释（判断）**：目标类（chosen_cls）本身**几乎不随局面变化**（策略在各局面选同一批类），
+    而 5.5k 条样本摊在数千个不同局面上 ⇒ **每个局面平均只有 1 个样本、1 个类** ⇒
+    **无法把结果归因到"类 × 局面"的交互上**。这正是计划 §6.1 预写的风险（结果信号极弱）。
+  * **同时发现并修掉一个真 bug**：pos_pin=argmax 钉的是**不套掩码**的 argmax
+    （闪电买不起时 argmax=17 但 17 不可执行）⇒ 有些 chosen_cls 天然在掩码外，
+    会把 log q 拉成 **-inf**（第一次跑出现 loss=inf）⇒ 已加"chosen 必须在掩码内"的过滤。
+  * ⇒ **判定：候选 R 在当前数据量级下不可行**（要的是数量级更多的"同局面多类"对照数据）。
