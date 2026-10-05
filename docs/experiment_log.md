@@ -6054,3 +6054,14 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - ⇒ **安静 rollout 的 MC 确实会选"经济类"**（与 M5 的 68/局 相比温和得多），**闪电基本没被挤掉**（10.6）。
 - ⚠️ **降级 18.7/局**说明候选里的"最优经济类"经常是**类 16（降级）**——这是菜单构造的副作用（`range(0,17)` 含降级），
   不是 MC 的错；若 M6b 验收站得住，下一步应把菜单里的降级类**去掉或单独定价**（**这属于候选集合设计，需记档**）。
+
+## 2026-10-06 05:42:20 — M6b_mcq_128
+
+- **commit**: `ff9c2a8` (dirty: 6 files)
+- **exit**: 0，用时 4943s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6b_mcq_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_054220_M6b_mcq_128/output.log`
+- **result**: _待填_
