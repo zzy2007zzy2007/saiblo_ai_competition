@@ -1,4 +1,4 @@
-"""Bundle-sampling MCTS (修复先验-解码不一致, 见 docs/az_bundle_sampling_mcts_plan.md).
+﻿"""Bundle-sampling MCTS (修复先验-解码不一致, 见 docs/az_bundle_sampling_mcts_plan.md).
 
 Candidates = temperature-sampled COMPLETE action groups (up to 3 ops per player),
 generated with the decoder's own sampling semantics (class sample -> position
@@ -144,6 +144,62 @@ def reserve_class(
     return top
 
 
+def _try_classes(head_logits, action_map, class_mask, position_mask, state, player,
+                 order, allowed, intent_decoding, max_probe=24):
+    """在 `allowed` 里按 logits 顺序找**第一个真能解码**的类；找不到返回 None。"""
+    from my_ai.decoder import decode_head
+    for cid in order[:max_probe]:
+        cid = int(cid)
+        if cid not in allowed or not class_mask[cid] or not position_mask[cid].any():
+            continue
+        op = decode_head(head_logits, action_map, class_mask.copy(), position_mask.copy(),
+                         state, player, class_id=cid, temperature=0.0,
+                         pos_temperature=0.0, intent_decoding=intent_decoding)
+        if op is not None:
+            return cid
+    return None
+
+
+def reserve_upgrade_class(
+    head_logits: np.ndarray,
+    action_map: np.ndarray,
+    class_mask: np.ndarray,
+    position_mask: np.ndarray,
+    state: BackendState,
+    player: int,
+    reserve_coins: int,
+    *,
+    intent_decoding: bool = True,
+) -> int:
+    """候选 E3（诊断臂）：储备规则 + **优先"升级/出高级塔"（类 1-15）而不是"再建一座基础塔"（类 0）**，且**绝不降级**。
+
+    动机（2026-10-05 实测的 ops 分布，E2 128 局）：我方 **建塔 10.70 / 升塔 0.37 / 降级 0.90 / 闪电 11.22**
+    —— 也就是说"花余钱"时几乎总是**再建一座 BASIC 塔**、偶尔**升级**、还会**降级 0.9 次/局**（提示：
+    "建塔成本 15→30→45→90…"涨上去以后，常数类头里排在前面且可执行的变成了降级类）。
+    而对手 `rule_v4` 是 **建塔 16.3 / 升塔 9.8**。⇒ 问：**把余钱花在"升级/高级塔"上是否比"堆 BASIC 塔"更好？**
+
+    规则：① `argmax`（闪电）可执行 ⇒ 用它；② 否则若 `coins ≥ reserve` ⇒ 先在 **1-15**（升级/高级塔）里挑，
+    再退到 **0**（建基础塔）；**永不选 16（降级）**；③ 否则维持原样（HOLD）。
+    """
+    order = np.argsort(-np.asarray(head_logits, dtype=np.float32))
+    top = int(order[0])
+    from my_ai.decoder import decode_head
+    if decode_head(head_logits, action_map, class_mask.copy(), position_mask.copy(),
+                   state, player, class_id=top, temperature=0.0,
+                   pos_temperature=0.0, intent_decoding=intent_decoding) is not None:
+        return top
+    if int(state.coins[player]) >= int(reserve_coins):
+        cid = _try_classes(head_logits, action_map, class_mask, position_mask, state, player,
+                           order, set(range(1, 16)), intent_decoding)
+        if cid is not None:
+            return cid
+        cid = _try_classes(head_logits, action_map, class_mask, position_mask, state, player,
+                           order, {0}, intent_decoding)
+        if cid is not None:
+            return cid
+    return top
+
+
 def sample_bundle(
     net_out: dict,
     state: BackendState,
@@ -272,7 +328,7 @@ class BundleMCTS:
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable", "reserve"):
+        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -389,6 +445,12 @@ class BundleMCTS:
                 pinned = [reserve_class(hl, net_out["action_map"], base_cls_mask,
                                         base_pos_mask, node.state, node.player,
                                         self.reserve_coins)
+                          for hl in head_logits_list]
+            elif self.pos_pin == "reserve_up":
+                # 候选 E3（诊断）：储备规则 + 优先升级/高级塔、不降级
+                pinned = [reserve_upgrade_class(hl, net_out["action_map"], base_cls_mask,
+                                                base_pos_mask, node.state, node.player,
+                                                self.reserve_coins)
                           for hl in head_logits_list]
             else:
                 pinned = [int(np.argmax(hl)) for hl in head_logits_list]
