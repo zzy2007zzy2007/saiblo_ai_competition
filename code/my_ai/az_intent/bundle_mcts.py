@@ -330,7 +330,7 @@ class BundleMCTS:
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q", "mc_light"):
+        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q", "mc_light", "mc_quiet"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -457,6 +457,39 @@ class BundleMCTS:
                                                 base_pos_mask, node.state, node.player,
                                                 self.reserve_coins)
                           for hl in head_logits_list]
+            elif self.pos_pin == "mc_quiet":
+                # 方法侧 M6b（见 code/my_ai/az_intent/mc_quiet.py）：**安静 rollout** 的蒙特卡洛类决策。
+                # M6（贪心 rollout）在确定性局面下原生崩溃（128 局里 32% INVALID）⇒ 换成"只打候选那一手、
+                # 之后谁都不出招地推进到终局"，成本 ~0.3–0.5 s/候选 ⇒ **每个回合都能比**。
+                # 候选 = {闪电, HOLD} ∪ {最优经济类}（经济类只在"不用打闪电"时才有意义，但一并比较）。
+                _AM = np.asarray(net_out["action_map"], dtype=np.float32)
+                _economy = None
+                _best_v = -np.inf
+                for _c in range(0, 17):
+                    if base_cls_mask[_c] and base_pos_mask[_c].any():
+                        _v = float(np.where(base_pos_mask[_c], _AM[_c], -np.inf).max())
+                        if _v > _best_v:
+                            _economy, _best_v = _c, _v
+                from my_ai.az_intent.mc_quiet import _decode_class_op as _dq, mc_quiet_choose
+                pinned = []
+                for _hl in head_logits_list:
+                    _hl = np.asarray(_hl, dtype=np.float32)
+                    _cands = [23]
+                    if _decode_class_op(_hl, _AM, base_cls_mask, base_pos_mask,
+                                        node.state, node.player, 17) is not None:
+                        _cands.insert(0, 17)
+                    if _economy is not None and _decode_class_op(
+                            _hl, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
+                            _economy) is not None:
+                        _cands.append(_economy)
+                    try:
+                        _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl, _AM,
+                                                  base_cls_mask, base_pos_mask,
+                                                  max_rounds=int(self.mc_horizon))
+                        pinned.append(int(_c))
+                        self.mc_last_scores = _sc
+                    except Exception:  # noqa: BLE001
+                        pinned.append(int(np.argmax(_hl)))
             elif self.pos_pin == "mc_light":
                 # 方法侧 M6（见 code/my_ai/az_intent/mc_class.py + docs/prereg_20261006_mc_class.md）：
                 # **只在闪电可执行的回合**做"真跑到底"的蒙特卡洛比较：候选 {闪电, HOLD, 经济类}，
