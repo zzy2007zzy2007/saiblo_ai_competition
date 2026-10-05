@@ -191,6 +191,7 @@ def build_engine(seed: int, player: int):
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
     from my_ai.az_intent.bundle_mcts import BundleMCTS
+    from my_ai.az_intent.menu3_candidates import make_menu3_fn as _menu3_fn
 
     feat = FeatureExtractor(max_actions=96)
     model, net_fn = make_net_fn_from_ckpt(
@@ -200,6 +201,17 @@ def build_engine(seed: int, player: int):
         # 可选：类条件价值头（方法侧 M2，`AZAI_Q_CKPT` 指向 QHead.save 的文件）
         q_ckpt=_env("AZAI_Q_CKPT", ""),
     )
+    # 可选：**3 候选菜单**（方法侧 M5，`AZAI_MENU3=1`）：把"出哪个类"交回搜索，
+    # 候选 = {闪电, HOLD, 一个经济类}（见 code/my_ai/az_intent/menu3_candidates.py + 预注册）。
+    _menu3_holder: dict = {}
+    if int(_env("AZAI_MENU3", "0")):
+        _inner = net_fn
+
+        def net_fn(state, player, _inner=_inner, _h=_menu3_holder):   # noqa: F811
+            out = _inner(state, player)
+            _h["out"] = out
+            return out
+
     # 可选：**根节点的位置先验**（`AZAI_POSPRIOR=value|uniform`，默认 off）
     #   `value`   = 用**我们自己的价值网**在"钉住的类的合法格"上算 1-ply z-score 当 action_map
     #               （这正是位置网当初被训练去模仿的那个先验；实现见
@@ -231,6 +243,8 @@ def build_engine(seed: int, player: int):
         class_pin_random_prob=float(_env("AZAI_CLASSPIN_PROB", "0")),
         # 候选 E（诊断臂）：pos_pin=reserve 时的闪电储备门槛：见 docs/prereg_20261005_reserve_economy.md
         reserve_coins=int(_env("AZAI_RESERVE", "90")),
+        # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
+        candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,
     )
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
