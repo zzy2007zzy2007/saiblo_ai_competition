@@ -117,7 +117,8 @@ def main() -> int:
         for i in range(0, len(idx), 512):
             o = class_model(torch.from_numpy(b[i:i + 512]), torch.from_numpy(s[i:i + 512]))
             embs[i:i + 512] = o["state_emb"].cpu().numpy()
-    qq = q.score_all(torch.from_numpy(embs)).cpu().numpy()          # (M, 24)
+    with torch.no_grad():
+        qq = q.score_all(torch.from_numpy(embs)).cpu().numpy()      # (M, 24)
     delta = qq[:, 0:17].max(axis=1) - qq[:, 23]                     # 最值钱的花钱类 vs HOLD
     coins = s[:, coin_idx]
 
