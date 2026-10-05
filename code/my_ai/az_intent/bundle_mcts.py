@@ -353,6 +353,9 @@ class BundleMCTS:
         self.class_pin_random_prob = float(class_pin_random_prob)
         # 候选 E（诊断臂）：pos_pin="reserve" 时的"闪电储备"门槛（金币）。
         self.reserve_coins = int(reserve_coins)
+        # M6（mc_light）：MC 的 rollout 截断长度 / 每 N 回合最多比一次（控成本）
+        self.mc_horizon = int(mc_horizon)
+        self.mc_every = int(mc_every)
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
