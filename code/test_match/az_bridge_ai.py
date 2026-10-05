@@ -219,6 +219,8 @@ def build_engine(seed: int, player: int):
         search_mode=_env("AZAI_MODE", "joint"),
         pos_pin=_env("AZAI_POSPIN", "argmax"),
         skip_single_candidate=bool(int(_env("AZAI_SKIP1", "0"))),
+        # 「类探索」（只用于**采集**，默认 0 = 关）：见 docs/class_head_outcome_plan.md
+        class_pin_random_prob=float(_env("AZAI_CLASSPIN_PROB", "0")),
         pos_prior_fn=ppf,
     )
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
@@ -263,21 +265,41 @@ def main() -> int:
         _DUMP["path"] = str(out / f"obs_seed{seed:05d}_p{player}.bin")
         _log(f"裸观测 dump 已开启 -> {_DUMP['path']}")
 
-    def _record_obs() -> None:
+    def _record_obs(res=None) -> None:
+        """追加一条裸记录：board + stats + player + **实际选中的类(3)** + **合法类掩码(24)**。
+
+        "选中的类"口径与 `code/my_ai/az_intent/report_posnet_diag.py:44-57` 一致
+        （= 访问量最高候选里、该 head 采样次数最多的 intent 的类号）；没有就记 255。
+        掩码由解码器自己推（`intent_decoding=True`）⇒ 与"能不能真解出操作"一致。
+        """
         if not _DUMP["dir"]:
             return
         import numpy as np
+        from my_ai.decoder import make_class_mask, make_position_masks
         obs = feat.encode_observation(facade, player, np.zeros(96))
+        pm = make_position_masks(facade, player, intent_decoding=True)
+        cm = make_class_mask(facade, player, position_mask=pm, intent_decoding=True)
+        chosen = [255, 255, 255]
+        ic = getattr(res, "intent_counts", None) if res is not None else None
+        if ic:
+            vis = getattr(res, "visit", None)
+            j = int(np.argmax(np.asarray(vis, dtype=float))) if vis is not None and len(vis) else 0
+            for h in range(3):
+                d = ic[j][h] if j < len(ic) and h < len(ic[j]) else {}
+                if d:
+                    chosen[h] = int(max(d.items(), key=lambda kv: kv[1])[0][0])
         if _DUMP["fh"] is None:
             _DUMP["fh"] = open(_DUMP["path"], "ab")
         _DUMP["fh"].write(np.asarray(obs["board"], dtype=np.float16).tobytes())
         _DUMP["fh"].write(np.asarray(obs["stats"], dtype=np.float16).tobytes())
         _DUMP["fh"].write(bytes([int(player)]))
+        _DUMP["fh"].write(bytes(int(x) & 0xFF for x in chosen))
+        _DUMP["fh"].write(bytes(int(x) & 0xFF for x in np.asarray(cm, dtype=np.uint8)))
         _DUMP["n"] += 1
 
     def decide() -> list:
-        _record_obs()
         res = mcts.search(facade, player, temperature=temperature)
+        _record_obs(res)
         chosen = res.chosen_bundle or ()
         return [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
 

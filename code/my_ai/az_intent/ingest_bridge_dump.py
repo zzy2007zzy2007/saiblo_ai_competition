@@ -44,7 +44,8 @@ for _s in (sys.stdout, sys.stderr):
 from my_ai.az_intent.mcts import HP_SCALE  # noqa: E402
 
 BOARD_SHAPE = (28, 19, 19)
-REC_BYTES = int(np.prod(BOARD_SHAPE)) * 2 + 42 * 2 + 1     # float16*N + float16*42 + uint8
+N_CLS = 24
+REC_BYTES = int(np.prod(BOARD_SHAPE)) * 2 + 42 * 2 + 1 + 3 + N_CLS   # +player +chosen(3) +mask(24)
 
 RESULT_RE = re.compile(
     r"RESULT seed=(\d+) p0=(\S+) p1=(\S+) winner=(\S+) (?:winner_side=(\S+) )?verdict=(\S+) "
@@ -110,11 +111,16 @@ def main() -> int:
         board = buf[:, :bsz].copy().view(np.float16).reshape(n_rec, *BOARD_SHAPE)
         stats = buf[:, bsz:bsz + 84].copy().view(np.float16).reshape(n_rec, 42)
         pl = buf[:, bsz + 84].astype(np.int64)
+        chosen = buf[:, bsz + 85: bsz + 88].astype(np.int64)          # 3 个类号（255 = 无）
+        cmask = buf[:, bsz + 88: bsz + 88 + N_CLS].astype(bool)       # 合法类掩码
         if a.tower_only:
             keep = (board[:, 4] != 0).any(axis=(1, 2))
-            board, stats, pl = board[keep], stats[keep], pl[keep]
+            board, stats, pl, chosen, cmask = (board[keep], stats[keep], pl[keep],
+                                               chosen[keep], cmask[keep])
         n_keep += len(pl)
         samples = [{"board": board[i], "stats": stats[i], "player": int(pl[i]),
+                    "chosen_cls": chosen[i].astype(np.int64),
+                    "class_mask": cmask[i].astype(bool),
                     "value_target": float(v_p0 if pl[i] == 0 else -v_p0)}
                    for i in range(len(pl))]
         dst = out_dir / f"az_selfplay_seed{seed:05d}_p{player}.pkl"
