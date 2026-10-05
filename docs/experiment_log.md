@@ -4840,3 +4840,21 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ **P-S2（预测 0.45–0.58，小效应）成立**（实测落在区间内）。
   ⚠️ **按预注册不晋级**（`0.5312 < 0.55`）；如实记为"**方向为正但未达标**"。
   若后续便宜杠杆用尽，可另写预注册对 `ITERS=1024` 跑 128 局验收（成本 ~30 min）。
+
+## 2026-10-05 11:49:03 — S3_depth8_32
+
+- **commit**: `92d62ab` (dirty: 4 files)
+- **exit**: 0，用时 476s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=8 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S3_depth8_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_114903_S3_depth8_32/output.log`
+- **result**: 🟢 **S3（`AZAI_DEPTH=8`，`max_depth_rounds` 4 → 8）：`p̂ = 0.5938`**
+  （16 对；**2-0:6** / 1-1:7 / 0-2:3；CI [0.406, 0.781]）—— 对照 A1 是 `0.5000` ⇒ **+9.4pp**，
+  且**过了预注册的晋级线（≥0.55）** ⇒ **按预注册晋级，已启动 128 局验收**（tag `S3_depth8_128`）。
+  先手侧：我方执先手 7/16、**执后手 12/16**。
+  机制：闪电仍 11.2 次/局、建塔 0、对局 402 回合、单局 ~2.2 min（只比 A1 慢 ~20%）
+  ⇒ **改动只是"搜索看多深"**（8 层展开）。
+  ⚠️ **性质**：**搜索配置**改动（不是"方法学会"），报告时必须标注；但它是本任务**第一个超过 A1 的臂**。
+  ⚠️ `n=16` 时 +9.4pp 的 SE ≈ 12.5pp ⇒ **必须靠 128 局验收定论**（正在跑，~35 min）。
