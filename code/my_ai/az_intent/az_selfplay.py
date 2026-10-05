@@ -1,4 +1,4 @@
-"""Self-play collection for bundle-MCTS AlphaZero training (T1).
+﻿"""Self-play collection for bundle-MCTS AlphaZero training (T1).
 
 Both players use the bundle MCTS.  At each decision we record a training sample:
 board/stats (inputs), player, legal masks, the k sampled bundles with their
@@ -448,6 +448,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       write_npz: bool = False,
                       search_mode: str = "joint", pos_pin: str = "argmax",
                       class_pin_random_prob: float = 0.0,
+                      reserve_coins: int = 180,
                       skip_single_candidate: bool = False) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
@@ -459,6 +460,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
                       c_puct=c_puct, seed=seed, search_mode=search_mode,
                       pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
+                      reserve_coins=reserve_coins,
                       skip_single_candidate=skip_single_candidate)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
@@ -505,6 +507,7 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            write_npz: bool = False,
                            search_mode: str = "joint", pos_pin: str = "argmax",
                            class_pin_random_prob: float = 0.0,
+                           reserve_coins: int = 180,
                            skip_single_candidate: bool = False) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
@@ -512,6 +515,7 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
              random_action_prob, inject_example_prob, skip_hold_search, write_npz,
              search_mode, pos_pin,
              class_pin_random_prob,
+             reserve_coins,
              skip_single_candidate) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -569,18 +573,18 @@ def main() -> None:
                         choices=["joint", "class-only", "pos-only"],
                         help="bundle-MCTS candidate axis.  pos-only (pin the class to its "
                              "argmax, sample only positions) reproduces joint's strength "
-                             "exactly (93.8% vs raw, same 30W/2L) while giving the search a "
+                             "exactly (93.8%% vs raw, same 30W/2L) while giving the search a "
                              "single candidate on ~97%% of turns -> pairs with "
                              "skip_single_candidate for ~26x cheaper collection.  See "
                              "docs/az_forced_move_skip_plan.md")
     parser.add_argument("--pos-pin", type=str, default="argmax",
-                        choices=["argmax", "playable"],
+                        choices=["argmax", "playable", "reserve", "reserve_up"],
                         help="pos-only: which class to pin (argmax = raw argmax; "
                              "playable = highest-logit class that actually executes)")
     parser.add_argument("--class-pin-random-prob", type=float, default=0.0,
                         help="「随机钉类」(docs/az_posnet_random_class_plan.md)：pos-only 下**按头独立**"
                              "以该概率把钉住的类换成一个均匀随机的**合法非闪电类**"
-                             "(c ∉ {超武17-20, HOLD23} 且 class_mask 与 position_mask 都允许)，"
+                             "(c 不在 {超武17-20, HOLD23} 且 class_mask 与 position_mask 都允许)，"
                              "位置仍由搜索做价值排序。用途 = **采集**时给数据加'有塔局面'的多样性；"
                              "部署侧不要开。默认 0.0 ⇒ 行为与旧版逐位相同。建议 0.02。")
     parser.add_argument("--skip-single-candidate", action="store_true",
@@ -593,6 +597,9 @@ def main() -> None:
                              "from mcts.rng afterwards, so realized games are NOT reproducible "
                              "across this flag (the decision distribution is unchanged).  See "
                              "docs/az_forced_move_skip_plan.md")
+    parser.add_argument("--reserve-coins", type=int, default=180,
+                        help="pos_pin=reserve/reserve_up 时的闪电储备门槛（金币）。"
+                             "用途：采集「带储备规则的类策略」数据（蒸馏用），部署侧不要开。")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -613,6 +620,7 @@ def main() -> None:
         search_mode=args.search_mode,
         pos_pin=args.pos_pin,
         class_pin_random_prob=args.class_pin_random_prob,
+        reserve_coins=args.reserve_coins,
         skip_single_candidate=args.skip_single_candidate,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
