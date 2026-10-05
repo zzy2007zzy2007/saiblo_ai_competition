@@ -5561,3 +5561,36 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ```
 - **output**: `training_history/runs/20261005_234459_M5_menu3_8/output.log`
 - **result**: _待填_
+
+## 2026-10-06 00:27:53 — VT_rel5
+
+- **commit**: `efcc562` (dirty: 5 files)
+- **exit**: 0，用时 221s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 5 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel5.pt
+  ```
+- **output**: `training_history/runs/20261006_002753_VT_rel5/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:31:34 — VT_rel10
+
+- **commit**: `efcc562` (dirty: 6 files)
+- **exit**: 0，用时 218s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 10 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel10.pt
+  ```
+- **output**: `training_history/runs/20261006_003134_VT_rel10/output.log`
+- **result**: _待填_
+
+## 2026-10-06 00:35:13 — VT_rel30
+
+- **commit**: `efcc562` (dirty: 6 files)
+- **exit**: 0，用时 223s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 30 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel30.pt
+  ```
+- **output**: `training_history/runs/20261006_003513_VT_rel30/output.log`
+- **result**: _待填_
