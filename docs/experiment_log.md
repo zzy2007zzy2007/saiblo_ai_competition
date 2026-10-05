@@ -5382,3 +5382,83 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     突破必须拿到**多类对照**（高比例类探索采集 `--class-pin-random-prob` 0.15–0.3，代价 ~10–17 min/局；
     或同局面强制多分支的搜索式采集）。
   * 顺手修：`AZAI_Q_CKPT` 相对路径未按仓库根解析 ⇒ AI 以 `cwd=code/test_match` 启动时 FileNotFoundError、整局崩。
+
+## 2026-10-05 21:33:08 — M3_smoke8
+
+- **commit**: `63a35a2` (dirty: 5 files)
+- **exit**: 0，用时 239s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 8 --workers 8 --seed 6 --iterations 32 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 8 --sample-mult 5 --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.2 --native-engine --out-dir training_history/vprior/data_sp_exp8_smoke
+  ```
+- **output**: `training_history/runs/20261005_213308_M3_smoke8/output.log`
+- **result**: _待填_
+
+## 2026-10-05 21:41:35 — M3_collect100_exp
+
+- **commit**: `2af120a` (dirty: 6 files)
+- **exit**: 0，用时 3109s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 100 --workers 8 --seed 6 --iterations 32 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 8 --sample-mult 5 --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.2 --native-engine --out-dir training_history/vprior/data_sp_exp100
+  ```
+- **output**: `training_history/runs/20261005_214135_M3_collect100_exp/output.log`
+- **result**: _待填_
+
+## 2026-10-05 22:34:11 — M3_ingest
+
+- **commit**: `b44ef69` (dirty: 6 files)
+- **exit**: 0，用时 7s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/ingest_selfplay_classes.py --src training_history/vprior/data_sp_exp100 --dst training_history/vprior/data_sp_exp100_exec --label executed
+  ```
+- **output**: `training_history/runs/20261005_223411_M3_ingest/output.log`
+- **result**: _待填_
+
+## 2026-10-05 22:34:19 — M3_qhead_train
+
+- **commit**: `b44ef69` (dirty: 6 files)
+- **exit**: 0，用时 87s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_q_head.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_exp100_exec --out training_history/vprior/qhead_M3.pt --epochs 30 --class-weight-power 0.5
+  ```
+- **output**: `training_history/runs/20261005_223419_M3_qhead_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 22:4x — M3（高比例类探索治识别性）全记录（手工补记 + 一处工具修正）
+
+- **cmd（采集，100 局类探索 + 廉价搜索）**:
+  ```bash
+  python -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt \
+      --games 100 --workers 8 --seed 6 --iterations 32 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 \
+      --k 8 --sample-mult 5 --search-mode pos-only --skip-single-candidate \
+      --class-pin-random-prob 0.2 --native-engine --out-dir training_history/vprior/data_sp_exp100
+  ```
+- **cmd（ingest + Q 训练 + 离线判据）**: `ingest_selfplay_classes.py --label executed` →
+  `train_q_head.py --out qhead_M3.pt --epochs 30 --class-weight-power 0.5` →
+  `check_identification.py` / `probe_q_deployment.py`
+- **result**: 🟡 **探索按预期生效，但识别性仍不足（预注册判据 P-M3a 未达标）**。
+  * **P-M3b ✓✓（覆盖）**：同一局相邻决策里出现 ≥2 种被执行类的比例 **6.3% → 82.3%**（预注册门槛 10%）
+    ⇒ **"类 × 局面"的解耦确实做到了**。
+  * **P-M3a 半达标**：`Δ = Q(最好花钱类) − Q(HOLD)` 与金币的相关 **−0.054 → +0.124**（符号翻正、方向对），
+    且 Δ 随金币**单调上升**（`0.0463 → 0.0469 → 0.0484 → 0.0535`）；
+    **但每一档 Δ 都 > 0**（98–99.8% 的样本 Δ>0）⇒ 预注册要求的"**穷组 Δ ≤ 0**"**没达到**，
+    幅度也太小（极差仅 ~0.007）。
+  * **离线部署探针（`probe_q_deployment.py`，省掉 20 s/回合的对局）**：在 5,793 个真实决策上，
+    三种机制会选的类分布 =
+    `argmax(全24类)`：**闪电 100%**（= A1 的机制）；
+    `masked(合法类)`：HOLD 87.1% / 闪电 12.9%（= A1 实测行为）；
+    **`q(合法类取 max Q)`：塔 88.3% / 超武 4.4% / 降级 3.2% / HOLD 3.1% / 闪电 0.9%**
+    （**闪电可执行时也有 92.1% 选塔**）⇒ **预测部署 = D 型 churn**。
+  * ⇒ **据此跳过 16 局慢读数**（机制判据已判定不达标；探针是同一机制的更强、更便宜的读数，
+    **未看任何判据数据**），这也是本轮唯一的预注册偏离（已记）。
+  * **工具修正（重要）**：金币在 `stats` 的**第 22 维**（42 维里最后 20 维是 extras，前两项是
+    `coins[player]/300`、`coins[enemy]/300`），我第一版自动探测挑错了维（选了第 3 维）⇒ 分组无意义；
+    已用 `--coin-idx 22` 重跑并采用正确读数。
+- **判读**：**20% 的类探索不足以识别"富才花"** —— 类对结果的影响被稀释在 400 回合、二值胜负里；
+  且 Q 头的状态分支学得远好于类分支（HOLD 占 96% 的样本让类 one-hot 的信息量极小）。
+- **下一步（写进寄存器）**：① **更强的探索**（强制类比例 ≥50%，或对**同一局面**跑多分支）；
+  ② 或改**表述**：把"要不要出手"做成**二分类 + 价值目标**（而不是 24 类 argmax）；
+  ③ 若两者都不行 ⇒ 承认"在本项目的算力/数据下，类轴的策略学习不可行"，把它写成结论。
