@@ -146,9 +146,9 @@
   > git log --oneline --diff-filter=A -- docs/task_ruleV4_70_charter.md   # 章程首版是哪个提交
   > for t in goal-start-20260924 goal-ready-20260925; do
   >   printf '%s: ①=%s ②=%s ③=%s\n' "$t" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '禁止走')" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '手写启发式只能当')" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '默认只当')"
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '禁止走"模仿前两名"')" \
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '手写启发式只能当「诊断臂」')" \
+  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '默认只当「测试」')"
   > done
   > ```
   对一个"每轮都读章程"的活任务，这是最危险的一类"恢复"。
