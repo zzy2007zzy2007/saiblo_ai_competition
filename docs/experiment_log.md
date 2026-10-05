@@ -5101,3 +5101,38 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
 - **下一步（立刻）**：储备阶梯正在 `71..102` 上跑，其中 **`R180` 这一臂恰好就是对 E2 的一次
   fresh-seed 检查**（`71..102` 从未用于"90 vs 180"的选择）⇒ 先看它；随后无论阶梯结果如何，
   都要在**全新 seed 段**上对"当前操作配置"做一次 128 局复制。
+
+## 2026-10-05 16:40:42 — R120_s71_102
+
+- **commit**: `e0df0ab` (dirty: 5 files)
+- **exit**: 0，用时 1804s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=reserve AZAI_POSPRIOR=off AZAI_RESERVE=120 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=R120_s71_102 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 71 71r 72 72r 73 73r 74 74r 75 75r 76 76r 77 77r 78 78r 79 79r 80 80r 81 81r 82 82r 83 83r 84 84r 85 85r 86 86r 87 87r 88 88r 89 89r 90 90r 91 91r 92 92r 93 93r 94 94r 95 95r 96 96r 97 97r 98 98r 99 99r 100 100r 101 101r 102 102r
+  ```
+- **output**: `training_history/runs/20261005_164042_R120_s71_102/output.log`
+- **result**: _待填_
+
+## 2026-10-05 17:10:46 — R180_s71_102
+
+- **commit**: `600e20e` (dirty: 6 files)
+- **exit**: 0，用时 1372s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=reserve AZAI_POSPRIOR=off AZAI_RESERVE=180 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=R180_s71_102 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 71 71r 72 72r 73 73r 74 74r 75 75r 76 76r 77 77r 78 78r 79 79r 80 80r 81 81r 82 82r 83 83r 84 84r 85 85r 86 86r 87 87r 88 88r 89 89r 90 90r 91 91r 92 92r 93 93r 94 94r 95 95r 96 96r 97 97r 98 98r 99 99r 100 100r 101 101r 102 102r
+  ```
+- **output**: `training_history/runs/20261005_171046_R180_s71_102/output.log`
+- **result**: _待填_
+
+## 2026-10-05 17:4x — 分析：位置头 24 个类通道"哪些随局面变化"（**推翻一个假设**）
+
+- **cmd**: `python -u code/test_match/diag_action_map_channels.py --n 300`
+- **结果**（跨局面 std，越大越"看局面"；括号=最热格在 300 个状态里出现过几个不同格）：
+  通道 17（闪电）**2.280**（80）；19 **1.965**（78）；**0-15（建/升塔）1.18–1.29（120–124）**；
+  20 **0.963**；18 **0.894**；16（降级）**0.050**（69）；22 **0.006**；21 **0.003**；23（HOLD）**0.002**。
+- **判读**：我原以为"建塔通道从没被训练过（类一直被钉在闪电）⇒ 塔放哪儿没有信息"。
+  **读数推翻了这个假设**：通道 0-15 的跨局面 std 与闪电同量级（比值 2.0×，不是 ≫），
+  且"最热格"随局面变化（300 个状态里 120+ 个不同格）⇒ **塔的位置先验是有状态信息的**
+  （应该是早期 joint 模式训练留下的）。
+  ⇒ **"塔放哪儿没信息"这条不作数**；下一步若要动"花钱"，该动的是**"花在哪个类"**
+  （类头是常数函数 ⇒ 目前这个选择是**与局面无关的固定顺序**），而不是位置。
