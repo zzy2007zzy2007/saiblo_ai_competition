@@ -14,9 +14,9 @@
 
 | 臂 | ckpt | 数据/训练 | 说明 |
 |---|---|---|---|
-| **V0**（控制）| `training_history/vprior/posnet_A_k5_m32.pt` | — | **配置阶梯选出的配置**下的读数（若赢家是 A1，则 V0 = A1 在 seed `7..22` 的前缀读数）|
-| **V1** | `training_history/vprior/posnet_v1_val20.pt` | **现有缓存** `training_history/inject_ex02/value_cache`，`--label-mode terminal --freeze-bn --epochs 20 --lr 3e-4` | 只改"曝光量"（3→20 epoch）|
-| **V2** | `training_history/vprior/posnet_v2_valfresh.pt` | **新采 100 局自对弈**（用**配置阶梯选出的配置**采）→ 建缓存 → `--epochs 4 --lr 3e-4 --label-mode terminal --freeze-bn` | 改的是**数据分布**（新策略的数据）|
+| **V0**（控制）| `training_history/vprior/posnet_A_k5_m32.pt` | — | **配置阶梯选出的配置**下的读数（A1 在 seed `7..22` 的前缀读数 = **0.5000**）|
+| ~~**V1**~~ | ~~`posnet_V1_val20.pt`~~ | **作废（见上面的"事后说明"）**：训练器早停把权重还原到 epoch -1 ⇒ 产物与对照**逐张量相同** | ~~只改"曝光量"（3→20 epoch）~~ |
+| **V2** | `training_history/vprior/posnet_v2_valfresh.pt` | **新采 100 局自对弈**（用**A1 配置**采）→ 建缓存 → `--epochs 4 --lr 3e-4 --label-mode terminal --freeze-bn` | 改的是**数据分布**（新策略的数据）|
 
 - 两个臂都 `--ckpt training_history/vprior/posnet_A_k5_m32.pt`
   ⇒ `class_state`/`pos_state` **逐位不动**，只换 `value_state`（`train_value_net.py:286-291, 315-320`）。
