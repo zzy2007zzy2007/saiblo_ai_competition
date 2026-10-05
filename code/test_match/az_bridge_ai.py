@@ -1,4 +1,4 @@
-﻿"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
+"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
 
 背景（`docs/champ_ladder_plan.md` §3.2 / §7.6）：我们**从来没有跟冠军/亚军打过**——
 我们的 AI 是 in-process 的，不会讲官方 stdin/stdout 协议。`code/test_match/rv4_pkg/`
@@ -191,6 +191,8 @@ def build_engine(seed: int, player: int):
         ckpt, feat,
         value_tanh=bool(int(_env("AZAI_VALUE_TANH", "1"))),
         value_rel_to_abs=float(_env("AZAI_REL2ABS", "0")),
+        # 可选：类条件价值头（方法侧 M2，`AZAI_Q_CKPT` 指向 QHead.save 的文件）
+        q_ckpt=_env("AZAI_Q_CKPT", ""),
     )
     # 可选：**根节点的位置先验**（`AZAI_POSPRIOR=value|uniform`，默认 off）
     #   `value`   = 用**我们自己的价值网**在"钉住的类的合法格"上算 1-ply z-score 当 action_map

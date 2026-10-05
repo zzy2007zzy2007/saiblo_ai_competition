@@ -328,7 +328,7 @@ class BundleMCTS:
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked"):
+        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -452,6 +452,18 @@ class BundleMCTS:
                                                 base_pos_mask, node.state, node.player,
                                                 self.reserve_coins)
                           for hl in head_logits_list]
+            elif self.pos_pin == "q":
+                # 「类条件价值」决策（方法侧 M2，预注册 docs/prereg_20261005_qhead_class_decision.md）：
+                # 在**合法类**里取 `argmax_c Q(s, c)`（Q 来自 `AZAI_Q_CKPT`，见 q_head.py）。
+                # 与 masked 的区别：masked 用的是**类头的 logits**（= 模仿示范频率），
+                # 这里用的是**对局结果的预测**（= 这个类在这儿会不会赢）。
+                _qv = net_out.get("q_classes")
+                if _qv is None:
+                    pinned = [int(np.argmax(hl)) for hl in head_logits_list]
+                else:
+                    _qv = np.asarray(_qv, dtype=np.float64)
+                    _c = int(np.argmax(np.where(base_cls_mask, _qv, -np.inf)))
+                    pinned = [_c] * len(head_logits_list)
             elif self.pos_pin == "masked":
                 # 「掩码感知的 argmax」（2026-10-05，方法侧修**决策机制**）：
                 # 在**合法类**（`class_mask` 为真，**含 HOLD 23**）里取 argmax，而不是在全 24 类里取。
