@@ -181,6 +181,12 @@ def build_engine(seed: int, player: int):
     # ⚠️ bridge 用 cwd=exe.parent（= code/test_match）起我们，所以相对路径要按仓库根解析
     _c = Path(ckpt)
     ckpt = str(_c if _c.is_absolute() else (Path(MVS.REPO_ROOT) / _c).resolve())
+    # 同理：类条件价值头（M2）的路径也要按仓库根解析（实测踩过：相对路径 ⇒ FileNotFoundError ⇒ 整局崩）
+    _q = _env("AZAI_Q_CKPT", "")
+    if _q:
+        _qp = Path(_q)
+        _q = str(_qp if _qp.is_absolute() else (Path(MVS.REPO_ROOT) / _qp).resolve())
+        os.environ["AZAI_Q_CKPT"] = _q
 
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.az_selfplay import make_net_fn_from_ckpt
