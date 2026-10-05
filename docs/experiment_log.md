@@ -5538,3 +5538,14 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ⚠️ 单局 ~15–25 min ⇒ 8 局并行也要 ~30–50 min，读数在下一轮落地。
 - **判读（尚待分数）**：M5 是第一条"**无手写规则、又能表达条件行为**"的臂；
   若 8 局 `p̂ ≥ 0.55` ⇒ 扩到 16 局；若机制对但分数不动 ⇒ "搜索能表达但排序不准" ⇒ 下一步加深 rollout。
+
+## 2026-10-05 23:44:59 — M5_menu3_8
+
+- **commit**: `1720ba5` (dirty: 5 files)
+- **exit**: 0，用时 1908s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=1 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=0 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M5_menu3_8 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r
+  ```
+- **output**: `training_history/runs/20261005_234459_M5_menu3_8/output.log`
+- **result**: _待填_
