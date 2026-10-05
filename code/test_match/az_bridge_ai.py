@@ -69,6 +69,20 @@ def _env(name: str, default: str) -> str:
     return os.environ.get(name, default)
 
 
+# ── 可选：把"判据分布内的 (observation, 终局) 对"dump 出来当价值网训练数据（2026-10-05）
+# 动机：我们跑的**对 rule_v4 的对局**正是判据的局面分布（对手每局建 ~16.5 座塔），
+# 而自对弈采到的数据**一个塔局面都没有**（实测 `己方有塔` = 0.0%，见
+# `code/test_match/check_tower_coverage.py`）。⇒ 让**测量批同时当采集批**。
+#
+# ⚠️ **为什么是"边打边追加的裸文件"而不是"结束时写 pkl"**：bridge 在收尾时会**硬杀**子进程，
+# 实测**连 `atexit` 和自己函数末尾的代码都来不及跑完**（`[dump] 调用: samples=367` 成了日志最后一行、
+# 文件没写出来）。所以这里改成：**每个决策就把 board/stats/player 追加进一个定长记录的 .bin**，
+# 终局标签**不由我们写**，而是事后用 **ladder 日志里的 `RESULT ... base_hp=`** 反推
+# （那个日志是 bridge 自己写的，不会被杀）⇒ 竞态彻底消失。
+# 默认关闭（`AZAI_DUMP_RAW_DIR` 为空）⇒ 不影响任何既有读数。
+_DUMP: dict = {"dir": "", "seed": 0, "player": 0, "fh": None, "n": 0}
+
+
 def _log(msg: str) -> None:
     sys.stderr.write(f"[azai] {msg}\n")
     sys.stderr.flush()
@@ -90,13 +104,31 @@ def _install_reporters() -> None:
     import atexit
     import signal
     atexit.register(_report)
+    atexit.register(_dump_value_data)
     for sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGINT", None)):
         if sig is None:
             continue
         try:
-            signal.signal(sig, lambda *_a: (_report(), sys.exit(0)))
+            signal.signal(sig, lambda *_a: (_report(), _dump_value_data(), sys.exit(0)))
         except (ValueError, OSError):
             pass
+
+
+def _dump_value_data() -> None:
+    """收尾：关掉裸 dump 文件并（尽力）写一个 sidecar（**标签主要靠 ladder 日志反推**）。
+
+    ⚠️ 实测 bridge 会把我们**硬杀**在这里（连函数体都跑不完）⇒ 本函数只是"尽力而为"：
+    数据的完整性由"边打边追加"保证，标签由 `ingest_bridge_dump.py` 从 ladder 日志补。
+    """
+    if _DUMP.get("fh") is not None:
+        try:
+            _DUMP["fh"].flush()
+            _DUMP["fh"].close()
+        except Exception:  # noqa: BLE001
+            pass
+        _DUMP["fh"] = None
+        _log(f"[dump] 已写入 {_DUMP['n']} 条观测 -> {_DUMP['dir']}")
+
 
 
 class ProtocolIO:
@@ -216,8 +248,35 @@ def main() -> int:
     mcts, model, feat = build_engine(seed, player)
 
     facade = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    # 裸观测 dump（可选）：**边打边追加**（见文件头注释：结束时写会赶不上 bridge 的硬杀）
+    _DUMP["dir"] = _env("AZAI_DUMP_RAW_DIR", "")
+    _DUMP["seed"] = seed
+    _DUMP["player"] = player
+    _DUMP["fh"] = None
+    _DUMP["n"] = 0
+    if _DUMP["dir"]:
+        import numpy as np
+        out = Path(_DUMP["dir"])
+        if not out.is_absolute():
+            out = Path(MVS.REPO_ROOT) / out       # ⚠️ bridge 用 cwd=exe.parent 起我们
+        out.mkdir(parents=True, exist_ok=True)
+        _DUMP["path"] = str(out / f"obs_seed{seed:05d}_p{player}.bin")
+        _log(f"裸观测 dump 已开启 -> {_DUMP['path']}")
+
+    def _record_obs() -> None:
+        if not _DUMP["dir"]:
+            return
+        import numpy as np
+        obs = feat.encode_observation(facade, player, np.zeros(96))
+        if _DUMP["fh"] is None:
+            _DUMP["fh"] = open(_DUMP["path"], "ab")
+        _DUMP["fh"].write(np.asarray(obs["board"], dtype=np.float16).tobytes())
+        _DUMP["fh"].write(np.asarray(obs["stats"], dtype=np.float16).tobytes())
+        _DUMP["fh"].write(bytes([int(player)]))
+        _DUMP["n"] += 1
 
     def decide() -> list:
+        _record_obs()
         res = mcts.search(facade, player, temperature=temperature)
         chosen = res.chosen_bundle or ()
         return [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
@@ -293,6 +352,9 @@ def main() -> int:
     _log(f"结束: rounds={STATS['rounds']} terminal={facade.terminal} winner={facade.winner} "
          f"hp={[b.hp for b in facade.bases]} mismatch={STATS['mismatch']} "
          f"illegal={STATS['illegal']}")
+    # ⚠️ 显式在这里 dump：bridge 收尾时会**硬杀**子进程（Windows TerminateProcess ⇒ atexit/SIGTERM
+    # 都不一定跑得到）⇒ 不能只靠 atexit（实测：只挂 atexit 时一个文件都没写出来）。
+    _dump_value_data()
     return 0
 
 
