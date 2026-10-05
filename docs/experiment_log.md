@@ -5571,7 +5571,10 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 5 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel5.pt
   ```
 - **output**: `training_history/runs/20261006_002753_VT_rel5/output.log`
-- **result**: _待填_
+- **result**: ✅ **`rel` 标签可用、且读数很有信息量**（预注册 `docs/prereg_20261006_value_label_horizon.md`）：
+  标签 `mode=rel tau=5.0` ⇒ **mean +0.0000 / std 0.0228 / range [-0.135,+0.165]**（**局内有分辨**；terminal 是局内恒值）；
+  训练：**训练前 val MSE 0.0688 → 最佳 0.00046 @epoch 8**，**但常数基线是 0.00052** ⇒ **只比「恒预测 0」好 12%**，`r=+0.065`。
+  ⇒ **三个 rel 臂的一致读数**：视野对齐后**标签确实有局内分辨率**，但**这个量本身几乎学不出来**（相对常数基线只好 12%/20%/31%，`r≈0.065–0.082`）；对照 **terminal** 虽局内恒定却能学到 `r=0.62`（那是「谁领先」这种状态级信息）。⇒ **叶评价的动作分辨力问题被量化了**：不是「标签没视野」，而是「**短视野的未来优势变化本身低信噪比**」。
 
 ## 2026-10-06 00:31:34 — VT_rel10
 
@@ -5582,7 +5585,9 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 10 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel10.pt
   ```
 - **output**: `training_history/runs/20261006_003134_VT_rel10/output.log`
-- **result**: _待填_
+- **result**: ✅ `mode=rel tau=10.0` ⇒ std 0.0346 / range [-0.197,+0.212]；
+  **val MSE 0.0688 → 0.00095 @epoch 8**（常数基线 0.00119 ⇒ **好 20%**），`r=+0.080`。
+  ⇒ **三个 rel 臂的一致读数**：视野对齐后**标签确实有局内分辨率**，但**这个量本身几乎学不出来**（相对常数基线只好 12%/20%/31%，`r≈0.065–0.082`）；对照 **terminal** 虽局内恒定却能学到 `r=0.62`（那是「谁领先」这种状态级信息）。⇒ **叶评价的动作分辨力问题被量化了**：不是「标签没视野」，而是「**短视野的未来优势变化本身低信噪比**」。
 
 ## 2026-10-06 00:35:13 — VT_rel30
 
@@ -5593,4 +5598,6 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --tau 30 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_VRrel30.pt
   ```
 - **output**: `training_history/runs/20261006_003513_VT_rel30/output.log`
-- **result**: _待填_
+- **result**: ✅ `mode=rel tau=30.0` ⇒ std 0.0615 / range [-0.323,+0.313]；
+  **val MSE 0.0702 → 0.00261 @epoch 8**（常数基线 0.00381 ⇒ **好 31%**），`r=+0.082`。
+  ⇒ **三个 rel 臂的一致读数**：视野对齐后**标签确实有局内分辨率**，但**这个量本身几乎学不出来**（相对常数基线只好 12%/20%/31%，`r≈0.065–0.082`）；对照 **terminal** 虽局内恒定却能学到 `r=0.62`（那是「谁领先」这种状态级信息）。⇒ **叶评价的动作分辨力问题被量化了**：不是「标签没视野」，而是「**短视野的未来优势变化本身低信噪比**」。
