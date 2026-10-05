@@ -4709,3 +4709,61 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⚠️ **性质**：这仍是**部署语义的配置实验**（没训练任何东西），但结论是**方法层**的：
   **任何"让类轴更活跃"的改动都必须先过它这一关**（否则就是 0%）。
   ⚠️ **成本教训**：D 的每一步都贵 ~15×（不触发 skip ⇒ 每回合付完整 256 次迭代）⇒ 记录进寄存器。
+
+## 2026-10-05 09:50:00 — V1_val20_train
+
+- **commit**: `ef46555` (dirty: 4 files)
+- **exit**: 0，用时 2326s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/inject_ex02/value_cache --epochs 20 --lr 3e-4 --label-mode terminal --freeze-bn --out training_history/vprior/posnet_V1_val20.pt
+  ```
+- **output**: `training_history/runs/20261005_095000_V1_val20_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 10:02:56 — V2_collect100
+
+- **commit**: `5384022` (dirty: 4 files)
+- **exit**: 0，用时 3002s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 100 --workers 8 --seed 2 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --native-engine --out-dir training_history/vprior/data_r2_100
+  ```
+- **output**: `training_history/runs/20261005_100256_V2_collect100/output.log`
+- **result**: ✅ 采完 **100 局自对弈 / 96,004 个样本**（8 workers、用时 3002 s ≈ 50 min ⇒ **~8 CPU-min/局**，
+  比配方里"400 局 4090 s / 16 workers"的估算慢，因为**自对弈两侧都要跑搜索**）。
+  🔴 **一个结构性发现**：这批数据的价值网训练日志显示 **`有塔 n=0`**（val 19,134 个样本里**一个"有塔局面"都没有**）
+  ⇒ **自对弈数据是退化分布**：我方在 A1 配置下**从不建塔**（建塔恒 0），两侧都是我们 ⇒ **整局没有塔**
+  ⇒ **它跟判据里的局面分布（`rule_v4` 每局建 16.5 座塔）完全不是一回事**。
+  ⇒ **教训**：要喂"经济/塔"相关的学习信号，**不能只靠自对弈**；应采**对 `rule_v4` 的局**
+  （允许：对手=环境，不是模仿）。这条已进寄存器。
+
+## 2026-10-05 10:55:21 — V2_cache_build
+
+- **commit**: `362d8c0` (dirty: 5 files)
+- **exit**: 0，用时 9s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_r2_100 --cache training_history/vprior/vcache_r2_100 --build-cache-only
+  ```
+- **output**: `training_history/runs/20261005_105521_V2_cache_build/output.log`
+- **result**: ✅ 由 100 局 pkl 建价值缓存（96,004 行；board/stats/player/value_target 四个 memmap），用时 9 s。
+  ⚠️ 随后的训练日志显示 **`有塔 n=0`** ⇒ 这批数据**全是无塔局面**（见 `V2_collect100` 那条）。
+
+## 2026-10-05 10:55:30 — V2_valtrain
+
+- **commit**: `362d8c0` (dirty: 5 files)
+- **exit**: 0，用时 109s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/vprior/vcache_r2_100 --epochs 4 --lr 3e-4 --label-mode terminal --freeze-bn --out training_history/vprior/posnet_v2_valfresh.pt
+  ```
+- **output**: `training_history/runs/20261005_105530_V2_valtrain/output.log`
+- **result**: ⚪ **V2 也早停在 epoch -1**：`最佳 val MSE=0.03430 @epoch -1`
+  （训练后 val MSE 0.03693/0.03714 @ep3/ep4，反而更差；r 从 0.762 掉到 0.759）。
+  **逐张量核对**：`posnet_v2_valfresh.pt` 与 `posnet_A_k5_m32.pt` 三个 state **0/94 不同**、`valnet_epoch=0`
+  ⇒ **产物与对照逐位相同** ⇒ **V2 的读数也会是"逐字节复现"，故不跑**（同 V1，见 V1 那条的说明）。
+  ⇒ **两条价值头臂（旧数据 20 epoch / 新数据 4 epoch）都以"早停回到初始权重"收场**：
+  **现价值头在它自己的 val 切分上已经是能训到的最好**；继续训只会过拟合。
+  ⚠️ 注意 val MSE 0.0343（新数据）vs 0.0558（旧数据）**不可比**：val 切分来自不同分布
+  （新数据全是"无塔局"，见 `V2_collect100` 那条）。
