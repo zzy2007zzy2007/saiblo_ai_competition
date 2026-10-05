@@ -246,6 +246,8 @@ def build_engine(seed: int, player: int):
         # M6（mc_light）的成本旋钮：rollout 截断长度 / 每 N 回合最多比一次
         mc_horizon=int(_env("AZAI_MC_HORIZON", "100")),
         mc_every=int(_env("AZAI_MC_EVERY", "1")),
+        # M6b-ND：候选里排除类 16（降级）
+        mc_no_downgrade=int(_env("AZAI_MC_NODOWN", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

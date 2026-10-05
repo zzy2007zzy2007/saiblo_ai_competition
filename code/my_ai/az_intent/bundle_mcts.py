@@ -324,6 +324,7 @@ class BundleMCTS:
         reserve_coins: int = 90,
         mc_horizon: int = 100,
         mc_every: int = 1,
+        mc_no_downgrade: int = 0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -356,6 +357,8 @@ class BundleMCTS:
         # M6（mc_light）：MC 的 rollout 截断长度 / 每 N 回合最多比一次（控成本）
         self.mc_horizon = int(mc_horizon)
         self.mc_every = int(mc_every)
+        # M6b-ND（预注册 §6.1）：候选里的"最优经济类"是否**排除类 16（降级）**
+        self.mc_no_downgrade = int(mc_no_downgrade)
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -465,7 +468,8 @@ class BundleMCTS:
                 _AM = np.asarray(net_out["action_map"], dtype=np.float32)
                 _economy = None
                 _best_v = -np.inf
-                for _c in range(0, 17):
+                _hi = 16 if self.mc_no_downgrade else 17      # M6b-ND：排除类 16（降级）
+                for _c in range(0, _hi):
                     if base_cls_mask[_c] and base_pos_mask[_c].any():
                         _v = float(np.where(base_pos_mask[_c], _AM[_c], -np.inf).max())
                         if _v > _best_v:
