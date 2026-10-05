@@ -4788,3 +4788,22 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   结合"我方闪电本来瞄得就比对手准、且瞄准不区分胜负"（`diag_lightning_aim`），
   说明**位置排序不是当前的瓶颈**。
   ⚠️ 仍待 P2（`uniform` 同枚举/同可执行过滤、权重全 0）来分离"**过滤掉不可执行格**"与"**价值信息**"这两个效果。
+
+## 2026-10-05 11:11:59 — P2_uniform32
+
+- **commit**: `c0f7028` (dirty: 4 files)
+- **exit**: 0，用时 455s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=uniform AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P2_uniform32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_111159_P2_uniform32/output.log`
+- **result**: 🔴 **候选 P2（`uniform` 机制对照）`p̂ = 0.3125`**（16 对；2-0:1 / 1-1:8 / 0-2:7；CI [0.188, 0.469]）。
+  三臂排序（**同一批 seed `7..22`**）：**A1（不加先验）`0.5000` > P1（价值先验）`0.4062` > P2（uniform）`0.3125`**。
+  **按预注册 §3 的 P-P3 解读**：`value` 明显好于 `uniform`（+9.4pp）⇒ **价值信息确实比"只做可执行过滤"更有用**；
+  但**两者都不如"什么都不改"** ⇒ **位置网的 action_map 是这三个候选生成器里最好的那个**。
+  机制上：三臂我方闪电次数都 ≈11（10.9 / 11.3 / 11.2），建塔都是 0 ⇒ 差异**只在"打哪儿"**。
+  ⚠️ 潜在混淆（如实记）：`uniform`/`value` 会把 action_map 里**未通过可执行性检查的格置为 -1e9**，
+  这**缩窄了候选集**（`t_pos=1.0` 下的采样分布随之变化）⇒ "变差"也可能来自**候选多样性下降**而非价值信息本身；
+  但两种解释下结论一致：**这条先验路线不带来增益**。
+  ⇒ **判定**：**"用我们自己的价值网当位置先验"到此为止**（预注册里 V/P 两条路线都关闭）。

@@ -11,6 +11,9 @@ param(
     [string]$Seeds = '7-22',
     [string]$PosPin = 'argmax',
     [string]$PosPrior = 'off',
+    [string]$Iters = '256',
+    [string]$Depth = '4',
+    [string]$Tpos = '1.0',
     [int]$Jobs = 8,
     [int]$WaitTimeoutMin = 90
 )
@@ -18,9 +21,9 @@ param(
 Set-Location $Repo
 
 $env:AZAI_CKPT = $Ckpt
-$env:AZAI_ITERS = '256'; $env:AZAI_DEPTH = '4'
+$env:AZAI_ITERS = $Iters; $env:AZAI_DEPTH = $Depth
 $env:AZAI_K = '24'; $env:AZAI_SAMPLE_MULT = '15'; $env:AZAI_MODE = 'pos-only'; $env:AZAI_SKIP1 = '1'
-$env:AZAI_POSPIN = $PosPin; $env:AZAI_TCLASS = '0.5'; $env:AZAI_TPOS = '1.0'
+$env:AZAI_POSPIN = $PosPin; $env:AZAI_TCLASS = '0.5'; $env:AZAI_TPOS = $Tpos
 $env:AZAI_POSPRIOR = $PosPrior
 $env:AZAI_TEMP = '1e-6'; $env:AZAI_VERIFY = '1'; $env:AZAI_TRACE = '1'
 
