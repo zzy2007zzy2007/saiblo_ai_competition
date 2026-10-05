@@ -5270,4 +5270,11 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   env AZAI_CKPT=training_history/vprior/posnet_M1b_masked.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1b_masked_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
   ```
 - **output**: `training_history/runs/20261005_200434_M1b_masked_32/output.log`
-- **result**: _待填_
+- **result**: 🔴 **M1b（`masked` + executed 标签 + 类权重）`p̂ = 0.0000`（16 对全 0-2）——但这是我实现的 bug，不是对假设的检验**：
+  * 机制读数：我方 **总操作数 = 0、闪电 0、建塔 0**（整局什么都不做，205 回合被推平基地）。
+  * **根因（已定位并修）**：trainer 把逐 `(样本, head)` 的类权重求和后又**除以 `cw.sum(dim=1)`** ⇒
+    **权重被整体约掉**（三个 head 同类时完全抵消）⇒ 反频率加权形同虚设 ⇒ CE 学成「多数类 = HOLD」（96.4%），
+    `masked` 部署下 argmax 恒为 HOLD ⇒ **0 操作**。
+  * ⇒ **本行只作「实现 bug」记档，不构成对「掩码感知 + 反频率能否学会条件行为」的任何证据**；
+    已修（改为按**全局均值**归一），并新增 `--class-weight-power`（默认 0.5 = 开方，比全反频率温和，
+    避免「过度花钱」那一侧的崩法）⇒ 重跑 = `M1c`（`M1c_train` + `M1c_masked_32`）。
