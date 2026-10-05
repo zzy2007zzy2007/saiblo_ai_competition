@@ -5308,3 +5308,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   * ⇒ **方法侧结论（本轮最有价值的一条）**：**「把稀有分支的行为克隆进 argmax 策略」这条路走不通**；
     要让类轴真的动起来，必须换**训练信号**（值/Q 型目标，直接优化「这么打赢不赢」）
     或换**数据形态**（让「花钱」分支在示范里占有足够质量）。M1b 的 0.0000 只作实现 bug 记档。
+
+## 2026-10-05 20:41:28 — M1d_train
+
+- **commit**: `17290b7` (dirty: 5 files)
+- **exit**: 0，用时 348s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_reserve60_exec --epochs 20 --lr 1e-3 --beta 1000000 --class-weight auto --class-weight-power 1.0 --out training_history/vprior/posnet_M1d.pt
+  ```
+- **output**: `training_history/runs/20261005_204128_M1d_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 20:47:16 — M1d_masked_16
+
+- **commit**: `17290b7` (dirty: 6 files)
+- **exit**: 0，用时 864s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_M1d.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1d_masked_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261005_204716_M1d_masked_16/output.log`
+- **result**: _待填_
