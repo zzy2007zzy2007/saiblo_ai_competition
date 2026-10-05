@@ -160,6 +160,20 @@ def build_engine(seed: int, player: int):
         value_tanh=bool(int(_env("AZAI_VALUE_TANH", "1"))),
         value_rel_to_abs=float(_env("AZAI_REL2ABS", "0")),
     )
+    # 可选：**根节点的位置先验**（`AZAI_POSPRIOR=value|uniform`，默认 off）
+    #   `value`   = 用**我们自己的价值网**在"钉住的类的合法格"上算 1-ply z-score 当 action_map
+    #               （这正是位置网当初被训练去模仿的那个先验；实现见
+    #               `code/my_ai/az_intent/eval.py:_make_value_pos_prior`）
+    #   `uniform` = 同一条枚举/可执行过滤，但权重全 0（**对照臂**，用来分离"价值信息"与"过滤"）
+    # ⚠️ 默认 off 是为了让已钉死的配置（A0/A1）逐字节可复现；打开它属于**协议/配置变更**，要记档。
+    ppf = None
+    _pp = _env("AZAI_POSPRIOR", "off")
+    if _pp in ("value", "uniform"):
+        from my_ai.az_intent.az_selfplay import load_three_models
+        from my_ai.az_intent.eval import _make_value_pos_prior
+        _, _, _vm = load_three_models(ckpt)
+        ppf = _make_value_pos_prior(feat, _vm, mode=_pp)
+        _log(f"pos_prior={_pp}（根节点位置先验已启用）")
     mcts = BundleMCTS(
         net_fn,
         iterations=int(_env("AZAI_ITERS", "256")),
@@ -173,6 +187,7 @@ def build_engine(seed: int, player: int):
         search_mode=_env("AZAI_MODE", "joint"),
         pos_pin=_env("AZAI_POSPIN", "argmax"),
         skip_single_candidate=bool(int(_env("AZAI_SKIP1", "0"))),
+        pos_prior_fn=ppf,
     )
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
          f"depth={_env('AZAI_DEPTH','4')} mode={_env('AZAI_MODE','joint')} "
