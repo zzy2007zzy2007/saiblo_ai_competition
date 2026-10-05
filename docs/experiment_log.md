@@ -5278,3 +5278,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   * ⇒ **本行只作「实现 bug」记档，不构成对「掩码感知 + 反频率能否学会条件行为」的任何证据**；
     已修（改为按**全局均值**归一），并新增 `--class-weight-power`（默认 0.5 = 开方，比全反频率温和，
     避免「过度花钱」那一侧的崩法）⇒ 重跑 = `M1c`（`M1c_train` + `M1c_masked_32`）。
+
+## 2026-10-05 20:16:28 — M1c_train
+
+- **commit**: `51c3001` (dirty: 6 files)
+- **exit**: 0，用时 348s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_reserve60_exec --epochs 20 --lr 1e-3 --beta 1000000 --class-weight auto --class-weight-power 0.5 --out training_history/vprior/posnet_M1c.pt
+  ```
+- **output**: `training_history/runs/20261005_201628_M1c_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 20:22:17 — M1c_masked_32
+
+- **commit**: `51c3001` (dirty: 7 files)
+- **exit**: 0，用时 727s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_M1c.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1c_masked_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_202217_M1c_masked_32/output.log`
+- **result**: _待填_
