@@ -141,16 +141,13 @@
     **缺②③**；且口径是当时的 `32 局` / `seed 7..14`。
   - 三条反捷径是逐步加的：`351251f` 加①，`10de565` 加②，`fcedccf` 加③。
 
-  > **别信本节的散文，现场重算**（本节三轮改错都栽在"某版本有几条款"这类计数上）：
-  > ```bash
-  > git log --oneline --diff-filter=A -- docs/task_ruleV4_70_charter.md   # 章程首版是哪个提交
-  > for t in goal-start-20260924 goal-ready-20260925; do
-  >   printf '%s: ①=%s ②=%s ③=%s\n' "$t" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '禁止走"模仿前两名"')" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '手写启发式只能当「诊断臂」')" \
-  >     "$(git show $t:docs/task_ruleV4_70_charter.md 2>/dev/null | grep -c '默认只当「测试」')"
-  > done
-  > ```
+  > **要看某一版到底写了什么，直接看全文**：`git show <rev>:docs/task_ruleV4_70_charter.md`。
+  > （**不要在散文里数"有几条款"**——本节就是因为这个数错过三轮；也不要把"计数命令"塞进本文档，
+  > 那会让命令**匹配到它自己**。纯 sha 链没有这个问题。）
+
+  章程的演进（每步都由哪个提交做了哪件事；可用 `git log -S '<关键句>'` 逐条复核）：
+  首版 `b73db9a` → `351251f` 加①（模仿前两名）→ `6a29a87`（= `goal-ready-20260925`）
+  → `10de565` 加②（手写启发式）→ `fcedccf` 加③（前两名只当测试）。
   对一个"每轮都读章程"的活任务，这是最危险的一类"恢复"。
 - **正确的回退方式**：
   - 撤销最近若干提交 ⇒ **`git revert <sha...>`**（生成反向提交，历史与文档都保留）；
