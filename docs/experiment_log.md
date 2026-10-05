@@ -5206,3 +5206,46 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   所以 0.7344 **不构成里程碑证据**；它的用途是**证明「类/经济轴」有 ~+20pp 的 headroom**
   （判据列表上同臂是 0.6641；两次读数都落在 0.66–0.73 ⇒ 效应稳定且量级大）。
   ⇒ 方法侧目标由此明确：**在「不带任何手写规则」的前提下把这段行为学出来**（= 正在跑的 M1 蒸馏）。
+
+## 2026-10-05 18:54:41 — M1_collect60_reserve
+
+- **commit**: `82ce416` (dirty: 6 files)
+- **exit**: 0，用时 1098s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 60 --workers 8 --seed 5 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --pos-pin reserve --reserve-coins 180 --native-engine --out-dir training_history/vprior/data_sp_reserve60
+  ```
+- **output**: `training_history/runs/20261005_185441_M1_collect60_reserve/output.log`
+- **result**: _待填_
+
+## 2026-10-05 19:13:04 — M1_distill_train
+
+- **commit**: `98eb210` (dirty: 6 files)
+- **exit**: 0，用时 331s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_reserve60_cls --epochs 20 --lr 1e-3 --beta 1000000 --out training_history/vprior/posnet_M1_distill.pt
+  ```
+- **output**: `training_history/runs/20261005_191304_M1_distill_train/output.log`
+- **result**: 🟡 **M1（方法侧第一步：把储备规则蒸馏进类头、部署时关掉规则）**：
+  * **训练侧成功**：纯蒸馏 CE、20 epoch，val_loss 0.49（仍在降）；**类头的跨局面 logit std 从 0.024 抬到 0.178**
+    （7.4×）⇒ **类头第一次变成了「依赖状态」的函数**（P-M1a ✓）。
+  * **部署侧失败（关键）**：`POSPIN=argmax` + 新类头，seed `7..22` 快读数 **`p̂ = 0.5000`**
+    （2-0:2 / 1-1:12 / 0-2:2），机制 **建塔 0 / 升塔 0 / 闪电 11.2** ⇒ **部署行为与 A1 一模一样**。
+  * **原因（已定位）**：训练数据里被选中的类 **99.3% 是闪电 17**（60 局自对弈里「花钱」的 head 决策只占 0.74%），
+    CE 学到的是多数类 ⇒ **24 类 argmax 仍恒为闪电** ⇒ 蒸馏没有改变**部署路径**。
+  * ⇒ **本轮机制层结论**：**瓶颈是「类头 argmax over 24 类」这个决策机制本身** ——
+    网络输入里**没有「可执行性 / 买得起」这层信息**（掩码只在解码时才出现），所以策略**结构上无法表达**
+    「闪电不能放时才花钱」这类条件行为。⇒ 方法侧下一步 = 把**决策机制改成掩码感知**
+    （`POSPIN=playable`：在**可执行**的类里取 argmax），同一份 artifact 立刻可测（`M1_playable_32` 在跑）。
+
+## 2026-10-05 19:18:35 — M1_distill_32
+
+- **commit**: `98eb210` (dirty: 6 files)
+- **exit**: 0，用时 495s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_M1_distill.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M1_distill_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_191835_M1_distill_32/output.log`
+- **result**: _待填_
