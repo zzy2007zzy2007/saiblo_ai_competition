@@ -471,25 +471,29 @@ class BundleMCTS:
                         if _v > _best_v:
                             _economy, _best_v = _c, _v
                 from my_ai.az_intent.mc_quiet import _decode_class_op as _dq, mc_quiet_choose
-                pinned = []
-                for _hl in head_logits_list:
-                    _hl = np.asarray(_hl, dtype=np.float32)
+                _hl0 = np.asarray(head_logits_list[0], dtype=np.float32)
+                _rnd = int(getattr(node.state, "round_index", 0))
+                # ⚠️ 成本：只算**一次** MC（三个 head 钉同一个类——与 argmax 下的既有一致性相同），
+                # 并用 `mc_every` 门控（实测：每回合 × 3 heads × 512 回合 rollout ⇒ ~20 min/局）。
+                if self.mc_every > 0 and (_rnd % int(self.mc_every) == 0):
                     _cands = [23]
-                    if _dq(_hl, _AM, base_cls_mask, base_pos_mask,
+                    if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
                            node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
                     if _economy is not None and _dq(
-                            _hl, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
+                            _hl0, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
                             _economy) is not None:
                         _cands.append(_economy)
                     try:
-                        _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl, _AM,
+                        _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
                                                   max_rounds=int(self.mc_horizon))
-                        pinned.append(int(_c))
                         self.mc_last_scores = _sc
+                        pinned = [int(_c)] * len(head_logits_list)
                     except Exception:  # noqa: BLE001
-                        pinned.append(int(np.argmax(_hl)))
+                        pinned = [int(np.argmax(hl)) for hl in head_logits_list]
+                else:
+                    pinned = [int(np.argmax(hl)) for hl in head_logits_list]
             elif self.pos_pin == "mc_light":
                 # 方法侧 M6（见 code/my_ai/az_intent/mc_class.py + docs/prereg_20261006_mc_class.md）：
                 # **只在闪电可执行的回合**做"真跑到底"的蒙特卡洛比较：候选 {闪电, HOLD, 经济类}，
