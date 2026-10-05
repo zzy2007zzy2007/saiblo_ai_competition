@@ -5462,3 +5462,62 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **下一步（写进寄存器）**：① **更强的探索**（强制类比例 ≥50%，或对**同一局面**跑多分支）；
   ② 或改**表述**：把"要不要出手"做成**二分类 + 价值目标**（而不是 24 类 argmax）；
   ③ 若两者都不行 ⇒ 承认"在本项目的算力/数据下，类轴的策略学习不可行"，把它写成结论。
+
+## 2026-10-05 22:39:46 — M3b_collect60_exp50
+
+- **commit**: `49e10e6` (dirty: 5 files)
+- **exit**: 0，用时 2520s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 60 --workers 8 --seed 7 --iterations 32 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 8 --sample-mult 5 --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.5 --native-engine --out-dir training_history/vprior/data_sp_exp50_60
+  ```
+- **output**: `training_history/runs/20261005_223946_M3b_collect60_exp50/output.log`
+- **result**: _待填_
+
+## 2026-10-05 23:22:52 — M3b_ingest
+
+- **commit**: `4957d5f` (dirty: 6 files)
+- **exit**: 0，用时 4s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/ingest_selfplay_classes.py --src training_history/vprior/data_sp_exp50_60 --dst training_history/vprior/data_sp_exp50_60_exec --label executed
+  ```
+- **output**: `training_history/runs/20261005_232252_M3b_ingest/output.log`
+- **result**: _待填_
+
+## 2026-10-05 23:22:56 — M3b_qhead_train
+
+- **commit**: `4957d5f` (dirty: 6 files)
+- **exit**: 0，用时 37s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_q_head.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_sp_exp50_60_exec --out training_history/vprior/qhead_M3b.pt --epochs 30 --class-weight-power 0.0
+  ```
+- **output**: `training_history/runs/20261005_232256_M3b_qhead_train/output.log`
+- **result**: _待填_
+
+## 2026-10-05 23:3x — M3b（50% 类探索）结果（手工补记）
+
+- **cmd**:
+  ```bash
+  python -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt \
+      --games 60 --workers 8 --seed 7 --iterations 32 --max-depth-rounds 4 --k 8 --sample-mult 5 \
+      --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.5 --native-engine \
+      --out-dir training_history/vprior/data_sp_exp50_60
+  # 然后 ingest --label executed → train_q_head --class-weight-power 0.0 → check_identification / probe_q_deployment
+  ```
+- **result**: 🟡 **识别性显著改善，但预注册的两道闸门都差一点 ⇒ 按预注册不跑对局**。
+  * **覆盖**：同局相邻决策出现 ≥2 种被执行类的比例 **98.9%**（M3 82.3%，旧 6.3%）✓；
+  * **P-M3a**：`Δ=Q(最好花钱类)−Q(HOLD)` 与金币相关 **+0.298**（M3 +0.124，旧 −0.054）；
+    Δ 按金币四分位 **+0.0065 → +0.0195 → +0.0305 → +0.0334**（单调、梯度清晰），
+    **但穷组 Δ = +0.0065 > 0**（56.4% 为正）⇒ **门槛"穷组 Δ≤0"未达**（差一点点）；
+  * **P-M3c（离线探针）**：`q` 选 **塔 66.5% / HOLD 29.9% / 闪电 0.0%**（M3：塔 88.3% / HOLD 3.1% / 闪电 0.9%）；
+    **闪电可执行时也仍有 84.6% 选塔** ⇒ **"q 选闪电 ≥40%" 远未达**；
+  * ⇒ **不跑 16 局读数**（预注册写死：两道闸门同时成立才跑）**未看任何判据数据**。
+- **判读（三条）**：
+  1. **外生性越高、识别性越好**（相关 −0.054 → +0.124 → +0.298；穷组 Δ +0.083 → +0.046 → +0.007）
+     ⇒ 方向完全正确，**再加探索有可能跨过门槛**；
+  2. 但 **"q 从不选闪电"** 说明 Q 头学到的类差异仍不够用（在闪电可执行的局面上把塔排在闪电前面），
+     原因之一可能是**廉价搜索配置**（iters32/k8/sm5）让对局本身很乱、类效应被稀释
+     ⇒ 若要继续这条路，应在**部署同款搜索配置**下采集（但那样单局 ~17 min，成本高一个数量级）；
+  3. **"穷组 Δ≤0"这个判据本身半ill-posed**：很多"穷"局面下花钱类**根本不可执行**（买不起）⇒ Δ 在该格意义有限。
