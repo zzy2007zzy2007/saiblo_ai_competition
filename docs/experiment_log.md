@@ -5965,3 +5965,44 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **冒烟（seed 7，`MC_EVERY=4`）**：1.9 min/局；我方 **闪电 12 次、建塔 0**（与 A1 同类）；
   ⚠️ 该局**我方负**（p1 胜）。单局无信息。
 - **⇒ 128 局验收已按新纪律直接开跑**（`M6_mc_128`，对照 A1 = 0.5312）。
+
+## 2026-10-06 03:45:40 — M6_mc_128
+
+- **commit**: `34d191b` (dirty: 5 files)
+- **exit**: 0，用时 4346s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6_mc_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_034540_M6_mc_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 05:10:20 — M6b_check8
+
+- **commit**: `af7c957` (dirty: 6 files)
+- **exit**: 0，用时 3s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_HORIZON=512 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6b_check8 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r 13 13r 14 14r 18 18r
+  ```
+- **output**: `training_history/runs/20261006_051020_M6b_check8/output.log`
+- **result**: _待填_
+
+## 2026-10-06 05:1x — ❌ M6（`mc_light`，贪心 rollout）**验收批作废**：32% INVALID（原生崩溃）→ 改出 M6b（安静 rollout）
+
+- **M6 验收读数（`M6_mc_128`）**：`有效 87 / 128`、**41 局 INVALID（32% > 10% 门槛）⇒ 整批标 INVALID、不可作验收**；
+  有效子集的 `p̂=0.3929`（28 对）**只作参考**（无效子集非随机：崩掉的局更可能是"金币够放闪电"的局）。
+- **故障定位（确定性复现）**：
+  * 失败局的共同形态：`winner=INVALID verdict=aborted exc=str rounds=55/...`，`base_hp` 还很高（如 `46,47`）、
+    `coins=0,0` ⇒ **不是打到终局的正常结束**；
+  * 我方 stderr 到 `round=55` 就**戛然而止、没有任何 Python traceback** ⇒ 指向**原生崩溃**（C++ facade）；
+  * **同一 seed 换边可复现/不可复现**：`seed 11`（我方先手）**再次**在第 55 回合崩；而 `11r`（我方后手）
+    正常打完 419 回合**并获胜** ⇒ 崩点是**局面相关**的；第 55 回合正好是**金币首次 ≥ 闪电价（90）**、
+    **MC 第一次真正触发**的位置。
+  * 离线复现（`code/test_match/repro_m6_crash.py`）在"round 24 / coins 96"的局面下 MC 只花 ~1–2 s、**不崩**
+    ⇒ 崩点在**更深的 rollout**里（贪心 rollout 每回合都要解码 + `apply_operation_list`）。
+- **⇒ M6b（`pos_pin=mc_quiet`，`code/my_ai/az_intent/mc_quiet.py`）**：**只把候选那一手打下去，之后"谁都不出招"
+  地推进到终局**（纯 `advance_round()`，**不调网络、不 apply 别的 op**）⇒ 成本 ~0.3–0.5 s/候选、
+  **每回合都能比**；语义变化（已记）：终局 HP 差反映的是**这一手对基地竞赛的纯效应**（有偏、低方差）。
+- **验证批**：`M6b_check8`（用**同一批 8 个曾崩掉的 token**：11/11r/13/13r/14/14r/18/18r）——若这 8 局全出有效结果，
+  说明崩溃被绕开，再跑 128 局验收。
