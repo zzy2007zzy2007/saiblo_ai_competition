@@ -5358,3 +5358,27 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ```
 - **output**: `training_history/runs/20261005_211409_M2_q_16/output.log`
 - **result**: _待填_
+
+## 2026-10-05 21:3x — M2（类条件价值头 Q(s,c)）全记录（**手工补记**：`M2_q_16b` 被中止、run_logged 未落条目）
+
+- **cmd（训练）**:
+  ```bash
+  python -u code/my_ai/az_intent/train_q_head.py --ckpt training_history/vprior/posnet_A_k5_m32.pt       --data training_history/vprior/data_sp_reserve60_exec --out training_history/vprior/qhead_M2.pt       --epochs 30 --class-weight-power 0.5
+  ```
+- **cmd（部署）**:
+  ```bash
+  env AZAI_CKPT=... AZAI_Q_CKPT=training_history/vprior/qhead_M2.pt AZAI_POSPIN=q AZAI_MODE=pos-only       AZAI_K=24 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 ... python -u _tmp_ladder.py --tag=M2_q_16b --jobs=8 ...
+  ```
+- **result**: ⚪ **训练成功、部署因成本闸门中止、机制读数指向 D 型崩法**。
+  * 训练（65 s）：173,514 个 (局面, 类) 对（HOLD 16.7 万 / 闪电 5,019 / 花钱类 426×若干）；
+    小 MLP（128+24 → 64 → 1）MSE 0.084 → **0.074（val 0.076）**；
+    **P-M2a 弱通过**：Q(实际选的类) − Q(HOLD) 在花钱样本上均值 **+0.025、85% 为正**。
+  * 部署：**~20 s/回合**（8 路并行 10 min 只推进 ~217 回合、0 局结束）⇒ 远超预注册 15–25 min ⇒ **按成本条款中止**。
+  * 中止前机制读数：**BUILD 120 / DOWNGRADE 105 / 闪电 0**（前 27 回合）⇒ 与候选 D / `playable` 同型的
+    「建塔—降级互相 churn」⇒ Q 在多数合法状态里把「花钱」排在 HOLD 之上。
+  * **根因（识别性）**：数据里「花钱」只出现在**富**状态（规则只在富时花），而富与胜利相关 ⇒
+    **Q 把状态的好处记到了类头上** ⇒「花钱」到处都显得好。**不是优化没做好，而是数据没有反事实**。
+  * ⇒ **方法侧结论**：**分类（M1c/M1d）与回归（M2）在「被行为策略决定」的数据上都无法识别类条件**；
+    突破必须拿到**多类对照**（高比例类探索采集 `--class-pin-random-prob` 0.15–0.3，代价 ~10–17 min/局；
+    或同局面强制多分支的搜索式采集）。
+  * 顺手修：`AZAI_Q_CKPT` 相对路径未按仓库根解析 ⇒ AI 以 `cwd=code/test_match` 启动时 FileNotFoundError、整局崩。
