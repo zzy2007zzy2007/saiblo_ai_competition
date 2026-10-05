@@ -6032,3 +6032,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - ⚠️ **本轮又一个自造 bug（已修）**：M6b 首版把导入别名写成 `_dq` 却调用 `_decode_class_op`
   ⇒ `UnboundLocalError` ⇒ **全 8 局 `rounds=0` INVALID**。（本轮 M6/M6b 共 4 个自造 bug：
   门控错 75 s/回合、缺属性赋值、别名错、成本没门控——**都在冒烟/验证阶段被抓住**，未污染任何判据读数。）
+
+## 2026-10-06 05:10:48 — M6b_check8b
+
+- **commit**: `6cd174d` (dirty: 5 files)
+- **exit**: 0，用时 1811s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_HORIZON=512 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6b_check8b --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r 13 13r 14 14r 18 18r
+  ```
+- **output**: `training_history/runs/20261006_051048_M6b_check8b/output.log`
+- **result**: _待填_
+
+## 2026-10-06 06:0x — M6b 部分读数（25/128，**前缀子集、不作判据**）：机制 = "会花钱且没饿死闪电"
+
+- 只读**机制**（机制读数不受前缀偏差影响；**胜率不解读**——寄存器明写前缀子集系统性偏乐观 ~8–9pp）：
+  | | 建塔/局 | 降级/局 | 闪电/局 |
+  |---|---|---|---|
+  | A1（对照）| 0.00 | 0.00 | 11.28 |
+  | **M6b（`mc_quiet`）** | **28.56** | **18.72** | **10.60** |
+- ⇒ **安静 rollout 的 MC 确实会选"经济类"**（与 M5 的 68/局 相比温和得多），**闪电基本没被挤掉**（10.6）。
+- ⚠️ **降级 18.7/局**说明候选里的"最优经济类"经常是**类 16（降级）**——这是菜单构造的副作用（`range(0,17)` 含降级），
+  不是 MC 的错；若 M6b 验收站得住，下一步应把菜单里的降级类**去掉或单独定价**（**这属于候选集合设计，需记档**）。
