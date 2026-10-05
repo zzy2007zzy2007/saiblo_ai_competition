@@ -5167,3 +5167,19 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
 
 **三、结论**：本任务**还没有**任何一条"方法侧"的增益；里程碑必须由**方法侧**路径达成。
 下一步按寄存器「当前方针」：**大规模自对弈 + 类探索 → 结果加权训练类头 → 部署时不带任何手写规则 → 读数**。
+
+## 2026-10-05 17:38:51 — FRESH_A1_128
+
+- **commit**: `0553eff` (dirty: 6 files)
+- **exit**: 0，用时 2303s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_RESERVE=180 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=FRESH_A1_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 103 103r 104 104r 105 105r 106 106r 107 107r 108 108r 109 109r 110 110r 111 111r 112 112r 113 113r 114 114r 115 115r 116 116r 117 117r 118 118r 119 119r 120 120r 121 121r 122 122r 123 123r 124 124r 125 125r 126 126r 127 127r 128 128r 129 129r 130 130r 131 131r 132 132r 133 133r 134 134r 135 135r 136 136r 137 137r 138 138r 139 139r 140 140r 141 141r 142 142r 143 143r 144 144r 145 145r 146 146r 147 147r 148 148r 149 149r 150 150r 151 151r 152 152r 153 153r 154 154r 155 155r 156 156r 157 157r 158 158r 159 159r 160 160r 161 161r 162 162r 163 163r 164 164r 165 165r 166 166r
+  ```
+- **output**: `training_history/runs/20261005_173851_FRESH_A1_128/output.log`
+- **result**: ✅ **A1 在「全新 seed 段」`103..166`（128 局 / 64 对）：`p̂ = 0.5391`**
+  （2-0:21 / 1-1:27 / 0-2:16；CI [0.4453, 0.6328]；128/128 干净；用时 38 min）。
+  **与 A1 在判据列表 `7..70` 上的验收（0.5312）几乎一致**（差 0.8pp）⇒ **A1 的真实水平 ≈0.53–0.54 是稳的**
+  （这条同时说明「判据列表的读数没有系统性虚高」）。
+  ⚠️ 本行是**同段对照臂**（预注册 §6.3 修订 B）：同段还有 `FRESH_R180_128`（储备 180）在跑；
+  两臂之差 = 「储备机制」在**未参与选择的 seed 段**上的净效应。
