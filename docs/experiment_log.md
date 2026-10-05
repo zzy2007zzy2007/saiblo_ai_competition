@@ -4683,3 +4683,29 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   **判定**：按预注册 §4.2 记"**类头蒸馏（在被评估类内重排序）在本判据下测不到增益**"，
   并升级为更强的结论：**只要 `pos_pin=argmax` 且类头塌缩在闪电上，任何"合法类之间重排序"的训练
   都不可能改变行为** ⇒ 下一步转**部署语义**（候选 D：`pos_pin=playable`，零训练）。
+
+## 2026-10-05 08:21:57 — D1_playable16
+
+- **commit**: `803994c` (dirty: 4 files)
+- **exit**: 0，用时 5102s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=playable AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=D1_playable16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261005_082157_D1_playable16/output.log`
+- **result**: 🔴🔴 **候选 D（`pos_pin=playable`）快读数：`p̂ = 0.0000`（16 局全败，8 对全是 0-2）**
+  —— 对照 A1 在**同样的 seed `7..14`** 上是 `0.5000`。整批干净（16/16 `verdict=engine`、`illegal=0`、
+  无 INVALID）。用时 5102 s（85 min），单局 **24–27 min**（A1 只要 ~1.7 min ⇒ 慢 ~15×）。
+  **机制读数（把失败讲清楚了）**：我方 **建塔 151.9 座/局**（中位 150.5，最多 204！）、升塔 1.4、
+  **闪电只用了 1.9 次**、出招 251.9 回合、总操作 304.4；对局 253 回合。
+  `rule_v4`：建塔 11.8、升塔 8.2、闪电 6.4、出招 35.5。
+  ⇒ **`playable_class` 把"买不起闪电"的回合全都落到类 0（建 BASIC 塔）上**：
+  它按 logits 取"第一个能真解出操作"的类，而闪电之后的下一名就是建塔
+  ⇒ 我方**把金币全花在廉价塔上、再也没钱放闪电**，基地 16 局全被打爆。
+  **预注册核对**：**P-D1 / P-D2 通过**（出招 11.2→251.9、建塔 0→151.9）；
+  **P-D3 被彻底证伪**（我写的区间是 `[0.40, 0.75]`，实际 0.0000）⇒ 如实记下。
+  **P-D4 成立**：**"类头塌缩"不是瓶颈，恰恰相反 —— "只放闪电、省下金币"这套（被塌缩意外实现的）策略
+  才是 53.1% 的来源**；逼它多动 = 把经济烧在建塔上，直接归零。
+  ⚠️ **性质**：这仍是**部署语义的配置实验**（没训练任何东西），但结论是**方法层**的：
+  **任何"让类轴更活跃"的改动都必须先过它这一关**（否则就是 0%）。
+  ⚠️ **成本教训**：D 的每一步都贵 ~15×（不触发 skip ⇒ 每回合付完整 256 次迭代）⇒ 记录进寄存器。
