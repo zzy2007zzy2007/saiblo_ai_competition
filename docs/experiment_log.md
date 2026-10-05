@@ -6006,3 +6006,29 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   **每回合都能比**；语义变化（已记）：终局 HP 差反映的是**这一手对基地竞赛的纯效应**（有偏、低方差）。
 - **验证批**：`M6b_check8`（用**同一批 8 个曾崩掉的 token**：11/11r/13/13r/14/14r/18/18r）——若这 8 局全出有效结果，
   说明崩溃被绕开，再跑 128 局验收。
+
+## 2026-10-06 05:00:21 — M6_retry8
+
+- **commit**: `d5dede1` (dirty: 6 files)
+- **exit**: 0，用时 712s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6_retry8 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r 13 13r 14 14r 18 18r
+  ```
+- **output**: `training_history/runs/20261006_050021_M6_retry8/output.log`
+- **result**: _待填_
+
+## 2026-10-06 05:3x — M6b（安静 rollout）**避开原生崩溃**：曾崩的 8 个 token 全部有效；成本已修
+
+- **验证批（`M6b_check8b`，用 M6 曾崩的同一批 token：11/11r/13/13r/14/14r/18/18r）**：
+  **全部出有效结果**，其中 `seed 11`（我方先手，M6 下**必崩**）正常打完 **305 回合** ⇒
+  **"只打候选那一手、之后谁都不出招"的安静 rollout 绕开了原生崩溃** ✓
+  （机制上说得通：崩点来自贪心 rollout 里**反复 `apply_operation_list`**）。
+- **成本问题（同批实测）**：安静 rollout 原本**每个决策 × 3 个 head × 最多 3 候选 × 512 回合**推进
+  ⇒ **~20 min/局**（8 局并行 25 分钟才 3 局）。已修两处：
+  ① **每个决策只算一次 MC**（三个 head 钉同一个类——与既有 argmax 行为的一致性相同）；
+  ② 接上 `AZAI_MC_EVERY` 门控（本次取 5）+ 截断 `AZAI_MC_HORIZON=256` ⇒ 预计回到 ~2–4 min/局。
+- **⇒ 128 局验收已开跑**（`M6b_mcq_128`，对照 A1 = `0.5312`）。
+- ⚠️ **本轮又一个自造 bug（已修）**：M6b 首版把导入别名写成 `_dq` 却调用 `_decode_class_op`
+  ⇒ `UnboundLocalError` ⇒ **全 8 局 `rounds=0` INVALID**。（本轮 M6/M6b 共 4 个自造 bug：
+  门控错 75 s/回合、缺属性赋值、别名错、成本没门控——**都在冒烟/验证阶段被抓住**，未污染任何判据读数。）
