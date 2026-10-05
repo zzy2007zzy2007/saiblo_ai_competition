@@ -4767,3 +4767,24 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   **现价值头在它自己的 val 切分上已经是能训到的最好**；继续训只会过拟合。
   ⚠️ 注意 val MSE 0.0343（新数据）vs 0.0558（旧数据）**不可比**：val 切分来自不同分布
   （新数据全是"无塔局"，见 `V2_collect100` 那条）。
+
+## 2026-10-05 11:01:21 — P1_value32
+
+- **commit**: `2b5a43d` (dirty: 5 files)
+- **exit**: 0，用时 589s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=value AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P1_value32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_110121_P1_value32/output.log`
+- **result**: 🟡 **候选 P1（根节点位置先验 = 我们自己的价值网 1-ply）：`p̂ = 0.4062`**
+  （seed `7..22` = 16 对 / 32 局；2-0:1 / 1-1:11 / 0-2:4；CI **[0.281, 0.531]**；全干净；用时 ~10 min）
+  —— **对照 A1 在同 seed 是 `0.5000`** ⇒ **低 9.4pp**（n=16 下不显著，CI 重叠）。
+  **机制读数**：我方**闪电次数没变**（11.3，与 A1 的 11.2 相同）、建塔 0 ⇒ **这个先验改变的只是"打哪儿"，不是"打不打"**；
+  对手建塔 16.3 / 升塔 10.2 / 闪电 9.7 / 出招 51.5（与 A1 几乎相同）。
+  单局冒烟（`P1_smoke`，seed 7）里我方落点到敌基地的距离分布确实变了（中位 7 vs A1 整体的 4）
+  ⇒ **P-P1（机制：落点分布应变化）通过**；**P-P2（数值 `[0.45,0.65]`）不成立**（实测 0.4062）。
+  ⇒ **判定**：**"把价值网直接当位置先验"在本判据下没有增益（方向上还略负）**；
+  结合"我方闪电本来瞄得就比对手准、且瞄准不区分胜负"（`diag_lightning_aim`），
+  说明**位置排序不是当前的瓶颈**。
+  ⚠️ 仍待 P2（`uniform` 同枚举/同可执行过滤、权重全 0）来分离"**过滤掉不可执行格**"与"**价值信息**"这两个效果。
