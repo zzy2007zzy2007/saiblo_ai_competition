@@ -1,4 +1,4 @@
-"""候选 R：**用对局结果训练类头**（AWR —— 结果加权的行为克隆）。
+﻿"""候选 R：**用对局结果训练类头**（AWR —— 结果加权的行为克隆）。
 
 计划：`docs/class_head_outcome_plan.md`。动机：实测类头是**常数函数**
 （各类 logit 跨局面标准差中位 0.024、top1−top2 恒为 0.21 ⇒ 它根本不看局面），
@@ -69,6 +69,8 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--beta", type=float, default=0.5, help="AWR 温度：w ∝ exp(a/beta)")
     ap.add_argument("--val-frac", type=float, default=0.1)
+    ap.add_argument("--class-weight", type=str, default="none", choices=["none", "auto"],
+                    help="auto = 按类频率反加权（治 HOLD 占 96% 的多数类问题）")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="auto")
     args = ap.parse_args()
@@ -113,6 +115,24 @@ def main() -> int:
     cmask_t = torch.from_numpy(cmask).to(dev)
     adv_t = torch.from_numpy(adv).to(dev)
 
+    # 可选：**按类频率反加权**（治"多数类压倒一切"）。实测：`--label executed` 下 HOLD(23) 占 96.4%，
+    # 不反加权的话 CE 学会的就是"几乎恒 HOLD"（准确率好看、棋力归零）。
+    cls_w = torch.ones(24, dtype=torch.float32, device=dev)
+    if args.class_weight == "auto":
+        cnt = np.zeros(24, dtype=np.float64)
+        for cc in chosen:
+            for c in cc:
+                if 0 <= int(c) < 24:
+                    cnt[int(c)] += 1
+        nz = cnt[cnt > 0]
+        mean_cnt = nz.mean() if len(nz) else 1.0
+        for c in range(24):
+            cls_w[c] = float(mean_cnt / cnt[c]) if cnt[c] > 0 else 0.0
+        top = np.argsort(-cnt)[:5]
+        print("[class-weight=auto] 每类权重（前 5 频繁类）："
+              + ", ".join("类%d: cnt=%d w=%.2f" % (int(c), int(cnt[c]), float(cls_w[c])) for c in top),
+              flush=True)
+
     def batch_step(ids: np.ndarray, train: bool):
         b = torch.from_numpy(board[ids].astype(np.float32)).to(dev)
         s = torch.from_numpy(stats[ids].astype(np.float32)).to(dev)
@@ -134,7 +154,11 @@ def main() -> int:
         idx = c.clamp(0, logit.shape[-1] - 1).unsqueeze(-1)                           # (B,3,1)
         lp = torch.gather(logq, 2, idx).squeeze(-1)                                   # (B,3)
         lp = torch.where(valid, lp, torch.zeros_like(lp))
-        per_sample = lp.sum(dim=1)                                                    # (B,)
+        # 逐 (样本,head) 的类权重（治多数类）
+        cw = torch.gather(cls_w.unsqueeze(0).expand(c.shape[0], -1), 1,
+                          c.clamp(0, logit.shape[-1] - 1))                            # (B,3)
+        cw = torch.where(valid, cw, torch.zeros_like(cw))
+        per_sample = (lp * cw).sum(dim=1) / cw.sum(dim=1).clamp(min=1e-9)             # (B,)
         w = torch.softmax(a / args.beta, dim=0) * len(a)                              # 归一化到均值 1
         w = torch.where(valid.any(dim=1), w, torch.zeros_like(w))
         loss = -(w * per_sample).sum() / w.sum().clamp(min=1e-9)

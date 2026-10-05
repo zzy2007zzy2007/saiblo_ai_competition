@@ -1,4 +1,4 @@
-"""把**自对弈**的 pkl（`az_selfplay.py` 的输出）转成"类策略"训练数据：
+﻿"""把**自对弈**的 pkl（`az_selfplay.py` 的输出）转成"类策略"训练数据：
     {board, stats, player, chosen_cls[3], class_mask[24], value_target}
 
 为什么需要它（2026-10-05，按章程 §2 新增约束）：
@@ -34,7 +34,16 @@ for _s in (sys.stdout, sys.stderr):
         pass
 
 
-def chosen_classes(sample) -> list:
+def chosen_classes(sample, label_mode: str = "pinned") -> list:
+    """抽"该 head 实际选的类"。
+
+    `label_mode="pinned"`：**钉住的类**（= `intent_counts` 里计数最大的 intent 的类号）——
+        这是旧口径；它有个坑：闪电被钉住但没有合法格时，intent 记的是 `(17, -1, -1)` ⇒ 标签是 17，
+        但**实际执行的是 HOLD**（`bundles` 是空 tuple）。用这个口径训出来的头在
+        `pos_pin=playable/masked` 下会把"闪电不可执行"的回合判成"该花钱"⇒ 崩（2026-10-05 实测）。
+    `label_mode="executed"`：**实际执行的类** —— intent 有真实落点（x,y != -1,-1）时用它，
+        否则记 **23（HOLD）**。这样训练目标与"合法类上取 argmax"的部署机制一致。
+    """
     ic = sample.get("intent_counts")
     out = [255, 255, 255]
     if not ic:
@@ -48,7 +57,11 @@ def chosen_classes(sample) -> list:
     for h in range(3):
         d = per_head[h] if h < len(per_head) else {}
         if d:
-            out[h] = int(max(d.items(), key=lambda kv: kv[1])[0][0])
+            (cls, x, y), _n = max(d.items(), key=lambda kv: kv[1])
+            if label_mode == "executed" and (int(x) < 0 or int(y) < 0):
+                out[h] = 23          # HOLD：钉住/采样到的类没有真实落点 ⇒ 实际没执行任何操作
+            else:
+                out[h] = int(cls)
     return out
 
 
@@ -57,6 +70,8 @@ def main() -> int:
     ap.add_argument("--src", required=True)
     ap.add_argument("--dst", required=True)
     ap.add_argument("--max-games", type=int, default=0)
+    ap.add_argument("--label", type=str, default="pinned", choices=["pinned", "executed"],
+                    help="pinned = 记钉住的类（旧口径）；executed = 记实际执行的类（没落点记 HOLD 23）")
     a = ap.parse_args()
 
     src = Path(a.src)
@@ -77,7 +92,7 @@ def main() -> int:
         samples = d["samples"] if isinstance(d, dict) else d
         rows = []
         for s in samples:
-            cc = chosen_classes(s)
+            cc = chosen_classes(s, a.label)
             for c in cc:
                 if c != 255:
                     n_cls[c] += 1
@@ -90,7 +105,7 @@ def main() -> int:
         with open(dst / f.name, "wb") as fh:
             pickle.dump({"samples": rows}, fh)
         n_s += len(rows)
-    print(f"转换 {len(files)} 局 -> {n_s} 条 -> {dst}")
+    print(f"[label={a.label}] 转换 {len(files)} 局 -> {n_s} 条 -> {dst}")
     tot = sum(n_cls.values())
     print(f"被选中的类分布（head 次，共 {tot}；只列前 12）:")
     for c, k in n_cls.most_common(12):
