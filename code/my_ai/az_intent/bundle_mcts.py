@@ -328,7 +328,7 @@ class BundleMCTS:
     ) -> None:
         if search_mode not in ("joint", "class-only", "pos-only"):
             raise ValueError(f"unknown search_mode: {search_mode}")
-        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up"):
+        if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         self.net_fn = net_fn
         self.iterations = iterations
@@ -451,6 +451,15 @@ class BundleMCTS:
                 pinned = [reserve_upgrade_class(hl, net_out["action_map"], base_cls_mask,
                                                 base_pos_mask, node.state, node.player,
                                                 self.reserve_coins)
+                          for hl in head_logits_list]
+            elif self.pos_pin == "masked":
+                # 「掩码感知的 argmax」（2026-10-05，方法侧修**决策机制**）：
+                # 在**合法类**（`class_mask` 为真，**含 HOLD 23**）里取 argmax，而不是在全 24 类里取。
+                # 动机（实测）：A1 的机制是"全 24 类 argmax ⇒ 恒为闪电"，闪电不可执行时整回合退化成 HOLD
+                # ⇒ 策略**结构上无法表达**"闪电不能放时才花钱"这类条件行为
+                # （候选 D / `pos_pin=playable` 都会崩成"见缝就花"：建塔 60+/降级 60+/闪电 0–1）。
+                # 掩码感知后，"该 HOLD 就 HOLD、该花才花"变成**策略自己可以学的东西**（= 在合法动作集上决策）。
+                pinned = [int(np.argmax(np.where(base_cls_mask, hl, -np.inf)))
                           for hl in head_logits_list]
             else:
                 pinned = [int(np.argmax(hl)) for hl in head_logits_list]
