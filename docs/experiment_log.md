@@ -5676,3 +5676,32 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 ⚠️ **按用户提醒，本表只作附录**：`r`（与目标的相关系数）**不作判别依据** —— 价值网预测「局面好不好」
 本来就不必与最终胜负一致（先坏后好的局）。**判别用判据 + M5 的机制读数（建塔数）**。
 ⇒ 筛选（A1 配置 16 局、seed 7..14）与 M5 4 局读数由 `_tmp_vt_screen.ps1` / 手动接着跑。
+
+## 2026-10-06 00:37:34 — M5_rel5_4
+
+- **commit**: `efcc562` (dirty: 6 files)
+- **exit**: 0，用时 1969s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_VRrel5.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=1 AZAI_MODE=joint AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=0 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M5_rel5_4 --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r
+  ```
+- **output**: `training_history/runs/20261006_003734_M5_rel5_4/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:1x — M5 + rel5 价值头（**叶评价视野对齐的第一条机制证据**）
+
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_VRrel5.pt AZAI_MENU3=1 AZAI_ITERS=256 AZAI_DEPTH=4 \
+      AZAI_MODE=joint AZAI_SKIP1=0 ... python -u _tmp_ladder.py --tag=M5_rel5_4 --jobs=4 \
+      --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r
+  ```
+- **result**: 🟡 **机制变化明确、分数在 n=2 对上无信息**：
+  * 机制：我方 **建塔 38.8/局**（**对照：同一 M5 菜单 + terminal 价值头 = 68.0/局** ⇒ **下降 43%**）、
+    升塔 0、**闪电 9.0**（terminal 头时是 12.0）、出招回合 79.0（terminal 头时 142.5）；
+  * 分数：**`p̂ = 0.5000`**（2 对，1-1:2；CI 退化到 [0.5,0.5]，**完全无信息**）。
+  * ⇒ **P-VT3 方向成立**（换成"与 depth 对齐的短视野（rel, tau=5）"叶评价后，**搜索自己就不那么爱花钱了**）
+    ⇒ 这是**第一条**证明"**叶评价确实是搜索类决策的约束**"的机制证据；
+    但它**没有**把建塔数压到手写规则的 ~11/局（38.8 vs 11），也**没有**带来分数。
+  * ⇒ 下一步（预注册 §5）：既然长 tau（≥50，用户经验）与 kgeo 的标签**跨局面分辨率更高**，
+    它们的价值头可能给出更准的"该不该花"排序 ⇒ **A1 配置快筛（4 臂 × 16 局）+ 最好那臂的 M5 4 局**已排队自动跑。
