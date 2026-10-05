@@ -5022,3 +5022,23 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
     （闪电买不起时 argmax=17 但 17 不可执行）⇒ 有些 chosen_cls 天然在掩码外，
     会把 log q 拉成 **-inf**（第一次跑出现 loss=inf）⇒ 已加"chosen 必须在掩码内"的过滤。
   * ⇒ **判定：候选 R 在当前数据量级下不可行**（要的是数量级更多的"同局面多类"对照数据）。
+
+## 2026-10-05 15:20:40 — E_reserve90_32
+
+- **commit**: `710e011` (dirty: 5 files)
+- **exit**: 0，用时 892s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=reserve AZAI_POSPRIOR=off AZAI_RESERVE=90 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=E_reserve90_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_152040_E_reserve90_32/output.log`
+- **result**: 🟡 **候选 E（`pos_pin=reserve`，储备 90）：`p̂ = 0.5312`**（16 对；2-0:5 / 1-1:7 / 0-2:4；
+  CI [0.344, 0.719]）—— 对照 A1 同 seed 前缀 **0.5000** ⇒ **+3.1pp（在 n=16 的噪声内）**，
+  按预注册（线 ≥0.55）**不晋级**。
+  **机制（预注册 P-E1/P-E3 都成立）**：我方 **建塔 23.7/局**（对照恒 **0**）、升塔 1.9、
+  **闪电 10.0**（对照 11.2，仍 ≥ P-E1 的 9 下限 ⇒ **储备规则保住了闪电**）、出招回合 34.0（对照 11.2）；
+  对手 `main`：建塔 16.4 / 升塔 9.7 / 闪电 9.7 / 出招 51.4。单局 ~2 min（成本闸门通过）。
+  ⇒ **"花掉闲置金币"本身不涨分**（+3.1pp = 噪声）：我们建塔数甚至超过了 `rule_v4`，比分也没动。
+  ⚠️ 机制旁注：日志显示我方除了建塔还有 **DOWNGRADE**（降级退款）——因为类头的顺序是**任意的常数序**
+  （见寄存器"类头是常数函数"行），所以本臂实际是"**把余钱花在常数序里排前面的那几个类上**"，
+  而不是一个"讲道理的经济策略"；这限制了它作为"经济策略上界"的解释力。
