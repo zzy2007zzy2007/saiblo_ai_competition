@@ -49,6 +49,23 @@ def head_class_probs(head_logits: np.ndarray, t_class: float) -> np.ndarray:
     return probs
 
 
+def legal_nonlight_classes(class_mask: np.ndarray, position_mask: np.ndarray) -> list:
+    """「随机钉类」的候选集：**可执行、且有合法格**、且**不是超武(17-20)/HOLD(23)** 的类。
+
+    为什么排除超武：`intent_decoding=True` 下**买不起的超武仍在 class_mask 里**，但解码器会走
+    通道 16 的自动降级 ⇒ 名义上钉 18/19/20、实际执行的是降级 ⇒ 那几回合的标注是错的
+    （`eval.py:_legal_nonlight_classes` 的注释记录了 2026-09-21 的实测）。
+    为什么排除 HOLD(23)：钉了也产不出位置目标。
+    """
+    out = []
+    for c in range(len(class_mask)):
+        if c == 23 or c in (17, 18, 19, 20):
+            continue
+        if class_mask[c] and position_mask[c].any():
+            out.append(int(c))
+    return out
+
+
 def playable_class(
     head_logits: np.ndarray,
     action_map: np.ndarray,
@@ -200,6 +217,7 @@ class BundleMCTS:
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
+        class_pin_random_prob: float = 0.0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -218,6 +236,15 @@ class BundleMCTS:
         self.sample_mult = sample_mult  # sample k*sample_mult times, keep top-k by count
         self.search_mode = search_mode
         self.pos_pin = pos_pin
+        # OPTIONAL「随机钉类」(2026-10-05 实施 docs/az_posnet_random_class_plan.md 的计划)：
+        # 在 pos-only 下**按头独立**以概率 p 把"钉住的类"从 argmax 换成一个**均匀随机的合法非闪电类**，
+        # 位置仍由搜索做价值排序。用途：**采集**时给数据加"有塔局面"的多样性（部署侧不用它）。
+        #   * 候选集 = `class_mask[c]` 且 `position_mask[c].any()` 且 c ∉ {17,18,19,20(超武), 23(HOLD)}
+        #     （超武在 `intent_decoding` 下买不起也仍在 mask 里，会走通道 16 的自动降级 ⇒ 标注会错，
+        #      与 `eval.py:_legal_nonlight_classes` 同一个坑，故一并排除）；
+        #   * 用 `self.rng` 抽 ⇒ 同一 seed 可复现；
+        #   * **默认 0.0 ⇒ 整段代码不执行，原有行为逐位不变**（A0/A1 的读数不受影响）。
+        self.class_pin_random_prob = float(class_pin_random_prob)
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -309,6 +336,18 @@ class BundleMCTS:
                           for hl in head_logits_list]
             else:
                 pinned = [int(np.argmax(hl)) for hl in head_logits_list]
+            # 「随机钉类」：**按头独立**以 p 换成均匀随机的合法非闪电类（位置仍由搜索排序）。
+            # 默认 p=0 ⇒ 这一整段不执行 ⇒ 与旧行为逐位相同。
+            if self.class_pin_random_prob > 0.0:
+                _cands = legal_nonlight_classes(base_cls_mask, base_pos_mask)
+                if _cands:
+                    _new = []
+                    for _c in pinned:
+                        if self.rng.random() < self.class_pin_random_prob:
+                            _new.append(int(_cands[int(self.rng.integers(len(_cands)))]))
+                        else:
+                            _new.append(_c)
+                    pinned = _new
             class_ids = [[c] * n_samples for c in pinned]
         else:
             pinned = None

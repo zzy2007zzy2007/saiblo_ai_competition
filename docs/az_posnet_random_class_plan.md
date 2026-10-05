@@ -127,6 +127,35 @@ pinned_head[h] = argmax(head_logits[h])                       # 概率 1-p（现
 定死）⇒ **重跑不会有任何变化，降噪只能加 seed 数、不能重跑**；判据必须同 seed 配对。
 镜像台本就同 seed 配对且对照臂 SE=0，满足这条（要看更多 seed 就调 `--pairs`）。
 
+## 10. 实施记录（2026-10-05：用户提议 → 落地，p=0.02）
+
+> 背景：本计划 §5 的实现清单**当年没有落地**（全仓 grep `class_pin_random_prob` 只命中本文件；
+> `git log --all -S` 也只有两份 docs 提交）。2026-10-05 发现**自对弈数据是"无塔"退化分布**
+> （A1 配置 100 局：`己方有塔` 样本 **0.0%**，见 `code/test_match/check_tower_coverage.py`），
+> 用户提议用"随机钉类"给数据加经济局面 ⇒ 按本计划 §2/§5 **照原样实现**（p=0.02/头）。
+
+**实现**（只动三处，**默认关闭 ⇒ 旧行为逐位不变**）：
+
+| 文件 | 改动 |
+|---|---|
+| `code/my_ai/az_intent/bundle_mcts.py` | 新增 `legal_nonlight_classes()`（候选 = `class_mask[c]` 且 `position_mask[c].any()` 且 c ∉ {17-20 超武, 23 HOLD}）；`BundleMCTS.__init__` 加 `class_pin_random_prob=0.0`；`_expand` 的 pos-only 分支**按头独立**用它替换 `pinned`（用 `self.rng` ⇒ 可复现）|
+| `code/my_ai/az_intent/az_selfplay.py` | CLI `--class-pin-random-prob`，贯通 `collect_games_parallel` → `_collect_and_save` → `BundleMCTS` |
+| `code/test_match/check_tower_coverage.py` | 覆盖率工具（判据 1 的常备化）：按 `board[4]/board[5]`（己方/敌方塔通道）统计"有塔样本"比例 |
+
+**冒烟实测（8 局、p=0.02、A1 配置、seed 3）**：
+
+| | 纯自对弈（旧，100 局）| **随机钉类 p=0.02（8 局）** |
+|---|---|---|
+| 己方有塔样本 | **0.0%** | **57.2%**（4438 / 7756）|
+| 敌方有塔样本 | **0.0%** | **57.9%**（4492 / 7756）|
+
+⇒ **机制按预期生效**：p 只要 0.02（回合级 ≈6%）就足以把"经济局面"喂进数据。
+**部署侧不开这个开关**（`az_bridge_ai.py` 不暴露它）⇒ 判据读数不受影响。
+
+**下一步**（要另写预注册）：用这个开关采一批 → 建价值缓存 → **重训价值头** →
+按钉死判据（配对分）测"价值头在判据分布下是否变强"。
+
+
 ## 9. 风险 / 待定（原）
 
 - **状态分布偏移**：注入的动作会被**真的执行**，所以对局会偏离"部署时策略会走的路"。

@@ -447,6 +447,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       skip_hold_search: bool = False,
                       write_npz: bool = False,
                       search_mode: str = "joint", pos_pin: str = "argmax",
+                      class_pin_random_prob: float = 0.0,
                       skip_single_candidate: bool = False) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
@@ -457,7 +458,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                       k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
                       c_puct=c_puct, seed=seed, search_mode=search_mode,
-                      pos_pin=pos_pin, skip_single_candidate=skip_single_candidate)
+                      pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
+                      skip_single_candidate=skip_single_candidate)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
@@ -502,12 +504,14 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            skip_hold_search: bool = False,
                            write_npz: bool = False,
                            search_mode: str = "joint", pos_pin: str = "argmax",
+                           class_pin_random_prob: float = 0.0,
                            skip_single_candidate: bool = False) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
              k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
              random_action_prob, inject_example_prob, skip_hold_search, write_npz,
              search_mode, pos_pin,
+             class_pin_random_prob,
              skip_single_candidate) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -573,6 +577,12 @@ def main() -> None:
                         choices=["argmax", "playable"],
                         help="pos-only: which class to pin (argmax = raw argmax; "
                              "playable = highest-logit class that actually executes)")
+    parser.add_argument("--class-pin-random-prob", type=float, default=0.0,
+                        help="「随机钉类」(docs/az_posnet_random_class_plan.md)：pos-only 下**按头独立**"
+                             "以该概率把钉住的类换成一个均匀随机的**合法非闪电类**"
+                             "(c ∉ {超武17-20, HOLD23} 且 class_mask 与 position_mask 都允许)，"
+                             "位置仍由搜索做价值排序。用途 = **采集**时给数据加'有塔局面'的多样性；"
+                             "部署侧不要开。默认 0.0 ⇒ 行为与旧版逐位相同。建议 0.02。")
     parser.add_argument("--skip-single-candidate", action="store_true",
                         help="OPT-IN forced-move shortcut: when the root has a single candidate, "
                              "skip the (result-irrelevant) iterations.  Per-search bit-identical "
@@ -602,6 +612,7 @@ def main() -> None:
         write_npz=args.write_npz,
         search_mode=args.search_mode,
         pos_pin=args.pos_pin,
+        class_pin_random_prob=args.class_pin_random_prob,
         skip_single_candidate=args.skip_single_candidate,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
