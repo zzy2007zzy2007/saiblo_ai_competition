@@ -4877,3 +4877,122 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   **判定**：未过 70% 门；**不宣称 S3 优于 A1**（只能说"没有证据表明它更差/更好"）。
   ⇒ 下一步：按 `docs/prereg_20261005_search_deepen_widen.md` 继续试加深/加宽；
   同时准备**换数据**这个主线（见下条"随机钉类"）。
+
+## 2026-10-05 12:33:20 — PIN002_smoke8
+
+- **commit**: `45fd61f` (dirty: 7 files)
+- **exit**: 0，用时 341s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 8 --workers 8 --seed 3 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.02 --native-engine --out-dir training_history/vprior/data_pin002_smoke
+  ```
+- **output**: `training_history/runs/20261005_123320_PIN002_smoke8/output.log`
+- **result**: _待填_
+
+## 2026-10-05 12:41:54 — PIN002_collect100
+
+- **commit**: `94931a9` (dirty: 6 files)
+- **exit**: 0，用时 4930s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint training_history/vprior/posnet_A_k5_m32.pt --games 100 --workers 8 --seed 4 --iterations 256 --max-depth-rounds 4 --t-class 0.5 --t-pos 1.0 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --class-pin-random-prob 0.02 --native-engine --out-dir training_history/vprior/data_pin002_100
+  ```
+- **output**: `training_history/runs/20261005_124154_PIN002_collect100/output.log`
+- **result**: ✅ **随机钉类（p=0.02）采到 100 局 / 94,356 个样本**（用时 4930 s ≈ 82 min，比无钉类那批慢 ~1.6×：
+  被钉住别的类后"有得选"的回合变多 ⇒ 不再触发 `skip_single_candidate`）。
+  **数据侧硬读数（预注册 P-Q1，门槛 ≥30%）通过**：
+  **`己方有塔` = 59.1%（55,735/94,356）、`敌方有塔` = 59.7%** —— 对照：**无钉类的 100 局是 0.0%**
+  （`code/test_match/check_tower_coverage.py`；快照 `training_history/vprior/_q1_coverage.txt`）。
+  ⇒ **用户的提议按预期解决了"自对弈数据没有塔局面"这个缺口**。
+
+## 2026-10-05 14:04:56 — Q1_cache_build
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 9s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --build-cache-only
+  ```
+- **output**: `training_history/runs/20261005_140456_Q1_cache_build/output.log`
+- **result**: _待填_
+
+## 2026-10-05 14:05:05 — Q1_valtrain
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 107s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/vprior/vcache_pin002 --epochs 4 --lr 3e-4 --label-mode terminal --freeze-bn --out training_history/vprior/posnet_Q1_valpin.pt
+  ```
+- **output**: `training_history/runs/20261005_140505_Q1_valtrain/output.log`
+- **result**: ⚪ **Q1 是"按构造为 null"**：训练器报告 **`最佳 val MSE=0.09964 @epoch -1`**
+  （= **初始权重**；训练后 val MSE 0.10057(ep2) → 0.10431(ep4) 单调变差）⇒ 产物 `posnet_Q1_valpin.pt`
+  与对照 `posnet_A_k5_m32.pt` **逐张量相同**（`same_ckpt.py` 判定 IDENTICAL）⇒ 自动化脚本按预注册
+  **跳过了 32 局快读数**（省 10 min 机器时间，且按构造跑出来只会是逐字节复现）。
+  ⇒ **P-Q2 无从测起；真正回答的问题是**：**在"有塔数据"上重训价值头也训不动**（这是第三次同型结果：
+  V1 旧数据、V2 自对弈数据、Q1 有塔数据）。**下一步用学习率扫描回答"它到底能不能被训好"**（见 `Q1b_*`）。
+
+## 2026-10-05 14:09:23 — Q1b_lr1e4
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 204s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/vprior/vcache_pin002 --epochs 8 --lr 1e-4 --label-mode terminal --freeze-bn  --out training_history/vprior/posnet_Q1b_lr1e4.pt
+  ```
+- **output**: `training_history/runs/20261005_140923_Q1b_lr1e4/output.log`
+- **result**: _待填_
+
+## 2026-10-05 14:12:47 — Q1b_lr3e5
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 206s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/vprior/vcache_pin002 --epochs 8 --lr 3e-5 --label-mode terminal --freeze-bn  --out training_history/vprior/posnet_Q1b_lr3e5.pt
+  ```
+- **output**: `training_history/runs/20261005_141247_Q1b_lr3e5/output.log`
+- **result**: _待填_
+
+## 2026-10-05 14:16:13 — Q1b_lr1e4_bn
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 243s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --cache training_history/vprior/vcache_pin002 --epochs 8 --lr 1e-4 --label-mode terminal --freeze-bn --allow-bn-update --out training_history/vprior/posnet_Q1b_lr1e4_bn.pt
+  ```
+- **output**: `training_history/runs/20261005_141613_Q1b_lr1e4_bn/output.log`
+- **result**: _待填_
+
+## 2026-10-05 14:17:13 — S5_k48_32
+
+- **commit**: `1e42671` (dirty: 6 files)
+- **exit**: 0，用时 657s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=48 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S5_k48_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_141713_S5_k48_32/output.log`
+- **result**: 🟡 **S5（`AZAI_K=48`，候选加宽一倍）：`p̂ = 0.5000`**（16 对；2-0:5 / 1-1:6 / 0-2:5；
+  CI [0.312, 0.688]）—— **与 A1 对照的 0.5000 完全相同**（分布形态也几乎一样）。
+  机制：闪电 11.3、建塔 0、出招 11.3 回合/局（与 A1 一致）。
+  ⇒ **加宽候选集没有增益**；结合 S1（变尖更差）、P1/P2（换先验更差）得到一个一致的解释：
+  **候选集在 `t_pos=1.0 + k=24` 附近已经"够用"，瓶颈不在候选生成的宽度/锐度上**。
+  ⇒ 按预注册不晋级。
+
+### 同轮的学习率扫描（`Q1b_*`，价值头"到底能不能训好"）
+
+| 臂 | 最好 val MSE | 结论 |
+|---|---|---|
+| 起点（= `posnet_A` 的价值头）| **0.09964** | — |
+| `lr 3e-4`（= Q1，4 epoch）| 早停 `@epoch -1` | 越训越差 |
+| `lr 1e-4`（8 epoch）| **0.09937 @epoch 1** | 只比起点好 **0.3%**，且第 1 轮后就开始反弹 |
+| `lr 3e-5`（8 epoch）| **0.09931 @epoch 1** | 同上 |
+| `lr 1e-4` + **不冻 BN** | 第 1 轮 0.10329（BN var 爆到 1.5e4）| 更差（与历史结论一致）|
+
+⇒ **价值头在这批数据上已经贴着它的天花板**（最好也只能好 0.3%，且一个 epoch 就反弹）
+⇒ **"重训价值头"这条路到此为止**（V1/V2/Q1/Q1b 共 6 次同型结果）。
+⚠️ 因此**候选 Q2（判据分布数据）没有跑**：它的数据侧管线已备好（`ingest_bridge_dump.py`，
+冒烟 84.8% 敌方有塔），但既然价值头在"有塔数据"上都只能好 0.3%，
+再花 45 min（128 局采集+dump+训练）预期收益低于噪声底 —— **这条偏离如实记档**（未看任何 Q2 判据数据）。
