@@ -5705,3 +5705,32 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     但它**没有**把建塔数压到手写规则的 ~11/局（38.8 vs 11），也**没有**带来分数。
   * ⇒ 下一步（预注册 §5）：既然长 tau（≥50，用户经验）与 kgeo 的标签**跨局面分辨率更高**，
     它们的价值头可能给出更准的"该不该花"排序 ⇒ **A1 配置快筛（4 臂 × 16 局）+ 最好那臂的 M5 4 局**已排队自动跑。
+
+## 2026-10-06 01:11:09 — VR50_16
+
+- **commit**: `93cc707` (dirty: 6 files)
+- **exit**: 0，用时 277s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vrel50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VR50_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_011109_VR50_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:2x — ⚠️ 修正：`rel` 标签头的部署必须**还原绝对价值**（旧快筛读数作废）
+
+- **发现**：`rel`（相对）标签的头预测的是"**未来优势变化量**"（`label_t = raw_t − d_t`），
+  而搜索的 MCTS 要**跨不同局面**比较价值 ⇒ 必须还原成绝对价值。壳里已有约定
+  （`az_selfplay.make_three_net_fn`）：
+  ```python
+  if value_rel_to_abs > 0.0:
+      value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
+  ```
+  ⇒ 正确部署 env = **`AZAI_VALUE_TANH=0` + `AZAI_REL2ABS=1.0`**（tanh 必须在还原**之前**不生效，
+  否则 `tanh(相对量) + 当前优势` 是错的）。
+- **我犯的错**：第一批 A1 快筛（`VR50_16`）**忘了设**这两项 ⇒ **`p̂ = 0.3750` 的读数作废**
+  （那是"把相对量当绝对量用"的结果，不能归因于标签本身）。
+  被中止的 `VR100_16 / VK50_16 / VK100_16` 同理作废。
+- **处置**：带正确 env 重跑 4 臂（`VR50b_16 / VR100b_16 / VK50b_16 / VK100b_16`，脚本 `_tmp_vt_screen2.ps1`）；
+  ⚠️ 同理**M5+rel5 的那条读数（建塔 68→38.8）也是在缺 `REL2ABS` 的配置下拿到的**，
+  其"叶评价约束类决策"的**方向**仍然有效（行为确实变了），但**具体数值要在正确配置下重测**。
