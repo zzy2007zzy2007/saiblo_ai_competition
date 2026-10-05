@@ -5734,3 +5734,78 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **处置**：带正确 env 重跑 4 臂（`VR50b_16 / VR100b_16 / VK50b_16 / VK100b_16`，脚本 `_tmp_vt_screen2.ps1`）；
   ⚠️ 同理**M5+rel5 的那条读数（建塔 68→38.8）也是在缺 `REL2ABS` 的配置下拿到的**，
   其"叶评价约束类决策"的**方向**仍然有效（行为确实变了），但**具体数值要在正确配置下重测**。
+
+## 2026-10-06 01:20:30 — VR50b_16
+
+- **commit**: `fe465be` (dirty: 5 files)
+- **exit**: 0，用时 330s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vrel50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VR50b_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_012030_VR50b_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:26:00 — VR100b_16
+
+- **commit**: `fe465be` (dirty: 6 files)
+- **exit**: 0，用时 294s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vrel100.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VR100b_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_012600_VR100b_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:30:55 — VK50b_16
+
+- **commit**: `fe465be` (dirty: 6 files)
+- **exit**: 0，用时 330s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK50b_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_013055_VK50b_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:36:26 — VK100b_16
+
+- **commit**: `fe465be` (dirty: 6 files)
+- **exit**: 0，用时 332s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk100.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK100b_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_013626_VK100b_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 01:43:06 — VK50b_32
+
+- **commit**: `c96d7b1` (dirty: 6 files)
+- **exit**: 0，用时 603s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK50b_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261006_014306_VK50b_32/output.log`
+- **result**: _待填_
+
+## 2026-10-06 02:0x — 价值标签阶梯（修正部署 env 后）：**`rel+kgeo tau=50` 是方法侧最强信号**
+
+**修正后**的 A1 配置快筛（16 局 seed 7..14；**A1 对照 = 0.5000**；rel 头带 `AZAI_VALUE_TANH=0 + AZAI_REL2ABS=1.0`）：
+
+| 臂 | 标签 | p̂（16 局）| 对比 A1 |
+|---|---|---|---|
+| VR100b | `rel tau=100` | 0.3125 | −18.8pp |
+| VR50b | `rel tau=50` | 0.4375 | −6.3pp |
+| VK100b | `rel+kgeo tau=100` | 0.5000 | ±0 |
+| **VK50b** | **`rel+kgeo tau=50`** | **0.6250** | **+12.5pp** |
+
+**晋级（≥0.60）后扩样本 —— VK50b 在 32 局（seed 7..22）上：`p̂ = 0.5938`**
+（16 对；2-0:6 / 1-1:7 / 0-2:3；CI [0.4062, 0.7812]）⇒ **比 A1 的 0.5000 高 +9.4pp**。
+
+- **性质：方法侧**（只换价值头的**训练标签目标**：`rel` + `kgeo`(`w_k=k·γ^k`) + `tau=50`；
+  **无手写规则、无搜索配置花招**）⇒ 按章程 §2 第②条，这条增益**不来自人工规则**。
+- ⚠️ 16 局快读数 0.6250 → 32 局 0.5938（**又一次"快读数偏乐观"**，与 S3/E2 同病）。
+- **128 局验收已排队**（`VK50b_128`）；这是唯一能作数的读数（对照 A1 的验收 = 0.5312）。
+- 用户两条经验都被验证有价值：**tau ≥50**（50 比 100 好；30/5/10 更差）+ **kgeo**（同 tau 下 kgeo 明显优于 geo）。
