@@ -4858,3 +4858,22 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⇒ **改动只是"搜索看多深"**（8 层展开）。
   ⚠️ **性质**：**搜索配置**改动（不是"方法学会"），报告时必须标注；但它是本任务**第一个超过 A1 的臂**。
   ⚠️ `n=16` 时 +9.4pp 的 SE ≈ 12.5pp ⇒ **必须靠 128 局验收定论**（正在跑，~35 min）。
+
+## 2026-10-05 11:58:23 — S3_depth8_128
+
+- **commit**: `e9497f5` (dirty: 4 files)
+- **exit**: 0，用时 1816s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=8 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S3_depth8_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261005_115823_S3_depth8_128/output.log`
+- **result**: 🟡 **S3（`AZAI_DEPTH=8`）的 128 局验收：`p̂ = 0.5625`**
+  （64 对；2-0:**19** / 1-1:34 / 0-2:11；CI **[0.4766, 0.6484]**；全干净；用时 ~30 min，单局 ~2.2 min）。
+  **与 A1 的 128 局验收（`0.5312`）比：+3.1pp**（两者 CI 大幅重叠 ⇒ **不能宣称"更强"**）。
+  ⚠️ **重要教训（快读数 vs 验收）**：S3 的 **32 局快读数是 `0.5938`（+9.4pp）**，
+  128 局只剩 **+3.1pp** ⇒ **快读数把效应放大了 3 倍**，正是章程"快读数只筛不判"的意义。
+  机制：闪电 11.2、建塔 0、对局 402 回合（与 A1 一致）⇒ 只改了搜索深度。
+  **判定**：未过 70% 门；**不宣称 S3 优于 A1**（只能说"没有证据表明它更差/更好"）。
+  ⇒ 下一步：按 `docs/prereg_20261005_search_deepen_widen.md` 继续试加深/加宽；
+  同时准备**换数据**这个主线（见下条"随机钉类"）。
