@@ -4824,3 +4824,19 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   **解释（与 P2 互相印证）**：把采样变尖（或像 P2 那样把不可执行格直接置 −1e9）都会
   **缩窄候选集**，而缩窄就变差 ⇒ **A1 的强度部分来自"`t_pos=1.0` 给出多样候选、再由搜索排序"**。
   ⇒ **P-S1 的预测（0.45–0.60）不成立**（如实记）。
+
+## 2026-10-05 11:30:59 — S2_iters1024_32
+
+- **commit**: `a075e28` (dirty: 4 files)
+- **exit**: 0，用时 870s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=1024 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S2_iters1024_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_113059_S2_iters1024_32/output.log`
+- **result**: 🟡 **S2（`AZAI_ITERS=1024`）：`p̂ = 0.5312`**（16 对；**2-0:4** / 1-1:9 / 0-2:3；
+  CI [0.375, 0.688]）—— 对照 A1 是 `0.5000` ⇒ **+3.1pp（方向为正，但远在噪声内、且未过预注册的 0.55 线）**。
+  机制：闪电 11.2、建塔 0、对局 403 回合 ⇒ 与 A1 几乎一样（**只改了搜索里的访问分配**）。
+  ⇒ **P-S2（预测 0.45–0.58，小效应）成立**（实测落在区间内）。
+  ⚠️ **按预注册不晋级**（`0.5312 < 0.55`）；如实记为"**方向为正但未达标**"。
+  若后续便宜杠杆用尽，可另写预注册对 `ITERS=1024` 跑 128 局验收（成本 ~30 min）。
