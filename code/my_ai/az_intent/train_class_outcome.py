@@ -69,6 +69,8 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--beta", type=float, default=0.5, help="AWR 温度：w ∝ exp(a/beta)")
     ap.add_argument("--val-frac", type=float, default=0.1)
+    ap.add_argument("--class-weight-power", type=float, default=0.5,
+                    help="auto 权重的指数：w=(mean_cnt/cnt)**p；p=1 全反频率、p=0.5 开方（默认，较温和）")
     ap.add_argument("--class-weight", type=str, default="none", choices=["none", "auto"],
                     help="auto = 按类频率反加权（治 HOLD 占 96% 的多数类问题）")
     ap.add_argument("--seed", type=int, default=0)
@@ -127,7 +129,7 @@ def main() -> int:
         nz = cnt[cnt > 0]
         mean_cnt = nz.mean() if len(nz) else 1.0
         for c in range(24):
-            cls_w[c] = float(mean_cnt / cnt[c]) if cnt[c] > 0 else 0.0
+            cls_w[c] = float((mean_cnt / cnt[c]) ** args.class_weight_power) if cnt[c] > 0 else 0.0
         top = np.argsort(-cnt)[:5]
         print("[class-weight=auto] 每类权重（前 5 频繁类）："
               + ", ".join("类%d: cnt=%d w=%.2f" % (int(c), int(cnt[c]), float(cls_w[c])) for c in top),
@@ -154,11 +156,13 @@ def main() -> int:
         idx = c.clamp(0, logit.shape[-1] - 1).unsqueeze(-1)                           # (B,3,1)
         lp = torch.gather(logq, 2, idx).squeeze(-1)                                   # (B,3)
         lp = torch.where(valid, lp, torch.zeros_like(lp))
-        # 逐 (样本,head) 的类权重（治多数类）
+        # 逐 (样本,head) 的类权重（治多数类）。
+        # ⚠️ **不要**再除以 `cw.sum(dim=1)`：那会把权重整体约掉（2026-10-05 实测踩到——M1b 因此退化成
+        # "恒 HOLD"：整局 0 操作、16 对全败 `p̂ = 0.0000`）。这里只按**全局均值**归一，保持权重可比。
         cw = torch.gather(cls_w.unsqueeze(0).expand(c.shape[0], -1), 1,
                           c.clamp(0, logit.shape[-1] - 1))                            # (B,3)
         cw = torch.where(valid, cw, torch.zeros_like(cw))
-        per_sample = (lp * cw).sum(dim=1) / cw.sum(dim=1).clamp(min=1e-9)             # (B,)
+        per_sample = (lp * cw).sum(dim=1) / max(float(cls_w.mean()), 1e-9)   # (B,)
         w = torch.softmax(a / args.beta, dim=0) * len(a)                              # 归一化到均值 1
         w = torch.where(valid.any(dim=1), w, torch.zeros_like(w))
         loss = -(w * per_sample).sum() / w.sum().clamp(min=1e-9)
