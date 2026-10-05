@@ -147,6 +147,8 @@ AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_MODE=joint AZAI_POSPIN=argmax
 AZAI_TCLASS=0.5 AZAI_TPOS=1.0 AZAI_TEMP=1e-6 AZAI_VERIFY=1 AZAI_TRACE=1
 裁判 = code/cpp_engine（bridge，match_via_sdk.py）   并行度 = 8
 seed 集合 = 7..14，每个 seed 跑镜像两局（N = AI0 先手、Nr = AI1 先手）
+# ⚠️ 这是 **B（我们 vs 前两名）** 的 seed 集；与 `task_ruleV4_70_charter.md` §2 钉的 `7..70`
+#    （我们 vs rule_v4）是**两套不同用途**的集合，**不要混用**。
 ```
 
 ## 6. 运行须知（dsh `goal` 的机型）
