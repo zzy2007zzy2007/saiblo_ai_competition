@@ -5042,3 +5042,22 @@ replay 里塔只含"本回合变化过"的、蚂蚁 age 是"事件时刻"记录�
   ⚠️ 机制旁注：日志显示我方除了建塔还有 **DOWNGRADE**（降级退款）——因为类头的顺序是**任意的常数序**
   （见寄存器"类头是常数函数"行），所以本臂实际是"**把余钱花在常数序里排前面的那几个类上**"，
   而不是一个"讲道理的经济策略"；这限制了它作为"经济策略上界"的解释力。
+
+## 2026-10-05 15:36:09 — E_reserve180_32
+
+- **commit**: `22846cd` (dirty: 6 files)
+- **exit**: 0，用时 1058s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=reserve AZAI_POSPRIOR=off AZAI_RESERVE=180 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=E_reserve180_32 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r
+  ```
+- **output**: `training_history/runs/20261005_153609_E_reserve180_32/output.log`
+- **result**: 🟢🟢 **候选 E2（`pos_pin=reserve`，储备 180）：`p̂ = 0.7500`**（16 对；**2-0: 8** / 1-1: 8 /
+  **0-2: 0**；CI **[0.625, 0.875]**）—— 对照 A1 同 seed 前缀 **0.5000** ⇒ **+25pp**，
+  且**过了预注册的 0.70 线** ⇒ **按预注册立刻转 128 局验收**（tag `E_reserve180_128`，已在跑）。
+  **机制（很关键）**：我方 **闪电 11.4/局**（对照 A1 的 **11.2** ⇒ **不但没掉，还略高**）、
+  **建塔 10.9/局**（对照恒 **0**）、出招回合 16.2；对手 16.3 建塔 / 9.7 闪电。
+  ⇒ **读法**：E2 ≈ "**A1 的闪电策略 + 白捡的 ~11 座塔**"（储备 180 意味着只在很富的时候才花钱，
+  所以闪电预算完全没被挤压）；而更激进的 E1（储备 90、建塔 23.7、闪电 10.0）只有 0.5312。
+  ⚠️ **这是 32 局快读数（n=16 对，SE≈12.5pp）**，且我**先跑了 E1 再跑 E2**（同一预注册里的两个臂）
+  ⇒ **必须靠 128 局验收 + 机械门才能定论**；在验收出来之前**不作任何成功声明**。
