@@ -5848,3 +5848,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   2. **类决策轴（M5 用的）**：`kgeo50` **几乎不影响**（建塔 68.8 ≈ 68.0）⇒ **M5 的"爱花钱"问题与这次增益无关**，
      它是搜索**类评价**仍然弱的问题（只有 rel5 那种更短视野才会把建塔压到 38.8，但那是"少花"而非"花得对"）。
 - ⇒ **下一个便宜问题**：`kgeo50` 的 tau（50）是不是最优点？准备一个 **tau∈{35, 50, 70} × kgeo** 的小阶梯（成本 ~1h）。
+
+## 2026-10-06 02:16:04 — VK50b_128
+
+- **commit**: `37c3a8b` (dirty: 6 files)
+- **exit**: 0，用时 2192s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk50.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK50b_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_021604_VK50b_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 02:53:27 — VT_k35
+
+- **commit**: `1257f15` (dirty: 6 files)
+- **exit**: 0，用时 214s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_net.py --ckpt training_history/vprior/posnet_A_k5_m32.pt --data training_history/vprior/data_pin002_100 --cache training_history/vprior/vcache_pin002 --label-mode rel --label-weight kgeo --tau 35 --epochs 8 --lr 1e-4 --freeze-bn --out training_history/vprior/posnet_Vk35.pt
+  ```
+- **output**: `training_history/runs/20261006_025327_VT_k35/output.log`
+- **result**: _待填_
