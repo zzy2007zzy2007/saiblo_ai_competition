@@ -5937,3 +5937,31 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   1. **多臂筛选后「挑最好」**得到的一切读数**不能当证据**（除非在**未参与筛选的 seed 段**上复核）；
   2. 宣布**方法侧进展 / 换操作配置** ⇒ **直接跑 128 局验收**（~40 min），不再经快读数；
   3. 若确要筛（成本考虑），筛完必须在**另一段 seed**上复核（如 `103..166`），并记档说明。
+
+## 2026-10-06 03:10:45 — VK70_16
+
+- **commit**: `f055113` (dirty: 6 files)
+- **exit**: 0，用时 310s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_Vk70.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=1.0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VALUE_TANH=0 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=VK70_16 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r
+  ```
+- **output**: `training_history/runs/20261006_031045_VK70_16/output.log`
+- **result**: _待填_
+
+## 2026-10-06 03:4x — M6（真跑到底的蒙特卡洛类决策）实现 + 冒烟（含两个自造 bug 的修正）
+
+- **新机制**：`pos_pin="mc_light"`（`code/my_ai/az_intent/mc_class.py`）——
+  在**闪电真的能放**（解码成功 ⇒ 含金币/冷却）的回合，对候选 **{闪电, HOLD}** 各做一次
+  「**先打这一手、双方贪心打到终局**」的模拟，用**终局 HP 差**选类；其余回合 = A1（argmax ⇒ 闪电/HOLD）。
+  **不依赖价值网、无手写规则**。
+- **两个自造 bug（已修，都在冒烟阶段抓到）**：
+  1. **门控错**：我最初用 `class_mask[17]` 判断"能不能放闪电"，但 `intent_decoding` **只查冷却不查金币**
+     ⇒ MC 几乎**每回合**都跑 ⇒ **~75 s/回合**（10 分钟才到第 8 回合）；
+     改成 `_decode_class_op(..., 17) is not None`（**真的解得出 op**）后 ⇒ **1.9 min/局**（与 A1 同速）。
+  2. **缺属性赋值**：补丁只给 `__init__` 加了形参、忘了 `self.mc_horizon/self.mc_every` ⇒
+     `AttributeError` ⇒ **整局崩**（`僵局嫌疑: ['7']`、0.1 min 结束）。已修。
+- **成本旋钮**：`AZAI_MC_HORIZON`（rollout 截断，默认 100 回合）/ `AZAI_MC_EVERY`（每 N 回合最多比一次，默认 1）。
+- **冒烟（seed 7，`MC_EVERY=4`）**：1.9 min/局；我方 **闪电 12 次、建塔 0**（与 A1 同类）；
+  ⚠️ 该局**我方负**（p1 胜）。单局无信息。
+- **⇒ 128 局验收已按新纪律直接开跑**（`M6_mc_128`，对照 A1 = 0.5312）。
