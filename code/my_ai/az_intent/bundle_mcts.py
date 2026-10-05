@@ -322,6 +322,8 @@ class BundleMCTS:
         pos_pin: str = "argmax",
         class_pin_random_prob: float = 0.0,
         reserve_coins: int = 90,
+        mc_horizon: int = 100,
+        mc_every: int = 1,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -468,14 +470,20 @@ class BundleMCTS:
                 for _hl in head_logits_list:
                     _hl = np.asarray(_hl, dtype=np.float32)
                     _top = int(np.argmax(_hl))
-                    _can_light = bool(base_cls_mask[17] and base_pos_mask[17].any())
-                    if _top == 17 and _can_light:
-                        from my_ai.az_intent.mc_class import mc_choose_class
-                        _cands = [17, 23] + ([_economy] if _economy is not None else [])
+                    # ⚠️ 门控必须用「**真的放得出来**」：`intent_decoding` 只查冷却**不查金币**
+                    # （实测：只看 class_mask 会让 MC 几乎每回合都跑 ⇒ ~75 s/回合）。
+                    from my_ai.az_intent.mc_class import _decode_class_op, mc_choose_class
+                    _can_light = _decode_class_op(_hl, _AM, base_cls_mask, base_pos_mask,
+                                                  node.state, node.player, 17) is not None
+                    _rnd = int(getattr(node.state, "round_index", 0))
+                    if (_top == 17 and _can_light and self.mc_every > 0
+                            and (_rnd % self.mc_every == 0)):
+                        _cands = [17, 23]
                         try:
                             _c, _sc = mc_choose_class(
                                 self.net_fn, node.state, node.player, _cands, _hl, _AM,
-                                base_cls_mask, base_pos_mask)
+                                base_cls_mask, base_pos_mask,
+                                max_rounds=int(self.mc_horizon))
                             pinned.append(int(_c))
                             self.mc_last_scores = _sc
                         except Exception:  # noqa: BLE001

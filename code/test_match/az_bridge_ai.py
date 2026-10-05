@@ -243,6 +243,9 @@ def build_engine(seed: int, player: int):
         class_pin_random_prob=float(_env("AZAI_CLASSPIN_PROB", "0")),
         # 候选 E（诊断臂）：pos_pin=reserve 时的闪电储备门槛：见 docs/prereg_20261005_reserve_economy.md
         reserve_coins=int(_env("AZAI_RESERVE", "90")),
+        # M6（mc_light）的成本旋钮：rollout 截断长度 / 每 N 回合最多比一次
+        mc_horizon=int(_env("AZAI_MC_HORIZON", "100")),
+        mc_every=int(_env("AZAI_MC_EVERY", "1")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,
