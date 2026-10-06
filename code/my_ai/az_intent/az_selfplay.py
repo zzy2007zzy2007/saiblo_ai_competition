@@ -1,4 +1,4 @@
-﻿"""Self-play collection for bundle-MCTS AlphaZero training (T1).
+"""Self-play collection for bundle-MCTS AlphaZero training (T1).
 
 Both players use the bundle MCTS.  At each decision we record a training sample:
 board/stats (inputs), player, legal masks, the k sampled bundles with their
@@ -328,7 +328,9 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  native_engine: bool = False,
                  random_action_prob: float = 0.0,
                  inject_example_prob: float = 0.0,
-                 skip_hold_search: bool = False) -> list[dict]:
+                 skip_hold_search: bool = False,
+                 mc_horizon: int = 100, mc_every: int = 1,
+                 mc_root_only: int = 0, mc_bidir: int = 0) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
 
     If ``progress_path`` is given, a per-round text log (round index + each
@@ -463,7 +465,9 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       search_mode: str = "joint", pos_pin: str = "argmax",
                       class_pin_random_prob: float = 0.0,
                       reserve_coins: int = 180,
-                      skip_single_candidate: bool = False) -> dict:
+                      skip_single_candidate: bool = False,
+                    mc_horizon: int = 100, mc_every: int = 1,
+                    mc_root_only: int = 0, mc_bidir: int = 0) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
     from SDK.utils.features import FeatureExtractor
     from my_ai.az_intent.bundle_mcts import BundleMCTS
@@ -475,6 +479,9 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       c_puct=c_puct, seed=seed, search_mode=search_mode,
                       pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
                       reserve_coins=reserve_coins,
+                      # ⚠️ 部署配置必须一起传：否则 mc_quiet 会在**每个节点**仲裁（~20 min/局）
+                      mc_horizon=mc_horizon, mc_every=mc_every,
+                      mc_root_only=mc_root_only, mc_bidir=mc_bidir,
                       skip_single_candidate=skip_single_candidate)
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
@@ -522,7 +529,10 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            search_mode: str = "joint", pos_pin: str = "argmax",
                            class_pin_random_prob: float = 0.0,
                            reserve_coins: int = 180,
-                           skip_single_candidate: bool = False) -> list[Path]:
+                           skip_single_candidate: bool = False,
+                           # ⚠️ 2026-10-07：mc_* 必须一路透传到 BundleMCTS，否则 mc_quiet 会在**每个节点**仲裁
+                           mc_horizon: int = 100, mc_every: int = 1,
+                           mc_root_only: int = 0, mc_bidir: int = 0) -> list[Path]:
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     jobs = [(s, out_dir, ckpt_path, iterations, max_depth_rounds, t_class, t_pos,
              k, sample_mult, max_rounds, temp_rounds, native_engine, c_puct,
@@ -530,7 +540,8 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
              search_mode, pos_pin,
              class_pin_random_prob,
              reserve_coins,
-             skip_single_candidate) for s in seeds]
+             skip_single_candidate,
+             mc_horizon, mc_every, mc_root_only, mc_bidir) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
             results = pool.starmap(_collect_and_save, jobs)
@@ -592,9 +603,13 @@ def main() -> None:
                              "skip_single_candidate for ~26x cheaper collection.  See "
                              "docs/az_forced_move_skip_plan.md")
     parser.add_argument("--pos-pin", type=str, default="argmax",
-                        choices=["argmax", "playable", "reserve", "reserve_up"],
+                        choices=["argmax", "playable", "reserve", "reserve_up",
+                                 # ⚠️ 2026-10-07 补：BundleMCTS 早就支持这几个，但这里的 choices 忘了加
+                                 #    ⇒ 无法用 `--pos-pin mc_quiet` 采集"部署策略"的数据（闭环重训的前提）
+                                 "mc_light", "mc_quiet", "masked", "q"],
                         help="pos-only: which class to pin (argmax = raw argmax; "
-                             "playable = highest-logit class that actually executes)")
+                             "playable = highest-logit class that actually executes; "
+                             "mc_quiet = 安静 rollout 的蒙特卡洛类决策〔部署用〕)")
     parser.add_argument("--class-pin-random-prob", type=float, default=0.0,
                         help="「随机钉类」(docs/az_posnet_random_class_plan.md)：pos-only 下**按头独立**"
                              "以该概率把钉住的类换成一个均匀随机的**合法非闪电类**"
@@ -611,6 +626,14 @@ def main() -> None:
                              "from mcts.rng afterwards, so realized games are NOT reproducible "
                              "across this flag (the decision distribution is unchanged).  See "
                              "docs/az_forced_move_skip_plan.md")
+    parser.add_argument("--mc-horizon", type=int, default=100,
+                        help="mc_quiet 的 rollout 回合上限（部署用 256）")
+    parser.add_argument("--mc-every", type=int, default=1,
+                        help="mc_quiet 的仲裁门控：每 N 回合在根节点比一次（部署用 5）")
+    parser.add_argument("--mc-root-only", type=int, default=0,
+                        help="1 = 只在搜索根节点仲裁（部署用 1；0 = 每个节点都仲裁，极慢）")
+    parser.add_argument("--mc-bidir", type=int, default=0,
+                        help="K>0 ⇒ K 步双向 rollout（预注册 prereg_20261006_rollout_ladder.md）")
     parser.add_argument("--reserve-coins", type=int, default=180,
                         help="pos_pin=reserve/reserve_up 时的闪电储备门槛（金币）。"
                              "用途：采集「带储备规则的类策略」数据（蒸馏用），部署侧不要开。")
@@ -631,6 +654,8 @@ def main() -> None:
         inject_example_prob=args.inject_example_prob,
         skip_hold_search=args.skip_hold_search,
         write_npz=args.write_npz,
+        mc_horizon=args.mc_horizon, mc_every=args.mc_every,
+        mc_root_only=args.mc_root_only, mc_bidir=args.mc_bidir,
         search_mode=args.search_mode,
         pos_pin=args.pos_pin,
         class_pin_random_prob=args.class_pin_random_prob,

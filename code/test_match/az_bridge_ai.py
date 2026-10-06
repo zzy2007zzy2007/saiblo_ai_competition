@@ -1,4 +1,4 @@
-﻿"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
+"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
 
 背景（`docs/champ_ladder_plan.md` §3.2 / §7.6）：我们**从来没有跟冠军/亚军打过**——
 我们的 AI 是 in-process 的，不会讲官方 stdin/stdout 协议。`code/test_match/rv4_pkg/`
@@ -431,7 +431,19 @@ def main() -> int:
             return [Operation(OperationType(int(_expl[0])), int(_expl[1]), int(_expl[2]))]
         _record_obs(res)
         chosen = res.chosen_bundle or ()
-        return [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
+        ops = [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
+        # 🧪 诊断（`AZAI_NO_DOWNGRADE=1`，预注册 `prereg_20261007_no_downgrade.md`）：
+        #   **在"实际执行"层去掉降级 op**（与"从候选菜单排除类 16"不同——那是选层，这是执行层消融）。
+        #   依据：256 局败局签名里我方"升级+降级"在负局更高（Cliff's d = −0.302），而我们 10.8 次/局、从不升级
+        #   ⇒ "建塔→降级→再建"的 churn 可能在自毁。去掉后若该回合没有别的 op，就等于 HOLD（返回 []）。
+        if _env("AZAI_NO_DOWNGRADE", "0") == "1":
+            _kept = [o for o in ops if int(o.op_type) != 13]
+            if len(_kept) != len(ops):
+                STATS["down_killed"] = int(STATS.get("down_killed", 0)) + (len(ops) - len(_kept))
+                _log(f"🧪 抑制降级: round={STATS['rounds']} 去掉 {len(ops) - len(_kept)} 个"
+                     f"（累计 {STATS['down_killed']}）；剩余={len(_kept)}")
+            ops = _kept
+        return ops
 
     def _apply(pl: int, ops: list) -> None:
         """把操作打进影子状态，并统计非法数（影子与裁判的分歧会在这里先露头）。"""
