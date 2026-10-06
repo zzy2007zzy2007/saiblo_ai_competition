@@ -22,6 +22,7 @@
 | `posnet_C_class.pt` | `training_history/vprior/posnet_C_class.pt` | 6.5 MB | **候选 C**：把价值先验从位置轴扩到**类轴**的 ckpt |
 | `posnet_M1_distill.pt` | `training_history/vprior/posnet_M1_distill.pt` | 6.5 MB | **M1（搜索→策略蒸馏）**的 ckpt |
 | `qhead_M2.pt` | `training_history/vprior/qhead_M2.pt` | 41 KB | **Q 头（M2）**（很小，顺手带上）|
+| `gen_0120_model.pt` | **从** `training_history/ga_ss_20260730_093908/gen_0120.pt` **抽取**（见 §2）| 4.4 MB | **血统起点**（官方 `ExampleAI` 蒸馏/初始化那一代）的**纯模型**；原文件 404 MB 里 **~99% 是 ES 训练状态**（`ga_pop` 种群），不是模型 |
 
 > 上面"是什么"是按**文件名 + 预注册命名 + 用法**写的简要定位；细节看各自的 `docs/prereg_*.md`。
 
@@ -38,18 +39,34 @@ d340ad42f9cbc84a0ae48e4976b61473dd946c76dc28e63d8dbefaa9b65dac8d  posnet_Vk50.pt
 da7fc52a78ce683d02c38176f730dda6ba16a0e319cb04236af346a7d83db05d  posnet_C_class.pt
 09123a5eae525ef277f6f3288fd0e17f1cc88905daaa188838487ac9535f8aa1  posnet_M1_distill.pt
 0732163b307290ac295e8eec83f86ab8732b96438904f80ae9f050cb7f9d32f6  qhead_M2.pt
+ea9d1964e9f33bd54ab2f7fe8b3cdf7be6d218b928fa19bcf96c1b293f1072a1  gen_0120_model.pt
 EOF
 ```
 
-## 2. 不入库、但记哈希（太大 / 已废弃）
+## 2. 大 ckpt：原文件不入库，但**把模型抽出来入库**
 
 | 文件 | 原路径 | 大小 | sha256 |
 |---|---|---|---|
-| `gen_0120.pt` | `training_history/ga_ss_20260730_093908/gen_0120.pt` | **404 MB** | `3046e77a0b5d3431defdc8ad9d17ac1e0995500438a322dd0a8d945b27176298` |
+| `gen_0120.pt`（**原文件，不入库**）| `training_history/ga_ss_20260730_093908/gen_0120.pt` | **404 MB** | `3046e77a0b5d3431defdc8ad9d17ac1e0995500438a322dd0a8d945b27176298` |
 
-- `gen_0120` 是**血统起点**（官方 `ExampleAI` 蒸馏/初始化那一代），但 404 MB **超 GitHub 单文件硬限（100 MB）**
-  ⇒ 只在库外保留，靠上面的哈希核对。
-- 更早的一些 ckpt（旧文档**只记了路径**）见 `docs/notable_checkpoints.md`（那份文档已作废，保留作考古）。
+**为什么 404 MB 而模型只有 ~2 MB**（2026-10-06 用户追问后查明）：打开看里面只有 10 个键 ——
+`ga_pop` = **ES 种群（96 个个体 × ~2.2 MB）≈ 211 MB**，`top2_params` 又 2.2 MB，其余是 pickle 开销；
+**真正的模型只有 `model_state`（2.2 MB）与 `mean`（2.2 MB）**。
+
+⇒ **已把纯模型抽出入库** = `checkpoints/gen_0120_model.pt`（**4.4 MB**，见 §1）。抽法（可复现）：
+
+```bash
+python -u code/tools/extract_model_from_ckpt.py \
+  --src training_history/ga_ss_20260730_093908/gen_0120.pt \
+  --out checkpoints/gen_0120_model.pt
+```
+
+- 保留 `model_state` + `mean`（仓库里两种加载方式都有用：`collect_value_*.py` 优先用 `mean`、
+  `expand_to_3heads.py` 优先用 `model_state`）+ 小元数据；**丢弃** `ga_pop` / `top2_params` / `leaderboard`。
+- ⚠️ **产物用于推理 / 血统参照，不能用来续训 ES**（要续训得留原文件）。
+- **同类可复用**：`training_history/ga_ss_*/gen_*.pt` 有 ~140 个、多半是同一个"几百 MB 里只有 2 MB 是模型"的形态，
+  需要哪个就同一条命令抽（`--dry-run` 可先只看各键大小）。
+- 更早的一些 ckpt（旧文档**只记了路径**）见 `docs/notable_checkpoints.md`（那份已作废，保留作考古）。
 
 ## 3. 还有哪些**没**进来（要用再拷）
 
