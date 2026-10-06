@@ -443,6 +443,17 @@ def main() -> int:
                 _log(f"🧪 抑制降级: round={STATS['rounds']} 去掉 {len(ops) - len(_kept)} 个"
                      f"（累计 {STATS['down_killed']}）；剩余={len(_kept)}")
             ops = _kept
+        # 🧪 诊断（`AZAI_LIGHT_MIN_COINS=180`，预注册 `prereg_20261007_light_reserve.md`）：
+        #   **闪电储备门槛**：金币 < 阈值时**不放闪电**（该回合等于 HOLD）⇒ 复现"手写储备规则"那条纪律
+        #   （项目史上最大的一次准入增益 +13.3pp，机理 = 省下的钱变成塔）。只在**执行层**做，不动搜索/网络。
+        _lmin = float(_env("AZAI_LIGHT_MIN_COINS", "0"))
+        if _lmin > 0:
+            _kept2 = [o for o in ops if not (int(o.op_type) == 21 and int(facade.coins[player]) < _lmin)]
+            if len(_kept2) != len(ops):
+                STATS["light_gated"] = int(STATS.get("light_gated", 0)) + (len(ops) - len(_kept2))
+                _log(f"🧪 储备门槛: round={STATS['rounds']} 金币={int(facade.coins[player])} < {_lmin:g}"
+                     f" ⇒ 去掉闪电（累计 {STATS['light_gated']}）；剩余={len(_kept2)}")
+            ops = _kept2
         return ops
 
     def _apply(pl: int, ops: list) -> None:
