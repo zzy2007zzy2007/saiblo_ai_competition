@@ -256,6 +256,8 @@ def build_engine(seed: int, player: int):
         mc_every=int(_env("AZAI_MC_EVERY", "1")),
         # M6b-ND：候选里排除类 16（降级）
         mc_no_downgrade=int(_env("AZAI_MC_NODOWN", "0")),
+        # M6c-M4：菜单显式含类 16
+        mc_m4=int(_env("AZAI_MC_M4", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

@@ -327,6 +327,7 @@ class BundleMCTS:
         mc_horizon: int = 100,
         mc_every: int = 1,
         mc_no_downgrade: int = 0,
+        mc_m4: int = 0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -361,6 +362,8 @@ class BundleMCTS:
         self.mc_every = int(mc_every)
         # M6b-ND（预注册 §6.1）：候选里的"最优经济类"是否**排除类 16（降级）**
         self.mc_no_downgrade = int(mc_no_downgrade)
+        # M6c-M4（预注册 docs/prereg_20261006_mc_menu.md）：菜单显式给出 {HOLD, 闪电(可执行时), 类16, 最优经济类}
+        self.mc_m4 = int(mc_m4)
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
         self.mc_fallback = 0
@@ -489,7 +492,10 @@ class BundleMCTS:
                     if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
                            node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
-                    if _economy is not None and _dq(
+                    if self.mc_m4 and _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
+                                          node.state, node.player, 16) is not None:
+                        _cands.append(16)          # M6c-M4：显式给「类 16」一个候选位
+                    if _economy is not None and _economy != 16 and _dq(
                             _hl0, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
                             _economy) is not None:
                         _cands.append(_economy)
