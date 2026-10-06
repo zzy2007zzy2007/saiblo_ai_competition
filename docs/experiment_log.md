@@ -6963,3 +6963,27 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     这条轴**没有 +20pp**。
   * **副产品（保留）**：本轮**真的给 AI 加上了"能表达升级"的能力**（`mc_last_explicit` + 正确 op 参数），
     未来任何方法侧设计若要用这条动作，现在可用（`AZAI_FORCE_UPG=2` / `AZAI_MC_UPG=n`）。
+
+## 2026-10-07 02:55:47 — D_nodown_64
+
+- **commit**: `3c8eb5b` (dirty: 6 files)
+- **exit**: 0，用时 2194s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=1 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=D_nodown_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_025547_D_nodown_64/output.log`
+- **result**: 🔴 **诊断臂「抑制降级」：`p̂ = 0.4531`（−20.3pp；5/19/8；CI [0.3438,0.5625]；无效 0%；用时 2194 s）**
+  ⇒ 按预注册判据（≤0.6062）**该轴关闭**，而且方向**出乎意料**：**降级不是亏损，是我们的"金币回收"机制**。
+  * **机制**：降级 10.8 → **0**（冒烟确认执行层剔干净）；**建塔 24.8 → 17.8**、**出招回合 32.2 → 16.9**、
+    闪电 10.5 → 9.1 ⇒ 去掉降级后**我们整体"出手"次数近乎腰斩**，经济被饿死。
+  * **解释**：`downgrade_tower_income` = 把塔按 `TOWER_DOWNGRADE_REFUND_RATIO` **换回金币**；
+    我们的经济是 **"建塔 ↔ 降级（回收金币）"的循环**（建 24.8、降 10.8 ⇒ 净增 ~14 座 tier-0/1 塔），
+    而对手是 **建塔 16 + 升级 9.5**（把资源**堆高**而不是循环）。
+  * **两条推论**：① 败局签名里"我方降级更多 ⇒ 更容易输"（d = −0.302）是**相关而非因果**
+    （真去掉降级反而大败）——这类相关读数**必须做消融**才能当杠杆用；
+    ② 第 3 轮的"强制升级 = **0/64**"与本条合起来说明：**我们的经济结构不是"少了某个动作"，
+    而是"整套循环方式"与对手不同**（我们循环、他们堆高）。
+- **⇒ 对本轮的意义**：决策层 / 动作空间 / 单点干预都已排除（见寄存器"决策层整族关闭"与本行）。
+  本轮剩下的活转向**训练/目标**（闭环重训）：已开跑 `loop_r4_collect300`
+  （**部署配置**自对弈 300 局、种子 50,010,000+ 与判据 seed 不重叠）⇒ 用于把 MC 的判断蒸馏进类头。
