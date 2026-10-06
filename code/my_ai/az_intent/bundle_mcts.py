@@ -15,6 +15,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+import os as _os
+
 import numpy as np
 
 from SDK.backend.state import BackendState
@@ -498,6 +500,22 @@ class BundleMCTS:
                         self.mc_last_scores = _sc
                         self.mc_taken += 1
                         pinned = [int(_c)] * len(head_logits_list)
+                        # 观测（可选，只读）：把这次 MC 的候选/分数/选择写成 JSONL
+                        _dump = _os.environ.get("AZAI_MC_DUMP", "")
+                        if _dump:
+                            try:
+                                import json as _json
+                                with open(_dump, "a", encoding="utf-8") as _fh:
+                                    _fh.write(_json.dumps({
+                                        "round": _rnd, "player": int(node.player),
+                                        "coins": [int(x) for x in node.state.coins],
+                                        "hp": [int(b.hp) for b in node.state.bases],
+                                        "cands": [int(x) for x in _cands],
+                                        "scores": {str(k): round(float(v), 5) for k, v in _sc.items()},
+                                        "chosen": int(_c),
+                                    }, ensure_ascii=False) + "\n")
+                            except Exception:  # noqa: BLE001
+                                pass
                     except Exception:  # noqa: BLE001
                         self.mc_fallback += 1
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
