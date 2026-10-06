@@ -22,7 +22,7 @@
 | `posnet_C_class.pt` | `training_history/vprior/posnet_C_class.pt` | 6.5 MB | **候选 C**：把价值先验从位置轴扩到**类轴**的 ckpt |
 | `posnet_M1_distill.pt` | `training_history/vprior/posnet_M1_distill.pt` | 6.5 MB | **M1（搜索→策略蒸馏）**的 ckpt |
 | `qhead_M2.pt` | `training_history/vprior/qhead_M2.pt` | 41 KB | **Q 头（M2）**（很小，顺手带上）|
-| `gen_0120_model.pt` | **从** `training_history/ga_ss_20260730_093908/gen_0120.pt` **抽取**（见 §2）| 4.4 MB | **血统起点**（官方 `ExampleAI` 蒸馏/初始化那一代）的**纯模型**；原文件 404 MB 里 **~99% 是 ES 训练状态**（`ga_pop` 种群），不是模型 |
+| `gen_0120_model.pt` | **从** `training_history/ga_ss_20260730_093908/gen_0120.pt` **抽取**（见 §2）| 4.4 MB | **血统起点**（官方 `ExampleAI` 蒸馏/初始化那一代）的**纯模型**；原文件 404 MB 里 **~99% 是 GA 训练状态**（`ga_pop` 种群 + `leaderboard`），不是模型。来源程序 = `ga_ss_train.py` |
 
 > 上面"是什么"是按**文件名 + 预注册命名 + 用法**写的简要定位；细节看各自的 `docs/prereg_*.md`。
 
@@ -49,11 +49,20 @@ EOF
 |---|---|---|---|
 | `gen_0120.pt`（**原文件，不入库**）| `training_history/ga_ss_20260730_093908/gen_0120.pt` | **404 MB** | `3046e77a0b5d3431defdc8ad9d17ac1e0995500438a322dd0a8d945b27176298` |
 
-**为什么 404 MB 而模型只有 ~2 MB**（2026-10-06 用户追问后查明）：打开看里面只有 10 个键 ——
-`ga_pop` = **ES 种群（96 个个体 × ~2.2 MB）≈ 211 MB**，`top2_params` 又 2.2 MB，其余是 pickle 开销；
-**真正的模型只有 `model_state`（2.2 MB）与 `mean`（2.2 MB）**。
+**为什么 404 MB 而模型只有 ~2 MB**（2026-10-06 用户追问后查明；数字按**实际序列化大小**）：
+文件里只有 10 个键 —— **`ga_pop`（GA 种群，96 个个体）317.97 MB（75.1%）** ＋
+**`leaderboard`（其实是 20 个参数列表）98.91 MB（23.4%）** ＋ `top2_params` 2.20 MB；
+**真正的模型只有 `model_state`（2.21 MB）＋ `mean`（2.20 MB）**，合计约 **1%**。
 
-⇒ **已把纯模型抽出入库** = `checkpoints/gen_0120_model.pt`（**4.4 MB**，见 §1）。抽法（可复现）：
+- **来源程序 = `code/my_ai/ga_ss_train.py`**（**不是** `es_train.py`；判据：目录名 `ga_ss_{ts}` 与它写出的
+  `ga_pop` 键，`es_train.py` 不写 `ga_pop`）。
+- **哪个键才是"真模型"**（用户 2026-10-06 特意问过）：`ga_ss_train.save_checkpoint` 里
+  `model_state = model.state_dict()`（**真权重**）；加载端是 `if "model_state" in ckpt:
+  model.load_state_dict(sd)`，并**由模型反推 `mean`**（`mean = model.get_parameters_as_vector()`）
+  ⇒ **`model_state` 是权威权重**（`mean` 是同一套权重的向量形式；实测两者取值分布几乎一致）。
+  ⚠️ 又注：该程序里的 `top2_params` 只是 **compat shim**（`mean.copy()` + 分数 1.0），不是独立精英。
+
+⇒ **已把纯模型抽出入库** = `checkpoints/gen_0120_model.pt`（**4.4 MB**，见 §1）。抽法：
 
 ```bash
 python -u code/tools/extract_model_from_ckpt.py \
@@ -61,9 +70,11 @@ python -u code/tools/extract_model_from_ckpt.py \
   --out checkpoints/gen_0120_model.pt
 ```
 
-- 保留 `model_state` + `mean`（仓库里两种加载方式都有用：`collect_value_*.py` 优先用 `mean`、
-  `expand_to_3heads.py` 优先用 `model_state`）+ 小元数据；**丢弃** `ga_pop` / `top2_params` / `leaderboard`。
-- ⚠️ **产物用于推理 / 血统参照，不能用来续训 ES**（要续训得留原文件）。
+- 保留 `model_state`（权威）＋ `mean`（兼容只认 `mean` 的旧脚本，如 `collect_value_*.py`）
+  ＋ 小元数据；**丢弃** `ga_pop` / `top2_params` / `leaderboard`。
+- ⚠️ **哈希说明**：§1 记的是**本文件**的哈希；重跑上面命令得到的内容**逐张量相同**，但
+  **字节不一定完全一样**（zip 内部归档名等序列化细节可能变）⇒ 别指望重跑得到同一个 sha256。
+- ⚠️ **产物用于推理 / 血统参照，不能用来续训 GA/ES**（种群与 leaderboard 已丢；要续训得留原文件）。
 - **同类可复用**：`training_history/ga_ss_*/gen_*.pt` 有 ~140 个、多半是同一个"几百 MB 里只有 2 MB 是模型"的形态，
   需要哪个就同一条命令抽（`--dry-run` 可先只看各键大小）。
 - 更早的一些 ckpt（旧文档**只记了路径**）见 `docs/notable_checkpoints.md`（那份已作废，保留作考古）。
