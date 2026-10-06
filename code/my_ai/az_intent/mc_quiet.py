@@ -97,18 +97,38 @@ def bidir_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> 
     return quiet_value(st, player, max_rounds=max_rounds)
 
 
+def _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
+                             state, player, cid, x, y):
+    """把 `cid` 的 map 只留 (x,y) 一格再解码 ⇒ 强制落到那一格（用于「选类×选格」候选）。"""
+    am = np.array(action_map, copy=True)
+    am[cid] = -1e9
+    am[cid, int(y), int(x)] = float(action_map[cid][int(y), int(x)])
+    return _decode_class_op(head_logits, am, class_mask, position_mask, state, player, cid)
+
+
 def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     class_mask, position_mask, max_rounds: int = 512,
-                    bidir_k: int = 0, net_fn=None):
+                    bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
     打候选那一手后，**双方各出招 K 回合**（用我们自己的策略），之后同样安静推到终局。
     """
     scores = {}
-    for cid in cand_classes:
-        t = _decode_class_op(head_logits, action_map, class_mask, position_mask,
-                             state, player, cid)
+    for _cand in cand_classes:
+        # 候选 = 类号(int) 或 (类号, x, y)（「选类×选格」）
+        if isinstance(_cand, (tuple, list)) and len(_cand) == 4 and _cand[0] == 'op':
+            # 显式 op 候选（不依赖 decoder）：('op', op_type, x, y) —— 用于「升级已有塔」
+            cid, _x, _y = 12, int(_cand[2]), int(_cand[3])
+            t = (int(_cand[1]), int(_cand[2]), int(_cand[3]))
+        elif isinstance(_cand, (tuple, list)):
+            cid, _x, _y = int(_cand[0]), int(_cand[1]), int(_cand[2])
+            t = _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
+                                         state, player, cid, _x, _y)
+        else:
+            cid, _x, _y = int(_cand), None, None
+            t = _decode_class_op(head_logits, action_map, class_mask, position_mask,
+                                 state, player, cid)
         st = state.clone()
         if t is not None:
             st.apply_operation_list(player,
@@ -116,9 +136,18 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
         if player == 1:
             st.advance_round()
         if int(bidir_k) > 0 and net_fn is not None:
-            scores[int(cid)] = bidir_value(st, player, net_fn, int(bidir_k),
-                                           max_rounds=max_rounds)
+            _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
+            scores[_key] = bidir_value(st, player, net_fn, int(bidir_k),
+                                       max_rounds=max_rounds)
         else:
-            scores[int(cid)] = quiet_value(st, player, max_rounds=max_rounds)
+            _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
+        scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
+    # 分差门控：最高分与次高分相差太小 ⇒ **不接管**（返回 None，由调用方保留原 pin）
+    # 依据：dump 里 23.6% 的决策是完全平局、另有 17.8% 在 1 HP 内 ⇒ 这些"接管"没有依据。
+    if margin_gate and float(margin_gate) > 0 and len(scores) >= 2:
+        _vals = sorted(scores.values(), reverse=True)
+        if (_vals[0] - _vals[1]) < float(margin_gate):
+            return None, scores
     best = max(scores, key=lambda c: scores[c])
-    return int(best), scores
+    # 返回「最优候选」本身（可能是 (类,x,y)）；调用方取 [0] 当钉住的类
+    return best, scores

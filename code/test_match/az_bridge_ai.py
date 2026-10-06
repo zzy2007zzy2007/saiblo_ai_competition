@@ -266,6 +266,14 @@ def build_engine(seed: int, player: int):
         mc_root_only=int(_env("AZAI_MC_ROOTONLY", "0")),
         # M6c-2E：候选放两个不同的经济类
         mc_top2=int(_env("AZAI_MC_TOP2", "0")),
+        # 菜单加宽：经济候选取前 k 个互不相同的类（0 = 现有行为不变）
+        mc_topk=int(_env("AZAI_MC_TOPK", "0")),
+        # 选类×选格：>0 ⇒ 菜单放「类+格」候选（含已有塔格 ⇒ 可表达升级）
+        mc_cells=int(_env("AZAI_MC_CELLS", "0")),
+        # 显式升级候选：>0 ⇒ 对我们前 n 座塔各放一个 UPGRADE_TOWER 候选
+        mc_upg=int(_env("AZAI_MC_UPG", "0")),
+        # 分差门控：分差 < τ ⇒ MC 不接管（0 = 现有行为不变）
+        mc_margin=float(_env("AZAI_MC_MARGIN", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

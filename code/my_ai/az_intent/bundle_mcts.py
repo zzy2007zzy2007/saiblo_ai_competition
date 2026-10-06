@@ -1,4 +1,4 @@
-﻿"""Bundle-sampling MCTS (修复先验-解码不一致, 见 docs/az_bundle_sampling_mcts_plan.md).
+"""Bundle-sampling MCTS (修复先验-解码不一致, 见 docs/az_bundle_sampling_mcts_plan.md).
 
 Candidates = temperature-sampled COMPLETE action groups (up to 3 ops per player),
 generated with the decoder's own sampling semantics (class sample -> position
@@ -11,6 +11,10 @@ as the intent-space MCTS.
 """
 
 from __future__ import annotations
+
+
+class _McSkip(Exception):
+    """MC 分差不足 ⇒ 不接管的内部信号（预注册 prereg_20261007_mc_margin.md）。"""
 
 import math
 from dataclasses import dataclass, field
@@ -331,6 +335,10 @@ class BundleMCTS:
         mc_m4: int = 0,
         mc_root_only: int = 0,
         mc_top2: int = 0,
+        mc_topk: int = 0,
+        mc_cells: int = 0,
+        mc_upg: int = 0,
+        mc_margin: float = 0.0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -377,6 +385,14 @@ class BundleMCTS:
         # M6c-2E（预注册 mc_menu.md §2）：候选里放**两个不同的**经济类（按 action_map 排序取 top-2）
         # —— 教训：上一版「显式 16 + 最优经济类」被 `!= 16` 守卫抵消成空操作（逐局 128/128 与 M6b 相同）。
         self.mc_top2 = int(mc_top2)
+        self.mc_topk = int(mc_topk)
+        # 选类×选格（>0 ⇒ 菜单放「类+格」候选，含我们已有的塔格 ⇒ 可表达升级）
+        self.mc_cells = int(mc_cells)
+        # 显式升级候选：>0 ⇒ 对我们前 n 座塔各放一个 Operation(12,x,y) 候选（见 mc_quiet.py 注释）
+        self.mc_upg = int(mc_upg)
+        # 分差门控（预注册 prereg_20261007_mc_margin.md）：分差 < mc_margin ⇒ MC 不接管
+        self.mc_margin = float(mc_margin)
+        self.mc_skipped = 0
         self._mc_root = None
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
@@ -512,7 +528,36 @@ class BundleMCTS:
                     if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
                            node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
-                    if self.mc_top2:
+                    if self.mc_cells > 0:
+                        # **选类×选格**：{闪电?, HOLD} ∪ {(经济类, 最热 n 个空格)} ∪ {(经济类, 我们已有塔的格子)}
+                        # 后者会让解码器按格子状态给出升级/降级 ⇒ 首次让机制能「表达升级」。
+                        _c0 = _economy if _economy is not None else 0
+                        _pm0 = base_pos_mask[_c0]
+                        _ys, _xs = np.where(_pm0)
+                        if len(_ys):
+                            _vals = _AM[_c0][_ys, _xs]
+                            _order = np.argsort(-_vals)
+                            for _i in _order[: max(1, int(self.mc_cells))]:
+                                _cands.append((_c0, int(_xs[_i]), int(_ys[_i])))
+                        try:
+                            for _tw in node.state.towers_of(int(node.player)):
+                                _cands.append((_c0, int(_tw.x), int(_tw.y)))
+                        except Exception as _exc:
+                            print(f'[mc_cells] towers_of 失败: {type(_exc).__name__}: {_exc}', flush=True)
+                    elif self.mc_topk > 0:
+                        # 菜单加宽（2026-10-07）：加入**前 k 个互不相同**的经济类（各自解码成功才加）
+                        # ⚠️ 动机：现有菜单的经济候选实际上永远是"类 0 或类 16"（跨类 map 最大值不可比），
+                        #    导致我们只会"铺一级塔 + 反复降级"、**从不升级**（对手 9.4 次升级/局）。
+                        _added = 0
+                        for _v, _c in _econ_rank:
+                            if _added >= int(self.mc_topk):
+                                break
+                            if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
+                                   node.state, node.player, _c) is not None:
+                                if _c not in _cands:
+                                    _cands.append(_c)
+                                    _added += 1
+                    elif self.mc_top2:
                         # M6c-2E：加入**前两个不同的**经济类（各自解码成功才加）
                         _added = 0
                         for _v, _c in _econ_rank:
@@ -531,15 +576,38 @@ class BundleMCTS:
                                 _hl0, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
                                 _economy) is not None:
                             _cands.append(_economy)
+                    # **显式升级候选（可加性）**：直接构造 UPGRADE_TOWER(12) op ⇒ 机制第一次能"比较升级 vs 再建塔"。
+                    # ⚠️ 为什么不用 decoder：实测（196 局）我们**从不升级**，而"格子已有塔"时 decoder 给的是**降级**。
+                    # ⚠️ 必须**可加**（不能挤掉经济候选）：第一版写成 elif 链 ⇒ 建塔直接归零（冒烟实测 0 建塔）。
+                    if self.mc_upg > 0:
+                        _n_up = 0
+                        try:
+                            _tw_list = sorted(node.state.towers_of(int(node.player)),
+                                              key=lambda w: (-int(getattr(w, 'tower_type', 0)), int(w.x), int(w.y)))
+                            for _tw in _tw_list:
+                                if _n_up >= int(self.mc_upg):
+                                    break
+                                _cands.append(('op', 12, int(_tw.x), int(_tw.y)))
+                                _n_up += 1
+                        except Exception as _exc:
+                            print(f'[mc_upg] towers_of 失败: {type(_exc).__name__}: {_exc}', flush=True)
                     try:
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
                                                   max_rounds=int(self.mc_horizon),
                                                   bidir_k=int(self.mc_bidir),
-                                                  net_fn=self.net_fn)
+                                                  net_fn=self.net_fn,
+                                                  margin_gate=float(self.mc_margin))
                         self.mc_last_scores = _sc
+                        if _c is None:
+                            # 分差不足 ⇒ **不接管**：由类头 argmax 决定（= 该配置下的默认 pin），只埋点
+                            raise _McSkip()
                         self.mc_taken += 1
-                        pinned = [int(_c)] * len(head_logits_list)
+                        # 候选可能是 (类, x, y) ⇒ 钉住的类取它 [0]
+                        _ccls = (int(_c[0]) if isinstance(_c, (tuple, list)) else int(_c))
+                        if isinstance(_c, (tuple, list)) and _c[0] == 'op':
+                            _ccls = 12      # 显式升级候选 ⇒ 钉住「升级类」
+                        pinned = [_ccls] * len(head_logits_list)
                         # 观测（可选，只读）：把这次 MC 的候选/分数/选择写成 JSONL
                         _dump = _os.environ.get("AZAI_MC_DUMP", "")
                         if _dump:
@@ -550,12 +618,19 @@ class BundleMCTS:
                                         "round": _rnd, "player": int(node.player),
                                         "coins": [int(x) for x in node.state.coins],
                                         "hp": [int(b.hp) for b in node.state.bases],
-                                        "cands": [int(x) for x in _cands],
+                                        "cands": [int(x[0]) if isinstance(x, (tuple, list)) else int(x)
+                                                  for x in _cands],
                                         "scores": {str(k): round(float(v), 5) for k, v in _sc.items()},
-                                        "chosen": int(_c),
+                                        "chosen": int(_ccls),
                                     }, ensure_ascii=False) + "\n")
                             except Exception:  # noqa: BLE001
                                 pass
+                    except _McSkip:
+                        # ⚠️ 必须**给 pinned 赋值**：mc_quiet 分支里 pinned 只在"接管/异常回退"两条路上被赋值，
+                        #    少了这一条 ⇒ `UnboundLocalError: pinned`（2026-10-07 冒烟实测，该局 aborted）。
+                        #    "不接管"的语义 = 让**类头 argmax** 决定（与该配置下的默认一致）。
+                        self.mc_skipped += 1
+                        pinned = [int(np.argmax(hl)) for hl in head_logits_list]
                     except Exception:  # noqa: BLE001
                         self.mc_fallback += 1
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
