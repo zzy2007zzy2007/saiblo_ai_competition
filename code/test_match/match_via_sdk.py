@@ -79,7 +79,10 @@ def _label_of(exe: Path) -> tuple[str, bool]:
     return safe, is_magica
 
 
-TIMEOUT_SECONDS = 300.0
+# ⚠️ 可调（2026-10-06）：原来是写死的 300.0。它决定「一次读包最多等多久」⇒
+#    一次**算得太久**的决策会被记成 aborted，从而**伪装成无效局**（曾经误导过一次归因）。
+#    用 MVS_TIMEOUT_SECONDS 覆盖；超时局在 RESULT 里标 verdict=timeout（见下）。
+TIMEOUT_SECONDS = float(os.environ.get("MVS_TIMEOUT_SECONDS", "300"))
 # 2026-09-22：120 → 300。原值在机器被别的进程抢 CPU 时会把整局掐断
 # （实测 DET_seed11_run1：第 84 回合亚军那步 >120s，报
 #  "timed out reading ai_cpp_lure_v4 (need 50B, have 12B)"，整局作废）。
@@ -395,6 +398,9 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     except Exception as exc:
         import traceback
         result["exception"] = f"{type(exc).__name__}: {exc}"
+        # 真实异常类型单独存一份：RESULT 行原来打的是「字符串的类型」（恒为 str），会把归因带偏
+        result["exception_type"] = type(exc).__name__
+        result["timed_out"] = isinstance(exc, TimeoutError)
         result["traceback"] = traceback.format_exc()
         result["rounds"] = rounds
         result["base_hp"] = [int(b.hp) for b in state.bases]
@@ -499,10 +505,18 @@ def main() -> int:
             # 老代码却打出 winner=runnerup ⇒ 一个截断的局被当成战果）。标 INVALID 且不计分。
             _hp = r.get("base_hp") or [0, 0]
             _cn = r.get("coins") or [0, 0]
+            _et = r.get("exception_type") or (str(r.get("exception", "")).split(":", 1)[0] or "?")
+            # 「太慢」与「无效」分开记：超时 ⇒ verdict=timeout（下游按慢归因，不并入坏）
+            _verdict = "timeout" if r.get("timed_out") else "aborted"
+            # ⚠️ 字段必须**补齐**：下游 `_tmp_ladder.RESULT_RE` 要求 `engine_winner=` 存在，
+            #    以前这一行没有它 ⇒ **无效局永远解析不出来**（分析器只看到「winner 缺失/rounds=0」），
+            #    把「第 55 回合超时」这类关键信息埋掉了（2026-10-06 发现）。
+            # ⚠️ `exc=` 必须放在**行尾**：下游 RESULT_RE 要求 `engine_winner=... rounds=` 相邻，
+            #    夹在中间会让整行解析失败（2026-10-06 第二次踩到）。
             print(f"  RESULT seed={seed} p0={r.get('p0_label', 'p0')} p1={r.get('p1_label', 'p1')} "
-                  f"winner=INVALID verdict=aborted exc={type(r.get('exception')).__name__} "
+                  f"winner=INVALID winner_side=None verdict={_verdict} engine_winner=None "
                   f"rounds={r.get('rounds')} terminal={bool(r.get('terminal'))} "
-                  f"base_hp={_hp[0]},{_hp[1]} coins={_cn[0]},{_cn[1]}", flush=True)
+                  f"base_hp={_hp[0]},{_hp[1]} coins={_cn[0]},{_cn[1]} exc={_et}", flush=True)
             continue
 
         winner = r.get("winner")           # 引擎自己的 winner；None = 还没判

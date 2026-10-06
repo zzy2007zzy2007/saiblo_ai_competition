@@ -34,6 +34,7 @@ import importlib.util
 import os
 import struct
 import sys
+import time
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -89,7 +90,7 @@ def _log(msg: str) -> None:
 
 
 # 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
-STATS = {"rounds": 0, "mismatch": 0, "illegal": 0}
+STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
 
 
 def _report(*_args) -> None:
@@ -104,7 +105,8 @@ def _report(*_args) -> None:
     except Exception:  # noqa: BLE001
         pass
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
-         f"illegal={STATS['illegal']}{_mc}")
+         f"illegal={STATS['illegal']}{_mc} dec_n={STATS.get('dec_n')} "
+         f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
     sys.stderr.flush()
 
 
@@ -357,7 +359,17 @@ def main() -> int:
     try:
         while not facade.terminal:
             if player == 0:
+                _t_dec = time.monotonic()
                 self_ops = decide()
+                _dt = time.monotonic() - _t_dec
+                STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
+                if _dt > float(STATS.get("dec_max_s", 0.0)):
+                    STATS["dec_max_s"] = round(_dt, 2)
+                _slow_thr = float(_env("AZAI_SLOW_DECISION_SEC", "20"))
+                if _dt >= _slow_thr:
+                    STATS["dec_slow"] = int(STATS.get("dec_slow", 0)) + 1
+                    _log(f"⚠️ 慢决策 round={STATS['rounds']} 用时={_dt:.2f}s 阈值={_slow_thr:g}s"
+                         f" （超过 bridge 读超时会记 verdict=timeout）")
                 io.send_ops(self_ops)
                 _apply(0, self_ops)
                 opp = io.recv_ops()

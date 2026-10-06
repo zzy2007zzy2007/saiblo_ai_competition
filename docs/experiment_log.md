@@ -6512,3 +6512,68 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **顺手做的小修**：`match_via_sdk.py` 加 `MVS_FAULTHANDLER=1`（默认关，加 `-X faulthandler`）。
 - **建议未做（待用户定）**：RESULT 行打印真实异常类型；AI 每手耗时埋点；把 `TIMEOUT_SECONDS` 变 env 并在协议里
   把"太慢"与"无效"分开；任何"树内昂贵评估"必须先量每手耗时。
+
+## 2026-10-06 18:01:18 — SMOKE_diag3
+
+- **commit**: `ddd9ad4` (dirty: 8 files)
+- **exit**: 0，用时 131s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=0.5 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=SMOKE_diag3 --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r
+  ```
+- **output**: `training_history/runs/20261006_180118_SMOKE_diag3/output.log`
+- **result**: _待填_
+
+## 2026-10-06 18:05:32 — SMOKE_diag3b
+
+- **commit**: `ddd9ad4` (dirty: 9 files)
+- **exit**: 0，用时 132s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=0.5 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=SMOKE_diag3b --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r
+  ```
+- **output**: `training_history/runs/20261006_180532_SMOKE_diag3b/output.log`
+- **result**: _待填_
+
+## 2026-10-06 18:11:22 — SMOKE_diag3c
+
+- **commit**: `ddd9ad4` (dirty: 9 files)
+- **exit**: 0，用时 131s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=1 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=SMOKE_diag3c --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r
+  ```
+- **output**: `training_history/runs/20261006_181122_SMOKE_diag3c/output.log`
+- **result**: _待填_
+
+## 2026-10-06 18:16:10 — SMOKE_diag3d
+
+- **commit**: `ddd9ad4` (dirty: 9 files)
+- **exit**: 0，用时 132s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=1 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=SMOKE_diag3d --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r
+  ```
+- **output**: `training_history/runs/20261006_181610_SMOKE_diag3d/output.log`
+- **result**: _待填_
+
+## 2026-10-06 18:2x — 落实三条诊断改进（用户批准）+ 顺带挖出两个真缺陷
+
+- **改动 1（真实异常类型）**：`match_via_sdk.py` 存 `result["exception_type"]`；INVALID 行打 `exc=TimeoutError`
+  而不是无信息的 `exc=str`。
+- **改动 2（每手耗时埋点）**：`az_bridge_ai.py` 计时每次 `decide()`，超过 `AZAI_SLOW_DECISION_SEC`（默认 20s）
+  打 `⚠️ 慢决策 round=... 用时=...s`；退出报告加 `dec_n / dec_max / dec_slow`。
+  （踩了一次坑：漏 `import time` ⇒ AI 一启动就 NameError；**顺手验证了新诊断确实有用**——RESULT 报的是真实 `exc=EOFError`。）
+- **改动 3（超时单列）**：`MVS_TIMEOUT_SECONDS`（默认 300）可调；超时局记 **`verdict=timeout`**；
+  `analyze_paired.py` 单列 `⏱️ 超时局（太慢）`，**但仍算无效、绝不计分**
+  （我第一版误用 `continue` 把超时局混进了配对分，已被现成日志复验抓出并修正）。
+- **顺带挖出的真缺陷**：
+  * **A（严重）**：`_tmp_ladder.RESULT_RE` 要求 `engine_winner=`，而 INVALID 行缺它 ⇒ **无效局从未被解析**，
+    分析器只显示「winner 缺失/rounds=0」⇒「第 55 回合超时」被埋掉。已补齐字段（并用真正则+真 `read_game` 单元测试），
+    分析器现在会把「该行未被解析」单独标出。
+  * **B**：把 `exc=` 插在 `engine_winner=` 与 `rounds=` 之间会**再次挡住正则** ⇒ 已挪到行尾。
+    教训：**改对外输出格式后，必须用消费它的那个正则做单元测试**。
+- **端到端验证**（`SMOKE_diag3c/3d`，故意把超时压到 60s、慢阈值压到 1s）：
+  `RESULT ... winner=INVALID winner_side=None verdict=timeout engine_winner=None rounds=55 terminal=False ... exc=TimeoutError`
+  ⇒ 分析器：`无效=1 有效=1`、`无效明细: 11: winner 缺失/INVALID; verdict=timeout（太慢）; terminal=False`、
+  且打印 `⏱️ 超时局 ... ['11']`；AI stderr：`⚠️ 慢决策 round=20 用时=13.16s 阈值=1s`。

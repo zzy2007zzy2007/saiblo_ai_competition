@@ -128,11 +128,24 @@ def main() -> int:
 
     # ---------- §4 有效性门槛 ----------
     invalid: dict[str, str] = {}
+    # 「太慢」≠「坏」（2026-10-06）：bridge 现在会把读超时标成 verdict=timeout。
+    # 单列出来，避免一个方法因为**算得慢**被误读成"无效/有 bug"（曾误导过一次引擎归因）。
+    timeouts: dict[str, str] = {}
     for t, g in games.items():
         why = []
         if not g["winner"] or g["winner"] == "INVALID":
-            why.append("winner 缺失/INVALID")
-        if g["verdict"] != "engine":
+            # ⚠️ verdict=None 说明**这一行根本没被 RESULT_RE 解析**（字段缺失），与"真的无判词"不同 ——
+            #    2026-10-06：INVALID 行曾因缺 engine_winner= 而永远解析失败，把超时局埋成"winner 缺失"。
+            if g["verdict"] is None:
+                why.append("winner 缺失/INVALID ⚠️(该行未被解析: 可能字段不全)")
+            else:
+                why.append("winner 缺失/INVALID")
+        if g["verdict"] == "timeout":
+            # ⚠️ 仍然**算无效**（没有结果、绝不计分）；同时**单独登记**成"太慢"，让归因看得见。
+            #    （我曾错误地在这里 `continue`，导致超时局被当成 0 胜混进配对分 —— 已修，2026-10-06）
+            timeouts[t] = "verdict=timeout（AI 单次决策超过读超时 ⇒ 太慢，非逻辑错误）"
+            why.append("verdict=timeout（太慢）")
+        elif g["verdict"] != "engine":
             why.append(f"verdict={g['verdict']}")
         if g["illegal"]:
             why.append(f"illegal={g['illegal']}")
@@ -147,6 +160,9 @@ def main() -> int:
     n_valid = len(valid)
     n_games_expected = len(tokens)
     invalid_ratio = (len(invalid) + len(missing)) / n_games_expected if n_games_expected else 1.0
+    if timeouts:
+        print(f"  ⏱️ 超时局（太慢 ⇒ 仍计无效、但原因单列，便于区分「慢」与「坏」）: {len(timeouts)} 局 -> {sorted(timeouts)[:12]}"
+              + (" ..." if len(timeouts) > 12 else ""), flush=True)
 
     # ---------- 配对分（主统计量）----------
     per_seed: dict[int, list[dict]] = collections.defaultdict(list)
