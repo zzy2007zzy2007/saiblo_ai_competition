@@ -32,7 +32,8 @@ ANCHORS = {
     "docs/goal_register.md": "# 结论寄存器（跨会话防绕圈用）",
     "docs/experiment_log.md": None,       # 首行是自动生成的标题（含时间戳），用前缀匹配
     "docs/engine_crash_probe.md": "# 诊断报告：",
-    "docs/task_ruleV4_70_charter.md": "# 任务章程",
+    "docs/task_ruleV4_70_charter.md": "# 任务章程",   # 第一里程碑版（历史）
+    "docs/task_ruleV4_90_charter.md": "# 任务章程",   # 第二里程碑版（当前）
     "docs/goal_longrun_plan.md": "#",
     "docs/milestone_20261006_70.md": "# 里程碑报告",
     "docs/state_of_play_20261006.md": "# 状态报告",
