@@ -6621,3 +6621,28 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 `⏱️ 单决策耗时（本 tag 归档 2 个 AI 日志）: dec_max 最大 = 3.53s（ai0_...）, dec_slow 合计 = 25, 阈值 AZAI_SLOW_DECISION_SEC 默认 20s / bridge 读超时 MVS_TIMEOUT_SECONDS 默认 300s`
 ⇒ **章程那条纪律现在是可执行的**（一处就能看到"慢"与"坏"）。
 ⚠️ **归档只对 2026-10-06 之后跑的批次有效**（之前的 stderr 已被覆盖，不可追）。
+
+## 2026-10-06 19:2x — 用户复核我的诊断行（两笔修正）+ 我补上「入库的回归测试」
+
+**用户自己的两笔修正**（我读后确认**准确，且措辞比我原来的更好**）：
+* `47968ab`：寄存器那行把「`analyze_paired.py` / `_tmp_ladder.py` 的 `RESULT_RE`」改成
+  「`_tmp_ladder.py` 的 `RESULT_RE`（`analyze_paired.py` **复用** `read_game`、自己**不写**解析）」✓；
+  并指出 **该单测当时只是临时脚本、未入库**。
+* `65d213c`：章程把「分析器打印的 `dec_max/dec_slow`」改掉了归属 ✓。
+
+**我据此补的两件事**：
+1. ✅ **入库回归测试** `code/test_match/test_result_line_formats.py`（`python -u` 跑，失败返回码 1）：
+   2 条**正例**（正常局 / 超时局）+ **2 条「必须不匹配」的反例**（① INVALID 行缺 `engine_winner=`；
+   ② `exc=` 夹在 `engine_winner=` 与 `rounds=` 之间）+ `read_game` 端到端解析。**6/6 PASS**。
+   > 为什么必须带反例：这两次事故都是**静默失配**（不报错、只是解析不出来），
+   > 只测正例的测试**证明不了自己能抓到 bug**。
+2. ✅ 分析器**真的**会打印 `⏱️ 单决策耗时 … dec_max 最大 / dec_slow 合计`
+   （来源：ladder 按 tag 归档的 AI stderr 里的**对局中周期累计行**）⇒ 章程那条纪律可一处执行。
+
+**⚠️ 仍需用户定的一处措辞**：用户修正后的章程把 `dec_n/dec_max/dec_slow` 说成
+「**bridge（`az_bridge_ai.py`）退出报告**里的」——两处小问题：
+* **归属**：`az_bridge_ai.py` 是**我方 AI**，bridge 是 `match_via_sdk.py`（退出报告是 AI 打的 `[azai] 退出报告`）；
+* **更要紧**：实测**正常对局里「退出报告」根本不会执行**（抽样两个归档：0 行；末行是 `[azai] 结束: ...`；
+  代码注释自认 `bridge 在 finally 里会 kill 我们`）⇒ 照这条去找会**再次落空**。
+  可靠的来源是：AI **对局中**周期打印的 `⏱️ 耗时累计`（`AZAI_TIMING_EVERY`，默认 25 手）
+  → ladder 归档到 `<tag>/stderr/` → **分析器汇总成一行**。建议按此改措辞（等用户点头）。
