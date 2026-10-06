@@ -6316,3 +6316,37 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   （候选集合 = `{HOLD} ∪ {闪电可执行时} ∪ {action_map 最大的经济类}`；并列时同样取"先出现的那个"，
   因为 `sorted` 是稳定排序且原逻辑用严格 `>` 比较）⇒ 行为应当零差异。
 - **但仍记档为工程失误**：跑动中不应改共享代码。若 ROOT 臂的结果有意思，**必须在新代码上重跑一次**再引用。
+
+## 2026-10-06 12:04:38 — M6cROOT_128
+
+- **commit**: `2931b5e` (dirty: 6 files)
+- **exit**: 0，用时 2887s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6cROOT_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_120438_M6cROOT_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 13:0x — 🏁 **M6c-ROOT（MC 只在根节点仲裁）128 局验收 `p̂ = 0.7344` —— 首次跨过 0.70 里程碑**
+
+- **cmd**：`AZAI_POSPIN=mc_quiet` + **`AZAI_MC_ROOTONLY=1`** + `MC_HORIZON=256 MC_EVERY=5` + A1 其余
+  （`ckpt=posnet_A_k5_m32.pt ITERS=256 DEPTH=4 K=24 SM=15 MODE=pos-only SKIP1=1`）；seed 7..70 双向。
+- **result**：**`p̂ = 0.7344`**（**64/64 对**；**2-0:34 / 1-1:26 / 0-2:4**；cluster-bootstrap 95% CI **[0.6562, 0.8047]**；
+  **无效 0.0%**，判词全 `engine`）。
+  * **vs A1**（同 64 seed）：**更好 30 / 更差 8 / 相同 26**；
+  * **vs M6b**（`mc_quiet` 无 ROOTONLY）：**更好 21 / 更差 13 / 相同 30**；
+  * **分段**：`7..38` = **0.6562**、`39..70` = **0.8125**（两段都高于 A1 的 0.5000 / 0.5625）；
+  * **机制**：**建塔 24.8/局**（M6b 31.1、A1 0）、**闪电 10.5**（A1 11.28）、**出招回合 32.2**（M6b 43.2、A1 11.0）。
+- **机制解释**：把 MC 从"搜索树内每个叶节点都仲裁"（~780 次/局、连对手节点也仲裁）改成
+  **"只在根节点仲裁一次"** 后：**搜索树恢复成原来的采样行为**（更少被 MC 改写），
+  而**我们真正部署的那个决策仍由模拟裁决** ⇒ **+7.0pp 于 M6b、+20.3pp 于 A1**。
+- **⚠️ 自查（都已做）**：
+  1. **配置核对**：`env.txt` 逐项确认（`MC_ROOTONLY=1`、`POSPIN=mc_quiet`、无 reserve/M4/NODOWN/TOP2 手写开关）；
+  2. **代码时间点检查**：我在本批运行期间（约 12:08）重构过经济类选取（声称默认参数下等价）⇒
+     按日志修改时间分组：**12:08 前完成 7 局胜率 0.714 / 之后 121 局 0.736** ⇒ **无断点**；
+  3. 逐 seed 与两段读数一致（不是单段驱动）。
+- **机械门进行中（**未宣布成功**）**：
+  * **独立验证已派**（无上下文；含"代码等价性独立判断 / 时间断点 / 逐局自洽 / 配置核对"）；
+  * **样本外复核已开跑**：`seed 103..166`（128 局，与 7..70 不重叠）的 M6c-ROOT + **同段 A1 对照**；
+  * 三者齐备 + 用户确认后，才按 §4 机械门记"里程碑达成"。
