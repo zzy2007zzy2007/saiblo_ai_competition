@@ -6376,3 +6376,14 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   **没有验证"MC 真的只在根节点仲裁一次"这个机制本身**（`mc_taken` 埋点不在 bridge 日志里）。
 - **⇒ 下一步**：① 样本外复核（`seed 103..166` 的 M6cROOT + 同段 A1）已开跑；② 补 **同段 M6b 对照**，
   把"ROOT vs M6b"也放到样本外比较；③ 若要**确证机制**，需把 `mc_taken/mc_fallback` 落到日志里并跑一轮。
+
+## 2026-10-06 12:57:49 — M6cROOT_fresh128
+
+- **commit**: `66aa57b` (dirty: 5 files)
+- **exit**: 0，用时 2925s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6cROOT_fresh128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 103 103r 104 104r 105 105r 106 106r 107 107r 108 108r 109 109r 110 110r 111 111r 112 112r 113 113r 114 114r 115 115r 116 116r 117 117r 118 118r 119 119r 120 120r 121 121r 122 122r 123 123r 124 124r 125 125r 126 126r 127 127r 128 128r 129 129r 130 130r 131 131r 132 132r 133 133r 134 134r 135 135r 136 136r 137 137r 138 138r 139 139r 140 140r 141 141r 142 142r 143 143r 144 144r 145 145r 146 146r 147 147r 148 148r 149 149r 150 150r 151 151r 152 152r 153 153r 154 154r 155 155r 156 156r 157 157r 158 158r 159 159r 160 160r 161 161r 162 162r 163 163r 164 164r 165 165r 166 166r
+  ```
+- **output**: `training_history/runs/20261006_125749_M6cROOT_fresh128/output.log`
+- **result**: _待填_
