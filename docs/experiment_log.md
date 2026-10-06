@@ -6461,3 +6461,54 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
    它让**判据段（官方协议）过线**（0.7344），但**样本外与 M6b 基本持平**（0.6875 vs 0.6719）。
    ⇒ **"跨过 0.70"依赖这个精化，而它的增量证据不足**。
 3. **绝对水平的诚实区间**：M6cROOT 合并 0.7109、CI [0.660, 0.762]；**真实胜率很可能就在 0.69–0.73**（门槛附近）。
+
+## 2026-10-06 17:08:32 — ENG_mc_light_s11
+
+- **commit**: `b65382f` (dirty: 5 files)
+- **exit**: 0，用时 586s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=ENG_mc_light_s11 --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11
+  ```
+- **output**: `training_history/runs/20261006_170832_ENG_mc_light_s11/output.log`
+- **result**: _待填_
+
+## 2026-10-06 17:21:31 — ENG_mem8
+
+- **commit**: `afbeb6a` (dirty: 6 files)
+- **exit**: 0，用时 398s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=4 AZAI_MC_HORIZON=100 AZAI_MODE=pos-only AZAI_POSPIN=mc_light AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=ENG_mem8 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 11 11r 13 13r 14 14r 18 18r
+  ```
+- **output**: `training_history/runs/20261006_172131_ENG_mem8/output.log`
+- **result**: _待填_
+
+## 2026-10-06 17:4x — 🔍 诊断：M6（`mc_light`）的「原生崩溃」= **bridge 的 300 秒读超时**，**不是引擎 bug、也没有原生故障**
+
+- **触发点**：用户提醒"贪心 rollout 原生崩溃"可查；并给了长期记忆目录
+  `C:\Users\曾子岩\.claude\projects\D--2026-------2\memory\`（按"翻旧账"去读）。
+- **记忆里的两条相关记录**（已引用）：
+  * `feedback_cpp_copy_ctor_self_referential_pointers.md`：08-08 引入 **cache-skip 拷贝构造**加速 `deep_clone`，
+    08-09 爆出"**抑制隐式移动构造 ⇒ clone 出来的局面带悬垂指针 ⇒ 256 迭代搜索里 SIGSEGV，概率性、依赖带塔的树状态**"
+    ⇒ 形态与我的症状**同型**，一度成为首选假设；
+  * `feedback_engine_validation_replay_and_round_op_rules.md`：**op 码稀疏**（11/12/13/21/22/23/24/31/32，
+    非法码被冷路径静默跳过）、**每回合 op 列表有"一次一格/一次一基地"的持久标志**（`apply_operation_list_cold`）。
+- **实验与结论（证据链 8 条，全文见 `docs/engine_crash_probe.md`）**：
+  1. 真实异常是 **`TimeoutError: timed out reading az_bridge_ai (need 4B, have 0B)`** ⇒ bridge 连**长度前缀**都没收到
+     ⇒ **AI 那一手一个字都没写**（不是包损坏、不是分帧错位）；
+  2. 挂掉的局用时 `5.2/5.5/5.7/6.6 min` ≈ 对局时间 + **`TIMEOUT_SECONDS=300`**；
+  3. 8 局全带 `-X faulthandler`（新开关 `MVS_FAULTHANDLER=1`）⇒ **零原生崩溃标记**；
+  4. 挂掉时刻：`seed 11: round=55 coins=[95,63]`、`seed 18: round=26 coins=[99,89]`
+     ⇒ **都是金币首次突破闪电价（~90）= MC 门控第一次打开的那一手**；
+  5. **同一局面单局跑正常通过**（`ENG_mc_light_s11` 跑到 160+ 回合）⇒ **并发抢 CPU 才超时**；
+  6. `exc=str` 是**红鲱鱼**：bridge 第 397 行把异常**转成字符串**存 ⇒ RESULT 行的 `exc=` 只是"字符串的类型"，无信息
+     （真正的类型在桥打印的 `异常: ...` 行里）；
+  7. 机理：`mc_light` 的 MC **写在 `_expand` 里** ⇒ **搜索每次节点展开都跑 2–3 候选 × 100 回合 rollout ×（前向+落子）**
+     ⇒ 单次决策分钟级 ⇒ 8 并发直接越过 300 s；
+  8. 与"裁判完整性"的关系：**本次症状里没有任何引擎原生故障的证据** ⇒
+     用户"重新封装的 C++ 引擎可能有 bug"这一猜测**在这一个症状上不成立**（裁判完整性未被本事件动摇）。
+- **影响**：已记录结论**不受影响**（`M6_mc_128` 那批本来就因 32% INVALID 整批作废；`M6b`/`M6c-ROOT` 两批无效 0%）。
+- **顺手做的小修**：`match_via_sdk.py` 加 `MVS_FAULTHANDLER=1`（默认关，加 `-X faulthandler`）。
+- **建议未做（待用户定）**：RESULT 行打印真实异常类型；AI 每手耗时埋点；把 `TIMEOUT_SECONDS` 变 env 并在协议里
+  把"太慢"与"无效"分开；任何"树内昂贵评估"必须先量每手耗时。
