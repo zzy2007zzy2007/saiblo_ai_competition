@@ -6940,3 +6940,26 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 ### 4. 本轮的活：**诊断臂「强制升级」**（预注册 `docs/prereg_20261007_force_upgrade.md`）
 `AZAI_FORCE_UPG=2`（有塔且买得起就升级，其余照旧）⇒ 64 局前缀 `7..38`，对照 `0.6562`；
 判据（诊断臂）：**≥0.7362 ⇒ 投资轴为真（评价器是瓶颈）**；**≤0.6062 ⇒ 该轴关闭**；之间记档不结论。
+
+## 2026-10-07 02:24:15 — F_upg_64
+
+- **commit**: `c52f9aa` (dirty: 5 files)
+- **exit**: 0，用时 1085s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=2 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=F_upg_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_022415_F_upg_64/output.log`
+- **result**: 🔴🔴 **诊断臂「强制升级」：`p̂ = 0.0000`（32 对全负：0/0/32！）**（无效 0%、判词全 engine；用时 1085 s）
+  ⇒ 按预注册判据（≤0.6062）= **"极端投资 = 灾难"**，投资轴**按预注册关闭**。
+  * **机制（先把"是不是 op 被拒"排除掉）**：我方 **升级 54.5 次/局**（对手 9.1；我们 3–170）、
+    建塔 19.7、**闪电 10.5 → 4.4**、出招回合 **105**（基线 24–32）；
+    **trace 证实升级被引擎接受**（我方塔 `level=1/type=1` 出现 **67** 次 vs level 0 的 121 次）
+    ⇒ **不是"回合被空操作浪费"，是真的过度投资**：钱全砸进升级（且升级到 L3 要 200），
+    闪电与建塔被挤掉 ⇒ 主力伤害来源消失。
+  * **判读（写清，别过度外推）**：本臂是**钝器**（"只要买得起就升"）⇒ 它证明的是
+    **"无节制升级 = 灾难"**；**"适度升级（像对手那样 ~9 次/局）会不会更好"仍未测**。
+    但结合"评价器在 22/70 次菜单里都判升级输给 HOLD"⇒ **我们当前"不升级"并不是明显的损失**，
+    这条轴**没有 +20pp**。
+  * **副产品（保留）**：本轮**真的给 AI 加上了"能表达升级"的能力**（`mc_last_explicit` + 正确 op 参数），
+    未来任何方法侧设计若要用这条动作，现在可用（`AZAI_FORCE_UPG=2` / `AZAI_MC_UPG=n`）。
