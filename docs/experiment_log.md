@@ -6174,3 +6174,26 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   * 若**逐局复现** 0.6641 ⇒ 流程确定、M6b-ND 的 −23pp 是**配置差异**造成的真实效应；
   * 若**不复现** ⇒ 该机制存在运行间方差，**M6b 的 0.6641 只是一个抽样**，必须补方差估计后才能当结论。
 - **同时准备**：给 `mc_quiet` 加**决策可观测性**（把每次 MC 的候选与分数写 dump），以便下一次直接看"MC 在选什么"。
+
+## 2026-10-06 08:38:20 — A1_head_128
+
+- **commit**: `f4da31c` (dirty: 6 files)
+- **exit**: 0，用时 2153s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=0 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A1_head_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_083820_A1_head_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 09:1x — ✅ 同代码 A1 对照：与 10-05 的 A1 **逐项完全相同** ⇒ 独立验证者限制②（代码漂移）消除
+
+- **`A1_head_128`（当前 HEAD、`POSPIN=argmax`、`MC_EVERY=0`、`MC_NODOWN` 未设）128 局**：
+  **`p̂ = 0.5312`**（64/64 对；**2-0:18 / 1-1:32 / 0-2:14**；CI [0.4453, 0.6172]；无效 0）。
+- **对照 `C1_a1_128`（10-05，commit `e95d1d9`）**：`p̂ = 0.5312`，分布 **18 / 32 / 14** ⇒
+  **点估计、配对分布、无效比例全部相同**。
+- **⇒ 结论**：`e95d1d9 →` 当前 HEAD 之间的代码增量（M5 菜单、M6/mc_quiet、NODOWN 旋钮、埋点、以及
+  `az_bridge_ai.py` 的 128 行差异）**对 A1 的行为完全惰性**（A1 路径不经过这些分支），
+  因此 **M6b 的 +13.3pp 不受"代码漂移"混淆**（独立验证者限制②关闭）。
+- **⇒ 同时说明流程是确定性的**：同一配置在同一批 seed 上重跑给出**逐项相同**的统计，
+  （与验证者"重跑 4 局逐局相同"、以及"搜索只用 `default_rng(seed)`、无未播种随机源"的代码检查一致）。
