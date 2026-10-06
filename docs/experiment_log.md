@@ -6870,3 +6870,36 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 | 过程 bug（已修）| `MARGIN=0.1` 首版**整局 aborted**（`exc=EOFError`/`UnboundLocalError: pinned`）| "不接管"路径没给 `pinned` 赋值；现改为按类头 argmax 钉 |
 ⚠️ 两个教训：① **每个臂都必须先验证"假设的机制真的被激活"**（`P1` 检查），否则读数无效；
 ② 我用"整局 op 直方图"核对时**第一版把镜像局的对手算成了我方**（p0 在 `xr.log` 里是对手）⇒ 分析器一直是对的。
+
+## 2026-10-07 01:38:55 — G_margin01_64
+
+- **commit**: `6c8ba8c` (dirty: 5 files)
+- **exit**: 0，用时 1236s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0.1 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=G_margin01_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_013855_G_margin01_64/output.log`
+- **result**: 🟡 **G-0.1（分差门控 τ=0.1=2 HP）筛选：`p̂ = 0.6719`**（32/32 对；**14/15/3**；CI [0.5625,0.7812]；
+  无效 0%、判词全 engine；用时 1236 s）⇒ 比 G-0（同前缀 **0.6562**）**高 +1.6pp**，**未过晋级线 0.7362** ⇒ 不晋级。
+  * ✅ **机制如预测生效（P1 命中）**：我方 **建塔 24.8 → 17.6**、**出招回合 32.2 → 24.4**（churn 明显下降）、
+    闪电 10.5 → 10.9（基本不变）；`dec_max` 11.8 s（比基线略高，仍在阈值内）。
+  * ⇒ **这是同一族的第 4 个阴性**：换评价器（R1/R2）、换位置网（A/A1/B）、抑制平局接管（本臂）
+    —— **四种独立改法都在 ±1.6pp 内**，而彼此翻转 38–69% 的决策。
+  * **判读**：**+20pp 不在"类/位置仲裁与评价"这一层**。平局率根因已定位、修了也不动
+    ⇒ 不是"评价器不够准"，而是**这一层对胜负本来就不敏感**。该族**关闭**（重开需新理由）。
+
+## 2026-10-07 02:1x — 开放问题记档：**我们"从不升级"**（原因未定论）
+
+- **事实**：分侧统计 196 局 ⇒ 我方 `UPGRADE_TOWER = 0`；对手 `rule_v4` **9.4/局**。
+- **不是钱**：MC 决策点金币中位 50／均值 59；**40.4% 的决策金币 ≥60**（L2 升级成本）、1.8% ≥200。
+- **已排除三条实现路线**（升级数都还是 0）：加宽**类**菜单（`TOPK=4`）、加宽到**格子**（`CELLS=3`，
+  还会把建塔/降级炒到 47/37）、**显式构造** `Operation(12,x,y)` 候选（`UPG=2`）。
+- **两个候选解释**：① 升级候选的安静 rollout 分数不超过 HOLD（⇒ 平局时输给先出现的候选）；
+  ② 该 op 在 rollout 的 clone 里是**空操作**。
+- ⚠️ **探针不可用（重要的方法论警告）**：我写了 `code/test_match/probe_upgrade_op.py` 想在重放状态上直接
+  验证"升级 op 是否生效"，但**在重放状态上连 `BUILD_TOWER` 都测不出效果**（金币充足、格子合法也不行）
+  ⇒ **离线的 `apply_operation_list` 探针无法复现 AI 的应用路径**（AI 的 clone 是"我方尚未行动"的状态）
+  ⇒ 该问题的探针结论**一律不可用**，只能在**真实对局**里判（或先搞清引擎的行动槽语义）。
+- **⇒ 下一步若要碰这条**：先写清"为什么这次会不同"（例如：把升级候选做成**可负担时才加入**、
+  或**排除建塔候选**迫使机制在"升级 vs HOLD"之间选），再按预注册测。
