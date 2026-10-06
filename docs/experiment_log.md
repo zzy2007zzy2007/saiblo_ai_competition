@@ -7013,3 +7013,42 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 三轮加本轮，**"换组件 / 单点干预 / 在新分布上重训（类头）"三类都已排除**；
 "价值头在新分布上重训"是**最后一个还在排队的方法侧小改**，且我给的通过率不高（见预注册 §4 P1 ≈ 40%）。
 ⇒ 若它也失败，剩下的只有**规模（数据/模型）**与**换学习范式/搜索结构**这类大改。
+
+## 2026-10-07 03:32:36 — loop_r4_collect300
+
+- **commit**: `6c5a43b` (dirty: 7 files)
+- **exit**: -1，用时 3133s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint checkpoints/posnet_A_k5_m32.pt --games 300 --workers 8 --seed 5001 --iterations 256 --max-depth-rounds 4 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --pos-pin mc_quiet --mc-horizon 256 --mc-every 5 --mc-root-only 1 --native-engine --out-dir training_history/vprior/data_loop_r4_300
+  ```
+- **output**: `training_history/runs/20261007_033236_loop_r4_collect300/output.log`
+- **result**: _待填_
+
+## 2026-10-07 04:24:59 — E2_density_64
+
+- **commit**: `05e5009` (dirty: 8 files)
+- **exit**: 0，用时 2546s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=2 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=E2_density_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_042459_E2_density_64/output.log`
+- **result**: 🔴 **MC 密度臂 E-2（`MC_EVERY=2`）：`p̂ = 0.5156`（−14.1pp；8/17/7；CI [0.4062,0.6250]；无效 0%）**
+  ⇒ 按预注册判据（≤0.6062）**有害 ⇒ 该轴关闭**。
+  * **机制如预测（P1 命中）**：仲裁更密 ⇒ 我方 **建塔 24.8 → 35.5**、**出招回合 32.2 → 46.2**、闪电 10.0（不变）；
+    **成本**：`dec_max` **3.5 s → 49.9 s**（出现 1 次慢决策）。
+  * 🔑 **频率-强度曲线（同一 32 对 `7..38`）**：
+
+    | MC 仲裁频率 | `p̂` |
+    |---|---|
+    | **无 MC（A1）** | **0.5000** |
+    | **EVERY=5（现状）** | **0.6562** |
+    | **EVERY=2** | **0.5156** |
+
+    ⇒ **存在内部最优点（≈EVERY=5）**：**更疏（无 MC）与更密（EVERY=2）都掉回 ~0.50–0.52**。
+  * **判读**：**"多花钱"不是更好**。机制的价值**有界且尖锐**：① 它**必须存在**（A1 0.50 → 现 0.66）；
+    ② 但它**判断类的那些决策 ≈ 噪声**（23.6% 平局、logit std 0.023 学不出状态依赖），
+    所以**加密只是放大噪声**（建塔 35.5 座仍输）；③ 与上一轮"抑制 40% 接管 +1.6pp（不显著）"合起来：
+    **频率这条轴在现状附近是平的（略偏正）**，但**两端都显著更差**。
+  * **附带**：`dec_max` 随密度**超线性增长**（3.5 → 49.9 s）⇒ 任何"加密"方案都要先过成本闸门。
