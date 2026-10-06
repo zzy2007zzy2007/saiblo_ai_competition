@@ -6737,3 +6737,24 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     这与"类头是常数函数 + 部分类买不起/不合法"的既有结论一致，**也是这条线要先看的机制读数**。
 - **筛选判据（预注册 §2）**：n=64（固定段前缀 `7..38`）；**R0 同前缀 = `0.6562`（32/32 对，CI [0.5469,0.7656]）**
   ⇒ **R1 晋级线 = 0.7362**。run `R1_bidir8_64` 已开跑。
+
+## 2026-10-06 23:11:43 — R1_bidir8_64
+
+- **commit**: `43670f5` (dirty: 5 files)
+- **exit**: 0，用时 2054s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=8 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=R1_bidir8_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261006_231143_R1_bidir8_64/output.log`
+- **result**: 🔴 **R1（K=8 双向）筛选：`p̂ = 0.6562`**（32/32 对；2-0:12 / 1-1:18 / 0-2:2；CI [0.5469,0.7500]；
+  无效 0%、判词全 engine；用时 2054 s）⇒ **与 R0 同前缀的 `0.6562` 完全相同、未过晋级线 0.7362** ⇒ **不晋级**。
+  * 🔑 **最关键的机制读数**（`code/test_match/cmp_pair_scores.py` 逐对比）：两臂**逐对翻转 22/32 = 69%**，
+    但**总分完全相同（各 42/64）**（升 10 对、降 11 对，净 −1 分 ≈ 0.0156；点估计四舍五入后相同）
+    ⇒ **"更真实的评价"把七成决策换掉了，却一分都没换来**：说明 ① 该评价器与安静版**大致可交换**；
+    ② **决策层的"噪声"远大于"信号"**（换掉七成决策而分数不动）——这是本轮最有价值的一条。
+  * 机制统计几乎不变：我方建塔 24.9（R0 24.9）、闪电 10.3（10.5）、出招 32.2（32.3）；
+    **成本**：`dec_max` 从安静版 ~3.5 s 抬到 **17.48 s（5×）**（`dec_slow`=0，仍 <30 s 阈值，但已超默认 20 s 告警线）。
+  * 内层 rollout 埋点（冒烟批）：`平均推进=8.0 回合`（K 如实执行）、**`空过=1089`（≈55% 的策略调用解不出 op）**
+    ⇒ "双向"在实现上有一半时间仍是"安静"（与"类头是常数函数 + 部分类买不起/不合法"一致）。
+  * 判读：按预注册 §2 **不晋级**；**不判"有害"**（差 0.0pp）⇒ 记作**"深度方向暂无收益"**，按阶梯继续 **R2（K=32）**。
