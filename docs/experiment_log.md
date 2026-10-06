@@ -7073,3 +7073,28 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     含义：**价值头在这条分布上的精度不是当前瓶颈**——要么它的误差对**选点**不敏感，
     要么搜索本来就没在"用"它的细微分（与"位置排序≈噪声、平局占 24%"的结论一致）。
   * ⚠️ 单变量已核（只有 `value_state` 变）；64 局只能排除 >~12pp ⇒ 这条**不能被读成"有害"**。
+
+## 2026-10-07 05:47:47 — L180_reserve_64
+
+- **commit**: `db8ef2d` (dirty: 8 files)
+- **exit**: 0，用时 3214s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=180 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=L180_reserve_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_054747_L180_reserve_64/output.log`
+- **result**: 🔴🔴 **诊断臂「闪电储备门槛」（`AZAI_LIGHT_MIN_COINS=180`）：`p̂ = 0.2031`（−45.3pp！0/13/19；CI [0.1250,0.2812]；无效 0%）**
+  ⇒ 按预注册判据（≤0.6062）**该族关闭**，且是**本轮最强的一条阴性**。
+  * **机制**：闪电 10.5 → **6.6**、建塔 24.8 → **19.0**（⚠️ **省下的钱并没有变成塔**）、
+    出招回合 32.2 → 20.1、对局回合 400 → 340。
+  * **判读（两条）**：
+    ① **我们在 90–180 金币区间放的那些闪电是"承重"的** —— 把它们拦掉直接崩盘
+    （这条也**独立印证**了败局签名里"闪电次数"是胜负的最强相关量：**这次消融说明它不是纯症状**）；
+    ② 项目史上那条 **+13.3pp 的手写储备规则**（`pos_pin=reserve, reserve_coins=180`）**不能迁移到现在的配置**：
+    它当年是在"没有 MC、建塔 0"的 A1 上测的，其价值（把金币从闪电转到塔）**已经被 MC 吃掉**；
+    在 MC 之上再叠一层强制储备 ⇒ **双重保守 = 大败**。
+  * **方法论再记一次**（第 4 轮"降级"已踩过）：**相关性必须在当前配置上做消融才能当杠杆**——
+    同一族的手写规则在**旧配置**上 +13pp、在**新配置**上 −45pp。
+- **本轮（第 6 轮）另附**：对手开局分析（**不是脚本化**，24 种不同开局；首建/首闪回合在胜负局**完全相同**，
+  所有时序量 |Cliff d| ≤ 0.16）⇒ **"针对对手结构"目前没有可下手处**；
+  并写了状态报告 `docs/state_of_play_20261007.md`（一页纸：9 条已关闭的轴、同一机理、剩余选项 A–E）。
