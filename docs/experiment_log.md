@@ -6695,3 +6695,24 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
      位置先验在闪电上曾做过 +14.1pp、并复现 oracle 收益的 86%）。
 - **⇒ 对 ≥90% 的含义**：**我们缺的是"可信的格子级评价器"**；在它出现之前，
   "选类×选格"交给谁（先验 / 价值网 / rollout）都只是换一个弱评价器。
+
+## 2026-10-06 21:58:22 — M6cROOT_rand128
+
+- **commit**: `2266622` (dirty: 5 files)
+- **exit**: 0，用时 3832s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6cROOT_rand128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 1000 1000r 1091 1091r 1188 1188r 1479 1479r 1526 1526r 1621 1621r 1630 1630r 1660 1660r 1662 1662r 1982 1982r 2031 2031r 2316 2316r 2332 2332r 2407 2407r 2598 2598r 2600 2600r 2765 2765r 2908 2908r 2918 2918r 3017 3017r 3098 3098r 3199 3199r 3604 3604r 3678 3678r 3721 3721r 3778 3778r 3992 3992r 4229 4229r 4431 4431r 4475 4475r 4567 4567r 4717 4717r 4734 4734r 4820 4820r 4855 4855r 5004 5004r 5216 5216r 5473 5473r 5695 5695r 5729 5729r 5806 5806r 6054 6054r 6420 6420r 6755 6755r 6846 6846r 7038 7038r 7343 7343r 7730 7730r 7992 7992r 7993 7993r 8145 8145r 8500 8500r 8564 8564r 8936 8936r 9106 9106r 9125 9125r 9128 9128r 9169 9169r 9352 9352r 9358 9358r 9577 9577r 9597 9597r 9693 9693r 9927 9927r
+  ```
+- **output**: `training_history/runs/20261006_215822_M6cROOT_rand128/output.log`
+- **result**: ✅ **随机段基线 = `p̂ = 0.7031`**（64/64 对；**2-0: 30 / 1-1: 30 / 0-2: 4**；
+  CI [0.6250, 0.7734]；**无效 0.0%**、判词全 `engine`；用时 **3832 s ≈ 64 min**）。
+  * 先手 50-14、后手 40-24；机制：我方建塔 24.9/局、闪电 10.5、出招回合 32.3；
+    对手（`rule_v4`）建塔 16.1、升塔 9.4、闪电 9.4、出招 49.5；对局回合 mean 399。
+  * ⇒ **第二里程碑两段基线（`M6c-ROOT` 原样，未调参）**：
+    **固定段 `7..70` = 0.7344**（历史读数，已过独立验证）／**随机段 = 0.7031**
+    ⇒ **离 90% 分别差 16.6pp / 19.7pp**；随机段比固定段低 **3.1pp**
+    （与"固定段可能偏乐观"的怀疑一致，但两者 CI 重叠，**不宣称固定段被高估**）。
+  * ⚠️ **过程瑕疵（已记；不影响上表数字）**：后台脚本最后一步分析误用 `--seeds=1000-9927`（**区间**写法）
+    ⇒ 被展开成 8,928 个 seed、把本批误判成 99.3% 无效。**随机段 seed 不连续 ⇒ 必须传逗号列表**
+    （`training_history/vprior/_rand_seeds_spec.txt`）；上表读数是**用正确参数重跑分析**得到的，脚本已修（`a55b02e`）。
