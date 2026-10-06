@@ -255,6 +255,8 @@ def build_engine(seed: int, player: int):
         reserve_coins=int(_env("AZAI_RESERVE", "90")),
         # M6（mc_light）的成本旋钮：rollout 截断长度 / 每 N 回合最多比一次
         mc_horizon=int(_env("AZAI_MC_HORIZON", "100")),
+        # R1/R2：K 步双向 rollout（0 = 现有"安静"行为一字不变）
+        mc_bidir=int(_env("AZAI_MC_BIDIR", "0")),
         mc_every=int(_env("AZAI_MC_EVERY", "1")),
         # M6b-ND：候选里排除类 16（降级）
         mc_no_downgrade=int(_env("AZAI_MC_NODOWN", "0")),
@@ -375,8 +377,17 @@ def main() -> int:
             #    在正常对局里根本不会执行 ⇒ dec_max/dec_slow 只在异常局可见，等于没用。
             _every = int(_env("AZAI_TIMING_EVERY", "25"))
             if _every > 0 and STATS["dec_n"] % _every == 0:
+                _bi = ""
+                try:
+                    from my_ai.az_intent.mc_quiet import BIDIR_STATS as _BS
+                    if int(_BS.get("n", 0)) > 0:
+                        _bi = (f" mc_bidir_n={_BS['n']} 打到终局={_BS['terminal']} "
+                               f"平均推进={_BS['steps'] / max(1, _BS['n']):.1f}回合 "
+                               f"空过={_BS['noop']}")
+                except Exception:
+                    pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
-                     f"dec_slow={STATS['dec_slow']}")
+                     f"dec_slow={STATS['dec_slow']}{_bi}")
             return _ops
 
         while not facade.terminal:

@@ -325,6 +325,7 @@ class BundleMCTS:
         class_pin_random_prob: float = 0.0,
         reserve_coins: int = 90,
         mc_horizon: int = 100,
+        mc_bidir: int = 0,
         mc_every: int = 1,
         mc_no_downgrade: int = 0,
         mc_m4: int = 0,
@@ -361,6 +362,8 @@ class BundleMCTS:
         self.reserve_coins = int(reserve_coins)
         # M6（mc_light）：MC 的 rollout 截断长度 / 每 N 回合最多比一次（控成本）
         self.mc_horizon = int(mc_horizon)
+        # R1/R2（预注册 prereg_20261006_rollout_ladder.md）：>0 ⇒ 安静段之前先来 K 回合双向真实出招
+        self.mc_bidir = int(mc_bidir)
         self.mc_every = int(mc_every)
         # M6b-ND（预注册 §6.1）：候选里的"最优经济类"是否**排除类 16（降级）**
         self.mc_no_downgrade = int(mc_no_downgrade)
@@ -531,7 +534,9 @@ class BundleMCTS:
                     try:
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
-                                                  max_rounds=int(self.mc_horizon))
+                                                  max_rounds=int(self.mc_horizon),
+                                                  bidir_k=int(self.mc_bidir),
+                                                  net_fn=self.net_fn)
                         self.mc_last_scores = _sc
                         self.mc_taken += 1
                         pinned = [int(_c)] * len(head_logits_list)
