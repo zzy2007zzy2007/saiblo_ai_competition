@@ -6213,3 +6213,42 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
      **"候选菜单里放哪些类"是本机制最强的旋钮**（一个类进出 = 20+pp）。
 - **⇒ 立刻转入"先观测再设计菜单"**（预注册 `docs/prereg_20261006_mc_menu.md`）：
   应用 `patch_mc_dump.py`（只读观测）跑 **M6c-OBS（8 局）**，看 MC 实际在选什么、各候选分数差多少。
+
+## 2026-10-06 09:15:18 — M6b_re128
+
+- **commit**: `15f4047` (dirty: 6 files)
+- **exit**: 0，用时 4681s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_REL2ABS=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6b_re128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_091518_M6b_re128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 10:32:52 — M6c_OBS8
+
+- **commit**: `32b7317` (dirty: 5 files)
+- **exit**: 0，用时 292s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_DUMP=D:/2026智能体大赛_新2/training_history/vprior/mc_dump_obs/dump.jsonl AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6c_OBS8 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r
+  ```
+- **output**: `training_history/runs/20261006_103252_M6c_OBS8/output.log`
+- **result**: _待填_
+
+## 2026-10-06 10:4x — 🔬 M6c-OBS（8 局、6,249 次 MC 决策）：**MC 在选什么**（第一次直接看到）
+
+- **cmd**：M6b 配置 + `AZAI_MC_DUMP=training_history/vprior/mc_dump_obs/dump.jsonl`（只读观测，不改决策）。
+- **读数**：
+  * **所选类**：**HOLD(23) 4145（66.3%）** ｜ **类 16 → 1160（18.6%）** ｜ **类 0（建塔）874（14.0%）** ｜ **闪电(17) 70（1.1%）**；
+  * **候选集合**：`{23,16}` 3867（62%）｜`{23,0}` 2068（33%）｜`{23}` 204 ｜含闪电的只 110 次（1.8%）；
+  * **最高分 − 次高分差**：中位 **0.0500**、均值 0.1007、**仅 23.6% 的决策分差 ≤0.005**
+    ⇒ **MC 通常有明确偏好**（不是"分辨不出、瞎选"），这否掉了预注册 §3 里那条"分数差≈0"的解释。
+- **两条关键事实**：
+  1. **类 16 被主动选中 18.6%** —— 而 `M6b-ND` 恰好把它从候选里拿掉，代价 **−23.3pp**
+     ⇒ **"降级换币"这批手是被模拟"发现"的关键动作**（合理猜测：维持闪电循环的现金流；待验证）；
+  2. **闪电只占候选的 1.8%、被选 1.1%** —— 因为门控要求"真的放得出来"（金币 ≥90 + 冷却）+ 每 5 回合才比一次
+     ⇒ **闪电的时机几乎没被 MC 触及**（它仍是 A1 式的 argmax 行为）⇒ **这是一个尚未开发的空间**。
+- **⇒ 已据此开跑 `M6cM4_128`**（预注册 `docs/prereg_20261006_mc_menu.md` 的 M6c-M4）：
+  菜单显式给出 **{HOLD, 闪电(可执行时), 类 16, 最优经济类(0..15)}**（4 候选），
+  看"把 16 显式保留 + 同时给出一个建塔选项"能否超过 M6b 的 0.6641。
