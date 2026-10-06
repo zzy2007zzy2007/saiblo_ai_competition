@@ -7098,3 +7098,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **本轮（第 6 轮）另附**：对手开局分析（**不是脚本化**，24 种不同开局；首建/首闪回合在胜负局**完全相同**，
   所有时序量 |Cliff d| ≤ 0.16）⇒ **"针对对手结构"目前没有可下手处**；
   并写了状态报告 `docs/state_of_play_20261007.md`（一页纸：9 条已关闭的轴、同一机理、剩余选项 A–E）。
+
+## 2026-10-07 06:47:14 — B90_buildgate_64
+
+- **commit**: `e3924dd` (dirty: 9 files)
+- **exit**: 0，用时 1476s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=90 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=B90_buildgate_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_064714_B90_buildgate_64/output.log`
+- **result**: 🟢 **诊断臂「建塔花钱门槛 τ=90」：`p̂ = 0.7031`（+4.7pp；17/11/4；CI [0.5781,0.8125]；无效 0%）**
+  —— **本任务所有筛选里最高的一个读数**（此前最好：分差门控 0.6719 = +1.6pp）。
+  * **机制完全如预测**：建塔 **24.8 → 16.7（≈ 对手的 16.6）**、闪电 **10.5 → 11.1**、出招回合 32.2 → 20.9、
+    对局回合基本不变 ⇒ **"少建塔、把省下的钱留给闪电"**真的发生了。
+  * **判据**：未过预注册的晋级线（0.7362）⇒ **按预注册记档、不晋级**（64 局只能分辨 ~12pp；
+    CI 同时覆盖 0.6562 与 0.7362 ⇒ **单段不能下结论**）。
+  * 🔑 **它给出一条机理**：安静 rollout 的分数 = **终局血量差**，而**金币在"没人再出招"的世界里没有价值**
+    ⇒ **花钱看得见好处（塔立刻生效）、看不见代价（金币没了）** ⇒ 机制**系统性过度花钱**
+    （我们建塔 24.8 vs 对手 16.6）。这解释了：为什么"强制升级 0/64""加密仲裁 −14pp"都大败，
+    而"**给花钱加门槛 +4.7pp**"是正号——**问题不在"花不花"，而在"评价器不知道钱值多少"**。
+  * **下一步（已开跑）**：预注册里的**次臂 τ=60**（符号稳健性，P3）⇒ 若同向，则转向**方法侧**版本：
+    让 MC 的评分**包含花掉的资源**（而不是靠手写阈值）——这才是可交付的改动方向。
