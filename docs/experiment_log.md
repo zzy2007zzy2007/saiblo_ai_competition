@@ -6127,3 +6127,31 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **⇒ M6b-ND 的真实作用**：等价于**在同一批 seed 上重复 M6b**（近似的复现检验），
   而不是我原以为的"去降级臂"。判据不变（128 局验收），但**解释要按这个口径写**。
 - **教训**：动手前应先用一行日志确认「类 id ↔ op type」的对应（我此前笔记里把两者混为一谈）。
+
+## 2026-10-06 07:06:44 — M6bND_128
+
+- **commit**: `16af349` (dirty: 5 files)
+- **exit**: 0，用时 5443s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_NODOWN=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6bND_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_070644_M6bND_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 08:4x — ⚠️ M6b-ND 验收 `p̂=0.4297`：与 M6b 的 0.6641 差 **23pp**，而机制计数几乎相同 ⇒ 必须查清
+
+- **M6b-ND（`AZAI_MC_NODOWN=1`，其余同 M6b）128 局**：**`p̂ = 0.4297`**
+  （64/64 对；**2-0:11 / 1-1:33 / 0-2:20**；CI [0.3438, 0.5156]；无效 0.0%）；
+  机制：建塔 **31.4/局**（M6b 31.1）、闪电 **9.4/局**（M6b 10.7）、出招回合 48.5（M6b 43.2）。
+- **为什么必须查**：我原本以为 `NODOWN` 只是"从候选菜单里去掉降级类"，而**降级来自位置解码**（见上一条前提错误），
+  按理两臂机制应当几乎一致 —— 但分数差 **23.3pp**（0.6641 → 0.4297）。两种可能：
+  1. **类 16 在 M6b 里经常就是被选中的"经济类"**（于是去掉它真的改变行为）——但那与"降级 op 数几乎不变"矛盾；
+  2. **同一配置的重复测量本身波动很大** ⇒ 那会直接动摇 M6b 的 0.6641。
+- **⇒ 立刻排两个诊断（已开跑 `_tmp_m6b_repro.ps1`）**：
+  ① **`M6b_re128`：M6b 原样在当前代码上重跑 128 局**（`MC_NODOWN` 不设）
+     —— 引擎与搜索在给定 seed 下是**确定性**的（独立验证者重跑 4 局逐局相同），所以**同代码同配置应当逐局复现**；
+     若复现出 ~0.43 而非 0.66，说明两臂之间存在我没意识到的行为差异；若复现出 0.6641，则 `NODOWN` 的影响是真实的；
+  ② **`A1_head_128`：同代码 A1 对照**（回应独立验证者限制②的代码漂移问题）。
+- **同时**：准备给 `mc_quiet` 加"决策可观测性"（记录 `mc_last_scores`：候选分数与所选类），
+  以便直接看出"MC 到底在选什么"——这是解释 M6b 机制的**唯一直接证据**（目前只有间接的 ops 计数）。
