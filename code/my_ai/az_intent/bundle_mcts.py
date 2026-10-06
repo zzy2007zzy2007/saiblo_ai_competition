@@ -329,6 +329,7 @@ class BundleMCTS:
         mc_no_downgrade: int = 0,
         mc_m4: int = 0,
         mc_root_only: int = 0,
+        mc_top2: int = 0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -370,6 +371,9 @@ class BundleMCTS:
         # 动机：`_expand` 在 256 次迭代里对**每个叶节点**都会调用 ⇒ 现状每局 ~780 次 MC（成本高、
         # 且连对手节点也被 MC 仲裁）；root-only 为 1 次/搜索。
         self.mc_root_only = int(mc_root_only)
+        # M6c-2E（预注册 mc_menu.md §2）：候选里放**两个不同的**经济类（按 action_map 排序取 top-2）
+        # —— 教训：上一版「显式 16 + 最优经济类」被 `!= 16` 守卫抵消成空操作（逐局 128/128 与 M6b 相同）。
+        self.mc_top2 = int(mc_top2)
         self._mc_root = None
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
@@ -484,11 +488,15 @@ class BundleMCTS:
                 _economy = None
                 _best_v = -np.inf
                 _hi = 16 if self.mc_no_downgrade else 17      # M6b-ND：排除类 16（降级）
+                _econ_rank = []
                 for _c in range(0, _hi):
                     if base_cls_mask[_c] and base_pos_mask[_c].any():
                         _v = float(np.where(base_pos_mask[_c], _AM[_c], -np.inf).max())
-                        if _v > _best_v:
-                            _economy, _best_v = _c, _v
+                        if np.isfinite(_v):
+                            _econ_rank.append((_v, int(_c)))
+                _econ_rank.sort(key=lambda x: -x[0])
+                if _econ_rank:
+                    _best_v, _economy = _econ_rank[0]
                 from my_ai.az_intent.mc_quiet import _decode_class_op as _dq, mc_quiet_choose
                 _hl0 = np.asarray(head_logits_list[0], dtype=np.float32)
                 _rnd = int(getattr(node.state, "round_index", 0))
@@ -501,13 +509,25 @@ class BundleMCTS:
                     if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
                            node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
-                    if self.mc_m4 and _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
-                                          node.state, node.player, 16) is not None:
-                        _cands.append(16)          # M6c-M4：显式给「类 16」一个候选位
-                    if _economy is not None and _economy != 16 and _dq(
-                            _hl0, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
-                            _economy) is not None:
-                        _cands.append(_economy)
+                    if self.mc_top2:
+                        # M6c-2E：加入**前两个不同的**经济类（各自解码成功才加）
+                        _added = 0
+                        for _v, _c in _econ_rank:
+                            if _added >= 2:
+                                break
+                            if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
+                                   node.state, node.player, _c) is not None:
+                                if _c not in _cands:
+                                    _cands.append(_c)
+                                    _added += 1
+                    else:
+                        if self.mc_m4 and _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
+                                              node.state, node.player, 16) is not None:
+                            _cands.append(16)      # M6c-M4：显式给「类 16」一个候选位
+                        if _economy is not None and _economy != 16 and _dq(
+                                _hl0, _AM, base_cls_mask, base_pos_mask, node.state, node.player,
+                                _economy) is not None:
+                            _cands.append(_economy)
                     try:
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,

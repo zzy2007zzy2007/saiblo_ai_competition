@@ -260,6 +260,8 @@ def build_engine(seed: int, player: int):
         mc_m4=int(_env("AZAI_MC_M4", "0")),
         # M6c-ROOT：MC 只在根节点仲裁
         mc_root_only=int(_env("AZAI_MC_ROOTONLY", "0")),
+        # M6c-2E：候选放两个不同的经济类
+        mc_top2=int(_env("AZAI_MC_TOP2", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,
