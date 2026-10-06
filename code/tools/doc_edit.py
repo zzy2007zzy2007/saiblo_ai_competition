@@ -37,6 +37,7 @@ ANCHORS = {
     "docs/goal_longrun_plan.md": "#",
     "docs/milestone_20261006_70.md": "# 里程碑报告",
     "docs/state_of_play_20261006.md": "# 状态报告",
+    "docs/checkpoints.md": "# 重要 checkpoint",
 }
 
 
