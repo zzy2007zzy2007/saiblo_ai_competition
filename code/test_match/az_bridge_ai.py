@@ -274,6 +274,10 @@ def build_engine(seed: int, player: int):
         mc_upg=int(_env("AZAI_MC_UPG", "0")),
         # 分差门控：分差 < τ ⇒ MC 不接管（0 = 现有行为不变）
         mc_margin=float(_env("AZAI_MC_MARGIN", "0")),
+        # 评分方式："" = 安静 rollout（现状）；delta = rollout + V差分；value_only = 只用 V 差分
+        mc_score=_env("AZAI_MC_SCORE", ""),
+        # 单侧支出：>0 ⇒ rollout 里我方继续出招 K 回合（把候选花掉的钱换成塔 ⇒ 让评分看见代价）
+        mc_selfspend=int(_env("AZAI_MC_SELFSPEND", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

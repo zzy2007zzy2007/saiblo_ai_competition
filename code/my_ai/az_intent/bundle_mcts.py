@@ -339,6 +339,8 @@ class BundleMCTS:
         mc_cells: int = 0,
         mc_upg: int = 0,
         mc_margin: float = 0.0,
+        mc_score: str = '',
+        mc_selfspend: int = 0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -393,6 +395,10 @@ class BundleMCTS:
         # 分差门控（预注册 prereg_20261007_mc_margin.md）：分差 < mc_margin ⇒ MC 不接管
         self.mc_margin = float(mc_margin)
         self.mc_skipped = 0
+        # 评分方式（预注册 prereg_20261008_mc_value_delta.md）：'' = 安静 rollout（现状）
+        self.mc_score = str(mc_score or '')
+        # 单侧支出（预注册 prereg_20261008_mc_selfspend.md）：>0 ⇒ rollout 里我方继续出招 K 回合
+        self.mc_selfspend = int(mc_selfspend)
         # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
         # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
         self.mc_last_explicit = None
@@ -604,12 +610,22 @@ class BundleMCTS:
                         except Exception as _exc:
                             print(f'[mc_upg] 构造升级候选失败: {type(_exc).__name__}: {_exc}', flush=True)
                     try:
+                        # 评分用（delta / value_only 需要 V(before)）：只算一次，成本 ≈ 一次前向
+                        _v_before = 0.0
+                        if self.mc_score in ('delta', 'value_only'):
+                            try:
+                                _v_before = float(self.net_fn(node.state, node.player)['value'])
+                            except Exception as _exc:
+                                print(f'[mc_score] V(before) 计算失败: {type(_exc).__name__}: {_exc}', flush=True)
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
                                                   max_rounds=int(self.mc_horizon),
                                                   bidir_k=int(self.mc_bidir),
                                                   net_fn=self.net_fn,
-                                                  margin_gate=float(self.mc_margin))
+                                                  margin_gate=float(self.mc_margin),
+                                                  score_mode=str(self.mc_score),
+                                                  v_before=float(_v_before),
+                                                  selfspend_k=int(self.mc_selfspend))
                         self.mc_last_scores = _sc
                         if _c is None:
                             # 分差不足 ⇒ **不接管**：由类头 argmax 决定（= 该配置下的默认 pin），只埋点

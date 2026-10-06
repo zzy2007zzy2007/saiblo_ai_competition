@@ -71,6 +71,23 @@ def _policy_op(state, player, net_fn):
     return None
 
 
+def selfspend_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> float:
+    """**单侧支出**：只有**我方**继续出招 K 回合（对手保持安静），之后照旧安静推到终局。
+
+    这样"候选那一手花掉的钱"会以**已建成的塔**形式出现在终局里 ⇒ 评价开始给"花钱"定价（也就能看见代价）。
+    """
+    st = state.clone()
+    for _ in range(max(0, int(k_rounds))):
+        if st.terminal:
+            break
+        op = _policy_op(st, int(player), net_fn)
+        if op is not None:
+            st.apply_operation_list(int(player), [Operation(OperationType(int(op[0])),
+                                                           int(op[1]), int(op[2]))])
+        st.advance_round()
+    return quiet_value(st, player, max_rounds=max_rounds)
+
+
 def bidir_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> float:
     """**K 步双向**：双方各按我们自己的策略出招 K 回合，之后安静推到终局，返回该玩家视角终局 HP 差。"""
     st = state.clone()
@@ -108,7 +125,8 @@ def _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
 
 def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     class_mask, position_mask, max_rounds: int = 512,
-                    bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0):
+                    bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0,
+                    score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
@@ -135,13 +153,26 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                                     [Operation(OperationType(int(t[0])), int(t[1]), int(t[2]))])
         if player == 1:
             st.advance_round()
-        if int(bidir_k) > 0 and net_fn is not None:
+        if int(selfspend_k) > 0 and net_fn is not None:
+            scores[_key] = selfspend_value(st, player, net_fn, int(selfspend_k),
+                                           max_rounds=max_rounds)
+        elif int(bidir_k) > 0 and net_fn is not None:
             _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
             scores[_key] = bidir_value(st, player, net_fn, int(bidir_k),
                                        max_rounds=max_rounds)
         else:
             _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
-        scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
+        if score_mode == 'value_only' and net_fn is not None:
+            # 纯价值网差分：完全不做 rollout ⇒ 更快；价值网输入含 stats（金币在里）⇒ 会给花钱定价
+            _v = float(net_fn(st, player)['value'])
+            scores[_key] = _v - float(v_before)
+        else:
+            _q = quiet_value(st, player, max_rounds=max_rounds)
+            if score_mode == 'delta' and net_fn is not None:
+                # potential-based shaping（Φ=V）：只修掉"安静 rollout 看不见花钱代价"的短视
+                _v = float(net_fn(st, player)['value'])
+                _q = _q + (_v - float(v_before))
+            scores[_key] = _q
     # 分差门控：最高分与次高分相差太小 ⇒ **不接管**（返回 None，由调用方保留原 pin）
     # 依据：dump 里 23.6% 的决策是完全平局、另有 17.8% 在 1 HP 内 ⇒ 这些"接管"没有依据。
     if margin_gate and float(margin_gate) > 0 and len(scores) >= 2:
