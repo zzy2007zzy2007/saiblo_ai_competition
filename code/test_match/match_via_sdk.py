@@ -257,7 +257,13 @@ def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: di
         # 抄自 code/test_match/run_cpp_ai_match.py:65-70（code/test_match/rv4_pkg/main.py
         # 就是靠这个跑的）——本文件原来只支持可执行文件，所以 rule_v4 这类 Python AI 进不来。
         env["PYTHONPATH"] = str(REPO_ROOT / "Ant-Game") + os.pathsep + env.get("PYTHONPATH", "")
-        cmd = [sys.executable, str(exe), *argv]
+        # 诊断开关（2026-10-06，默认关）：给 Python AI 加 `-X faulthandler`，
+        # 这样**原生崩溃**（segfault/访问违例）时会把 Python 调用栈写进该 AI 的 stderr。
+        # 用途：定位 `pos_pin=mc_light` 在实战里"无 traceback 直接死"的那类故障。见 docs/engine_crash_probe.md
+        _xflags = []
+        if os.environ.get("MVS_FAULTHANDLER", "") not in ("", "0"):
+            _xflags = ["-X", "faulthandler"]
+        cmd = [sys.executable, *_xflags, str(exe), *argv]
     else:
         cmd = [str(exe), *argv]
     proc = subprocess.Popen(
