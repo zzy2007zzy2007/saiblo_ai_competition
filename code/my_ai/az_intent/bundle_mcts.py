@@ -393,6 +393,9 @@ class BundleMCTS:
         # 分差门控（预注册 prereg_20261007_mc_margin.md）：分差 < mc_margin ⇒ MC 不接管
         self.mc_margin = float(mc_margin)
         self.mc_skipped = 0
+        # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
+        # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
+        self.mc_last_explicit = None
         self._mc_root = None
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
@@ -580,17 +583,26 @@ class BundleMCTS:
                     # ⚠️ 为什么不用 decoder：实测（196 局）我们**从不升级**，而"格子已有塔"时 decoder 给的是**降级**。
                     # ⚠️ 必须**可加**（不能挤掉经济候选）：第一版写成 elif 链 ⇒ 建塔直接归零（冒烟实测 0 建塔）。
                     if self.mc_upg > 0:
+                        # ✅ 正确参数（2026-10-07 从 SDK 官方样例查明）：UPGRADE_TOWER(tower_id, target_type)
                         _n_up = 0
                         try:
+                            from SDK.utils.constants import TOWER_UPGRADE_TREE as _TREE
                             _tw_list = sorted(node.state.towers_of(int(node.player)),
                                               key=lambda w: (-int(getattr(w, 'tower_type', 0)), int(w.x), int(w.y)))
                             for _tw in _tw_list:
                                 if _n_up >= int(self.mc_upg):
                                     break
-                                _cands.append(('op', 12, int(_tw.x), int(_tw.y)))
+                                _tgts = _TREE.get(_tw.tower_type, ())
+                                if not _tgts:
+                                    continue
+                                _tgt = int(_tgts[0])
+                                # 只加**买得起**的（买不起的 op 引擎会拒 ⇒ 等于空操作，白占候选位）
+                                if int(node.state.coins[node.player]) < int(node.state.upgrade_tower_cost(_tgts[0])):
+                                    continue
+                                _cands.append(('op', 12, int(_tw.tower_id), _tgt))
                                 _n_up += 1
                         except Exception as _exc:
-                            print(f'[mc_upg] towers_of 失败: {type(_exc).__name__}: {_exc}', flush=True)
+                            print(f'[mc_upg] 构造升级候选失败: {type(_exc).__name__}: {_exc}', flush=True)
                     try:
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
@@ -606,7 +618,12 @@ class BundleMCTS:
                         # 候选可能是 (类, x, y) ⇒ 钉住的类取它 [0]
                         _ccls = (int(_c[0]) if isinstance(_c, (tuple, list)) else int(_c))
                         if isinstance(_c, (tuple, list)) and _c[0] == 'op':
-                            _ccls = 12      # 显式升级候选 ⇒ 钉住「升级类」
+                            # 显式 op 候选（升级）：**class 通路表达不了它**（实测类 0-15 只会给建塔）
+                            # ⇒ 记下来，由 az_bridge_ai.decide() 直接把这个 op 当作本回合动作发出去。
+                            self.mc_last_explicit = (int(_c[1]), int(_c[2]), int(_c[3]))
+                            _ccls = 12
+                        else:
+                            self.mc_last_explicit = None
                         pinned = [_ccls] * len(head_logits_list)
                         # 观测（可选，只读）：把这次 MC 的候选/分数/选择写成 JSONL
                         _dump = _os.environ.get("AZAI_MC_DUMP", "")
@@ -618,7 +635,10 @@ class BundleMCTS:
                                         "round": _rnd, "player": int(node.player),
                                         "coins": [int(x) for x in node.state.coins],
                                         "hp": [int(b.hp) for b in node.state.bases],
-                                        "cands": [int(x[0]) if isinstance(x, (tuple, list)) else int(x)
+                                        # ⚠️ 候选可能是 int（类）或元组（('op',12,id,tgt) / (类,x,y)）：
+                                        #    原来写 `int(x[0])` ⇒ 遇 'op' 抛异常 ⇒ **整行被 except 吞掉**（静默丢样本，
+                                        #    2026-10-07 我据此误判"升级候选从没进菜单"）。
+                                        "cands": [list(x) if isinstance(x, (tuple, list)) else int(x)
                                                   for x in _cands],
                                         "scores": {str(k): round(float(v), 5) for k, v in _sc.items()},
                                         "chosen": int(_ccls),

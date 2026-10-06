@@ -1,4 +1,4 @@
-"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
+﻿"""把我们自己的 AI（az_intent 的 Bundle-MCTS）接进 bridge 的协议外壳。
 
 背景（`docs/champ_ladder_plan.md` §3.2 / §7.6）：我们**从来没有跟冠军/亚军打过**——
 我们的 AI 是 in-process 的，不会讲官方 stdin/stdout 协议。`code/test_match/rv4_pkg/`
@@ -352,8 +352,83 @@ def main() -> int:
         _DUMP["fh"].write(bytes(int(x) & 0xFF for x in np.asarray(cm, dtype=np.uint8)))
         _DUMP["n"] += 1
 
+    def _probe_upgrade_once() -> None:
+        """🔬 诊断（`AZAI_PROBE_UPG=1`）：**在真实对局的引擎环境里**问清"升级 op 到底能不能生效"。
+
+        动机（2026-10-07 第 3 轮）：分侧统计显示我方 **从不升级**（196 局 0 次，对手 9.4/局），
+        而我**离线**写的探针在重放状态上**连建塔都测不出效果** ⇒ 离线结论不可用（见 experiment_log 02:1x）。
+        所以这里把探针搬进 AI：用**真实状态**、拿 **native 的返回值**、并同时做**建塔对照**。
+        """
+        if _env("AZAI_PROBE_UPG", "0") != "1" or STATS.get("_upg_probe_done"):
+            return
+        try:
+            from SDK.backend.model import Operation as _Op
+            from SDK.utils.constants import OperationType as _OT
+            tws = facade.towers_of(int(player))
+            if not tws or int(facade.coins[player]) < 60:
+                return
+            w = tws[0]
+            _log(f"🔬 探针环境: round={STATS['rounds']} coins={list(facade.coins)} "
+                 f"我方塔数={len(tws)} 首塔=({w.x},{w.y}) type={w.tower_type} level={w.level} hp={w.hp}")
+            can = facade.can_apply_operation(int(player), _Op(_OT.UPGRADE_TOWER, int(w.x), int(w.y)))
+            c = facade.clone()
+            before = [(t.tower_id, int(t.level), int(t.hp)) for t in c.towers_of(int(player))]
+            cb = list(c.coins)
+            # ⚠️ 必须走 **facade** 方法（它会 `_cache.clear()`）；直接调 `_g.apply_operation_list` 会**绕过缓存失效**
+            #    ⇒ 随后读 `towers_of/coins` 拿到的是**过期值**（2026-10-07 我就是这么被骗了一轮）。
+            c.apply_operation_list(int(player), [_Op(_OT.UPGRADE_TOWER, int(w.x), int(w.y))])
+            after = [(t.tower_id, int(t.level), int(t.hp)) for t in c.towers_of(int(player))]
+            _log(f"🔬 升级 op(12,{w.x},{w.y}): can_apply={can} "
+                 f"金币 {cb}->{list(c.coins)} 变化={'有' if before != after else '**无**'} {before} -> {after}")
+            # 对照：同环境下建塔（应生效 ⇒ 证明探针方法本身有效）
+            from my_ai.decoder import make_position_masks as _mpm
+            pm = _mpm(facade, int(player), intent_decoding=True)
+            ys, xs = (pm[0] > 0).nonzero()
+            if len(ys):
+                c2 = facade.clone()
+                b2 = len(c2.towers_of(int(player))); cb2 = list(c2.coins)
+                cost = facade.build_tower_cost(facade.tower_count(int(player)))
+                can11 = facade.can_apply_operation(int(player), _Op(_OT.BUILD_TOWER, int(xs[0]), int(ys[0])))
+                c2.apply_operation_list(int(player), [_Op(_OT.BUILD_TOWER, int(xs[0]), int(ys[0]))])
+                _log(f"🔬 建塔对照 op(11,{int(xs[0])},{int(ys[0])}): cost={cost} can_apply={can11} "
+                     f"塔数 {b2}->{len(c2.towers_of(int(player)))} 金币 {cb2}->{list(c2.coins)}")
+            STATS["_upg_probe_done"] = True
+        except Exception as exc:  # noqa: BLE001
+            _log(f"🔬 探针异常: {type(exc).__name__}: {exc}")
+            STATS["_upg_probe_done"] = True
+
     def decide() -> list:
+        _probe_upgrade_once()
+        # 🧪 强制升级实验（`AZAI_FORCE_UPG=1`）：只要有钱有塔，就**直接发 upgrade op**（不做搜索）
+        #    目的：在**真实对局**里判定"我们发的升级 op 引擎到底认不认"（离线/克隆探针已证明不可靠）。
+        if _env("AZAI_FORCE_UPG", "0") in ("1", "2"):
+            try:
+                _tws = facade.towers_of(int(player))
+                if _tws and int(facade.coins[player]) >= 60:
+                    _w = _tws[0]
+                    if _env("AZAI_FORCE_UPG", "0") == "2":
+                        # ✅ **正确形式**（2026-10-07 从 SDK 官方样例查明）：
+                        #   `Operation(UPGRADE_TOWER, tower_id, int(target_type))`
+                        #   —— 而 `(x, y)` 是**建塔**的参数；我第一版误用了 (x,y) ⇒ 引擎静默拒绝、塔等级永远 0。
+                        from SDK.utils.constants import TOWER_UPGRADE_TREE as _TREE
+                        _tgts = _TREE.get(_w.tower_type, ())
+                        _tgt = int(_tgts[0]) if _tgts else 1
+                        _ops = [Operation(OperationType(int(12)), int(_w.tower_id), int(_tgt))]
+                    else:
+                        _ops = [Operation(OperationType(int(12)), int(_w.x), int(_w.y))]
+                    STATS["forced_upg"] = int(STATS.get("forced_upg", 0)) + 1
+                    _log(f"🧪 强制升级(mode={_env('AZAI_FORCE_UPG', '0')}): round={STATS['rounds']} "
+                         f"塔 id={_w.tower_id} ({_w.x},{_w.y}) type={_w.tower_type} level={getattr(_w,'level','?')} "
+                         f"coins={facade.coins[player]} 发={[(int(o.op_type), o.arg0, o.arg1) for o in _ops]}")
+                    return _ops
+            except Exception as _exc:  # noqa: BLE001
+                _log(f"🧪 强制升级异常: {type(_exc).__name__}: {_exc}")
         res = mcts.search(facade, player, temperature=temperature)
+        # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
+        _expl = getattr(mcts, 'mc_last_explicit', None)
+        if _expl is not None:
+            _log(f"⬆️ 显式 op（升级）: round={STATS['rounds']} op={_expl}")
+            return [Operation(OperationType(int(_expl[0])), int(_expl[1]), int(_expl[2]))]
         _record_obs(res)
         chosen = res.chosen_bundle or ()
         return [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
@@ -448,6 +523,8 @@ def main() -> int:
                 # 所以累计计数必须随每回合落盘；最后一行就是终局状态）。
                 _log(f"round={STATS['rounds']} hp={[b.hp for b in facade.bases]} "
                      f"coins={list(facade.coins)} towers={len(facade.towers)} "
+                     f"lv={[(t.x, t.y, int(getattr(t, 'level', -1)), int(t.tower_type)) for t in facade.towers_of(int(player))]} "
+                     f"lv_opp={[(t.x, t.y, int(getattr(t, 'level', -1))) for t in facade.towers_of(1 - int(player))]} "
                      f"mismatch={STATS['mismatch']} illegal={STATS['illegal']}")
     except BrokenPipeError:
         _log("bridge 关掉了管道（正常收尾）")
@@ -468,3 +545,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
