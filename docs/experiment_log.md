@@ -6577,3 +6577,47 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   `RESULT ... winner=INVALID winner_side=None verdict=timeout engine_winner=None rounds=55 terminal=False ... exc=TimeoutError`
   ⇒ 分析器：`无效=1 有效=1`、`无效明细: 11: winner 缺失/INVALID; verdict=timeout（太慢）; terminal=False`、
   且打印 `⏱️ 超时局 ... ['11']`；AI stderr：`⚠️ 慢决策 round=20 用时=13.16s 阈值=1s`。
+
+## 2026-10-06 18:39:29 — SMOKE_archive
+
+- **commit**: `6f9fe45` (dirty: 7 files)
+- **exit**: 0，用时 117s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=1 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=SMOKE_archive --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r
+  ```
+- **output**: `training_history/runs/20261006_183929_SMOKE_archive/output.log`
+- **result**: _待填_
+
+## 2026-10-06 19:0x — 复核用户的文档改动（+ 落实"跑批必看诊断"使其成立）——**顺带又挖出 3 个静默缺陷**
+
+**用户改了 2 个文件**（commit `6f9fe45`，我逐条核对**事实无误**）：
+* `docs/goal_register.md`：① 在"引擎崩溃"那行补「⑥ `exc=str` 是红鲱鱼（**2026-10-06 已修**：RESULT 现报真实 `exception_type`）」；
+  ② 新增一行「分析器的「无效/超时局」盲区（已修）」；
+* `docs/task_ruleV4_70_charter.md`：新增纪律条「⏱️ 跑批必看两类诊断」。
+
+**核对结论**：内容与实测一致（`RESULT_RE` 要求 `engine_winner=`、INVALID 行确实缺它、无效局确实从未被解析、
+补齐后解析正常、`exc=` 必须放行尾、超时仍计无效绝不计分、对已记录结论零影响）。**两处措辞偏松**：
+1. 章程写「**分析器打印的** `⏱️ 超时局` 与 `dec_max/dec_slow`」——当时 `dec_max/dec_slow` **只在我方 AI 的
+   「退出报告」里**（不是分析器打印的）；**本次已把它做成真的**（见下）。
+2. 寄存器写「`analyze_paired.py` / `_tmp_ladder.py` 的 `RESULT_RE`」——`RESULT_RE` 实际定义在 `_tmp_ladder.py`，
+   分析器通过 importlib 复用它（措辞松，不算错）。
+
+**为让章程那句成立（并修掉三个静默缺陷，全部实测通过）**：
+* **缺陷 C：stderr 日志不按 tag 归档 ⇒ 跨批互相覆盖**（同一 seed 会被后跑的臂盖掉，事后无法复核"那局慢在哪"）。
+  修：`_tmp_ladder._archive_stderr()` 把**本局实际用的两个 AI** 的 stderr 复制进 `<tag>/stderr/`
+  （只复制、不动原文件；用 `--ai0/--ai1` 的 stem 过滤，避免把同 seed 下别的臂卷进来）。
+* **缺陷 D：`dec_max/dec_slow` 只写在「退出报告」里 ⇒ 正常对局里根本不会执行**
+  （bridge 结束时直接 `terminate()` 杀进程，atexit 没机会跑；只有 AI 自己异常退出才打印）。
+  修：AI **对局中周期性**打印 `⏱️ 耗时累计: dec_n=... dec_max=...s dec_slow=...`（`AZAI_TIMING_EVERY`，默认 25 手），
+  分析器从**归档**里取每条日志的最后一条累计值汇总。
+* **缺陷 E：计时只写在 `player == 0` 分支 ⇒ 镜像局（我方执后手）完全没有耗时数据**。
+  修：抽出 `_decide_timed()` 覆盖**两处决策点**；复测两侧都有数据（86 / 90 行）。
+* **缺陷 F（我自己造的）**：`_archive_stderr` 引用了不存在的常量 `MATCH_RESULTS`，又被 `except: pass` **静默吞掉**
+  ⇒ 归档整整一轮没生效。修：改用真正存在的 `LOG_ROOT.parent`，并把失败**打成可见警告**（不再静默）。
+
+**端到端验收（`SMOKE_archive2/3/4`，A1 配置 + `AZAI_TIMING_EVERY=5`）**：
+分析器现在打印
+`⏱️ 单决策耗时（本 tag 归档 2 个 AI 日志）: dec_max 最大 = 3.53s（ai0_...）, dec_slow 合计 = 25, 阈值 AZAI_SLOW_DECISION_SEC 默认 20s / bridge 读超时 MVS_TIMEOUT_SECONDS 默认 300s`
+⇒ **章程那条纪律现在是可执行的**（一处就能看到"慢"与"坏"）。
+⚠️ **归档只对 2026-10-06 之后跑的批次有效**（之前的 stderr 已被覆盖，不可追）。

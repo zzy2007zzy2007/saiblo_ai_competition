@@ -357,19 +357,31 @@ def main() -> int:
             _log(f"!! 第 {STATS['rounds']} 回合 p{pl} 有 {n} 个非法操作: {bad}")
 
     try:
+        def _decide_timed():
+            """计时包装（p0/p1 两条决策路径共用）。⚠️ 计时必须覆盖**两处**决策点：
+            我第一版只写在 `player == 0` 分支里，导致**镜像局（我方执后手）完全没有耗时数据**（2026-10-06）。"""
+            _t = time.monotonic()
+            _ops = decide()
+            _dt = time.monotonic() - _t
+            STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
+            if _dt > float(STATS.get("dec_max_s", 0.0)):
+                STATS["dec_max_s"] = round(_dt, 2)
+            _thr = float(_env("AZAI_SLOW_DECISION_SEC", "20"))
+            if _dt >= _thr:
+                STATS["dec_slow"] = int(STATS.get("dec_slow", 0)) + 1
+                _log(f"⚠️ 慢决策 round={STATS['rounds']} 用时={_dt:.2f}s 阈值={_thr:g}s"
+                     f" （超过 bridge 读超时会记 verdict=timeout）")
+            # ⚠️ 必须**对局中**周期打印：bridge 结束时会直接 terminate()，atexit 里的「退出报告」
+            #    在正常对局里根本不会执行 ⇒ dec_max/dec_slow 只在异常局可见，等于没用。
+            _every = int(_env("AZAI_TIMING_EVERY", "25"))
+            if _every > 0 and STATS["dec_n"] % _every == 0:
+                _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
+                     f"dec_slow={STATS['dec_slow']}")
+            return _ops
+
         while not facade.terminal:
             if player == 0:
-                _t_dec = time.monotonic()
-                self_ops = decide()
-                _dt = time.monotonic() - _t_dec
-                STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
-                if _dt > float(STATS.get("dec_max_s", 0.0)):
-                    STATS["dec_max_s"] = round(_dt, 2)
-                _slow_thr = float(_env("AZAI_SLOW_DECISION_SEC", "20"))
-                if _dt >= _slow_thr:
-                    STATS["dec_slow"] = int(STATS.get("dec_slow", 0)) + 1
-                    _log(f"⚠️ 慢决策 round={STATS['rounds']} 用时={_dt:.2f}s 阈值={_slow_thr:g}s"
-                         f" （超过 bridge 读超时会记 verdict=timeout）")
+                self_ops = _decide_timed()
                 io.send_ops(self_ops)
                 _apply(0, self_ops)
                 opp = io.recv_ops()
@@ -381,7 +393,7 @@ def main() -> int:
                 if opp is None:
                     break
                 _apply(0, opp)
-                self_ops = decide()
+                self_ops = _decide_timed()
                 io.send_ops(self_ops)
                 _apply(1, self_ops)
 

@@ -164,6 +164,30 @@ def main() -> int:
         print(f"  ⏱️ 超时局（太慢 ⇒ 仍计无效、但原因单列，便于区分「慢」与「坏」）: {len(timeouts)} 局 -> {sorted(timeouts)[:12]}"
               + (" ..." if len(timeouts) > 12 else ""), flush=True)
 
+    # 单决策耗时（来自 ladder 归档的 AI 退出报告；见 _tmp_ladder._archive_stderr）
+    try:
+        st_dir = LOG_ROOT / args.tag / "stderr"
+        if st_dir.is_dir():
+            rows = []
+            for f in sorted(st_dir.glob("*_az_bridge_ai_*.stderr.log")):
+                txt = f.read_text(encoding="utf-8", errors="replace")
+                ms = re.findall(r"耗时累计: dec_n=(\d+) dec_max=([\d.]+)s dec_slow=(\d+)", txt)
+                if not ms:   # 兜底：老日志或异常退出才有的「退出报告」
+                    ms = re.findall(r"退出报告:.*?dec_n=(\d+).*?dec_max=([\d.]+)s.*?dec_slow=(\d+)", txt)
+                if ms:
+                    n_, mx_, sl_ = ms[-1]      # 累计值 ⇒ 取最后一条
+                    rows.append((f.name, int(n_), float(mx_), int(sl_)))
+            if rows:
+                worst = max(rows, key=lambda r: r[2])
+                print(f"  ⏱️ 单决策耗时（本 tag 归档 {len(rows)} 个 AI 日志）: dec_max 最大 = {worst[2]}s"
+                      f"（{worst[0]}）, dec_slow 合计 = {sum(r[3] for r in rows)}"
+                      f", 阈值 AZAI_SLOW_DECISION_SEC 默认 20s / bridge 读超时 MVS_TIMEOUT_SECONDS 默认 300s", flush=True)
+        else:
+            print("  ⏱️ 单决策耗时：本 tag 无 stderr 归档（归档功能 2026-10-06 才加；"
+                  "只对之后跑的批次有效）", flush=True)
+    except Exception:  # noqa: BLE001
+        pass
+
     # ---------- 配对分（主统计量）----------
     per_seed: dict[int, list[dict]] = collections.defaultdict(list)
     for t in valid:

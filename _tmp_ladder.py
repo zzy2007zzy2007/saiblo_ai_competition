@@ -66,8 +66,38 @@ def parse_cli(argv: list[str]) -> tuple[dict, list[str]]:
     return cfg, toks
 
 
+def _archive_stderr(log_path: Path, token: str, labels: tuple[str, ...] = ()) -> None:
+    """把该局两个 AI 的 stderr 复制进 `<tag>/stderr/`。
+
+    动机（2026-10-06）：`match_results/ai{side}_{label}_seed{seed}.stderr.log` **不按 tag 分目录**，
+    跨批跑同一个 seed 会**互相覆盖** ⇒ 事后无法复核"那一局到底慢在哪、有没有原生栈"。
+    ⚠️ 只复制、不移动/不删除原文件 ⇒ 不改变既有工具的行为。
+    """
+    try:
+        import shutil
+        base = re.sub(r"r$", "", token)          # 镜像 token 11r → seed 11
+        dst = log_path.parent / "stderr"
+        dst.mkdir(parents=True, exist_ok=True)
+        n = 0
+        pats = ([f"ai?_*_seed{base}.stderr.log"] if not labels
+                else [f"ai?_*_seed{base}.stderr.log"])
+        for pat in pats:
+            for src in sorted(LOG_ROOT.parent.glob(pat)):
+                # 只归档本局实际用的两个 AI 的日志（否则会把同 seed 下别的臂的旧日志也卷进来，
+                # 污染 dec_max 汇总 —— 2026-10-06）
+                if labels and not any(lbl in src.name for lbl in labels):
+                    continue
+                shutil.copy2(src, dst / src.name)
+                n += 1
+        if n == 0:
+            print(f"[ladder] ⚠️ stderr 归档：seed {base} 没找到 ai?_*_seed{base}.stderr.log", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        # ⚠️ 不静默：第一版这里 `pass`，结果把「常量名写错」吞了整整一轮（2026-10-06）
+        print(f"[ladder] ⚠️ stderr 归档失败（不影响对局）: {type(exc).__name__}: {exc}", flush=True)
+
+
 def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore,
-            results: dict, lock: threading.Lock) -> None:
+            results: dict, lock: threading.Lock, labels: tuple[str, ...] = ()) -> None:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     cmd = [sys.executable, "-u", "code/test_match/match_via_sdk.py", "--trace-ops", *fwd, token]
@@ -79,9 +109,12 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                 p = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env,
                                    cwd=str(REPO), timeout=TIMEOUT)
             rc = p.returncode
+            _archive_stderr(log_path, token, labels)
         except subprocess.TimeoutExpired:
             rc = -2
+            _archive_stderr(log_path, token, labels)
         except Exception as exc:  # noqa: BLE001
+            _archive_stderr(log_path, token, labels)
             rc = -3
             print(f"[{token}] EXC {type(exc).__name__}: {exc}", flush=True)
         dt = time.time() - t0
@@ -141,6 +174,7 @@ def main() -> int:
     if cfg["ai1"]:
         fwd.append(f"--ai1={cfg['ai1']}")
 
+    _labels = tuple(Path(x.split("=", 1)[1]).stem for x in fwd if x.startswith(("--ai0=", "--ai1=")))
     print(f"[ladder] tag={cfg['tag']}  jobs={cfg['jobs']}", flush=True)
     print(f"[ladder] ai0={cfg['ai0']}", flush=True)
     print(f"[ladder] ai1={cfg['ai1']}", flush=True)
@@ -155,7 +189,7 @@ def main() -> int:
         sem = threading.Semaphore(cfg["jobs"])
         t0 = time.time()
         threads = [threading.Thread(target=run_one,
-                                    args=(t, out_dir / f"{t}.log", fwd, sem, results, lock))
+                                    args=(t, out_dir / f"{t}.log", fwd, sem, results, lock, _labels))
                    for t in tokens]
         for t in threads:
             t.start()
