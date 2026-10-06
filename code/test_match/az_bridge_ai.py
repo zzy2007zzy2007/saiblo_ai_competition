@@ -454,6 +454,18 @@ def main() -> int:
                 _log(f"🧪 储备门槛: round={STATS['rounds']} 金币={int(facade.coins[player])} < {_lmin:g}"
                      f" ⇒ 去掉闪电（累计 {STATS['light_gated']}）；剩余={len(_kept2)}")
             ops = _kept2
+        # 🧪 诊断（`AZAI_BUILD_MIN_COINS=τ`，预注册 `prereg_20261007_build_gate.md`）：
+        #   **建塔花钱门槛**：金币 < τ 时不建塔（该回合等于 HOLD）⇒ 省下的钱留给闪电（闪电是承重的，见 L180）。
+        #   依据：我方建塔 24.8 vs 对手 16.0；建塔数在**负局更多**（Cliff d = −0.148）；
+        #   两端消融已知：建塔 0 → 0.5312、建塔 35.5 → 0.5156 ⇒ 现状 24.8 未必在峰上。
+        _bmin = float(_env("AZAI_BUILD_MIN_COINS", "0"))
+        if _bmin > 0:
+            _kept3 = [o for o in ops if not (int(o.op_type) == 11 and int(facade.coins[player]) < _bmin)]
+            if len(_kept3) != len(ops):
+                STATS["build_gated"] = int(STATS.get("build_gated", 0)) + (len(ops) - len(_kept3))
+                _log(f"🧪 建塔门槛: round={STATS['rounds']} 金币={int(facade.coins[player])} < {_bmin:g}"
+                     f" ⇒ 去掉建塔（累计 {STATS['build_gated']}）；剩余={len(_kept3)}")
+            ops = _kept3
         return ops
 
     def _apply(pl: int, ops: list) -> None:
