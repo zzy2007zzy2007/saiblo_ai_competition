@@ -6758,3 +6758,31 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   * 内层 rollout 埋点（冒烟批）：`平均推进=8.0 回合`（K 如实执行）、**`空过=1089`（≈55% 的策略调用解不出 op）**
     ⇒ "双向"在实现上有一半时间仍是"安静"（与"类头是常数函数 + 部分类买不起/不合法"一致）。
   * 判读：按预注册 §2 **不晋级**；**不判"有害"**（差 0.0pp）⇒ 记作**"深度方向暂无收益"**，按阶梯继续 **R2（K=32）**。
+
+## 2026-10-06 23:47:00 — R2_bidir32_64
+
+- **commit**: `75e40ea` (dirty: 5 files)
+- **exit**: 0，用时 2396s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=32 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=90 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=R2_bidir32_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261006_234700_R2_bidir32_64/output.log`
+- **result**: 🔴 **R2（K=32 双向）筛选：`p̂ = 0.6562`**（32/32 对；**2-0:13 / 1-1:16 / 0-2:3**；CI [0.5469,0.7656]；
+  无效 0%、判词全 engine；用时 2396 s）⇒ **又一次与 R0 同前缀完全相同（连 13/16/3 的分布都一样）** ⇒ **不晋级**。
+  * 机制：我方建塔 **28.1**（R0 24.9、R1 24.9）、闪电 10.6、**出招 36.2**（R0 32.2）⇒ 行为确实变了；
+    成本 `dec_max = 20.39 s`（R1 17.5 s、安静 3.5 s）。
+  * 🔑 **三条评价器的互比（`cmp_pair_scores.py`，同一 32 对）**：
+
+    | 对比 | `p̂` A | `p̂` B | 差 | **逐对翻转** |
+    |---|---|---|---|---|
+    | 安静 vs R1(K=8) | 0.6562 | 0.6562 | **0.0000** | **22/32 = 69%** |
+    | 安静 vs R2(K=32) | 0.6562 | 0.6562 | **0.0000** | **12/32 = 38%** |
+    | R1(K=8) vs R2(K=32) | 0.6562 | 0.6562 | **0.0000** | **16/32 = 50%** |
+
+    ⇒ **三个不同的"类仲裁评价器"彼此把 38–69% 的对换掉，强度却一模一样**。
+    诚实读法：① 在本设计里，**换类仲裁评价器是"强度中性"的**（不是"更好"，也不是"更坏"）；
+    ② 更可能的解释是**三者都太弱**（内层策略 55% 空过、类头是常数函数、位置排序≈噪声）
+    ⇒ **游戏胜负由别的东西决定**，而不是由"类仲裁用哪个评价器"决定。
+  * **按预注册关闭这条线**：`prereg_20261006_rollout_ladder.md` §1 写明 **R3（全双向）只在"R1/R2 任一 ≥ R0+8pp"时才跑**
+    ⇒ **条件未达成 ⇒ R3 不跑**；rollout 深度阶梯**到此结束**（记录在案，不重开除非有新理由）。
