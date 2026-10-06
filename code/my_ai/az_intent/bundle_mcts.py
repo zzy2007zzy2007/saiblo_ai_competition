@@ -328,6 +328,7 @@ class BundleMCTS:
         mc_every: int = 1,
         mc_no_downgrade: int = 0,
         mc_m4: int = 0,
+        mc_root_only: int = 0,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -364,6 +365,12 @@ class BundleMCTS:
         self.mc_no_downgrade = int(mc_no_downgrade)
         # M6c-M4（预注册 docs/prereg_20261006_mc_menu.md）：菜单显式给出 {HOLD, 闪电(可执行时), 类16, 最优经济类}
         self.mc_m4 = int(mc_m4)
+        # M6c-ROOT（预注册 docs/prereg_20261006_mc_menu.md §2 追加）：
+        # 只在**根节点**做 MC 仲裁（部署时真正要做的那个决策），搜索树内部交回原采样。
+        # 动机：`_expand` 在 256 次迭代里对**每个叶节点**都会调用 ⇒ 现状每局 ~780 次 MC（成本高、
+        # 且连对手节点也被 MC 仲裁）；root-only 为 1 次/搜索。
+        self.mc_root_only = int(mc_root_only)
+        self._mc_root = None
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
         self.mc_fallback = 0
@@ -487,7 +494,9 @@ class BundleMCTS:
                 _rnd = int(getattr(node.state, "round_index", 0))
                 # ⚠️ 成本：只算**一次** MC（三个 head 钉同一个类——与 argmax 下的既有一致性相同），
                 # 并用 `mc_every` 门控（实测：每回合 × 3 heads × 512 回合 rollout ⇒ ~20 min/局）。
-                if self.mc_every > 0 and (_rnd % int(self.mc_every) == 0):
+                _is_root = (self._mc_root is not None and node is self._mc_root)
+                if (self.mc_every > 0 and (_rnd % int(self.mc_every) == 0)
+                        and (not self.mc_root_only or _is_root)):
                     _cands = [23]
                     if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
                            node.state, node.player, 17) is not None:
@@ -684,6 +693,7 @@ class BundleMCTS:
         max_levels = self.max_depth_rounds * 2
         root = BundleNode(state=state.clone(), player=player)
         self.last_root = root
+        self._mc_root = root
         self._expand(root, self.k)
 
         # Forced-move shortcut (see docs/az_forced_move_skip_plan.md), OPT-IN: with a
