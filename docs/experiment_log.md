@@ -6786,3 +6786,49 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     ⇒ **游戏胜负由别的东西决定**，而不是由"类仲裁用哪个评价器"决定。
   * **按预注册关闭这条线**：`prereg_20261006_rollout_ladder.md` §1 写明 **R3（全双向）只在"R1/R2 任一 ≥ R0+8pp"时才跑**
     ⇒ **条件未达成 ⇒ R3 不跑**；rollout 深度阶梯**到此结束**（记录在案，不重开除非有新理由）。
+
+## 2026-10-07 00:28:15 — P_P-A1_64
+
+- **commit**: `0e5e865` (dirty: 5 files)
+- **exit**: 0，用时 1467s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_A1_km1_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P_P-A1_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_002815_P_P-A1_64/output.log`
+- **result**: 🟡 **P-A1（位置网 = `A1_km1_m32`，**非闪电通道随机初始化** ≈ "没有位置先验"）：`p̂ = 0.6719`**
+  （32/32 对；**2-0:14 / 1-1:15 / 0-2:3**；CI [0.5625,0.7812]；无效 0%、判词全 engine；用时 1402 s）
+  ⇒ **比 P-A（现用 `A_k5_m32`，同前缀 0.6562）高 +1.6pp**，**远低于 +8pp 晋级线** ⇒ 不晋级。
+  * 机制：建塔 26.4（P-A 24.8）、闪电 10.4（10.5）、出招 34.0（32.2）⇒ 行为有小差异；
+  * **逐对翻转 18/32 = 56%** ⇒ 与 rollout 阶梯同一签名：**换掉一半多决策，分数不动**。
+  * **预注册 P1 命中**（"近似无先验与现用先验差 ≤±3pp ⇒ 位置先验质量不是当前瓶颈"）。
+
+## 2026-10-07 00:52:43 — P_P-B_64
+
+- **commit**: `0e5e865` (dirty: 6 files)
+- **exit**: 0，用时 1491s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=checkpoints/posnet_B_km1.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P_P-B_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_005243_P_P-B_64/output.log`
+- **result**: 🟡 **P-B（位置网 = `B_km1`）：`p̂ = 0.6406`**（32/32 对；**2-0:12 / 1-1:17 / 0-2:3**；
+  CI [0.5312,0.7500]；无效 0%、判词全 engine；用时 1491 s）⇒ 比 P-A **低 −1.6pp** ⇒ 不晋级。
+  * 机制：建塔 26.5、闪电 10.3、出招 33.7；**逐对翻转 17/32 = 53%**。
+- **三臂汇总（同一 32 对，`7..38`）**：
+
+  | 臂 | 位置网 | `p̂` | 2-0/1-1/0-2 | 与 P-A 逐对翻转 |
+  |---|---|---|---|---|
+  | **P-A** | `A_k5_m32`（现用；多类记录）| `0.6562` | 13/16/3 | — |
+  | **P-A1** | `A1_km1_m32`（**非闪电通道随机初始化**）| **`0.6719`** | 14/15/3 | **56%** |
+  | **P-B** | `B_km1`（另一条多类记录）| `0.6406` | 12/17/3 | **53%** |
+
+  ⇒ **三臂极差只有 3.1pp（±1.6pp），全部远低于 +8pp 晋级线**；而彼此翻转 53–56% 的决策。
+- **判读（写清，供以后不再重复试）**：
+  1. **位置先验的"质量"不是当前瓶颈**——把非闪电通道换回**随机初始化**（A1）分数**没有变差**（甚至 +1.6pp，不显著）
+     ⇒ 与 2026-10-06 的格子级诊断一致（经济类上先验 top-1 只落在结果代理的 **39%** 百分位）；
+  2. **与 rollout 深度线同一签名**：**换组件换掉一半决策、强度一动不动**
+     ⇒ 两条独立轴互相印证：**当前"决策层噪声 ≫ 组件间信号"**；
+  3. ⇒ 想拿 +20pp，**不该再在这两个组件上打转**（类仲裁评价器、位置网权重），
+     而要动**能改变决策分布的东西**（例如闭环重训：用现在"真的会建塔"的分布去重训先验/价值头）
+     或**改决策结构本身**。**这条线（换位置网权重）按预注册转冷**，重开需新理由。
