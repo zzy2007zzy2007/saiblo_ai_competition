@@ -6271,3 +6271,39 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
      **"闪电的时机"在 MC 里被大量触及**（我上一条"闪电只占 1.8%"的说法要修正为：**闪电候选出现的局面少，但一旦出现就被大量选中**）。
 - **⇒ 设计含义**：菜单里"给谁候选位"决定 MC 能把哪一类条件学出来（`{23,16}` vs `{23,0}` 的行为差异 30% vs 42%），
   这与 `M6b-ND` 的 −23pp 一致 ⇒ **菜单必须按数据设计、且每次都要 128 局验收**。
+
+## 2026-10-06 10:38:32 — A1_head_128
+
+- **commit**: `32b7317` (dirty: 6 files)
+- **exit**: 0，用时 2886s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=0 AZAI_MC_HORIZON=256 AZAI_MENU3=0 AZAI_MODE=pos-only AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_REL2ABS=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=A1_head_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_103832_A1_head_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 10:42:51 — M6cM4_128
+
+- **commit**: `ac8b6fc` (dirty: 6 files)
+- **exit**: 0，用时 4842s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=M6cM4_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261006_104251_M6cM4_128/output.log`
+- **result**: _待填_
+
+## 2026-10-06 12:1x — ⚠️ M6c-M4 是"假臂"（逐局 128/128 与 M6b 相同）⇒ 实为同配置重复实验
+
+- **读数**：`M6cM4_128` = **`p̂ = 0.6641`**（64/64 对；**2-0:29 / 1-1:27 / 0-2:8**）、机制 建塔 31.1 / 闪电 10.7 / 出招 43.2
+  —— 与 `M6b_mcq_128` **逐项相同**；`cmp_runs.py` 复核：**逐局相同 128 / 不同 0**。
+- **env 已核对**：`AZAI_MC_M4=1` 确实生效（`env.txt` 可见）。
+- **原因（我自己的守卫写错了）**：M4 补丁是
+  `if mc_m4 and 16 可解码: _cands.append(16)`，**但紧跟其后**是 `if _economy is not None and _economy != 16: _cands.append(_economy)`。
+  而在这些局面里"类 16 可解码"恰好等价于"**16 就是 `_economy`**"（因为 `_economy` 是按 `action_map` 在 0..16 里 argmax 选的）
+  ⇒ 显式加的 16 与 `_economy` 是同一个类、又被 `!= 16` 挡掉 ⇒ **候选集合与 M6b 完全一致** ⇒ 行为零差异。
+- **⇒ 该臂的真实价值 = 一次同配置重复实验**：**逐局 128/128 复现** M6b 的 0.6641
+  ⇒ 再次印证流程确定性 + 0.6641 稳定。
+- **⇒ 教训（记档）**：设计"加候选"的臂时，必须**保证新候选与旧候选不同**（否则就是空操作）；
+  正确做法是显式取 **top-2 经济类**（而不是"16 + 最优经济类"）。
