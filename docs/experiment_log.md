@@ -7052,3 +7052,24 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
     所以**加密只是放大噪声**（建塔 35.5 座仍输）；③ 与上一轮"抑制 40% 接管 +1.6pp（不显著）"合起来：
     **频率这条轴在现状附近是平的（略偏正）**，但**两端都显著更差**。
   * **附带**：`dec_max` 随密度**超线性增长**（3.5 → 49.9 s）⇒ 任何"加密"方案都要先过成本闸门。
+
+## 2026-10-07 05:14:28 — V_r5val_64
+
+- **commit**: `1403ee2` (dirty: 8 files)
+- **exit**: 0，用时 1560s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_R5_val.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=V_r5val_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_051428_V_r5val_64/output.log`
+- **result**: 🟡 **价值头筛选（新分布重训后）：`p̂ = 0.6406`（−1.6pp；13/15/4；CI [0.5156,0.7500]；无效 0%；1560 s）**
+  ⇒ 按预注册判据（`0.6062 < p̂ < 0.7362`）**方向不明 ⇒ 记档、不结论、不晋级**。
+  * **前置门槛 P0 是过的**：同一 20 局留出 split 上 **val MSE 0.10145 → 0.09763（−3.8%）**、r 0.576→0.597
+    ⇒ **价值头确实"更准"了**（不是没生效）。
+  * **机制读数几乎不动**：建塔 25.0（对照 24.8）、闪电 10.5（10.5）、出招 32.4（32.2）⇒
+    价值头只影响搜索的叶评价，**行为分布基本不变**（符合预期）。
+  * 🔑 **判读**：**"离线更准"没有换来棋力**（−1.6pp 在噪声内）⇒ 又一条**代理指标与棋力脱钩**的实例
+    （项目史上第 N 条：此前 rel 标签 MSE/命中率也有过同类现象）。
+    含义：**价值头在这条分布上的精度不是当前瓶颈**——要么它的误差对**选点**不敏感，
+    要么搜索本来就没在"用"它的细微分（与"位置排序≈噪声、平局占 24%"的结论一致）。
+  * ⚠️ 单变量已核（只有 `value_state` 变）；64 局只能排除 >~12pp ⇒ 这条**不能被读成"有害"**。
