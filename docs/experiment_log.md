@@ -7347,3 +7347,44 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ⇒ 预注册 `docs/prereg_20261011_search_up.md`（K48/ITERS512 = 4×、K96/ITERS1024 = 16×）已开跑。
 - 附注：`K1` 的搜索成本几乎为 0（`dec_max` 0.14 s）⇒ **我们的 3.5–17 s/决策里，绝大部分是搜索**，
   而它现在被证明是**有效劳动**（不是浪费）。
+
+## 2026-10-07 11:29:28 — S_k48_64
+
+- **commit**: `3b4df64` (dirty: 12 files)
+- **exit**: 0，用时 4995s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=512 AZAI_K=48 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S_k48_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_112928_S_k48_64/output.log`
+- **result**: _待填_
+
+## 2026-10-07 12:52:45 — S_k96_64
+
+- **commit**: `c051ec5` (dirty: 12 files)
+- **exit**: -1，用时 12530s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1024 AZAI_K=96 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S_k96_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_125245_S_k96_64/output.log`
+- **result**: _待填_
+
+### 5. 🔑🔑 **K48（4× 搜索）：`p̂ = 0.7667`（+11.1pp）—— 12 轮里第一次过晋级线！**（2026-10-11/12 第 11–12 轮）
+
+预注册 `docs/prereg_20261011_search_up.md`（臂 = 沿"搜索量单调"曲线向上延伸）。
+
+| 项 | 值 |
+|---|---|
+| 配对胜率 | **`0.7667`**（完整 30/32 对：18/10/2；对照 = `0.6562`）| 
+| 晋级线 | `0.7362` ⇒ **过线 ✓**（按预注册只算"**候选**"，不算数）|
+| 有效性 | 期望 64 局 / 有日志 64 / **无效 3（超时局 `37r/38/38r`）**/ 有效 61；**无效+缺失 4.7% ≤ 10% ⇒ 通过**；判词全 engine |
+| 机制（位置级，新读数）| **落点一致率 = 0.154**（对照 vs K48，逐操作对齐 1287 个）⇒ **85% 的操作落在不同格子** ✓ |
+| 机制（op 直方图）| **几乎不变**（建塔 24.5、闪电 10.7、出招 32.0）⇒ **再次印证 op 直方图看不见位置** |
+| 代价 | `dec_max` **52.98 s**（16 次慢决策）；单局 ~15–20 min（8 并行）⇒ 64 局花了 ~5 h |
+
+- ⚠️ **按预注册必须先在"未见样本"确认**（第 9 轮教训）：**S1 = `39..70`（对照 0.8125）**先跑，
+  再 **S2 = 冻结随机段（对照 0.7031）**；**两个都为正且合并 ≥ +3pp 才算方向可信**。
+- **K96（16×）已停**：确认优先（且 K96 的成本会到 ~15–20 h/64 局）。
+- 📌 **"K4 也是落点大变（0.111）却 −25pp"** ⇒ 说明**"机制激活"是必要条件、不是充分条件**；
+  这条与"K48 同样落点大变却 +11pp"合起来说明：**方向（加/减搜索）比"变没变"更关键**。
