@@ -19,11 +19,23 @@
 
 ## 1. 做法（四步，全部现成工具）
 
+### 1.1 ⚠️ 两处修正（**在任何训练/评估读数之前**；理由见下）
+
+| 项 | 原写 | 修正为 | 理由 |
+|---|---|---|---|
+| **探索强度** | `--class-pin-random-prob 0.3` | **`0.08`** | **实测：30% 随机类让对局严重退化/拖长**（8 workers 跑 **25 min 一局都没结束**；正常 K=24 是 ~1.6 局/min）⇒ 数据会来自一个**很差的策略** |
+| **优势（advantage）** | `value_target`（**每局常数**）| **`adv = R − V(s)`（价值基线）** | 复查寄存器发现：**"行为克隆/AWR 练类头"这条线已判死**（行 `🔴 行为克隆线判死`：`power=0.5` ⇒ **不花钱、行为=A1、`p̂=0.5000`**）。**每局常数的 advantage ⇒ 权重在同局内没有对比** ⇒ 本质就是那条死线。改成**REINFORCE 价值基线**后，同局内才有对比信号（这才是策略梯度） |
+
+- 实现：`code/test_match/add_value_baseline.py`（用**现用价值网**给每条样本算 `V(s)`，写 `adv = value_target − V`）；
+  `train_class_outcome.py` 已改成**优先用 `adv`**（没有才退回 `value_target`）。
+- ⚠️ 若 `adv` 的 **|adv|>0.05 的比例过低**（即价值基线几乎解释了结果）⇒ 说明**信号本身很弱**，届时按 P1 直接记档关闭。
+
 1. **探索采集**：`az_selfplay`（**部署配置** `mc_quiet/EVERY=5/ROOTONLY=1`、K=24/ITERS=256）
-   + **`--class-pin-random-prob 0.3`**（30% 回合**随机钉一个合法类**）⇒ **80 局**
+   + **`--class-pin-random-prob 0.08`**（8% 回合**随机钉一个合法类**）⇒ **60 局**
    （种子 `80,010,000+`，**与判据 seed 不重叠**，章程③）。产出 pkl（含 `value_target` = 该局终局 HP 差、clip ±1）。
-2. **打标签**：`ingest_selfplay_classes.py --label pinned`（探索模式下"被钉的类"就是**实际执行的类**）。
-3. **AWR 训练**：`train_class_outcome.py --beta <β> --class-weight-power 0.5`（`w ∝ exp(a/β)`，`a` = 该局结果）
+2. **打标签**：`ingest_selfplay_classes.py --label pinned`（探索模式下"被钉的类"就是**实际执行的类**），
+   再用 `add_value_baseline.py` 加 `adv = R − V(s)`。
+3. **AWR/REINFORCE 训练**：`train_class_outcome.py --beta <β> --class-weight-power 0.5`（`w ∝ exp(adv/β)`）
    ⇒ **只产出 `class_state`**（历史已验证它只改类头；本轮仍要逐张量核对）。
 4. **判据尺度评估**：**部署回到原配置**（`AZAI_CLASSPIN_RANDOM=0`，即 `M6c-ROOT` 原样；只有 ckpt 的 `class_state` 不同）
    ⇒ 跑**固定段 128 局 + 随机段 128 局**（对照 = `M6cROOT_128` / `M6cROOT_rand128`）。

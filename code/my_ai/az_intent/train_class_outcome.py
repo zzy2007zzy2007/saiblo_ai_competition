@@ -1,4 +1,4 @@
-﻿"""候选 R：**用对局结果训练类头**（AWR —— 结果加权的行为克隆）。
+"""候选 R：**用对局结果训练类头**（AWR —— 结果加权的行为克隆）。
 
 计划：`docs/class_head_outcome_plan.md`。动机：实测类头是**常数函数**
 （各类 logit 跨局面标准差中位 0.024、top1−top2 恒为 0.21 ⇒ 它根本不看局面），
@@ -89,7 +89,12 @@ def main() -> int:
     stats = np.stack([np.asarray(r["stats"], dtype=np.float16) for r in rows])
     chosen = np.stack([np.asarray(r["chosen_cls"], dtype=np.int64) for r in rows])      # (N,3)
     cmask = np.stack([np.asarray(r["class_mask"], dtype=bool) for r in rows])           # (N,24)
-    adv = np.asarray([float(r["value_target"]) for r in rows], dtype=np.float32)        # (N,)
+    # 优势来源：优先用样本里的 `adv`（= R − V(s)，REINFORCE 价值基线，见
+    # `docs/plan_20261015_explore_awr_class.md` §1.1 修正）；没有则退回 `value_target`（每局常数，旧 AWR 行为）。
+    _has_adv = any("adv" in r for r in rows)
+    adv = np.asarray([float(r["adv"]) if "adv" in r else float(r["value_target"]) for r in rows],
+                     dtype=np.float32)                                                   # (N,)
+    print(f"[data] 优势来源 = {'adv(R−V 基线)' if _has_adv else 'value_target(每局常数)'}")
     print(f"[data] {len(rows)} 条；chosen 有效 head 数 = {(chosen != 255).sum()}；"
           f"优势均值 {adv.mean():+.3f}（>0 的比例 {(adv > 0).mean():.1%}）；"
           f"类掩码平均可选类数 {cmask.sum(axis=1).mean():.1f}", flush=True)
