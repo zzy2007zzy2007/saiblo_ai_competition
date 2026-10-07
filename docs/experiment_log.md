@@ -7510,3 +7510,48 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   要么是 pin（平凡），要么是 MC 的 rollout（不是网络输出）。
 - ⇒ **"学习式类策略"这条线就此结构性关闭**（除非改部署模式：让类**由网络决定**而不是被 pin，
   那属于"换架构"级别的大改）。
+
+## 2026-10-07 19:32:51 — collect_explore_80
+
+- **commit**: `89a2ac6` (dirty: 11 files)
+- **exit**: -1，用时 1186s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint checkpoints/posnet_A_k5_m32.pt --games 80 --workers 8 --seed 8001 --iterations 256 --max-depth-rounds 4 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --pos-pin mc_quiet --mc-horizon 256 --mc-every 5 --mc-root-only 1 --class-pin-random-prob 0.3 --native-engine --out-dir training_history/vprior/data_explore_80
+  ```
+- **output**: `training_history/runs/20261007_193251_collect_explore_80/output.log`
+- **result**: _待填_
+
+## 2026-10-07 19:53:16 — collect_explore_60
+
+- **commit**: `06281f7` (dirty: 12 files)
+- **exit**: -1，用时 2917s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint checkpoints/posnet_A_k5_m32.pt --games 60 --workers 8 --seed 8001 --iterations 256 --max-depth-rounds 4 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --pos-pin mc_quiet --mc-horizon 256 --mc-every 5 --mc-root-only 1 --class-pin-random-prob 0.08 --native-engine --out-dir training_history/vprior/data_explore_60
+  ```
+- **output**: `training_history/runs/20261007_195316_collect_explore_60/output.log`
+- **result**: _待填_
+
+### 10. 第 15 轮：**探索 + REINFORCE（价值基线）练类头 —— 早期 P1 不过 ⇒ 关闭；并给出量化原因**
+
+计划/预注册 `docs/plan_20261015_explore_awr_class.md`（跑前做过两处修正：探索 30%→**8%**；
+优势由"每局常数 `value_target`"（=寄存器里**已判死的 BC/AWR 线**）改为 **`adv = R − V(s)` 价值基线**）。
+
+**早期读数（17 局、13,802 样本；用于机制诊断，不是判决）**：
+- 价值基线**有真信号**：`adv` 均值 −0.019、**std 0.417**、`|adv|>0.05` 占 **93.1%** ✓
+  （说明"结果 − 价值"确实在同局内产生对比，而不是常数）。
+- AWR/REINFORCE 训练 10 epoch：loss **6.02 → 5.23**（在学）
+  但 **跨局面 logit std 始终 ≈ 0.024**（常数类头基准 0.02）⇒ **头学成了常数**（与第 5 轮 29 局的 0.023 完全一致）。
+- ⇒ 按预注册 **P1（部署决策必须真的变）不过 ⇒ 不作结论、关闭该轴**（不追加数据）。
+
+🔑 **量化原因（本轮最有价值的产出）**：
+1. **信用分配是 1/1000**：一局 ~**1000 个决策**、只有**一个标量结果**；REINFORCE 的权重 `R − V(s)` **与动作无关**
+   ⇒ 梯度信噪比 ≈ 1/1000 ⇒ 学到的只有**边际分布**（= "买得起就闪电、否则 HOLD" 这条规则）。
+2. **探索本身毁掉可学信号**：随机钉的类**与状态无关** ⇒ 那 8% 样本的目标是**纯噪声**；
+   而 92% 非探索样本又把现状（pin）reinforce 一遍 ⇒ 两头都学不到"类偏好"。
+3. ⇒ **要在这条轴上学习，必须要有"动作条件化 + 同状态内"的信用**（`Q(s,a)`，或一个能比较类的搜索）。
+   而这三条路**都已试过并失败**：**M2（Q 头：混淆）**、**M3b（类探索：识别性闸门差一点）**、
+   **MC 的 rollout（判断≈噪声，且加密 −14pp、稀疏也不行）**。
+4. ⇒ **"学一个更好的类策略"这条线，至此在"参数化 / 信号 / 信用分配"三个层面都被证明不可行**
+   （除非重建整条流水线：动作条件化 critic + 低方差 actor-critic，属于"另起一条流水线"级别的大改）。
