@@ -7555,3 +7555,32 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
    **MC 的 rollout（判断≈噪声，且加密 −14pp、稀疏也不行）**。
 4. ⇒ **"学一个更好的类策略"这条线，至此在"参数化 / 信号 / 信用分配"三个层面都被证明不可行**
    （除非重建整条流水线：动作条件化 critic + 低方差 actor-critic，属于"另起一条流水线"级别的大改）。
+
+## 2026-10-07 20:44:04 — REPRO_m6c_128
+
+- **commit**: `c5514f8` (dirty: 11 files)
+- **exit**: 0，用时 2773s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=20 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=REPRO_m6c_128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261007_204404_REPRO_m6c_128/output.log`
+- **result**: _待填_
+
+### 11. 第 16 轮：**零漂移回归（复现头部读数）+ "大改也不可行"的量化论证**
+
+#### 11.1 ✅ 零漂移回归：**128/128 判词完全一致**
+- 做法：用 **`training_history/runs/20261006_120438_M6cROOT_128/cmd.txt` 里逐字相同的 env 与命令**重跑固定段 128 局
+  （tag `REPRO_m6c_128`），并把我这十几轮**新加的所有开关显式置 0**
+  （`MC_BIDIR/UPG/TOPK/MARGIN/CELLS/SCORE/SELFSPEND/LIGHT_MIN_COINS/BUILD_MIN_COINS/FORCE_UPG/NO_DOWNGRADE/PROBE_UPG`）。
+- 结果：`cmp_game_results.py`（新工具，自检同 tag 比自己 128/128 ✓）报
+  **判词完全一致 = 128 / 128 ⇒ 零漂移 ✓**。
+- ⇒ **结论**：十几轮里对 `az_bridge_ai.py` / `bundle_mcts.py` / `mc_quiet.py` 的所有改动，在**全关**状态下
+  **没有改变部署行为** ⇒ **头部读数（固定段 `0.7344`、随机段 `0.7031`）对当前代码状态依然成立**（可复现、可审计）。
+
+#### 11.2 🧱 "大改"（换范式 / 规模 / 从零 RL）也基本封死 —— 量化论证
+1. **没有搜索，我们只值 `0.0938`**（`K=1/ITERS=1` 臂，0/6/26）；现状 **0.6562/0.7344/0.7031**
+   ⇒ **搜索 + MC 这套机器承担 ~+56pp**，而它**不是学出来的，是搜出来的**。
+2. ⇒ **"从零 RL（端到端、不要搜索）"起点 ≈ 0.09**，要在本机算力内补 ~60pp（目标还要到 0.90）⇒ **不可行**。
+3. ⇒ **"规模"补不上**：第 14/15 轮证明缺的是**信用信号**（类头目标退化 / 探索即噪声 / 信用分配 1/1000），不是数据量。
+4. ⇒ 只剩"另一个游戏理解（更好结构 + 海量训练）"——**超出本机算力与本次任务范围**。
