@@ -7304,3 +7304,46 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ⇒ **写进寄存器**：以后凡"训练某组件"的实验，**门必须开在"行为/决策变化"上**，不能开在表示指标上。
 - ⇒ **"闭环蒸馏类头"这条轴关闭**（原因不是"学不出来"，而是**那个头在部署路径里的作用只是 argmax**，
   而 argmax 没变）。**下一个该训的，是"在决策路径里、且能改变决策"的组件**：**位置头**（它决定钉住的类内部选哪个格子）。
+
+## 2026-10-07 10:48:36 — S_k4_64
+
+- **commit**: `036919b` (dirty: 11 files)
+- **exit**: 0，用时 1363s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=4 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S_k4_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_104836_S_k4_64/output.log`
+- **result**: _待填_
+
+## 2026-10-07 11:11:19 — S_k1_64
+
+- **commit**: `036919b` (dirty: 12 files)
+- **exit**: 0，用时 588s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1 AZAI_K=1 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=S_k1_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_111119_S_k1_64/output.log`
+- **result**: _待填_
+
+### 4. 🔑 搜索成本扫：**强度随搜索量单调上升，而旧配置下是反的！**（2026-10-11 第 11 轮）
+
+| 臂 | `K` / `ITERS` | `p̂`（前缀 `7..38`）| 配对 | `dec_max` | 与对照 |
+|---|---|---|---|---|---|
+| **K1** | 1 / 1 | **0.0938** | 0/6/26 | **0.14 s** | **−56.2pp** |
+| **K4** | 4 / 256 | **0.4062** | 6/14/12 | 3.64 s | **−25.0pp** |
+| **对照** | 24 / 256 | **0.6562** | 13/16/3 | 3.5–17 s | —— |
+| （旧读数，**MC 之前**）| 1 / — | 0.6875 | —— | —— | +3.1pp |
+| （旧读数，**MC 之前**）| 48 / — | 0.5000 | —— | —— | −15.6pp |
+
+- 🔑 **在当前配置下，搜索量是"承重能力"，且单调**（0.094 → 0.406 → 0.656）；
+  **旧配置下结论相反**（K=1 最好）⇒ **典型的"机制依赖的结论翻转"**：
+  旧配置里**"选类"也由搜索做**，而今**类被 MC 钉住、搜索只剩"类内选格子"——恰恰是承重的那件事**。
+- ⚠️ **方法论（新教训，第 4 条脱钩）**：**`op 直方图` 看不见"位置"变化** ——
+  **K4 的 op 分布与对照几乎一样**（建塔 24.0 vs 24.8、闪电 10.3 vs 10.5、出招 32.6 vs 32.2），**分数却 −25pp**
+  ⇒ 凡是"改位置/搜索"的臂，**机制读数必须包含位置量**（闪电落点距离、塔的格子分布），否则会误判"机制没激活"。
+- ⇒ **推论（立刻做）**：现状 `K=24/ITERS=256` 是**在一条上升曲线上随手停下的点**，**从未向上扫过**
+  ⇒ 预注册 `docs/prereg_20261011_search_up.md`（K48/ITERS512 = 4×、K96/ITERS1024 = 16×）已开跑。
+- 附注：`K1` 的搜索成本几乎为 0（`dec_max` 0.14 s）⇒ **我们的 3.5–17 s/决策里，绝大部分是搜索**，
+  而它现在被证明是**有效劳动**（不是浪费）。
