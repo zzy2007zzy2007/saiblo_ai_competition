@@ -7194,3 +7194,47 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
 ⇒ **教训（第三次同类）**：**"干预是否生效"必须用下游可观测量验证**（这里是 `encode_stats` 的变化），
 不能只看"我改的那个变量读回来对不对"。
+
+## 2026-10-07 07:54:45 — CF_gate_S1
+
+- **commit**: `7d518fb` (dirty: 10 files)
+- **exit**: 0，用时 1498s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=90 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=CF_gate_S1 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261007_075445_CF_gate_S1/output.log`
+- **result**: _待填_
+
+## 2026-10-07 08:19:44 — CF_gate_S2
+
+- **commit**: `7d518fb` (dirty: 11 files)
+- **exit**: 0，用时 2995s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=90 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=CF_gate_S2 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 1000 1000r 1091 1091r 1188 1188r 1479 1479r 1526 1526r 1621 1621r 1630 1630r 1660 1660r 1662 1662r 1982 1982r 2031 2031r 2316 2316r 2332 2332r 2407 2407r 2598 2598r 2600 2600r 2765 2765r 2908 2908r 2918 2918r 3017 3017r 3098 3098r 3199 3199r 3604 3604r 3678 3678r 3721 3721r 3778 3778r 3992 3992r 4229 4229r 4431 4431r 4475 4475r 4567 4567r 4717 4717r 4734 4734r 4820 4820r 4855 4855r 5004 5004r 5216 5216r 5473 5473r 5695 5695r 5729 5729r 5806 5806r 6054 6054r 6420 6420r 6755 6755r 6846 6846r 7038 7038r 7343 7343r 7730 7730r 7992 7992r 7993 7993r 8145 8145r 8500 8500r 8564 8564r 8936 8936r 9106 9106r 9125 9125r 9128 9128r 9169 9169r 9352 9352r 9358 9358r 9577 9577r 9597 9597r 9693 9693r 9927 9927r
+  ```
+- **output**: `training_history/runs/20261007_081944_CF_gate_S2/output.log`
+- **result**: _待填_
+
+## 2026-10-09 第 9 轮：**第 7 轮的"正信号"是 fluke —— 在 192 局未见样本上是 −8.9pp**
+
+预注册 `docs/prereg_20261009_buildgate_confirm.md`（明确披露"已知 64 局前缀读数"；**全部样本都在那批之外**）。
+
+| 子样本 | 段 | 局数 | 对照 `p̂` | 门槛 `p̂` | 差 | 机制（建塔/局）|
+|---|---|---|---|---|---|---|
+| **S1** | 固定段**后半** `39..70` | 64 | **0.8125**（21/10/1）| **0.6250**（15/10/7）| **−18.8pp** | 17.3（对照 ~24.8）|
+| **S2** | **冻结随机段** | 128 | **0.7031** | **0.6641**（29/27/8）| **−3.9pp** | 17.2 |
+| **合计** | —— | **192** | **0.7396**（142/192）| **0.6510**（125/192）| **−8.9pp** | —— |
+
+- 配对层面：S1 **21/32 对翻转**、S2 **42/64 对翻转** ⇒ 不是少数局在拉动。
+- **机制全程激活**（建塔 24.8 → 17.2~17.3）⇒ **不是"没生效"**，而是**方向是错的**。
+- ⇒ 按预注册判定（"一正一负 ⇒ 噪声；合并 ≤ −3pp ⇒ 有害"）：**执行"有害 ⇒ 该轴关闭"**。
+
+### 🔑 方法论教训（比本条结果更重要，写进寄存器）
+1. **64 局前缀读数可以符号翻转**：同一个干预在 `7..38` 上是 **+4.7pp**、在 `39..70` 上是 **−18.8pp**。
+2. **前缀不是全段的代表**：**对照自己**在两半上差 **15.6pp**（`0.6562` vs `0.8125`；全段 `0.7344`，
+   随机段 `0.7031`）⇒ 前缀是**偏难**的那一半。
+3. ⇒ **规则（写给后续轮次）**：**任何"快读数为正"的结论，在未见样本上确认之前都不算数**；
+   而且"确认"必须预先写清用哪些**未见**样本（本轮的 S1 后半 + S2 随机段就是这么定的）。
+   （阴性读数受影响较小：它们本来就是"没看到效应"。）
