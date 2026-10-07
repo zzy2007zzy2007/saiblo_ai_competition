@@ -1,8 +1,9 @@
-# _tmp_search_cost.ps1 —— 预注册 `docs/prereg_20261011_search_cost.md`
-#   臂 K4（K=4/ITERS=256）与 K1（K=1/ITERS=1，几乎不搜索），各 64 局（固定段前缀 7..38）
-#   对照 = M6cROOT_128 同前缀 0.6562。判据：机制（决策必须变）在先，正读数须在未见样本确认。
+﻿# _tmp_search_up.ps1 —— 预注册 `docs/prereg_20261011_search_up.md`
+#   K48（K=48/ITERS=512，4× 搜索）与 K96（K=96/ITERS=1024，16×），各 64 局（固定段前缀 7..38）
+#   对照 = M6cROOT_128 同前缀 0.6562（K=24/ITERS=256）
+#   ⚠️ 路径从 $PSScriptRoot 推导（本仓库路径含中文，硬编码会被编码问题弄坏）
 param(
-    [string]$Repo = 'D:/2026智能体大赛_新2',
+    [string]$Repo = $PSScriptRoot,
     [string]$Py = 'D:/anaconda3/envs/pytorch-gpu/python.exe'
 )
 Set-Location $Repo
@@ -21,7 +22,7 @@ function Run-Arm([string]$Name, [string]$K, [string]$Iters) {
     $env:AZAI_LIGHT_MIN_COINS = '0'; $env:AZAI_BUILD_MIN_COINS = '0'
     $env:AZAI_FORCE_UPG = '0'; $env:AZAI_NO_DOWNGRADE = '0'; $env:AZAI_PROBE_UPG = '0'
     $env:AZAI_SLOW_DECISION_SEC = '30'
-    Write-Host "[$Name] K=$K ITERS=$Iters 开始 $(Get-Date -Format 'HH:mm:ss')"
+    Write-Host "[$Name] K=$K ITERS=$Iters start $(Get-Date -Format 'HH:mm:ss')"
     & $runner -Name $Name -CommandLine "$Py -u _tmp_ladder.py --tag=$Name --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py $tokens"
     $out = & $Py -u code/test_match/analyze_paired.py --tag=$Name --seeds=7-38 2>&1 | Out-String
     [System.IO.File]::WriteAllText("$Repo/match_results/ladder_logs/$Name/_analysis.txt", $out,
@@ -31,5 +32,4 @@ function Run-Arm([string]$Name, [string]$K, [string]$Iters) {
 
 Run-Arm 'S_k48_64' '48' '512'
 Run-Arm 'S_k96_64' '96' '1024'
-Write-Host "[search-up] 全部完成 $(Get-Date -Format 'HH:mm:ss')"
-
+Write-Host "[search-up] all done $(Get-Date -Format 'HH:mm:ss')"
