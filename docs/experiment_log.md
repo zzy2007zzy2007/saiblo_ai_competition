@@ -7275,3 +7275,32 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - ⇒ **第 5 轮"机制的选择在状态里不可预测"要修正为"29 局下不可预测、156 局下可以"**；
   项目史上"M1 线蒸馏不出东西"很可能同样是**数据量不足**。
 - ⇒ 这也**复活了"闭环蒸馏"这条轴**（预注册 `docs/prereg_20261010_classhead_scale.md`，筛选批 `C156_clshead_64` 在跑）。
+
+## 2026-10-07 10:15:40 — C156_clshead_64
+
+- **commit**: `58ad74e` (dirty: 12 files)
+- **exit**: 0，用时 1859s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/_id156_clshead.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=C156_clshead_64 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261007_101540_C156_clshead_64/output.log`
+- **result**: _待填_
+
+### 3. 规模版类头蒸馏的**筛选结果：0/32 对翻转、分数逐字相同**（轴关闭）
+
+| 臂 | `p̂`（前缀 `7..38`）| 建塔/局 | 闪电/局 | 降级/局 | 逐对翻转 |
+|---|---|---|---|---|---|
+| 对照 `M6cROOT_128` | **0.6562**（13/16/3）| 24.8 | 10.5 | 10.9 | —— |
+| **C156**（156 局蒸馏类头）| **0.6562**（13/16/3）| 23.5 | 10.6 | 10.5 | **0 / 32** |
+
+- 机制**没有**按预期激活（部署决策没变）⇒ 按预注册 §2.1 **不作结论**（但这条 null 本身很有信息）。
+- 🔑 **查明的机理**：`bundle_mcts.py` 只用类头的 **argmax（top-`max_probe`，本配置 =1）** 去定类
+  ⇒ 新类头虽然**跨局面 logit std 从 0.023 升到 0.285**，但**它的 argmax 与旧类头一致**
+  ⇒ **部署策略完全没动** ⇒ 逐对结果相同。
+- ⚠️ **我的判据选错了（第三次"代理指标脱钩"）**：我用"跨局面 **logit std**"当识别性指标，
+  但它测的是**表示的分散度**，不是**决策的变化**。**正确的门应该是"部署决策变了没有"**
+  （例如：换了头之后有多少比例的决策/对局发生变化 —— 本实验实测 = **0%**）。
+  ⇒ **写进寄存器**：以后凡"训练某组件"的实验，**门必须开在"行为/决策变化"上**，不能开在表示指标上。
+- ⇒ **"闭环蒸馏类头"这条轴关闭**（原因不是"学不出来"，而是**那个头在部署路径里的作用只是 argmax**，
+  而 argmax 没变）。**下一个该训的，是"在决策路径里、且能改变决策"的组件**：**位置头**（它决定钉住的类内部选哪个格子）。
