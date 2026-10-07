@@ -7238,3 +7238,40 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 3. ⇒ **规则（写给后续轮次）**：**任何"快读数为正"的结论，在未见样本上确认之前都不算数**；
    而且"确认"必须预先写清用哪些**未见**样本（本轮的 S1 后半 + S2 随机段就是这么定的）。
    （阴性读数受影响较小：它们本来就是"没看到效应"。）
+
+## 2026-10-07 09:16:29 — loop_scale_collect800
+
+- **commit**: `f317cd3` (dirty: 10 files)
+- **exit**: -1，用时 637s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint checkpoints/posnet_A_k5_m32.pt --games 800 --workers 14 --seed 6001 --iterations 256 --max-depth-rounds 4 --k 24 --sample-mult 15 --search-mode pos-only --skip-single-candidate --pos-pin mc_quiet --mc-horizon 256 --mc-every 5 --mc-root-only 1 --native-engine --out-dir training_history/vprior/data_scale_800
+  ```
+- **output**: `training_history/runs/20261007_091629_loop_scale_collect800/output.log`
+- **result**: _待填_
+
+## 2026-10-10 第 10 轮（一）：**回答"GPU vs CPU" + 识别性规模检验（有突破）**
+
+### 1. 用户的判断被实测证实：**自对弈推理本来就是 CPU，GPU 没参与**
+- `nvidia-smi --query-compute-apps` 在自对弈运行时**没有任何 python 进程**；`code/my_ai` 的自对弈推理路径**没有 cuda 代码**。
+- **吞吐实测**：8 局/8 workers = 5 min（**1.61 局/min**）；2 局/2 workers = 1.6 min/局（含启动开销）；
+  14 workers 也只有 1.6 局/min ⇒ **worker 数不 scaling**。
+- **瓶颈不是 NN 推理，而是引擎步进**：`mc_quiet` 的每次仲裁要做 3 个"安静 rollout"、每个最多推 **256 个引擎回合**
+  ⇒ 纯 CPU 的引擎工作是主成本 ⇒ **GPU 批处理也帮不上**。
+- **ladder（AI）侧**：`AZAI_DEVICE=auto` vs `cpu` ⇒ 4 局 **2.8 vs 2.9 min**、`dec_max` **8.44 vs 8.41 s**
+  ⇒ **没有差别**（同样因为瓶颈在引擎步进）。
+- ⇒ **结论**：这个规模用 CPU 是对的（用户经验正确）；**要更快只能靠"更便宜的对局"或更多机器**，不是换成 GPU。
+- 🐛 **顺带发现一个运维坑**：`az_selfplay` 用 `mp.Pool`，**kill 父进程后 14 个子 worker 变成孤儿**继续吃满 CPU
+  （我因此一度误判"14 workers 反而更慢"）⇒ 以后**按命令行模式 kill 全部 worker**（本轮已清理）。
+
+### 2. 🔑 突破：**类头的"识别性失败"是样本量问题**
+| 数据量 | 类头**跨局面 logit std**（常数基准 ≈0.02）|
+|---|---|
+| 29 局（第 5 轮，2.8 万样本）| **0.023** ⇒ 学不成状态依赖 |
+| **156 局（本轮，15.0 万样本 / 45.1 万 head，5.4×）** | **0.285 / 0.289** ⇒ **强状态依赖** |
+
+- 标签分布**没变**（闪电 80.6% / HOLD 16.4% / 建塔 3.0%）⇒ 不是分布变了，是**样本量**。
+- 单变量已核：**只有 `class_state` 变**（`pos_state`/`value_state` 逐张量相同）。
+- ⇒ **第 5 轮"机制的选择在状态里不可预测"要修正为"29 局下不可预测、156 局下可以"**；
+  项目史上"M1 线蒸馏不出东西"很可能同样是**数据量不足**。
+- ⇒ 这也**复活了"闭环蒸馏"这条轴**（预注册 `docs/prereg_20261010_classhead_scale.md`，筛选批 `C156_clshead_64` 在跑）。
