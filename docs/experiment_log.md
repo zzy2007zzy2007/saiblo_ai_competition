@@ -7388,3 +7388,33 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - **K96（16×）已停**：确认优先（且 K96 的成本会到 ~15–20 h/64 局）。
 - 📌 **"K4 也是落点大变（0.111）却 −25pp"** ⇒ 说明**"机制激活"是必要条件、不是充分条件**；
   这条与"K48 同样落点大变却 +11pp"合起来说明：**方向（加/减搜索）比"变没变"更关键**。
+
+## 2026-10-07 16:21:56 — K48_conf_S1
+
+- **commit**: `8982f2d` (dirty: 12 files)
+- **exit**: 0，用时 2720s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=512 AZAI_K=48 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=K48_conf_S1 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261007_162156_K48_conf_S1/output.log`
+- **result**: _待填_
+
+### 6. ❌ **K48 的确认失败（第二次符号翻转）⇒ "加搜索"不成立**（2026-12 第 12 轮）
+
+| 样本 | 局数 | 对照 | K48 | 差 |
+|---|---|---|---|---|
+| 固定段**前缀** `7..38` | 60 有效 | 0.6562 | **0.7667** | **+11.1pp** |
+| **S1 固定段后半 `39..70`（未见）** | 64（无效 0）| **0.8125** | **0.7188** | **−9.4pp** |
+| **固定段全段 `7..70`（合并）** | 124 有效 | 0.7344 | 0.7419 | **+0.75pp（n.s.）** |
+
+- 按预注册判据（**两个未见样本都为正且合并 ≥+3pp** 才算方向）⇒ **S1 已经是负的 ⇒ 撤回**（S2 未跑，判定已定）。
+- ⇒ **搜索成本轴关闭**：K<24 **有害**（K1 −56pp、K4 −25pp，量级大、可信），
+  **K>24 不成立**（前缀的 +11.1pp 是块特异 fluke，未见半段 −9.4pp）。
+- 🔑 **方法论再强化（这已是第 2 次）**：**前缀 `7..38` 上的"正读数"不可作为决策依据**。
+  两次实例：**建塔门槛**（前缀 +4.7 / 未见 −8.9）、**K48**（前缀 +11.1 / 未见 −9.4）。
+  ⇒ **规则（写给后续所有轮次）**：**任何"要采纳"的改动，判决只能来自"全量判据尺度"的测量**
+  （固定段 128 局 + 随机段 128 局，或至少两段各半），**64 局前缀只能用来"排除大负效果"**。
+- 📌 附注（本轮的另一半收获）：**"机制激活"必要但不充分** —— K4 与 K48 的**落点一致率都极低**
+  （0.111 / 0.154，即决策都大变），但一个是 −25pp、一个是全段 +0.75pp
+  ⇒ **不能靠"机制变了"来推"会更好"**。
