@@ -278,6 +278,7 @@ def build_engine(seed: int, player: int):
         mc_score=_env("AZAI_MC_SCORE", ""),
         # 单侧支出：>0 ⇒ rollout 里我方继续出招 K 回合（把候选花掉的钱换成塔 ⇒ 让评分看见代价）
         mc_selfspend=int(_env("AZAI_MC_SELFSPEND", "0")),
+        mc_selfspend_mix=float(_env("AZAI_MC_SELFSPEND_MIX", "1.0")),
         # Phase 0：1 ⇒ 闪电不进 MC 菜单（仍由默认行为放闪电）
         mc_no_light=_env("AZAI_MC_NO_LIGHT", "0") == "1",
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
@@ -520,6 +521,12 @@ def main() -> int:
                         _bi = (f" mc_bidir_n={_BS['n']} 打到终局={_BS['terminal']} "
                                f"平均推进={_BS['steps'] / max(1, _BS['n']):.1f}回合 "
                                f"空过={_BS['noop']}")
+                    from my_ai.az_intent import mc_quiet as _mq
+                    if int(_mq.SPEND_STATS.get("calls", 0)) > 0:
+                        _ss = _mq.SPEND_STATS
+                        _bi += (f" rollout_calls={_ss['calls']} noop={_ss['noop']}"
+                                f"({_ss['noop'] / max(1, _ss['calls']):.0%})"
+                                f" classes={_mq.ROLLOUT_CLASSES}")
                 except Exception:
                     pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
