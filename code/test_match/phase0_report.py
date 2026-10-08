@@ -49,10 +49,20 @@ def one(tag: str) -> dict:
             inval += 1
         elif m.group(4) == "az_bridge_ai":
             wins += 1
-        us = 0 if m.group(2) == "az_bridge_ai" else 1
-        rr = re.search(r"rounds=(\d+)", txt)
-        if rr:
-            tot_rounds.append(int(rr.group(1)))
+        # 2026-10-18: decide OUR side from the token convention (no r -> AI0 is p0,
+        # r -> AI0 is p1), matching analyze_paired. Taking "the first side labelled
+        # az_bridge_ai" silently resolves to p0 for self-mirror tags.
+        us = (0 if m.group(2) == "az_bridge_ai" else 1) if m.group(2) != m.group(3) \
+            else (1 if f.stem.endswith("r") else 0)
+        # 2026-10-18: take rounds ONLY from the RESULT line. Searching the whole file matches
+        # the header's max_rounds=512 first, which silently wrote 512 for every game.
+        for _line in txt.splitlines():
+            _s = _line.strip()
+            if _s.startswith("RESULT "):
+                _rr = re.search(r"rounds=(\d+)", _s)
+                if _rr:
+                    tot_rounds.append(int(_rr.group(1)))
+                break
         for mm in OPLINE.finditer(txt):
             side = int(mm.group(2)[1])
             names = [nm for nm, _ in OPNAME.findall(mm.group(5))]

@@ -47,6 +47,25 @@ def load_ladder():
     return mod
 
 
+
+def _us_won_by_side(g: dict, us_is_p0: bool) -> bool:
+    """Judge our win by SIDE (2026-10-18 fix).
+
+    Prefer `winner_side` (p0/p1, present in the ladder RESULT line). Falls back to label
+    comparison only when the two labels DIFFER; for self-mirror tags (same label both sides)
+    a label comparison marks every game as our win (p-hat = 1.0 artifact), so we abort loudly.
+    """
+    ws = g.get("winner_side")
+    if ws in ("p0", "p1"):
+        return ws == ("p0" if us_is_p0 else "p1")
+    if g.get("p0_label") == g.get("p1_label"):
+        raise SystemExit(
+            "[analyze_paired] both sides share label %r and no winner_side is present; "
+            "cannot judge by side. This is a SELF-MIRROR tag: the paired statistic is "
+            "structurally degenerate (every pair is 1-1). Read the p0/p1 split instead."
+            % (g.get("p0_label"),))
+    return g["winner"] == (g["p0_label"] if us_is_p0 else g["p1_label"])
+
 def parse_seeds(spec: str) -> list[int]:
     """`7-70` / `7,8,9` / `7-9,20` 都支持。"""
     out: list[int] = []
@@ -124,7 +143,14 @@ def main() -> int:
         if not p.is_file():
             missing.append(t)
             continue
-        games[t] = ladder.read_game(p, t)
+        g = ladder.read_game(p, t)
+        # 2026-10-18: store winner_side so wins can be judged by SIDE (see _us_won_by_side).
+        try:
+            _m = re.search(r"winner_side=(\S+)", p.read_text(encoding="utf-8", errors="replace"))
+            g["winner_side"] = _m.group(1) if _m else None
+        except Exception:
+            g["winner_side"] = None
+        games[t] = g
 
     # ---------- §4 有效性门槛 ----------
     invalid: dict[str, str] = {}
@@ -206,7 +232,7 @@ def main() -> int:
             us_is_p0 = not g["token"].endswith("r")
             us_label = g["p0_label"] if us_is_p0 else g["p1_label"]
             assert us_label == args.us_label, (g["token"], us_label, args.us_label)
-            if g["winner"] == us_label:
+            if _us_won_by_side(g, us_is_p0):
                 sc += 0.5
             elif g["winner"] == "draw":
                 sc += 0.25  # 官方从不判平局；出现即说明判词来源有问题（下面会告警）
@@ -223,7 +249,7 @@ def main() -> int:
         g = games[t]
         us_is_p0 = not t.endswith("r")
         us_label = g["p0_label"] if us_is_p0 else g["p1_label"]
-        if g["winner"] == us_label:
+        if _us_won_by_side(g, us_is_p0):
             us_wins += 1
         elif g["winner"] == "draw":
             us_wins += 0.5
@@ -238,7 +264,7 @@ def main() -> int:
         if g["winner"] == "draw":
             side["draw"] += 1
             continue
-        us_won = g["winner"] == (g["p0_label"] if us_is_p0 else g["p1_label"])
+        us_won = _us_won_by_side(g, us_is_p0)
         if us_is_p0:
             side["我方执先手 胜" if us_won else "我方执先手 负"] += 1
         else:
