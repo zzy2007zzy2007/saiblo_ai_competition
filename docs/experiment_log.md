@@ -7702,3 +7702,34 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 **新机理（本轮最重要的产出）**：**MC 菜单里的闪电候选把经济/升级候选挤掉了** ——
 同一组开关（`MC_UPG=1`+`MC_TOPK=3`）在真实对局里毫无作用（升级 0），在**闪电被禁**时立刻让升级变成 2.8/局、
 对 example 胜率 0.0156 → **0.4375**。⇒ 已预注册并把该机理搬到真实对局（`AZAI_MC_NO_LIGHT=1`，判据尺度在跑）。
+
+## 2026-10-08 12:34:07 — NLR_fixed128
+
+- **commit**: `f7d8965` (dirty: 12 files)
+- **exit**: 0，用时 4456s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=1 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=NLR_fixed128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261008_123407_NLR_fixed128/output.log`
+- **result**: _待填_
+
+### 13. 第 18 轮：**NL-R 搬运测试失败（−12.5pp）** + **独立验证抓出的 3 处真错误**
+
+**A. NL-R（真实对局，判据尺度固定段 128 局，无效 0）**
+| 项 | 对照 `M6cROOT_128` | **NL-R** |
+|---|---|---|
+| 配对胜率 | 0.7344 | **0.6094（−12.5pp，CI [0.5156,0.6953]）** |
+| 建塔 / 降级 / **升级** / 闪电（每局）| 24.8 / 10.9 / **0.0** / 10.5 | 35.3 / 25.2 / **1.2** / 9.9 |
+| 相邻"建↔降"翻转 / 净塔 / 有操作回合 | 12.0 / 13.9 / 21.7 | **27.5 / 10.2 / 42.4** |
+⇒ **升级确实被解锁（0→1.2/局）、闪电没塌（9.9）**，但**churn 闸门不过**（25.2 > 35.3/2）且**棋力明显变差**
+⇒ **Phase 0 的"闪电让位 ⇒ 经济激活"收益不迁移到真实对局**（预注册已写此风险；历史上储备规则 +13pp/−45pp 同型）。
+⇒ **该搬运线关闭**（随机段在跑，仅补全记录）。
+
+**B. 无上下文独立验证（子代理，两套独立解析器交叉校验）抓出的错误（已修 + 已勘误）**
+1. **镜像 `p̂=1.0000` 是伪影** ⇒ 真值 0.5000（自镜像每对必 1-1）⇒ **G1 结论翻转**；有信息的是执先 0.406 / 执后 0.594。
+2. **"打满 512 回合"是工具 bug** ⇒ 真值 399.1 / 242–271（子博弈更短）。
+3. **"A5≡A1⇒TEMP 无效"撤回**（30/32 seed 不同）。
+4. **A4 的 `p̂` 真值 0.9583**（旧值来自**对中途被 kill 的运行**做分析 ⇒ 半截读数）。
+- 两工具已修（按边判胜负 + 显式拒绝自镜像；回合只取 RESULT 行；我方按 token 约定），回归：对照仍 0.7344。
+- 📌 教训（写进报告 §7.4）：**只对"冻结存档"跑分析**；**自镜像 tag 不能用配对统计量读**。
