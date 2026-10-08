@@ -57,7 +57,9 @@ def one(tag: str) -> dict:
             side = int(mm.group(2)[1])
             names = [nm for nm, _ in OPNAME.findall(mm.group(5))]
             if side == us:
-                act_rounds += 1
+                # ⚠️ 只统计**真的有操作**的回合（空列表 = HOLD，不算"有操作"）
+                if names:
+                    act_rounds += 1
                 for nm in names:
                     if nm in ours:
                         ours[nm] += 1
