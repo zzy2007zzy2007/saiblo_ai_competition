@@ -23,7 +23,9 @@ from my_ai.az_intent.mcts import HP_SCALE
 BIDIR_STATS = {"n": 0, "terminal": 0, "steps": 0, "noop": 0}
 # 2026-10-18: rollout 内策略的"类预算"与埋点（R1 实测：4 个类的预算下约 55% 的调用解不出 op）
 ROLLOUT_CLASSES = max(1, int(__import__("os").environ.get("AZAI_MC_ROLLOUT_CLASSES", "4")))
-SPEND_STATS = {"calls": 0, "noop": 0, "terminal": 0, "steps": 0}
+SPEND_STATS = {"calls": 0, "noop": 0, "terminal": 0, "steps": 0,
+               "light": 0,          # rollout 内**真的**放出了闪电的次数（应为 0，若掩码禁类生效）
+               "light_blocked": 0}  # 类 17 在候选顺序里出现、但被**掩码**挡下的次数（禁类生效的直接证据）
 
 
 def _decode_class_op(head_logits, action_map, class_mask, position_mask, state, player, cid):
@@ -67,12 +69,19 @@ def _policy_op(state, player, net_fn):
     for c in order[:ROLLOUT_CLASSES]:   # 类预算 AZAI_MC_ROLLOUT_CLASSES（默认 4 = 历史值）
 
         if not (0 <= c < len(cm)) or not cm[c] or not pm[c].any():
+            if int(c) == 17 and (not cm[c]):
+                SPEND_STATS['light_blocked'] += 1   # 掩码把闪电挡下（禁类传播到 rollout 的直接证据）
             continue
         op = decode_head(hl, am, np.array(cm, copy=True), np.array(pm, copy=True),
                          state, player, class_id=int(c), temperature=0.0,
                          pos_temperature=0.0, intent_decoding=True)
         if op is not None:
+            if int(op.op_type) == 21:
+                SPEND_STATS['light'] += 1           # ⚠️ 若 >0 ⇒ 掩码禁类没传播进 rollout
             return (int(op.op_type), int(op.arg0), int(op.arg1))
+    # 2026-10-18 补：原来**忘了在这条路上自增** ⇒ 打印出来的 `noop=0(0%)` 是恒零假读数
+    #   （真实空过率看 BIDIR_STATS：D2 臂实测 530/836 = 63%）
+    SPEND_STATS['noop'] += 1
     return None
 
 

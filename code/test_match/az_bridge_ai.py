@@ -526,7 +526,9 @@ def main() -> int:
                         _ss = _mq.SPEND_STATS
                         _bi += (f" rollout_calls={_ss['calls']} noop={_ss['noop']}"
                                 f"({_ss['noop'] / max(1, _ss['calls']):.0%})"
-                                f" classes={_mq.ROLLOUT_CLASSES}")
+                                f" classes={_mq.ROLLOUT_CLASSES}"
+                                f" rollout_light={_ss.get('light', 0)}"
+                                f" light_masked={_ss.get('light_blocked', 0)}")
                 except Exception:
                     pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
