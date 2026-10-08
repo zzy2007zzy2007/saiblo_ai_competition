@@ -278,6 +278,8 @@ def build_engine(seed: int, player: int):
         mc_score=_env("AZAI_MC_SCORE", ""),
         # 单侧支出：>0 ⇒ rollout 里我方继续出招 K 回合（把候选花掉的钱换成塔 ⇒ 让评分看见代价）
         mc_selfspend=int(_env("AZAI_MC_SELFSPEND", "0")),
+        # Phase 0：1 ⇒ 闪电不进 MC 菜单（仍由默认行为放闪电）
+        mc_no_light=_env("AZAI_MC_NO_LIGHT", "0") == "1",
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

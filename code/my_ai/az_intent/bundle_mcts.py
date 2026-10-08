@@ -341,6 +341,7 @@ class BundleMCTS:
         mc_margin: float = 0.0,
         mc_score: str = '',
         mc_selfspend: int = 0,
+        mc_no_light: bool = False,
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -399,6 +400,8 @@ class BundleMCTS:
         self.mc_score = str(mc_score or '')
         # 单侧支出（预注册 prereg_20261008_mc_selfspend.md）：>0 ⇒ rollout 里我方继续出招 K 回合
         self.mc_selfspend = int(mc_selfspend)
+        # Phase 0：True ⇒ 闪电不进 MC 菜单（见 prereg_20261018_mc_nolight_real.md）
+        self.mc_no_light = bool(mc_no_light)
         # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
         # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
         self.mc_last_explicit = None
@@ -534,8 +537,12 @@ class BundleMCTS:
                 if (self.mc_every > 0 and (_rnd % int(self.mc_every) == 0)
                         and (not self.mc_root_only or _is_root)):
                     _cands = [23]
-                    if _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
-                           node.state, node.player, 17) is not None:
+                    # 🧪 Phase 0 发现（预注册 `docs/prereg_20261018_mc_nolight_real.md`）：
+                    #   **闪电会在 MC 菜单里"挤掉"经济/升级候选**（真实对局里闪电候选几乎总赢 ⇒ 升级永远 0 次）。
+                    #   `mc_no_light=1` ⇒ **闪电不进 MC 菜单**（仍由非仲裁回合的默认"买得起就放"负责），
+                    #   让经济/升级候选在**没有闪电**的菜单里公平比较。
+                    if (not self.mc_no_light) and _dq(_hl0, _AM, base_cls_mask, base_pos_mask,
+                                                      node.state, node.player, 17) is not None:
                         _cands.insert(0, 17)
                     if self.mc_cells > 0:
                         # **选类×选格**：{闪电?, HOLD} ∪ {(经济类, 最热 n 个空格)} ∪ {(经济类, 我们已有塔的格子)}
