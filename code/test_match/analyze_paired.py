@@ -342,7 +342,13 @@ def main() -> int:
 
     # ---------- 预注册判据检查 ----------
     print(f"\n--- 预注册判据检查（prereg §2/§4/§5）---")
-    batch_ok = invalid_ratio <= args.invalid_threshold and not missing
+    # 2026-10-18 修（独立验证发现）：章程的有效性规则是"**无效 + 缺失 ≤ 10%**"，
+    # 而原先额外加了 `and not missing` ⇒ **只要缺一份日志就把整批标 INVALID**
+    # （与同一行打印的 "3.8% ≤ 10% ⇒ 通过" 自相矛盾）。缺失已经计入 invalid_ratio。
+    batch_ok = invalid_ratio <= args.invalid_threshold
+    if missing:
+        print(f"  （提示：本批缺 {len(missing)} 份日志，已计入上面的比例；缺的是 {missing[:6]}"
+              f"{' …' if len(missing) > 6 else ''}）")
     print(f"  有效性门槛: 无效+缺失比例 = {invalid_ratio:.1%}  "
           f"(门槛 {args.invalid_threshold:.0%}) ⇒ {'通过' if batch_ok else '!! 整批标 INVALID'}")
     if not batch_ok:
