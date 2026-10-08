@@ -7733,3 +7733,45 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 4. **A4 的 `p̂` 真值 0.9583**（旧值来自**对中途被 kill 的运行**做分析 ⇒ 半截读数）。
 - 两工具已修（按边判胜负 + 显式拒绝自镜像；回合只取 RESULT 行；我方按 token 约定），回归：对照仍 0.7344。
 - 📌 教训（写进报告 §7.4）：**只对"冻结存档"跑分析**；**自镜像 tag 不能用配对统计量读**。
+
+## 2026-10-08 13:48:26 — NLR_rand128
+
+- **commit**: `0c9f8c0` (dirty: 12 files)
+- **exit**: -1，用时 714s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=1 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=NLR_rand128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 1000 1000r 1091 1091r 1188 1188r 1479 1479r 1526 1526r 1621 1621r 1630 1630r 1660 1660r 1662 1662r 1982 1982r 2031 2031r 2316 2316r 2332 2332r 2407 2407r 2598 2598r 2600 2600r 2765 2765r 2908 2908r 2918 2918r 3017 3017r 3098 3098r 3199 3199r 3604 3604r 3678 3678r 3721 3721r 3778 3778r 3992 3992r 4229 4229r 4431 4431r 4475 4475r 4567 4567r 4717 4717r 4734 4734r 4820 4820r 4855 4855r 5004 5004r 5216 5216r 5473 5473r 5695 5695r 5729 5729r 5806 5806r 6054 6054r 6420 6420r 6755 6755r 6846 6846r 7038 7038r 7343 7343r 7730 7730r 7992 7992r 7993 7993r 8145 8145r 8500 8500r 8564 8564r 8936 8936r 9106 9106r 9125 9125r 9128 9128r 9169 9169r 9352 9352r 9358 9358r 9577 9577r 9597 9597r 9693 9693r 9927 9927r
+  ```
+- **output**: `training_history/runs/20261008_134826_NLR_rand128/output.log`
+- **result**: _待填_
+
+## 2026-10-08 14:00:24 — NLRND_fixed128
+
+- **commit**: `4a37cbf` (dirty: 12 files)
+- **exit**: -1，用时 1235s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=1 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=1 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=NLRND_fixed128 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261008_140024_NLRND_fixed128/output.log`
+- **result**: _待填_
+
+### 14. 第 18 轮（续）：**churn 消融因"机制闸门不过"当场停掉 —— 并留下一条设计教训**
+
+预注册 `docs/prereg_20261018_nlr_churn_ablation.md`（NL-R + `NO_DOWNGRADE=1`，固定段 128 局）。
+**只跑了 16 局就按机制闸门停掉**（省下 ~1.7 h），因为闸门③"闪电 ≥ 8.0/局"**当场不过**：
+
+| 臂 | 建 / 降 / **升** / **闪** | 净塔 | 有操作回合 | min/局 |
+|---|---|---|---|---|
+| 对照 `M6cROOT_128` | 24.8 / 10.9 / 0.0 / **10.5** | 13.9 | 32.2 | 2.90 |
+| NL-R | 35.3 / 25.2 / 1.2 / **9.9** | 10.2 | 53.6 | 4.48 |
+| **NL-R+ND（16 局）** | 15.2 / 0.0 / 1.2 / **4.1** | 15.2 | 15.3 | 7.99 |
+
+- **降级确实归零（✓ 门生效）、升级仍 1.2（✓）**，但 **闪电塌到 4.1/局**（< 8 闸门）⇒ 这个臂**不是"NL-R 减去 churn"**，
+  而是**另一个残废代理**（降级是我们唯一的**金币回收**手段，去掉它就没钱放闪电——与第 3 轮 `NO_DOWNGRADE` 对照臂
+  −20.3pp 的机理完全一致）⇒ 按预注册**不作结论**。
+- 🔑 **设计教训（写进停车位）**：**当一个机制的"功能"与"病理"相互纠缠时，删掉它无法干净地消融其病理**——
+  "降级"既是 churn 的来源，也是闪电的资金来源。要消融 churn，得做**时序上的限制**（例如"新塔 N 回合内不许拆"），
+  而不是把降级整个删掉。
+- ⇒ **"NL-R 的 −12.5pp 是否由 churn 造成"这个问题仍未回答**；但**方向已经不重要**：
+  即便答案是"是"，要利用它也需要"何时不循环"的**时机判断**，而那正是本管线缺的信用信号（第 14/15 轮）。
