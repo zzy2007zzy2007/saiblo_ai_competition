@@ -124,3 +124,14 @@ python -u code/tools/extract_model_from_ckpt.py \
 3. 在本文件 §1 表**加一行**（文件 / 来源 / 大小 / 哈希 / 一句话说明）；
 4. **提交时别漏了文件本身**（`git add checkpoints/<file> docs/checkpoints.md`）——
    ⚠️ 只提交文档、忘记 `git add` 二进制，是这套做法最容易犯的错。
+
+## `checkpoints/distill_sdk_A.pt`（2026-10-18，S1b 蒸馏产物）
+- **来源**：`python code/distill/train.py distill_data/ --out checkpoints/distill_sdk_A.pt --epochs 30 --lambda-soft 0`
+  （数据 = `distill_data/` 400 局 / 106,694 决策；监督 = SDK 评分反投影到 (class, position)；**未用软标签**
+  因为 npz 里的 `head_logits` 是**旧模型自己的输出**（自指闭环）；日志 `training_history/distill_sdk_A.log`）
+- **架构**：`create_model(num_heads=3)`，与部署 ckpt 的 `class_state/pos_state/value_state` **键完全一致（94/94）**
+- **终值**：epoch30 `cls=0.6715 map=0.1491 tot=0.8239`（epoch1 为 1.0039/1.0137/2.0169）
+- **嫁接产物** `checkpoints/grafted_sdk_A.pt`：`class_state/pos_state` ← 蒸馏网（94/94 覆盖），
+  **`value_state` 保留原 `posnet_A_k5_m32.pt`**（本轮不动价值网，S2 再单独重训）
+- **冒烟（双方禁闪电、pos-only+宽菜单、2 局）**：我方 **15.0 建 / 6.5 降 / 7.5 升** / 有操作回合 22.0
+  ⇒ **升级从基线 2.9 跳到 7.5/局**（example 自身 5.5–6.0）⇒ 蒸馏确实注入了经济行为
