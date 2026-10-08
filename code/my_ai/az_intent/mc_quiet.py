@@ -21,6 +21,9 @@ from my_ai.az_intent.mcts import HP_SCALE
 
 # 埋点（AI 侧周期打印）：双向 rollout 的调用次数 / 打到终局次数 / 累计推进回合
 BIDIR_STATS = {"n": 0, "terminal": 0, "steps": 0, "noop": 0}
+# 2026-10-18: rollout 内策略的"类预算"与埋点（R1 实测：4 个类的预算下约 55% 的调用解不出 op）
+ROLLOUT_CLASSES = max(1, int(__import__("os").environ.get("AZAI_MC_ROLLOUT_CLASSES", "4")))
+SPEND_STATS = {"calls": 0, "noop": 0, "terminal": 0, "steps": 0}
 
 
 def _decode_class_op(head_logits, action_map, class_mask, position_mask, state, player, cid):
@@ -60,7 +63,9 @@ def _policy_op(state, player, net_fn):
     pm = make_position_masks(state, player, intent_decoding=True)
     cm = make_class_mask(state, player, position_mask=pm, intent_decoding=True)
     order = [int(c) for c in np.argsort(-hl)]
-    for c in order[:4]:                      # 最多试 4 个类，省时间
+    SPEND_STATS['calls'] += 1
+    for c in order[:ROLLOUT_CLASSES]:   # 类预算 AZAI_MC_ROLLOUT_CLASSES（默认 4 = 历史值）
+
         if not (0 <= c < len(cm)) or not cm[c] or not pm[c].any():
             continue
         op = decode_head(hl, am, np.array(cm, copy=True), np.array(pm, copy=True),
@@ -126,7 +131,8 @@ def _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
 def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     class_mask, position_mask, max_rounds: int = 512,
                     bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0,
-                    score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0):
+                    score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0,
+                    selfspend_mix: float = 1.0):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
@@ -153,26 +159,34 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                                     [Operation(OperationType(int(t[0])), int(t[1]), int(t[2]))])
         if player == 1:
             st.advance_round()
-        if int(selfspend_k) > 0 and net_fn is not None:
-            scores[_key] = selfspend_value(st, player, net_fn, int(selfspend_k),
-                                           max_rounds=max_rounds)
-        elif int(bidir_k) > 0 and net_fn is not None:
-            _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
-            scores[_key] = bidir_value(st, player, net_fn, int(bidir_k),
-                                       max_rounds=max_rounds)
-        else:
-            _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
+        # 2026-10-18 修（两个真 bug）：
+        #   ① `_key` **先赋值**（原来 selfspend 分支在赋值前就 `scores[_key]` ⇒ UnboundLocalError
+        #      ⇒ 被 bundle_mcts 的宽 except 吞掉 ⇒ MC 静默瘫痪、回退类头 argmax）；
+        #   ② 评分走**单一 if/elif 链**（原来 bidir 的分数会被后面的安静分数无条件覆盖）。
+        _key = (_cand if isinstance(_cand, (tuple, list)) else int(cid))
         if score_mode == 'value_only' and net_fn is not None:
             # 纯价值网差分：完全不做 rollout ⇒ 更快；价值网输入含 stats（金币在里）⇒ 会给花钱定价
             _v = float(net_fn(st, player)['value'])
             scores[_key] = _v - float(v_before)
-        else:
+        elif score_mode == 'delta' and net_fn is not None:
+            # potential-based shaping（Φ=V）：只修掉"安静 rollout 看不见花钱代价"的短视
             _q = quiet_value(st, player, max_rounds=max_rounds)
-            if score_mode == 'delta' and net_fn is not None:
-                # potential-based shaping（Φ=V）：只修掉"安静 rollout 看不见花钱代价"的短视
-                _v = float(net_fn(st, player)['value'])
-                _q = _q + (_v - float(v_before))
-            scores[_key] = _q
+            _v = float(net_fn(st, player)['value'])
+            scores[_key] = _q + (_v - float(v_before))
+        elif (int(selfspend_k) > 0 or int(bidir_k) > 0) and net_fn is not None:
+            _s = (selfspend_value(st, player, net_fn, int(selfspend_k), max_rounds=max_rounds)
+                  if int(selfspend_k) > 0 else
+                  bidir_value(st, player, net_fn, int(bidir_k), max_rounds=max_rounds))
+            _mix = min(1.0, max(0.0, float(selfspend_mix)))
+            if _mix >= 1.0:
+                scores[_key] = float(_s)
+            elif _mix <= 0.0:
+                scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
+            else:
+                _q = quiet_value(st, player, max_rounds=max_rounds)
+                scores[_key] = (1.0 - _mix) * float(_q) + _mix * float(_s)
+        else:
+            scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
     # 分差门控：最高分与次高分相差太小 ⇒ **不接管**（返回 None，由调用方保留原 pin）
     # 依据：dump 里 23.6% 的决策是完全平局、另有 17.8% 在 1 HP 内 ⇒ 这些"接管"没有依据。
     if margin_gate and float(margin_gate) > 0 and len(scores) >= 2:
