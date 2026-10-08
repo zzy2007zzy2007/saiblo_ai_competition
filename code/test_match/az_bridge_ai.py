@@ -470,6 +470,18 @@ def main() -> int:
                 _log(f"🧪 建塔门槛: round={STATS['rounds']} 金币={int(facade.coins[player])} < {_bmin:g}"
                      f" ⇒ 去掉建塔（累计 {STATS['build_gated']}）；剩余={len(_kept3)}")
             ops = _kept3
+        # 🧪 Phase 0 安全网（`AZAI_BAN_OPS`，逗号分隔 op 类型，如 "21" = 闪电）：
+        #   掩码层禁类（`AZAI_BAN_CLASSES`）**本应**让被禁的类永远选不到；这里再兜一层，
+        #   并且**每次触发都记数** —— 若触发数 > 0，说明掩码禁类不彻底（Phase 0 的验证读数）。
+        _bano = _env("AZAI_BAN_OPS", "").strip()
+        if _bano:
+            _banned = {int(x) for x in _bano.split(",") if x.strip().isdigit()}
+            _kept4 = [o for o in ops if int(o.op_type) not in _banned]
+            if len(_kept4) != len(ops):
+                STATS["banned_op_killed"] = int(STATS.get("banned_op_killed", 0)) + (len(ops) - len(_kept4))
+                _log(f"🧪 安全网: round={STATS['rounds']} 去掉被禁 op {len(ops) - len(_kept4)} 个"
+                     f"（累计 {STATS['banned_op_killed']}）")
+            ops = _kept4
         return ops
 
     def _apply(pl: int, ops: list) -> None:

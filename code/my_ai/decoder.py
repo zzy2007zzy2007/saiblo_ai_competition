@@ -8,6 +8,7 @@ The decoder:
 
 from __future__ import annotations
 
+import os
 from typing import Callable
 import numpy as np
 import torch
@@ -158,6 +159,20 @@ def make_class_mask(
 
     # HOLD (23): always valid
     mask[23] = True
+
+    # 🧪 Phase 0（第 17 轮，预注册 `docs/prereg_20261017_phase0_nolightning.md`）：
+    #   **掩码层禁类** —— `AZAI_BAN_CLASSES`（逗号分隔的类号，如 "17" = 闪电）。
+    #   在**唯一咽喉**上禁 ⇒ 搜索采样 / 候选枚举 / MC 菜单**全都看不到被禁的类**
+    #   ⇒ 回合会花到别的动作上（而不是"空过一回合"）。
+    _ban = os.environ.get("AZAI_BAN_CLASSES", "").strip()
+    if _ban:
+        for _c in _ban.split(","):
+            try:
+                _i = int(_c)
+            except ValueError:
+                continue
+            if 0 <= _i < mask.shape[0]:
+                mask[_i] = False
 
     return mask
 
