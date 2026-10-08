@@ -7584,3 +7584,119 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 2. ⇒ **"从零 RL（端到端、不要搜索）"起点 ≈ 0.09**，要在本机算力内补 ~60pp（目标还要到 0.90）⇒ **不可行**。
 3. ⇒ **"规模"补不上**：第 14/15 轮证明缺的是**信用信号**（类头目标退化 / 探索即噪声 / 信用分配 1/1000），不是数据量。
 4. ⇒ 只剩"另一个游戏理解（更好结构 + 海量训练）"——**超出本机算力与本次任务范围**。
+
+## 2026-10-08 11:09:32 — P0_A1_mirror
+
+- **commit**: `2c63d33` (dirty: 11 files)
+- **exit**: 0，用时 496s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A1_mirror --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/az_bridge_ai.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_110932_P0_A1_mirror/output.log`
+- **result**: _待填_
+
+## 2026-10-08 11:17:50 — P0_A2_ex_light
+
+- **commit**: `7472696` (dirty: 12 files)
+- **exit**: 0，用时 499s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A2_ex_light --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_111750_P0_A2_ex_light/output.log`
+- **result**: _待填_
+
+## 2026-10-08 11:26:11 — P0_A3_ex_nolight
+
+- **commit**: `7472696` (dirty: 12 files)
+- **exit**: 0，用时 490s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A3_ex_nolight --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_112611_P0_A3_ex_nolight/output.log`
+- **result**: _待填_
+
+## 2026-10-08 11:34:23 — P0_A4_rv4_nolight
+
+- **commit**: `7472696` (dirty: 12 files)
+- **exit**: -1，用时 738s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A4_rv4_nolight --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/nl_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_113423_P0_A4_rv4_nolight/output.log`
+- **result**: _待填_
+
+## 2026-10-08 11:46:49 — P0_E1_mc1
+
+- **commit**: `c38bfc8` (dirty: 12 files)
+- **exit**: 0，用时 452s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_E1_mc1 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_114649_P0_E1_mc1/output.log`
+- **result**: _待填_
+
+## 2026-10-08 11:54:23 — P0_E2_wide
+
+- **commit**: `c38bfc8` (dirty: 12 files)
+- **exit**: 0，用时 694s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_E2_wide --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_115423_P0_E2_wide/output.log`
+- **result**: _待填_
+
+## 2026-10-08 12:05:59 — P0_E3_playable
+
+- **commit**: `c38bfc8` (dirty: 12 files)
+- **exit**: -1，用时 709s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=playable AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_E3_playable --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_120559_P0_E3_playable/output.log`
+- **result**: _待填_
+
+## 2026-10-08 12:17:50 — P0_A5_stoch_mirror
+
+- **commit**: `c38bfc8` (dirty: 12 files)
+- **exit**: 0，用时 710s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1.0 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A5_stoch_mirror --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/az_bridge_ai.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_121750_P0_A5_stoch_mirror/output.log`
+- **result**: _待填_
+
+## 2026-10-08 12:18:00 — P0_A5_stoch_mirror
+
+- **commit**: `c38bfc8` (dirty: 12 files)
+- **exit**: 0，用时 665s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=0 AZAI_MC_UPG=0 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=30 AZAI_TCLASS=0.5 AZAI_TEMP=1.0 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=P0_A5_stoch_mirror --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/az_bridge_ai.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261008_121800_P0_A5_stoch_mirror/output.log`
+- **result**: _待填_
+
+### 12. 第 17–18 轮（新 goal）：**Phase 0 —— 禁闪电子博弈的表征，与"闪电挤掉经济"的机理发现**
+
+完整报告：`docs/phase0_report_20261017.md`（含全部读数、判据核对与诚实限度）。
+预注册：`docs/prereg_20261017_phase0_nolightning.md`（A1–A4）、`docs/prereg_20261017_phase0_addendum_economy.md`（E1–E3、A5）。
+
+**做法要点**：禁闪电在**掩码层**（`AZAI_BAN_CLASSES=17` 打在 `decoder.make_class_mask` 唯一咽喉）
++ 执行层安全网 `AZAI_BAN_OPS=21`（**触发 0 次** ⇒ 禁类彻底）；对手侧用两个**不改原文件**的 launcher
+（官方 example / rule_v4 禁闪电副本）。
+
+**四问答案**：① 对 example **0.0156**（无论它能否放闪电）、对 rule_v4 禁闪电 **1.0000**（它退化成 0 操作）；
+② CI 半宽 ~11pp、单局 0.9–1.4 min（比真实对局更便宜）；③ 经济面**有杠杆但要先解锁**；
+④ **churn 与"升级 0"依旧** ⇒ "抢金币"不是病根。
+
+**新机理（本轮最重要的产出）**：**MC 菜单里的闪电候选把经济/升级候选挤掉了** ——
+同一组开关（`MC_UPG=1`+`MC_TOPK=3`）在真实对局里毫无作用（升级 0），在**闪电被禁**时立刻让升级变成 2.8/局、
+对 example 胜率 0.0156 → **0.4375**。⇒ 已预注册并把该机理搬到真实对局（`AZAI_MC_NO_LIGHT=1`，判据尺度在跑）。
