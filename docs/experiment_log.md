@@ -8161,3 +8161,25 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
    * **工程侧（语义不变、推荐）**：在 C++ 侧提供"**多克隆批量步进**"（一次 pybind 调用推进 N 个克隆 K 回合）⇒ 绕开 GIL 与每步 Python/绑定开销；
      或在引擎内定位那 ~10 ms 的固定开销（疑似每步有全网格级重算/分配）。
    * ⚠️ 本 goal 的臂**不允许**顺手改这些（会污染归因）⇒ 已记入 `docs/next_step_ideas.md` 待用户决定是否投入。
+
+## 2026-10-09 14:33:07 — AB_B_clsonly_vs_example
+
+- **commit**: `b2e3489` (dirty: 11 files)
+- **exit**: 0，用时 4554s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_clsonly.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_B_clsonly_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_143307_AB_B_clsonly_vs_example/output.log`
+- **result**: _待填_
+
+### 25. goal-2600a56a 第 9 轮：**头消融之 B（只训类头）出结果 = 0.5781** ⇒ 修正我此前的判断
+
+`AB_B_clsonly_vs_example`（**只训类头**、动作图未约束；pos-only + mc_quiet + 宽菜单；双方禁闪电；固定段 128 局）：
+- **`p̂ = 0.5781`**（64 对：21×2-0 / 32×1-1 / 11×0-2）；CI [0.4922, 0.6641]；**无效+缺失 0%**；判词 **128/128 engine**。
+- 机制：我方 **24.5 建 / 8.7 降 / 5.6 升 / 29.9 有操作回合**（对照：完整蒸馏 18.4/…/5.0/21.2；S0 19.8/…/2.9/19.6）；
+  单局 **4.61 min**（比完整版快得多 —— 动作图未约束 ⇒ 候选/解码路径更"贫"）。
+- **判读**：提升份额 **47%**（相对 S0 0.3828、完整 0.8016）⇒ **类头在 pos-only 下并非无用**。
+  这**推翻**了我第 5 轮写下的"类头在 pos-only 里不被采信 ⇒ 蒸馏类头 0/32 变化"的推广（那次结论本身没错，
+  错在我把它推广成"类头这一维没用"）。预注册里我预测"clsonly ≈0.35–0.45" ⇒ **预测错误，如实记录**。
+- 待：A（**只训动作图**）仍在跑（94→?/128）⇒ 两者合起来才能给出"哪个头贡献多少"的完整消融。
