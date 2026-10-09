@@ -8904,3 +8904,17 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ```
 - **output**: `training_history/runs/20261010_042503_AB_VK48_dec_vs_baseline/output.log`
 - **result**: _待填_
+
+### 58. goal-2600a56a 第 55 轮：**实现 C1.1「类采样前的可行性掩蔽」**（路 C 第一步，默认关）
+
+- 动机（代码里就写着的机制）：`intent_decoding=True` 下**买不起的超武仍在 `class_mask` 里**，解码器会走**通道 16 自动降级**
+  ⇒ 名义上出 18/19/20、实际执行降级 ⇒ 这正是 `joint` 模式冒烟时 **33 降级 / 36.5 升级 / 79 回合** 的 churn 风暴来源
+  （`decoder.py:114` 与 `bundle_mcts._legal_nonlight_classes` 注释一致）。
+- 实现：`bundle_mcts.py` 新增 `feasible_classes(class_mask, position_mask, state, player, *, include_hold=True)`
+  可行 ⟺ `class_mask[c]` 且 `position_mask[c].any()` 且（非超武 **或** 买得起）且（`c!=23` 或 include_hold）；
+  并在**类采样处**（`class_probs_arg` 之后）把不可行类的权重清零 + 重新归一（**全掩蔽 ⇒ 安全阀回退原分布**）。
+  **默认关**（`AZAI_CLASS_FEAS_MASK=0`）⇒ 与旧行为**逐位相同**，不破坏任何已跑配置的可复现性；启用时打印掩蔽计数。
+- **单元自测（实测）**：开局（硬币 50）⇒ 被掩蔽 **4** 个（17..20 买不起）✓ 且 17..20 全被剔除 ✓；
+  硬币 999 ⇒ 掩蔽 0、超武全部可行 ✓；人为让类 3 无合法格 ⇒ 类 3 被剔除 ✓。
+- 下一步（等一个空槽位，当前 8 场满）：**C1 冒烟**（`MODE=joint K=24 SKIP1=0 PIN=argmax CKPT=grafted_phold10.pt` + `AZAI_CLASS_FEAS_MASK=1`，2 局）
+  ⇒ 机制判据：**升级+降级 ≤ 12/局**、回合 ≤ 60、闪电 0、建塔 ≥ 1（对照 churn 风暴的 ~70）。

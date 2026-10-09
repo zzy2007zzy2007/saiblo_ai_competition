@@ -42,6 +42,42 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     return e / s
 
 
+# ── C1.1（路 C 第一步，见 docs/plan_pathC_joint_class_search.md）：**类采样前的可行性掩蔽** ──
+# 默认**关**（`AZAI_CLASS_FEAS_MASK=0`）⇒ 与旧行为逐位相同；=1 才启用。
+import os as _os
+_CLASS_FEAS_MASK = [_os.environ.get("AZAI_CLASS_FEAS_MASK", "0") == "1"]
+_FEAS_STATS = {"masked_classes": 0, "expansions": 0}
+
+
+def feasible_classes(class_mask, position_mask, state, player, *, include_hold: bool = True):
+    """C1.1：**类采样前的可行性集合**（与 `mc_quiet` 的候选构造同源：都要求"可执行且能落子"）。
+
+    可行 ⟺ `class_mask[c]` 且 `position_mask[c].any()`（该类有合法格）
+            且（`c` 不是超武 **或** 买得起）——因为 `intent_decoding=True` 下**买不起的超武仍在 class_mask 里**，
+               解码器会走**通道 16 自动降级** ⇒ 名义上出超武、实际执行降级（`decoder.py:114` 与
+               `_legal_nonlight_classes` 的注释都记录了这一点）⇒ 这正是 joint 模式 churn 风暴的来源。
+            且（`c != 23` 或 `include_hold=True`，HOLD 下限）。
+    返回 `(allowed: list[int], n_masked: int)`；`n_masked` = 被剔除的、**本在 class_mask 里**的类数（便于诊断）。
+    """
+    try:
+        from my_ai.decoder import CHANNEL_TO_SUPER_WEAPON, SUPER_WEAPON_STATS
+    except Exception:  # noqa: BLE001  取不到就只做"有合法格"这一层，不冒险
+        CHANNEL_TO_SUPER_WEAPON, SUPER_WEAPON_STATS = {}, {}
+    allowed, masked = [], 0
+    for c in range(len(class_mask)):
+        if not class_mask[c]:
+            continue
+        if (c == 23 and not include_hold) or (not position_mask[c].any()):
+            masked += 1
+            continue
+        sw = CHANNEL_TO_SUPER_WEAPON.get(int(c))
+        if sw is not None and SUPER_WEAPON_STATS and state.coins[player] < SUPER_WEAPON_STATS[sw].cost:
+            masked += 1
+            continue
+        allowed.append(int(c))
+    return allowed, masked
+
+
 def head_class_probs(head_logits: np.ndarray, t_class: float) -> np.ndarray:
     """Per-head class distribution (z-score softmax) — mirrors decode_head's
     sampling distribution.  Computed ONCE per expansion so the 360 samples of a
@@ -757,6 +793,24 @@ class BundleMCTS:
         else:
             pinned = None
             class_probs_arg = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
+            # ── C1.1（默认关）：把类分布里**不可行**的类权重清零并重新归一 ──
+            if _CLASS_FEAS_MASK[0]:
+                _allowed, _nmask = feasible_classes(base_cls_mask, base_pos_mask, node.state, node.player)
+                if _allowed and _nmask > 0:
+                    _keep = np.zeros(len(base_cls_mask), dtype=bool)
+                    _keep[_allowed] = True
+                    _newp = []
+                    for _pp in class_probs_arg:
+                        _q = np.asarray(_pp, dtype=np.float64).copy()
+                        _q[~_keep] = 0.0
+                        _s = float(_q.sum())
+                        _newp.append((_q / _s) if _s > 0 else _pp)   # 全被掩蔽 ⇒ 安全阀：回退原分布
+                    class_probs_arg = _newp
+                    _FEAS_STATS["masked_classes"] += int(_nmask)
+                    _FEAS_STATS["expansions"] += 1
+                    if _FEAS_STATS["expansions"] % 200 == 0:
+                        print(f"[feas] 已掩蔽 {_FEAS_STATS['masked_classes']} 个不可行类"
+                              f" / {_FEAS_STATS['expansions']} 次扩展（超武买不起 / 无合法格 / HOLD 下限）", flush=True)
             class_ids = [self.rng.choice(len(p), size=n_samples, p=p).tolist()
                          for p in class_probs_arg]
 
