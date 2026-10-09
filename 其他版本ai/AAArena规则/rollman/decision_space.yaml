@@ -1,0 +1,96 @@
+# Rollman 决策空间契约 —— A 生产，B/C 消费
+# 提炼自后端 core/gamedata.py（Direction / Role）、core/GymEnvironment.py（动作空间）
+# 与选手 SDK 线协议（main.py 交互流程）。
+schema_version: "1.0"
+
+policy_interface:
+  input_type: json_text_lines            # 选手经 stdin 逐行读取 JSON 文本（座位号/reset/step 结果）
+  output_type: framed_json_action        # 选手写 [len:4 unsigned][json]，json={"role":R,"action":A}
+  action_string:
+    pacman: "single_direction_int"       # 例 "3"（Direction 0..4）
+    ghost:  "three_direction_ints"       # 例 "1 3 4"（三只幽灵各一个方向）
+  role_declaration: per_round            # 每回合消息都带 role，首回合据此定 role，之后必须一致
+  turn_model: strict_lockstep            # 后端每回合按序 listen 两名玩家各一次
+
+roles:
+  - {name: rollman, backend_role: 0, alias: pacman, action_dim: 1}
+  - {name: ghost,   backend_role: 1, alias: ghosts, action_dim: 3}
+
+# 原子动作 = 单个方向（core/gamedata.py::Direction）。
+directions:
+  - {name: STAY,  code: 0, offset: [0, 0]}
+  - {name: UP,    code: 1, offset: [1, 0]}
+  - {name: LEFT,  code: 2, offset: [0, -1]}
+  - {name: DOWN,  code: 3, offset: [-1, 0]}
+  - {name: RIGHT, code: 4, offset: [0, 1]}
+
+action_spaces:
+  pacman:
+    space: Discrete(5)                   # GymEnvironment._pacman_action_space
+    encoding: single_int_0_to_4
+  ghost:
+    space: MultiDiscrete([5, 5, 5])      # GymEnvironment._ghost_action_space，三只幽灵
+    encoding: three_space_separated_ints
+
+legal_actions:
+  base_directions: [0, 1, 2, 3, 4]       # 五个方向恒在候选集
+  wall_blocked_is_not_illegal: true      # 撞墙不算非法动作：try_move 失败则原地不动并记 HIT 标记
+  froze_forces_ghost_stay: true          # 吃豆人 FROZE 技能生效时，幽灵动作被强制置为 STAY
+  hard_illegal:                          # 触发 StopReason 判负
+    - role_declared_inconsistent_across_rounds   # "Role error"
+    - both_players_same_role                     # "Same Role"
+    - action_not_parseable_or_out_of_range
+    - player_timeout_or_crash
+
+atomization:
+  roles: [rollman, ghost]                # rollman=judger 玩家 0 或 1，取决于传入 roles 顺序
+  candidate_is_judger_player_0: true     # 本 arena 约定 players[0] 恒为 judger 玩家 0
+  preserve_accepted_order: true
+  rejected_operations: record_but_terminate_match
+
+measurement:
+  deterministic_policy_channel: epsilon_regularized
+  support:
+    pacman: exact_legal_direction_codes           # 5 选 1
+    ghost: joint_over_three_ghost_directions       # 5^3 联合（或按每只幽灵边缘分解，需一致约定）
+  reference_states: candidate_version_fixed_panel_replay_decision_states
+  local_context:
+    - frozen_public_board_state          # board / 豆子 / 墙 / 传送门
+    - pacman_coord_and_skill_status
+    - ghosts_coord
+    - level_and_round
+  comparison:
+    stop_after_first_prefix_divergence: true
+
+occupancy:
+  state_id: sha256_of_normalized_public_board_state
+  metric: total_variation
+  relation_to_policy_kl: reported_separately_never_added
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# rollman 是**非对称**游戏：两个座次的动作空间大小不同，必须按角色分别声明。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: rollman-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: raw_json_lines
+  action:
+    granularity: joint_direction_vector   # 幽灵一帧提交三个方向 = 一个联合动作
+    token: sha256_of_frame_body
+  support:
+    mode: enumerated
+    cardinality: null
+    cardinality_by_role:
+      rollman: 5                          # Discrete(5)：STAY/UP/LEFT/DOWN/RIGHT
+      ghost: 125                          # MultiDiscrete([5,5,5]) = 5^3 联合动作
+    provenance: >
+      core/GymEnvironment.py 的 _pacman_action_space = Discrete(5)、
+      _ghost_action_space = MultiDiscrete([5,5,5])。撞墙不算非法（try_move 失败即
+      原地不动），因此五个方向恒在候选集里，|A| 精确。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

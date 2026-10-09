@@ -1,0 +1,31 @@
+schema_version: "1.0"
+
+game: dorado
+display_name: "Dorado / 黄金冒险"
+edition: legacy_ai9
+type: "双人策略对抗（第三方 NPC 由后端本地加载）"
+
+aliases:
+  - dorado
+  - ElDorado
+  - AI9 Dorado
+
+roles:
+  - P0
+  - P1
+roles_symmetric: true
+
+tracks:
+  - id: sample
+    display_name: "Dorado 样例赛道"
+    players_dir: players
+
+source: "AI9/Arena9 legacy Game.code"
+
+rules: rules.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+
+legacy_protocol: ai9-loader-1
+legacy_player_runtime: ai9_cpp_so

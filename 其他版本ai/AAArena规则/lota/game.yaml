@@ -1,0 +1,19 @@
+schema_version: "1.0"
+game: lota
+display_name: "LOTA / 战棋传说"
+edition: legacy_ai9
+type: "双人策略对抗（第三阵营 NPC 由后端本地加载）"
+aliases: [lota, LOTA, AI9 LOTA]
+roles: [P0, P1]
+roles_symmetric: true
+tracks:
+  - id: sample
+    display_name: "LOTA 样例赛道"
+    players_dir: players
+source: "AI9/Arena9 legacy Game.code"
+rules: rules.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+legacy_protocol: ai9-loader-1
+legacy_player_runtime: ai9_cpp_so

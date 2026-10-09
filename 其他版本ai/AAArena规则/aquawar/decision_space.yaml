@@ -1,0 +1,109 @@
+# AquaWar / 鱼洋陷役 —— 决策空间（decision_space.yaml）
+# 从后端 aqua_sdk.cpp 的消息 checker（pick/assert/action）与公开 SDK
+# ai_client.hpp 提炼。以后端逻辑为准。
+
+schema_version: "1.0"
+game: aquawar
+
+roles:
+  - id: P0
+    description: "首局先手玩家；控制阵型 players[0]。"
+  - id: P1
+    description: "首局后手玩家；控制阵型 players[1]。"
+roles_symmetric: true      # 两名玩家鱼池与规则相同；先手在小局间交替
+
+# 每回合选手从 judger 收到本方视角的观测。
+observation:
+  common:
+    - state: "int，当前回合游标（后端 game.state）。"
+    - Action: "string，本次要求的动作阶段：Pick / Assert / Action / Finish。"
+  pick_stage:
+    - RemainFishs: "list[int]，本小局仍可选的鱼 id。"
+    - FirstMover: "int(0/1)，本小局是否先手。"
+  assert_stage:
+    - GameInfo:
+        MyFish: "list[int]，己方 4 条鱼的 id（-1 表示未知/已死）。"
+        MyHP: "list[int]，己方 4 条鱼的血量。"
+        MyATK: "list[int]，己方 4 条鱼的攻击力。"
+        EnemyFish: "list[int]，敌方 4 条鱼已暴露的 id（-1 表示未暴露）。"
+        EnemyHP: "list[int]，敌方 4 条鱼的血量。"
+    - EnemyAction: "对手上一行动的公开摘要（技能/命中/被动）。"
+    - MyAction: "己方上一行动的结算摘要。"
+    - EnemyAssert: "对手上一断言的公开结果。"
+  action_stage:
+    - GameInfo: "同上（含最新血量）。"
+    - AssertReply: "本回合己方断言的结果回执。"
+  finish_stage:
+    - Result: "string，本小局结果 Win / Lose。"
+    - isStateLimitExceed: "bool，本小局是否因回合上限而裁定。"
+
+# 选手可返回的动作（提交给 judger 的 JSON，字段与合法性见 aqua_sdk.cpp checker）。
+actions:
+  Pick:
+    when: "gamestate == PICK"
+    schema:
+      Action: "\"Pick\""
+      ChooseFishs: "list[int]，恰 4 个，取值 1..12，互不相同。"
+      ImitateFish: "int(1..11)，仅当 ChooseFishs 含 12（拟态鱼）时必填。"
+  Assert:
+    when: "gamestate == ASSERT"
+    variants:
+      - Action: "\"Null\"（不断言）"
+      - Action: "\"Assert\""
+        Pos: "int(0..3)，断言的敌方位置。"
+        ID: "int(1..12)，断言该位置的鱼种。"
+  Action:
+    when: "gamestate == ACTION"
+    variants:
+      - description: "普通攻击"
+        Action: "\"Action\""
+        Type: "0"
+        MyPos: "int(0..3)，出手的己方鱼位置。"
+        EnemyPos: "int(0..3)，攻击的敌方位置。"
+      - description: "技能"
+        Action: "\"Action\""
+        Type: "1"
+        MyPos: "int(0..3)，出手的己方鱼位置。"
+        MyList: "list[int(0..3)]，友方目标位置（不重复，可空）。"
+        EnemyList: "list[int(0..3)]，敌方目标位置（不重复，可空）。"
+  Finish:
+    when: "小局结束回执"
+    schema:
+      Action: "\"Finish\""
+
+legal_actions:
+  semantics: >
+    合法性由后端逐字段校验：类型/键存在/取值范围/不重复；技能目标是否合法进一步
+    由具体鱼种（射水鱼群攻、海龟限量、拟态鱼按模仿对象等）决定。任何非法提交或
+    超时/崩溃使该玩家本场判负（后端 invalid_operation → score=±3），对战器记
+    game_error 并判对手胜。
+
+terminal:
+  win_condition: "先胜 2 个小局（或打满 3 局按比分裁定）。"
+  round_limit: "单小局阶段推进超过 STATE_LIMIT=128 时按 活鱼数→总血→单鱼最高血→后手 裁定。"
+  scores: "后端 game.score：>0 → P0 净胜，<0 → P1 净胜，0 → 平局。"
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: aquawar-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: raw_json_payload
+  action:
+    granularity: staged_operation           # 一帧回复 = 当前阶段要求的那一类动作
+    token: sha256_of_frame_body
+  support:
+    mode: opcode_alphabet
+    cardinality: 6
+    provenance: >
+      aqua_sdk.cpp 的 checker 允许的动作类别：Pick、Assert、Null（放弃断言）、
+      Action/Type=0（普通攻击）、Action/Type=1（技能）、Finish = 6。参数域
+      （鱼种 1..12、位置 0..3、技能目标集合）随阶段与存活情况变化，进程契约下
+      无法在冻结观测上重算精确合法集，故声明动作类别字母表作为固定测量约定。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

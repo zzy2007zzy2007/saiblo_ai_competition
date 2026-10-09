@@ -1,0 +1,37 @@
+schema_version: "1.0"
+
+game: antwar
+display_name: "AntWar / ANTWar"
+edition: 27
+type: "双人对抗对战"
+slug: 27_antwar                # player_submissions game_slug 别名
+
+aliases:
+  - antwar
+  - ANTWar
+  - AntWar
+  - 27_antwar
+
+roles:
+  - P0
+  - P1
+roles_symmetric: true
+
+tracks:
+  - id: final_ladder
+    display_name: "27 届决赛天梯"
+    players_dir: players
+    source_ladder: players/
+
+# 统一选手池说明
+players_note: "统一选手池位于 players/pool/（499 submission），清单见 players/manifest.tsv；历史来源见 PROVENANCE.json。"
+
+source: "Saiblo Game.code"
+
+rules: rules.md
+decision_space: decision_space.yaml
+replay_format: replay_format.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+provenance: PROVENANCE.json

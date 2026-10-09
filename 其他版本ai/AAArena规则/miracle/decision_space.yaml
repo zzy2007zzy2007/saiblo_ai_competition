@@ -1,0 +1,147 @@
+schema_version: "1.0"
+
+game: miracle
+display_name: "Miracle / 神迹之战"
+
+# 决策空间从后端 PlayerLegality/operations.py 的动作定义与历史恢复的
+# public_sdk/ai_client.py 选手发包格式提取。所有操作以 JSON 字符串发送，字段严格如下。
+
+players: 2
+roles: [P0, P1]          # P0 = camp 0（先手）, P1 = camp 1（后手）
+roles_symmetric: true
+
+# ---------------------------------------------------------------------------
+# 观测（每步由后端下发给当前行动玩家）
+# ---------------------------------------------------------------------------
+observation:
+  encoding: "内层长度前缀 + JSON 字符串"   # 前 6 位十进制表示长度，其后为 JSON
+  # 选卡阶段前（round == -1）：
+  first_message:
+    fields:
+      camp: "int, 己方阵营 0 或 1"
+  # 游戏进行中（StateSystem.parse() + round/camp）：
+  round_state:
+    fields:
+      round: "int, 当前回合号"
+      camp: "int, 己方阵营"
+      map: "对象, 地图信息（神迹/驻扎点/出兵点/障碍/单位分布）"
+      players: "长度 2 的数组，每名玩家的 mana、神器状态、生物卡容量、单位等"
+
+# ---------------------------------------------------------------------------
+# 动作空间（选手 send_opt 发送的操作，JSON 字符串，4 字节大端长度前缀）
+# ---------------------------------------------------------------------------
+action:
+  common_fields:
+    player: "int, 己方阵营（必须等于当前 listen 方，否则被忽略）"
+    round: "int, 当前回合号"
+    operation_type: "str, 操作类型（见 operations）"
+    operation_parameters: "对象, 各操作的参数"
+
+  operations:
+    - type: init
+      when: "选卡阶段，每方一次"
+      parameters:
+        artifacts: "长度 1 的字符串数组，神器名"
+        creatures: "长度 3 的字符串数组，互不相同的生物名"
+      legal:
+        - "恰好 1 张神器卡 + 3 张生物卡"
+        - "生物卡互不重复"
+        - "神器/生物名称均在游戏中存在"
+
+    - type: summon
+      when: "自己回合，主要阶段"
+      parameters:
+        type: "str, 生物类型"
+        level: "int, 星级 ∈ {1,2,3}"
+        position: "[x,y,z], 立方坐标（x+y+z==0），须为本方出兵点"
+      legal:
+        - "持有该生物卡且卡牌未处于冷却"
+        - "星级合法"
+        - "召唤点为本方出兵点"
+        - "召唤点无单位冲突"
+        - "法力值 >= 该生物该星级的花费"
+
+    - type: move
+      when: "自己回合，主要阶段"
+      parameters:
+        mover: "int, 己方生物 id"
+        position: "[x,y,z], 目标立方坐标"
+      legal:
+        - "只能移动己方生物"
+        - "终点不与其他单位冲突"
+        - "存在起点到终点的可行路径"
+        - "路径长度 <= 单位 max_move"
+        - "该单位本回合未行动过（除非具有迅捷 agility）"
+
+    - type: attack
+      when: "自己回合，主要阶段"
+      parameters:
+        attacker: "int, 己方生物 id"
+        target: "int, 目标生物 id；为 0 或 1 时表示攻击对应阵营的神迹"
+      legal:
+        - "只能操作己方生物，不能攻击友军"
+        - "攻击者攻击力 > 0"
+        - "该单位本回合未行动过（除非迅捷）"
+        - "目标在攻击距离 atk_range 内"
+        - "目标存活"
+        - "攻击飞行目标需攻击者具备 flying 或 atk_flying"
+
+    - type: use
+      when: "自己回合，主要阶段"
+      parameters:
+        card: "int, 本方神器 id"
+        target: "int（Unit 型神器）或 [x,y,z]（Pos 型神器）"
+      legal:
+        - "为本方神器"
+        - "神器处于 Ready（非再装填）"
+        - "法力值 >= 神器花费"
+        - "满足该神器特殊条件（如 InfernoFlame 落点限制）"
+
+    - type: endround
+      when: "自己回合，结束本回合"
+      parameters: {}
+      legal: ["无检测；结束当前玩家回合"]
+
+    - type: surrender
+      when: "任意己方回合"
+      parameters: {}
+      legal: ["无检测；立即判负"]
+
+# ---------------------------------------------------------------------------
+# legal_actions 生成指引（供 RL / 掩码使用）
+# ---------------------------------------------------------------------------
+legal_actions:
+  note: |
+    后端不主动下发合法动作全集；合法性在提交操作时逐条检查（见上 legal）。
+    要枚举可行动作，选手需基于当前 observation 自行推导：
+      - summon：遍历本方出兵点 × 手中未冷却生物卡 × 可负担星级，排除冲突点；
+      - move：对每个 can_move 的己方单位，用 reachable(unit, map) 求可达格；
+      - attack：对每个 can_atk 的己方单位，枚举攻击距离内的敌方单位/神迹；
+      - use：神器 Ready 且法力足够且满足特殊条件；
+      - endround：始终合法。
+    终局条件：任一神迹 hp<=0 或回合数达到 100。
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: miracle-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: inner_decimal_prefixed_json   # 前 6 位十进制长度 + JSON
+  action:
+    granularity: single_operation                # 一帧回复 = 一条 operation
+    token: sha256_of_frame_body
+  support:
+    mode: opcode_alphabet
+    cardinality: 7
+    provenance: >
+      上表 action.operations 的 operation_type 全集：init / summon / move /
+      attack / use / endround / surrender = 7。参数域（生物类型 × 星级 × 立方坐标、
+      可达格、攻击范围）由 PlayerLegality 在运行时校验，进程契约下无法在冻结观测上
+      重算精确合法集，故声明操作类型字母表作为固定测量约定。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

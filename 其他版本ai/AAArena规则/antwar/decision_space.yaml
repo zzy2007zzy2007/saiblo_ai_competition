@@ -1,0 +1,81 @@
+# AntWar / 蚁国争霸 (27th) —— 决策空间（decision_space.yaml）
+# 从后端 operation.h / comm_judger.cpp 与选手 SDK common.hpp / io.hpp 提炼。
+# 选手侧协议为 OJ 文本（非 JSON）。以后端逻辑为准。
+
+schema_version: "1.0"
+game: antwar
+
+roles:
+  - id: P0
+    description: "玩家 0；基地在地图一侧，蚂蚁目标为 P1 基地。"
+  - id: P1
+    description: "玩家 1；基地为 P0 的镜像位置，蚂蚁目标为 P0 基地。"
+roles_symmetric: true      # 规则对称、地图镜像
+
+# 选手每回合从 judger 收到的观测（OJ 文本，io.hpp 的 read_round_info 解析）。
+observation:
+  init:
+    - text: "\"{player_id} {seed}\\n\"：己方玩家 id 与随机种子（对局开始一次性下发）。"
+  per_round:                # cur_json_to_oj 生成的多行文本
+    - round: "int，当前回合号。"
+    - towers:
+        count: "int，塔数量，随后每行一座塔："
+        fields: "id player x y type cd"
+    - ants:
+        count: "int，蚂蚁数量，随后每行一只蚂蚁："
+        fields: "id player x y hp level age status"
+    - coins: "两个 int：player0 金币 player1 金币。"
+    - base_hp: "两个 int：player0 基地血量 player1 基地血量。"
+  opponent_ops:             # read_opponent_operations 解析
+    - text: "对手上一回合操作：首行 count，随后每行 'type [arg0 [arg1]]'。"
+
+# 选手可提交的操作（io.hpp send_operations：首行操作数，随后每行一条操作）。
+actions:
+  format: "首行 int=操作条数；随后每行 '{type} {arg0?} {arg1?}'；带 4 字节大端长度前缀。"
+  operation_types:
+    - {type: 11, name: BuildTower,        args: "x y", desc: "在 (x,y) 建基础塔。"}
+    - {type: 12, name: UpgradeTower,      args: "tower_id (target_type)", desc: "升级指定塔。"}
+    - {type: 13, name: DowngradeTower,    args: "tower_id", desc: "降级或拆除塔（返还部分金币）。"}
+    - {type: 21, name: UseLightningStorm, args: "x y", desc: "闪电风暴超级武器。"}
+    - {type: 22, name: UseEmpBlaster,     args: "x y", desc: "EMP 干扰（冻结区域蚂蚁）。"}
+    - {type: 23, name: UseDeflector,      args: "x y", desc: "力场护盾。"}
+    - {type: 24, name: UseEmergencyEvasion, args: "x y", desc: "紧急疏散。"}
+    - {type: 31, name: UpgradeGenerationSpeed, args: "(none)", desc: "升级出兵速度等级。"}
+    - {type: 32, name: UpgradeGeneratedAnt,    args: "(none)", desc: "升级新生蚂蚁等级。"}
+
+legal_actions:
+  semantics: >
+    合法性由后端 apply_operation 校验：位置有效性、金币是否充足、塔/超级武器 CD、
+    目标是否存在等。一个回合可提交多条操作，按顺序结算。任何非法操作或超时/崩溃
+    使该玩家本场判负（后端 set_AI_state_IO / 错误消息，end_state 记 RE/TLE/OLE/IA），
+    对战器记 game_error 并判对手胜。
+
+terminal:
+  win_condition: "对方基地血量 ≤ 0 判己方胜（双方同时 ≤0 判 P0 胜）。"
+  round_limit: "达 MAX_ROUND=512 回合按 基地血量→击杀蚂蚁数 裁定，仍相同则平局。"
+  scores: "终局 end_info={\"0\":s0,\"1\":s1}；s0=1 → P0 胜，s1=1 → P1 胜。"
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: antwar-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: raw_text_lines           # OJ 文本观测（cur_json_to_oj 生成）
+  action:
+    granularity: turn_bundle                # 一帧回复 = 首行条数 + 多条操作
+    token: sha256_of_frame_body
+  support:
+    mode: opcode_alphabet
+    cardinality: 10
+    provenance: >
+      上表 operation_types 的 9 个操作码（11/12/13/21/22/23/24/31/32）加上
+      "本回合 0 条操作"这个空动作 = 10。精确合法集由后端 apply_operation 在
+      运行时校验（金币/CD/目标存在性），进程契约下不可在冻结观测上重算，
+      故声明操作类型字母表作为固定测量约定。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

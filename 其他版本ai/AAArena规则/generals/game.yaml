@@ -1,0 +1,40 @@
+schema_version: "1.0"
+
+game: generals
+display_name: "Generals / 将军棋战"
+edition: 28
+type: "即时战略对抗"
+slug: 28_generals                # player_submissions game_slug 别名
+
+aliases:
+  - generals
+  - Generals
+  - 28_generals
+
+roles:
+  - P0
+  - P1
+roles_symmetric: true
+
+tracks:
+  - id: advanced
+    display_name: "提高组决赛天梯"
+    players_dir: players
+    source_ladder: top_algorithms/corpus/28_generals_advanced_final/
+  - id: popular
+    display_name: "普及组决赛天梯"
+    players_dir: players
+    source_ladder: top_algorithms/corpus/28_generals_popular_final/
+
+# 统一选手池说明
+players_note: "统一选手池已归并至 players/pool/（509 submission），清单见 players/manifest.tsv。"
+
+source: "Saiblo Game.code（官方 Python 后端为规则权威）"
+
+rules: rules.md
+decision_space: decision_space.yaml
+replay_format: replay_format.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+
+backend_source: backend/

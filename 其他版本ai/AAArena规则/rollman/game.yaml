@@ -1,0 +1,41 @@
+schema_version: "1.0"
+
+game: rollman
+display_name: "Rollman / 科研！社工？卷绩人！"
+edition: 29
+type: "非对称吃豆人式对抗（rollman vs ghost）"
+slug: 29_rollman                # player_submissions game_slug 别名
+
+aliases:
+  - rollman
+  - Rollman
+  - 科研社工卷绩人
+  - 29_rollman
+
+roles:
+  - rollman
+  - ghost
+roles_symmetric: false
+
+tracks:
+  - id: rollman
+    display_name: "rollman 角色天梯"
+    players_dir: players
+    source_ladder: players/
+  - id: ghost
+    display_name: "ghost 角色天梯"
+    players_dir: players
+    source_ladder: players/
+
+# 统一选手池说明
+players_note: "统一选手池位于 players/pool/（234 submission），清单见 players/manifest.tsv；两条角色天梯的历史来源见 PROVENANCE.json。"
+
+source: "Saiblo Game.code（官方 Python 后端为规则权威，依赖 numpy）"
+
+rules: rules.md
+decision_space: decision_space.yaml
+replay_format: replay_format.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+provenance: PROVENANCE.json

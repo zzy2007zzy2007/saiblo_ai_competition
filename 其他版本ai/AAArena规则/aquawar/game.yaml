@@ -1,0 +1,32 @@
+schema_version: "1.0"
+
+game: aquawar
+display_name: "AquaWar / 鱼洋陷役"
+edition: 25
+type: "多角色回合制对战"
+slug: 25_aquawar                # player_submissions game_slug 别名
+
+aliases:
+  - aquawar
+  - AquaWar
+  - 鱼洋陷役
+  - 25_aquawar
+
+roles:
+  - P0
+  - P1
+roles_symmetric: true
+
+tracks:
+  - id: final
+    display_name: "25 届贺岁赛决赛天梯"
+    players_dir: players
+    source_ladder: top_algorithms/corpus/25_aquawar_final/
+
+# 统一选手池说明
+players_note: "统一选手池已归并至 players/pool/（386 submission），清单见 players/manifest.tsv。"
+
+source: "Saiblo Game.code"
+
+players_manifest: players/manifest.tsv
+backend_source: backend/

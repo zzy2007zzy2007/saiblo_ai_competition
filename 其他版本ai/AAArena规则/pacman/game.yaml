@@ -1,0 +1,19 @@
+schema_version: "1.0"
+game: pacman
+display_name: "Pacman / 吃豆人"
+edition: legacy_ai9
+type: "AI9 legacy game"
+aliases: [pacman]
+roles: ("P0","P1")
+roles_symmetric: true
+tracks:
+  - id: sample
+    display_name: "Pacman / 吃豆人 sample"
+    players_dir: players
+source: "AI9/Arena9 legacy"
+rules: rules.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+legacy_protocol: ai9-loader-1
+legacy_player_runtime: ai9_cpp_so

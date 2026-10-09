@@ -1,0 +1,33 @@
+schema_version: "1.0"
+
+game: antwar2
+display_name: "AntWar2 / 蚁洋陷役2"
+edition: 30
+type: "双人回合制塔防对抗（19×19 offset-hex 网格）"
+
+aliases:
+  - antwar2
+  - AntWar2
+  - 蚁洋陷役2
+  - 30_antwar2
+
+roles:
+  - P0
+  - P1
+roles_symmetric: false          # 起始基地位置不同 (2,9) vs (16,9)，需 side-balanced 评测
+
+tracks:
+  - id: ladder
+    display_name: "AntWar2 天梯"
+    players_dir: players
+    notes: "统一选手池已归并至 players/pool/（500 submission），清单见 players/manifest.tsv。"
+
+source: "Saiblo Game.code（官方 C++ 后端为规则权威，公开 Python SDK 为候选接口权威）"
+
+rules: rules.md
+decision_space: decision_space.yaml
+replay_format: replay_format.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+
+backend_source: backend/

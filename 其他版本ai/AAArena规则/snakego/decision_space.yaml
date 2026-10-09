@@ -1,0 +1,87 @@
+# SnakeGo 决策空间契约 —— A 生产，B/C 消费
+# 提炼自后端 logic/operate.py::Controller.apply_single 与玩家 SDK 线协议。
+schema_version: "1.0"
+
+policy_interface:
+  # 选手侧线协议（本地 AI，二进制 stdio；见 replay_format.md 与 players/pool 官方 SDK）
+  input_type: raw_bytes_stream            # 配置5B / 道具 0x10+7*n / 操作回显1B / 结束 0x11
+  output_type: single_operation_code      # 每次决策写 [len:4][op:1]，op ∈ 1..6
+  entry_symbol: player_process_stdout     # 由 arena 相对 stdin/stdout 帧接管
+  legality: backend_apply_single_validates # 合法性由后端 apply_single 判定，非法抛 IA/PE
+  turn_model: multi_op_per_turn            # 一次回合监听后同一玩家可连续多次操作，直到 next_snake == -1
+
+# 原子动作 = 玩家单次可提交的整数操作码（operate.py::apply_single）。
+atomic_actions:
+  - {name: MOVE_DOWN,  code: 1, arguments: [], note: "direction 0, dx=+1 dy=0"}
+  - {name: MOVE_RIGHT, code: 2, arguments: [], note: "direction 1, dx=0 dy=+1"}
+  - {name: MOVE_UP,    code: 3, arguments: [], note: "direction 2, dx=-1 dy=0"}
+  - {name: MOVE_LEFT,  code: 4, arguments: [], note: "direction 3, dx=0 dy=-1"}
+  - {name: FIRE,       code: 5, arguments: [], note: "内部 type=2；需首个道具 type=2 且蛇长>1"}
+  - {name: SPLIT,      code: 6, arguments: [], note: "内部 type=3；阵营蛇数<4 且蛇长>1"}
+
+# 每个原子动作作用于「当前应动蛇」current_snake（由后端 find_next_snake 依次选定），
+# 玩家无需在操作码里指定蛇 id —— 后端按序把操作码绑定到 op.snake。
+action_target:
+  selector: backend_round_init_and_find_next_snake
+  order: snake_list_order_within_player_camp
+  arguments_from_player: none              # 操作码不携带坐标/蛇号，全由后端上下文决定
+
+legal_actions:
+  base: [1, 2, 3, 4]                       # 移动始终在候选集中（越界/撞墙会致死但不算非法格式）
+  fire_available_when:                     # op=5 合法前提
+    - snake_length_gt_1
+    - first_held_item_type_eq_2
+  split_available_when:                    # op=6 合法前提
+    - camp_snake_count_lt_4
+    - snake_length_gt_1
+  hard_illegal_examples:                   # 触发 ErrorType.IA（判负）
+    - turn_back_when_length_gt_2
+    - fire_without_type2_item
+    - split_when_count_ge_4_or_length_le_1
+  format_illegal:                          # 触发 ErrorType.PE
+    - op_out_of_range_1_to_6
+
+atomization:
+  roles: [P0, P1]                          # P0=阵营0（先手），P1=阵营1
+  preserve_accepted_order: true
+  empty_bundle: none                       # 无空操作码，每次决策必给 1..6
+  rejected_operations: record_but_terminate_match  # 非法即判负终局
+
+measurement:
+  deterministic_policy_channel: epsilon_regularized
+  support: exact_legal_operation_codes
+  reference_states: candidate_version_fixed_panel_replay_decision_states
+  local_context:
+    - frozen_public_board_state            # 蛇身/墙体/道具的公开网格
+    - current_snake_and_camp
+  comparison:
+    stop_after_first_prefix_divergence: true
+
+occupancy:
+  state_id: sha256_of_normalized_public_board_state
+  metric: total_variation
+  relation_to_policy_kl: reported_separately_never_added
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: snakego-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: raw_binary_records     # 配置 5B / 道具 0x10+7n / 回显 1B / 结束 0x11
+  action:
+    granularity: atomic_operation         # 一帧回复 = 一个操作码，天然就是原子动作
+    token: sha256_of_frame_body
+  support:
+    mode: enumerated
+    cardinality: 6
+    provenance: >
+      operate.py::Controller.apply_single 的操作码 1..6（四个方向 + FIRE + SPLIT）
+      构成选手单次决策的**完整**动作集合，因此 |A| 精确等于 6；FIRE/SPLIT 的状态
+      前提只影响该动作是否会被判负，不改变可提交动作集合的规范定义。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

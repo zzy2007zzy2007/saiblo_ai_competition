@@ -1,0 +1,134 @@
+# Generals / 将军棋战（第 28 届）决策空间
+#
+# 从后端 logic/execute.py: execute_single_command 与各 logic 子模块逐条提炼。
+# 命令以「空格分隔的整数序列」表示，一个回合可连续发送多条命令，最后单独一行 `8`
+# 表示结束操作。命令首位是操作码 command，其余为参数 params。
+
+schema_version: "1.0"
+game: generals
+roles: [P0, P1]
+roles_symmetric: true
+players: 2
+
+# ---------------------------------------------------------------------------
+# 观测：后端每回合发给当前行动玩家的 JSON（选手视角），字段见 replay_format.md。
+# ---------------------------------------------------------------------------
+observation:
+  format: json_line            # 一行 JSON，末尾带 \n，选手用 readline 读取
+  fields:
+    Round: "当前回合数"
+    Player: "视角玩家编号 (0/1)"
+    Cells: "棋盘每格 [[x,y], player, army]"
+    Cell_type: "长度 225 的地形字符串，逐格 0/1/2"
+    Generals: "将领列表：Id/Player/Type/Position/Level/Skill_cd/Skill_rest/Alive"
+    Coins: "[coin0, coin1] 金币"
+    Tech_level: "[[行动力,攀岩,免疫沼泽,超武], ...]"
+    Weapons: "生效中的超级武器列表"
+    Weapon_cds: "双方超级武器 CD"
+  # 首个行动前只发地图；之后每回合还会先转发对手上一回合的操作序列（多行，以 8 结尾）。
+
+# ---------------------------------------------------------------------------
+# 动作空间：command -> 参数与语义
+# ---------------------------------------------------------------------------
+actions:
+  - command: 1
+    name: army_move
+    desc: "军队移动 / 攻击"
+    params: [x, y, direction, num]
+    notes: >
+      从己方格 (x,y) 沿 direction 移动 num 兵。direction: 1=上 2=下 3=左 4=右
+      （后端 Direction 枚举 UP/DOWN/LEFT/RIGHT，参数 = 枚举值+1）。
+      合法要求：格归己方、army>1、rest_move_step>0、目标非山脉(或已攀岩)。
+      num 会被截断为 army-1。攻击结算见 rules.md §6。
+
+  - command: 2
+    name: general_move
+    desc: "将领移动"
+    params: [general_id, new_x, new_y]
+    notes: "把 id 将领移动到空目标格，BFS 最短路须 ≤ 将领 rest_move。"
+
+  - command: 3
+    name: upgrade_general
+    desc: "将领升级"
+    params: [general_id, kind]
+    notes: "kind: 1=产出 2=防御 3=机动。金币阶梯见 logic/upgrade.py；农民不能升机动。"
+
+  - command: 4
+    name: release_skill
+    desc: "释放战法"
+    params: [general_id, skill, dest_x, dest_y]
+    notes: >
+      skill: 1=突袭 2=击破 3=统率 4=防御 5=弱化。
+      仅突袭(1)/击破(2)需要 dest_x/dest_y（2 格内），其余只传前两个参数。
+      消耗金币与 CD 见 rules.md §7。
+
+  - command: 5
+    name: tech_update
+    desc: "科技升级"
+    params: [tech]
+    notes: "tech: 1=行动力 2=攀岩 3=免疫沼泽 4=解锁超级武器。花费见 logic/upgrade.py。"
+
+  - command: 6
+    name: super_weapon
+    desc: "使用超级武器（需已解锁且 CD=0）"
+    variants:
+      - {type: 1, name: nuclear_boom,   params: [x, y]}              # 核弹 3x3
+      - {type: 2, name: attack_enhance, params: [x, y]}              # 攻击强化
+      - {type: 3, name: transmission,   params: [to_x, to_y, from_x, from_y]}  # 时空传送
+      - {type: 4, name: time_stop,      params: [x, y]}              # 时间停止
+    notes: "首参为武器类型 type，后接对应坐标。使用后 CD = use_cd(50)。"
+
+  - command: 7
+    name: call_subgeneral
+    desc: "召唤副将"
+    params: [x, y]
+    notes: "花 50 金币，把己方领地上 (x,y) 处的中立副将变为己方。"
+
+  - command: 8
+    name: end_turn
+    desc: "结束本回合操作（终止符）"
+    params: []
+
+  - command: 9
+    name: surrender
+    desc: "认输（仅播放器/交互模式，AI 一般不用）"
+    params: []
+
+# ---------------------------------------------------------------------------
+# 合法性（legal_actions）语义
+# ---------------------------------------------------------------------------
+legal_actions:
+  semantics: >
+    没有显式 legal_actions 列表接口。合法性由后端 execute_single_command 逐条判定：
+    命令返回 False 即为非法。在 AI 模式下（main.py: read_ai_information_and_apply）
+    任一命令非法会立即判该玩家负（winner = 1 - player，end_state 标记 IA）。
+    因此选手须自行用本地 SDK 复算状态、只发送合法命令，并以单独一行 8 结束。
+  turn_terminator: 8
+  illegal_penalty: "该玩家立即判负（IA / 非法操作）"
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: generals-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: raw_text_lines          # 一行 JSON 观测 / 多行整数命令回显
+  action:
+    granularity: turn_bundle               # 一帧回复 = 本回合命令序列（以单行 8 结束）
+    token: sha256_of_frame_body
+  support:
+    mode: opcode_alphabet
+    cardinality: 8
+    provenance: >
+      上表 actions 里选手真正会发出的操作码 1..7（army_move / general_move /
+      upgrade_general / release_skill / tech_update / super_weapon /
+      call_subgeneral）加上"只发终止符 8"这个空动作 = 8。命令 9（认输）只在
+      交互模式使用，不计入。参数域（225 格 × 方向 × 兵力）是状态相关的，
+      进程契约下无法在冻结观测上重算精确合法集，因此声明操作类型字母表作为
+      固定测量约定（report 时 support_mode=opcode_alphabet）。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added

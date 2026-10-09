@@ -1,0 +1,48 @@
+schema_version: "1.0"
+
+game: lostspace
+display_name: "LostSpace / 失落深空"
+edition: 25
+type: "四人对抗策略对战（六边形星图，回合制探索/战斗）"
+slug: 25_lostspace                # player_submissions game_slug 别名
+
+aliases:
+  - lostspace
+  - LostSpace
+  - 失落深空
+  - 25_lostspace
+
+# LostSpace 后端 game_init 硬性要求 player_num == 4：四名玩家同场竞技，
+# 终局按名次给分（第一名 4 分递减）。评测为四人（4 名 PlayerRef，角色 P0..P3）。
+roles:
+  - P0
+  - P1
+  - P2
+  - P3
+roles_symmetric: true
+players: 4
+
+tracks:
+  - id: final_ladder
+    display_name: "25 届决赛天梯"
+    players_dir: players
+    source_ladder: players/
+
+# 统一选手池说明
+players_note: "统一选手池位于 players/pool/（150 submission），清单见 players/manifest.tsv；历史来源见 PROVENANCE.json。"
+
+source: "Saiblo Game.code"
+
+rules: rules.md
+decision_space: decision_space.yaml
+replay_format: replay_format.md
+evaluator: evaluator/
+players_manifest: players/manifest.tsv
+backend_source: backend/
+provenance: PROVENANCE.json
+
+# 后端运行依赖：地图由 antlr4 解析 src/mapconf2.map 生成，需 antlr4-python3-runtime；
+# 且后端自带的 ANTLR 4.7.1 生成代码使用 `from typing.io import TextIO`，在 Python 3.12+
+# 已移除，需由评测器在启动后端前注入 typing.io 兼容 shim。详见 rules.md「后端依赖」。
+backend_python_requirements:
+  - antlr4-python3-runtime==4.9.1

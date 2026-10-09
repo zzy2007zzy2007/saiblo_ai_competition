@@ -1,0 +1,133 @@
+schema_version: "1.0"
+
+game: lostspace
+display_name: "LostSpace / 失落深空"
+
+# 决策空间从后端 src/GameController.py::solve 的动作分支与 src/communicate.py 的
+# 消息格式、历史样例 public_sdk/legacy_main.py 的选手发包格式提取。
+
+players: 4
+roles: [P0, P1, P2, P3]      # 对应后端玩家 id 0..3
+roles_symmetric: true
+
+# ---------------------------------------------------------------------------
+# 观测（后端下发给玩家的消息，JSON，AI 侧含 4 位十进制长度前缀）
+# ---------------------------------------------------------------------------
+observation:
+  encoding: "4 位十进制长度前缀 + JSON 字符串"   # convert_byte_str_for_ai
+  message_types:
+    - type: id
+      when: "开局，广播给四人（listen=[]，无需回复）"
+      fields: { id: "本玩家编号", birth_pos: "本玩家出生点" }
+    - type: roundbegin
+      when: "每个玩家回合开始（listen=[当前玩家]）"
+      fields:
+        state: "小回合编号"
+        inturn: "当前行动玩家 id"
+        # 仅当前玩家收到详细状态：
+        detailed: "自身 hp / sp / 道具 / 密钥 / 位置 / 视野等"
+        others: "其他三名玩家的简要状态（brief_dict）"
+    - type: offround
+      when: "广播事件通知（listen=[curplayer]，转发目标为非当前玩家；单向）"
+      fields: { playerid: "触发玩家", content: "[事件名, ...参数]（如 died / escaped / ai_error / see / getkey / hp_update / trap_triggered ...）" }
+    - type: action
+      when: "对当前玩家某操作的响应"
+      fields: { success: "bool", hp: "int?", status: "int?", view: "dict?", pos_info: "dict?", keys: "list?", tools: "dict?", has_trap: "bool?" }
+    - type: format error
+      when: "上一条操作格式非法"
+
+# ---------------------------------------------------------------------------
+# 动作空间（选手 send_opt：4 字节大端长度前缀 + JSON）
+# ---------------------------------------------------------------------------
+action:
+  wrapper:
+    type: "str, 操作类型"
+    action: "list, 操作参数（见下）；finish 无 action"
+  # 选手回复经裁判包成 {"player":p,"content":"<上面 JSON 字符串>"} 交给后端。
+
+  operations:
+    - type: move
+      action: ["move", [x, y, z]]
+      note: "移动到相邻可达格；消耗 sp"
+    - type: attack
+      action: ["attack", [x, y, z], target_id]
+      legal: ["target_id ∈ {0,1,2,3} 且 != 自己", "目标在该坐标"]
+      note: "伤害 AttackHarm=70，消耗 sp"
+    - type: interact
+      variants:
+        - ["interact", "Box"]                    # 开箱取密钥
+        - ["interact", "Materials", tool_name]   # 取道具，tool_name ∈ ToolList
+        - ["interact", "KeyMachine"]             # 钥匙机取密钥
+        - ["interact", "EscapeCapsule", to_escape_bool]  # 与逃生舱交互
+    - type: trap
+      action: ["trap", trap_type]
+      legal: ["trap_type ∈ {LandMine, Sticky}", "携带量 < MaxCarry"]
+    - type: tool
+      variants:
+        - ["tool", "Kit"]                        # 医疗包，回复 KitRecovery=100
+        - ["tool", "Transport", [x, y, z]]       # 传送到坐标
+    - type: detect
+      action: ["detect", [x, y, z]]
+      note: "探查该格是否有陷阱；有冷却 detect_cooling"
+    - type: finish
+      action: null
+      note: "结束当前玩家回合"
+
+# ---------------------------------------------------------------------------
+# 常量（src/config.py）
+# ---------------------------------------------------------------------------
+constants:
+  map: { length: 7, width: 7, height: 3 }
+  hp_max: 200
+  sp_max: 1
+  round_max: 100
+  attack_harm: 70
+  landmine_harm: 120
+  kit_recovery: 100
+  refresh_interval: 8
+  max_carry: { LandMine: 3, Sticky: 3, Transport: 2, Kit: 2 }
+  birth_pos: [[0, 0], [6, 0], [6, 6], [0, 6]]
+  elevator: [[3, 0], [5, 3], [3, 6], [1, 3]]
+  escape_capsule_pos: [3, 3, 0]
+  shrink_time: [40, 50, 60, 70, 80]
+  prop_list: [Materials, EscapeCapsule, KeyMachine, Box]
+  tool_list: [LandMine, Sticky, Transport, Kit]
+
+# ---------------------------------------------------------------------------
+# legal_actions 生成指引
+# ---------------------------------------------------------------------------
+legal_actions:
+  note: |
+    后端不下发合法动作全集；合法性在 solve 中逐条检查（格式错误回 format error，
+    动作失败回 success=false）。选手基于 roundbegin 的自身状态（位置/视野/道具/密钥/
+    行动力 sp）推导可行动作：
+      - move：枚举当前位置的相邻可达格（受门/缩圈限制）；
+      - attack：视野内的其他玩家坐标（sp>=AttackCost）；
+      - interact/tool/trap/detect：需站在对应交互物旁或持有对应道具且 sp 足够；
+      - finish：始终合法（结束回合）。
+    终局：四人全部结算（逃生/淘汰）或达到 100 大回合。名次分 4=第一名递减。
+
+# ---------------------------------------------------------------------------
+# 机器可读的行为信息增益测量契约（由 aa_arena.core.decision_space 加载）。
+# ---------------------------------------------------------------------------
+information_gain:
+  schema: lostspace-wire-v1
+  probe: transcript_replay
+  wire:
+    player_frame: length_prefixed_i32_be
+    judge_payload: inner_decimal_prefixed_json   # 4 位十进制长度 + JSON
+  action:
+    granularity: single_operation                # 一帧回复 = 一条 {"type","action"}
+    token: sha256_of_frame_body
+  support:
+    mode: opcode_alphabet
+    cardinality: 7
+    provenance: >
+      上表 action.operations 的 type 全集：move / attack / interact / trap /
+      tool / detect / finish = 7。参数域（相邻可达格、视野内目标、道具种类）随
+      状态变化并由 GameController.solve 在运行时判定，进程契约下无法在冻结观测上
+      重算精确合法集，故声明操作类型字母表作为固定测量约定。
+  occupancy:
+    state_id: sha256_of_decision_observation_bytes
+    metric: total_variation
+    relation_to_policy_kl: reported_separately_never_added
