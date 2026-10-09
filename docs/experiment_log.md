@@ -8260,3 +8260,71 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - 于是把 K=1 当**筛查工具**需要先**标定**：已开跑 `K1_maponly` / `K1_clsonly` / `K1_phold10`（各 ~10–15 min，vs example），
   与已知 K=24 值对照：基线 ckpt **0.8016**（K=1 = **0.6875**）、maponly **0.6016**、clsonly **0.5781** ⇒ 4 点标定。
   若 K=1 与 K=24 **同序**，则今后每轮策略迭代的评估可以先花 10 min 筛查、只对入围者花 5 h 复核（**探索成本降一个数量级**）。
+
+## 2026-10-09 16:26:34 — AB_K1_maponly_vs_example
+
+- **commit**: `a2560e0` (dirty: 11 files)
+- **exit**: 0，用时 607s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_maponly.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1 AZAI_K=1 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_K1_maponly_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_162634_AB_K1_maponly_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 16:37:20 — AB_K1_clsonly_vs_example
+
+- **commit**: `a2560e0` (dirty: 12 files)
+- **exit**: 0，用时 601s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_clsonly.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1 AZAI_K=1 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_K1_clsonly_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_163720_AB_K1_clsonly_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 16:48:06 — AB_K1_phold10_vs_example
+
+- **commit**: `a2560e0` (dirty: 12 files)
+- **exit**: 0，用时 609s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_phold10.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1 AZAI_K=1 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_K1_phold10_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_164806_AB_K1_phold10_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 16:25:14 — AB_F_masked_phold10_vs_baseline
+
+- **commit**: `12cc9fe` (dirty: 11 files)
+- **exit**: 0，用时 2052s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_phold10.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=masked AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_F_masked_phold10_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_162514_AB_F_masked_phold10_vs_baseline/output.log`
+- **result**: _待填_
+
+### 29. goal-2600a56a 第 13 轮：**F 臂惨败（0.0938 vs 基线）** + K=1 标定完成（K=1 不预测 K=24）
+
+**A. F 臂（`pos-only`+`POSPIN=masked`+`phold10` 头 vs 冻结基线，固定段 128 局）= `p̂ = 0.0938`**
+- 64 对：**1×2-0 / 10×1-1 / 53×0-2**；CI [0.0469, 0.1484]；**无效+缺失 0%**；判词 128/128 engine。
+- 机制：我方 **12.7 建 / 0.0 降 / 4.8 升 / 11.9 有操作回合**（基线 16.5/4.3/4.8）；**2.08 min/局**（快 ⇒ 说明我方搜索多数被短路）。
+- 解读：`masked` 钉类后候选塌缩 ⇒ `SKIP1` 短路搜索 ⇒ 退化为"类头 argmax + 动作图 argmax"的纯策略；
+  而"类头 argmax"常与 MC 菜单选择不同（更差）⇒ 惨败。**第 4 条被否掉的手写门控规则**。
+
+**B. K=1 标定（4 个 ckpt，vs example，固定段 128 局）**
+
+| ckpt | K=24 | **K=1（纯策略）** |
+|---|---|---|
+| 基线 `grafted_sdk_A` | 0.8016 | **0.6875** |
+| `maponly`（类头未约束/漂移）| 0.6016 | **0.4375** |
+| `clsonly`（动作图未约束）| 0.5781 | **0.4297** |
+| `phold10` | 待 C 臂 | **0.6250** |
+
+- **结论**：**K=1 与 K=24 不是同一件事**：两个"半毁"ckpt 在纯策略下**都打不过 example**（0.4375/0.4297），
+  而在 K=24 下被"搜索+MC"救到 0.6016/0.5781 ⇒ **+11.4pp 的实质是"补偿坏策略"**。
+- ⇒ **K=1 只用于回答"策略头是否变好"**（AZ 环/微调的直接指标），**不能**外推成"打 example/打基线的胜率"。
+
+**C. 已开（按预注册）**：① 搜索扫描筛查臂 **I512**（`ITERS=512`，**64 局前缀 `7..38`**，vs example；**偏离预注册的"vs base_pkg"语境，理由=成本，已记录**）；
+② 消融臂 **C**（`phold10` + `pos-only` + `mc_quiet`，K=24，vs example，128 局）⇒ 补全标定表并回答"HOLD 降采样在部署配置里是否有用"。
