@@ -8873,3 +8873,23 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **但同一张网在"搜索叶评估"上给出判据 +3.9pp**（0.6797 → 0.7188）⇒ **"预测搜索" ≠ "给候选打分"**：
   前者要贴合搜索自身（含偏置）的估计，后者要的是候选的**因果效应** ⇒ **价值网的正确用法是叶评估，不是当裁判**。
 - 队列 `pwsh-1097` 已跑完（K48 判据复核 + 本闸门）⇒ **iter2（价值迭代第二轮）守卫解除、应已接续**。
+
+## 2026-10-10 04:59:21 — ITER2_COLLECT
+
+- **commit**: `e4de6f3` (dirty: 12 files)
+- **exit**: 0，用时 2472s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/i2_policy/ITER2_COLLECT AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/i2_obs/ITER2_COLLECT AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=250 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=ITER2_COLLECT --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 10031 10031r 10032 10032r 10033 10033r 10034 10034r 10035 10035r 10036 10036r 10037 10037r 10038 10038r 10039 10039r 10040 10040r 10041 10041r 10042 10042r 10043 10043r 10044 10044r 10045 10045r 10046 10046r 10047 10047r 10048 10048r 10049 10049r 10050 10050r 10051 10051r 10052 10052r 10053 10053r 10054 10054r 10055 10055r 10056 10056r 10057 10057r 10058 10058r 10059 10059r 10060 10060r
+  ```
+- **output**: `training_history/runs/20261010_045921_ITER2_COLLECT/output.log`
+- **result**: _待填_
+
+### 56. goal-2600a56a 第 52 轮：**价值迭代第二轮的护栏按规则触发**（判"自举发散"）+ 同目标对照（记为"分布位移"）
+
+- 第二轮流程（全自动）跑完采集（60 局，用**第一轮的网**、训练段 `10031..10060`）+ 转换 + 训练：
+  **按局 `val_mae = 0.0973`** vs 第一轮 **0.0718** ⇒ **预注册的发散护栏触发 ⇒ 中止，`VSEARCH2_dec` 判据臂未跑**（`_tmp_iter2.ps1` exit 0）。
+- **同目标对照（第一轮的 12 个留出局）**：第一轮网 **0.0718** ▸ **第二轮网 0.0923** ▸ 旧网 0.2368
+  ⇒ 护栏**非误报**（第二轮网在旧目标上确实更差），但它**移向新目标分布** ⇒ 准确记为"**分布位移**"，**不等于**发散。
+- **规则外诊断**（明确标注不属预注册）：`AB_VSEARCH2_diag_vs_baseline`（第二轮网 + MC1 vs 冻结基线、128 局、4 线程）
+  ⇒ 目的：检验"离线 val_mae 变差"是否真的意味着"棋力变差"（这同时校准了护栏本身是否合理）。
