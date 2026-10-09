@@ -13,3 +13,27 @@
 [submodule "其他版本ai/AAArena"]
 	path = 其他版本ai/AAArena
 	url = https://github.com/THU-CST-SAST/AAArena.git
+[submodule "其他版本ai/Miracle-AI"]
+	path = 其他版本ai/Miracle-AI
+	url = https://github.com/omegafantasy/Miracle-AI.git
+[submodule "其他版本ai/AquaWar-AI"]
+	path = 其他版本ai/AquaWar-AI
+	url = https://github.com/omegafantasy/AquaWar-AI.git
+[submodule "其他版本ai/LostSpace-AI"]
+	path = 其他版本ai/LostSpace-AI
+	url = https://github.com/omegafantasy/LostSpace-AI.git
+[submodule "其他版本ai/SnakeGo-AI"]
+	path = 其他版本ai/SnakeGo-AI
+	url = https://github.com/omegafantasy/SnakeGo-AI.git
+[submodule "其他版本ai/ANTWar-AI"]
+	path = 其他版本ai/ANTWar-AI
+	url = https://github.com/omegafantasy/ANTWar-AI.git
+[submodule "其他版本ai/Generals-AI"]
+	path = 其他版本ai/Generals-AI
+	url = https://github.com/omegafantasy/Generals-AI.git
+[submodule "其他版本ai/RollMan-AI"]
+	path = 其他版本ai/RollMan-AI
+	url = https://github.com/omegafantasy/RollMan-AI.git
+[submodule "其他版本ai/SnowCup-AI"]
+	path = 其他版本ai/SnowCup-AI
+	url = https://github.com/omegafantasy/SnowCup-AI.git

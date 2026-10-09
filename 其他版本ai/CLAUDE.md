@@ -12,6 +12,6 @@ AAArena规则:12个游戏的 rules.md / decision_space.yaml / replay_format.md /
 
 ⚠️造塔价格:本地 Ant-Game\README.md 的造塔价格公式「15×2^i」是错的，正确的是 15×3^(n//2)（n为奇数再×2）。C++证据 game\src\coin.cpp:11，SDK证据 SDK\backend\constants.py:325（SDK 是对的，照 README 手算会高估成本、建塔偏保守）。详见 docs\antwar2规则勘误_造塔价格.md
 
-omegafantasy的历届AI:AAArena故意扣留前8名源码，但这位长期霸榜的选手(saiblo-30th-AI的作者，antwar第27届rank01)自己开源了7个游戏的AI——Miracle-AI/AquaWar-AI/LostSpace-AI/SnakeGo-AI/ANTWar-AI/Generals-AI/RollMan-AI，正好补上最强对手那一端。另有SnowCup-AI(不在12个里)和stupid_car(嵌入式小车，无关)。详见 omegafantasy的历届AI.md
+omegafantasy的历届AI:AAArena故意扣留前8名源码，但这位长期霸榜的选手(saiblo-30th-AI的作者，antwar第27届rank01)自己开源了7个游戏的AI——Miracle-AI/AquaWar-AI/LostSpace-AI/SnakeGo-AI/ANTWar-AI/Generals-AI/RollMan-AI，正好补上最强对手那一端。另有SnowCup-AI(不在12个里)也留着了；stupid_car(嵌入式小车)已删。这8个都已登记为真子模块。详见 omegafantasy的历届AI.md
 
 RL适配性调研:12个游戏机制层面的RL适配性评估(两轮独立子agent+Kimi-K3盲评+我逐条裁决)。审校后的结论在 docs\12游戏RL适配性评估.md；子agent原始详报(未审)在 RL适配性调研\ 下。核心结论：「动作空间大⇒RL难」是错的，真正的轴是可观测性/非平稳性/信用分配长度/动作悬崖。

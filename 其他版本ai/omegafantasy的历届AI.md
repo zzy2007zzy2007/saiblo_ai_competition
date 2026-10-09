@@ -11,7 +11,7 @@ AAArena（`其他版本ai/AAArena/`）的放出规则是 **`rank > 8 且名次�
 
 → 结果是：**AAArena 不给你最强对手，但最强对手自己公开了源码。**
 
-## 已克隆的 9 个仓库（都放在 `其他版本ai/` 下）
+## 已克隆并登记为真子模块的 8 个仓库（都放在 `其他版本ai/` 下）
 
 | 目录 | 对应 AAArena 游戏 | 届次 | HEAD 日期 | 体积 | 文件特征（用于确认身份） |
 |---|---|---|---|---|---|
@@ -23,7 +23,6 @@ AAArena（`其他版本ai/AAArena/`）的放出规则是 **`rank > 8 且名次�
 | `Generals-AI/` | Generals | 28 | 2024-05-15 | 1,435 KB | `include/` / `main.cpp` |
 | `RollMan-AI/` | Rollman | 29 | 2025-05-10 | 1,389 KB | **`main_pac.cpp` + `main_ghost.cpp`**（非对称双角色，正好对上）/ `ai_to_judger.h` / `core/` / `utils/` |
 | `SnowCup-AI/` | ⚠️ **不在 AAArena 的 12 个里** | ? | 2022-05-25 | 1,189 KB | `contestant_code.cpp` / `egg_sdk.cpp,h`（"雪杯"） |
-| `stupid_car/` | ❌ **与比赛无关** | – | 2023-12-24 | 416 KB | `bmm150.c`（磁力计驱动）/ `Emakefun_MotorDriver.cpp` / `Buzzer.cpp` —— 是嵌入式小车代码 |
 
 已有的第 30 届（AntWar2）在他这里没有独立仓库（就是本目录的 `saiblo-30th-AI`，里面含两个游戏）。
 
@@ -45,10 +44,12 @@ AAArena（`其他版本ai/AAArena/`）的放出规则是 **`rank > 8 且名次�
 
 ## ⚠️ 未验证 / 待办
 
-- [ ] **没有验证这些仓库能否编译、能否跑起来**（只是克隆并核对了文件特征）
+- [x] **已按本仓库约定登记为真子模块**（2026-10-10，8 个；pin 全部 = 上游默认分支尖端，已 `git ls-remote` 逐个核实）
+- [x] `stupid_car` 已删除（确认是嵌入式小车代码，与比赛无关）
+- [x] `SnowCup-AI` 保留（"雪杯"，不在 AAArena 的 12 个游戏里）
+- [ ] **没有验证这些仓库能否编译、能否跑起来**（只核对了文件特征；按你的要求**不做**多游戏运行验证）
 - [ ] 届次对应是根据"游戏名 + 文件特征 + 推送时间"推断的，**没有逐一比对 AAArena 的对局记录**
-- [ ] 尚未按本仓库约定登记为**真子模块**（9 个仓库，需要你确认；参考 AAArena 那次是 `git submodule add`）
-- [ ] `SnowCup-AI` 是哪个比赛的"雪杯"、`stupid_car` 是否要删 —— 待你决定
+- [ ] 接口是原始赛事接口（C++ `.so` / stdio），**尚未写 AAArena evaluator 的适配层**
 
 ## 合规提醒（同 AAArena 那份）
 
