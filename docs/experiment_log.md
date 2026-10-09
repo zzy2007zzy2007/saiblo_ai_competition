@@ -8743,3 +8743,14 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 （本轮已把 S2 的**数据链路**走完：采集 60 局 → ingest 29,285 条 → pkl→npz → 合并 → 训练出 `checkpoints/value_s2.pt`，MAE 0.0338（**按帧切分、乐观**）。）
 
 **D. 仍在跑**：`MC1+K48`（`K=48` 加宽候选集——机制上最后一条还活着的搜索杠杆；19/64）。
+
+### 48. goal-2600a56a 第 39 轮：**S2 做出部署形状的价值网 + 通道实测有效**（三方闸门在跑）
+
+- 缺口与修法：部署端要 `value_state` 是**完整 `AntWarNetwork`**（`make_three_net_fn(class,pos,**value**)` 用它做叶评估），
+  而 `train_value_net.py` 产出独立小网（键交集 0）⇒ 新写 **`code/my_ai/train_value_antwar.py`**（同架构 + `MSE(tanh(v), target)` + **按局切分** + 只替换 `value_state`）。
+- 产物：**`checkpoints/grafted_sdk_A_vs2.pt`**（`class_state`/`pos_state` 与原文件**逐位相同**，`value_state` 已替换，94 张量架构核对通过）。
+- **诚实指标**：按局切分 `val_mae = 0.3453`；⚠️ 按帧切分的那条路径给 0.0338 ⇒ **差 10 倍，坐实其验证集泄漏**。
+- **通道验证**（同局面 seed7/p0）：旧网 `-0.168159` → 新网 `+0.439332`（差 0.607）⇒ **通道有效**（换 `value_state` 确实改变搜索叶值）。
+  ⚠️ 注意：新网在**开局**就给 +0.44（偏乐观），可能是"训练数据以中局为主"的分布问题 ⇒ 闸门会给出代价。
+- **三方闸门在跑**：`AB_S2_VNEW_vs_example`（`MC1 + MC_SCORE=value_only` + 新 ckpt，64 局 vs example）；
+  对照 (a) rollout 评分 **0.9375**、(b) 旧价值网评分 **0.3438**。

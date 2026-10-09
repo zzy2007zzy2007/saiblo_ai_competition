@@ -120,6 +120,17 @@
 | 结论 | 支撑（run / 文件）| 强度 |
 | 结论 | 支撑（run / 文件）| 强度 |
 |---|---|---|
+| ✅ **S2 做出"部署形状"的价值网，并**实测通道有效**（2026-10-09 第 39 轮）：
+  新增 `code/my_ai/train_value_antwar.py`：`create_model(**model_kwargs_from_ckpt(base))` 造**同架构**网（94 张量与部署 `value_state` 逐一核对通过）、
+  以 `MSE(tanh(value), target)` 训练（部署口径 `value=tanh(裸输出)`，见 `az_selfplay.make_three_net_fn`）、**按局切分**、训练完**只替换 `value_state`** 产出
+  `checkpoints/grafted_sdk_A_vs2.pt`（实测 `class_state`/`pos_state` 与原文件**逐位相同** ✓）。
+  **诚实指标**：按局切分 `val_mae=0.3453`（±1 量纲）；⚠️ 对照 `train_value_net.py` 的**按帧**切分给出 0.0338 ⇒ **差 10 倍，证实那条路径的验证集泄漏**。
+  **通道验证**（同局面 seed7/p0）：旧网 `value=-0.168159` vs 新网 `+0.439332`（差 0.607）⇒ **`value_state` 确实进入搜索叶评估**（`make_three_net_fn(class,pos,**value**)`）| `train_value_antwar.py` + `checkpoints/grafted_sdk_A_vs2.pt` + 通道验证 | **强（实测）** |
+| ⏳ **S2 三方闸门（在跑）**：同一批 32 对 vs example，`MC1 + MC_SCORE=value_only` 下——
+  (a) 安静 rollout 评分器 = **0.9375**（已测）、(b) **旧**价值网评分器 = **0.3438**（已测）、(c) **新**价值网评分器 = 跑中（`AB_S2_VNEW_vs_example`）
+  ⇒ 判词：新网 > 0.9375 ⇒ 价值网在评分器位置打赢 rollout、S2 有价值；≤ ⇒ 价值网仍非瓶颈（第三次否证）| run `AB_S2_VNEW_vs_example` | 待定 |
+| 结论 | 支撑（run / 文件）| 强度 |
+|---|---|---|
 | ❌ **"覆盖 × 更深搜索"被否（两个方向）**（2026-10-09 第 38 轮）：同一批 32 对 vs example ——
   **MC1+H512**（`MC_HORIZON` 256→512）= **0.9375**（**与 MC1 完全相同**，28/4/0）⇒ 视野不是限制；
   **MC1+I512**（`ITERS` 256→512）= **0.7969**（21/9/2）⇒ **比 MC1 差 14pp**（"更深的迭代搜索"第二次被否，第一次是同 seed 对基线 0.7344 vs 0.8125）| runs `AB_MC1_H512_vs_example` / `AB_MC1_I512_vs_example` | **强**（0% 无效）|

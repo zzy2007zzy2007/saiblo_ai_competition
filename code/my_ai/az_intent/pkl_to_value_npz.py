@@ -30,7 +30,7 @@ for _s in (sys.stdout, sys.stderr):
 
 def _stack(samples: list) -> dict:
     """把样本列表（dict 或对象）堆成 npz 需要的三个数组。"""
-    boards, statss, vals = [], [], []
+    boards, statss, vals, tgts = [], [], [], []
     for s in samples:
         g = (lambda k: s[k]) if isinstance(s, dict) else (lambda k: getattr(s, k))
         b = np.asarray(g("board"), dtype=np.float16)
@@ -41,9 +41,13 @@ def _stack(samples: list) -> dict:
         boards.append(b)
         statss.append(st)
         vals.append((v_p0, -v_p0))
+        # 逐样本**相对目标**（该样本 player 视角）= ingest 的 value_target 原样；
+        # 部署里 value = tanh(裸输出) ⇒ 训练时直接以 tanh 输出拟合它（见 train_value_antwar.py）
+        tgts.append(vt)
     return dict(board=np.stack(boards).astype(np.float16),
                 stats=np.stack(statss).astype(np.float16),
-                value=np.asarray(vals, dtype=np.float32))
+                value=np.asarray(vals, dtype=np.float32),
+                target=np.asarray(tgts, dtype=np.float32))
 
 
 def convert_dir(src: Path, dst: Path) -> tuple[int, int]:
