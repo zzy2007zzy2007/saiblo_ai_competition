@@ -15,3 +15,5 @@ AAArena规则:12个游戏的 rules.md / decision_space.yaml / replay_format.md /
 omegafantasy的历届AI:AAArena故意扣留前8名源码，但这位长期霸榜的选手(saiblo-30th-AI的作者，antwar第27届rank01)自己开源了7个游戏的AI——Miracle-AI/AquaWar-AI/LostSpace-AI/SnakeGo-AI/ANTWar-AI/Generals-AI/RollMan-AI，正好补上最强对手那一端。另有SnowCup-AI(不在12个里)也留着了；stupid_car(嵌入式小车)已删。这8个都已登记为真子模块。详见 omegafantasy的历届AI.md
 
 RL适配性调研:12个游戏机制层面的RL适配性评估(两轮独立子agent+Kimi-K3盲评+我逐条裁决)。审校后的结论在 docs\12游戏RL适配性评估.md；子agent原始详报(未审)在 RL适配性调研\ 下。核心结论：「动作空间大⇒RL难」是错的，真正的轴是可观测性/非平稳性/信用分配长度/动作悬崖。
+
+omegafantasy的方法考古:他9个比赛AI用的是什么算法——**全程零机器学习**(0权重文件/0 ML框架导入/0训练脚本/0遗传进化，租的是CPU服务器)。四种方法族：对抗MCTS+手写估值(SnakeGo26/RollMan29)、单边best-first+规则优先(AntWar27，非MCTS)、模板候选+扁平UCB bandit+浅rollout(AntWar2 30，无树)、纯启发式+信念推断(Miracle/AquaWar/LostSpace/SnowCup)。2026新增的不是算法而是**Codex(LLM)自动迭代闭环+autolab评测设施**。详见 omegafantasy的方法考古.md
