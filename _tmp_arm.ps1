@@ -10,6 +10,8 @@ param(
     [string]$Opp = 'example',            # 'example' 或 'baseline'
     [int]$Jobs = 8,
     [string]$K = '24',            # 搜索候选数（搜索超参扫描用）
+    [string]$Skip1 = '1',         # 1 = 单候选短路（旧行为）；0 = **不短路**（路 C 的 C1 需要）
+    [string]$ClassFeasMask = '0', # 1 = 启用 C1.1 类采样前的可行性掩蔽（默认关，旧行为逐位不变）
     [string]$Iters = '256',       # MCTS 迭代
     [string]$Depth = '4',         # 束展开深度
     [string]$SampleMult = '15',
@@ -29,7 +31,8 @@ if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
-$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1='1'; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP='1e-6'
+$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP='1e-6'
+$env:AZAI_CLASS_FEAS_MASK=$ClassFeasMask
 $env:AZAI_POSPRIOR='off'; $env:AZAI_VERIFY='1'; $env:AZAI_TRACE='1'; $env:AZAI_TIMING_EVERY='25'
 $env:AZAI_POSPIN=$Pin; $env:AZAI_TCLASS=$Tclass
 $env:AZAI_MC_HORIZON=$McHorizon; $env:AZAI_MC_EVERY=$McEvery; $env:AZAI_MC_ROOTONLY='1'; $env:AZAI_MC_MARGIN='0'
