@@ -8637,3 +8637,29 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ⇒ **类菜单加宽（TOPK 3→5）有利；格子菜单加宽（CELLS 0→8）有害** ⇒ 与"只训动作图 ⇒ churn 型"（53 回合/33 建/17 降）自洽
   ⇒ 后续**不再往位置/格子候选方向加东西**。
 - 判据读数 `MC1_TOPK5_dec`（vs 冻结基线 128 局）仍在跑（87/128）⇒ 下轮出结果。
+
+## 2026-10-09 21:29:28 — AB_MC1_TOPK5_dec_vs_baseline
+
+- **commit**: `361149e` (dirty: 11 files)
+- **exit**: 0，用时 7825s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=5 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_TOPK5_dec_vs_baseline --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_212928_AB_MC1_TOPK5_dec_vs_baseline/output.log`
+- **result**: _待填_
+
+### 43. goal-2600a56a 第 32 轮：**判据读数 MC1+TOPK5 = 0.6797（与 MC1 相同）⇒ 菜单宽度不可迁移** + 机械门指纹核对实测通过
+
+**A. 判据读数**（vs 冻结基线、全固定段 128 局 = 64 对）
+- `MC1+TOPK5`：**`p̂ = 0.6797`**（31×2-0 / 25×1-1 / 8×0-2）；CI [0.5938, 0.7656]；**无效+缺失 0.00%**；判词 128/128 engine；
+  **执先 41/64、执后 46/64** ⇒ **与 `MC1` 的 0.6797 完全相同** ⇒ **筛查上的 +1.6pp（0.9375→0.9531）在判据尺度上归零**。
+  ⇒ 结论：**"类菜单宽度"不是可迁移的杠杆**（我预写的 0.69–0.73 量级对、但实际与 MC1 一模一样）。
+- 机械门总体判"未达标"（固定段 ⑤ 失败；随机段未跑）——**符合规则**（一段不过线即未达标）。
+
+**B. 机械门的指纹核对实测**：读出候选侧与基线**唯一不同**的两项 = `AZAI_MC_EVERY(1 vs 5)`、`AZAI_MC_TOPK(5 vs 3)`，
+ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"两侧配置必须不同"检查在真实候选上按预期工作 ✅
+
+**C. 已开**（覆盖 × 更深搜索——此前 80% 决策不进搜索，所以 K/ITERS 单独测时无效，现在覆盖 100% 才值得重测）：
+`MC1_H512`（`MC_HORIZON=512`）与 `MC1_I512`（`ITERS=512`）各 64 局筛查 vs example（各 3 线程）。
+**概率下调到 ~10%**（最强候选 0.6797，距 0.80 差 12pp；菜单杠杆已耗尽；剩余杆杆（视野/更深搜索/S2 评分器）单项预期只有几个 pp）。
