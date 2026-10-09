@@ -20,6 +20,18 @@
 **机械门**（`code/test_match/goal_gate_vs_baseline.py`）：固定段 ①②③④ 全过、⑤（≥0.80）**未过**；随机段因未跑而不适用。
 **防作弊核对已在真实候选上实测生效**：它读出候选侧与基线**唯一不同**的两项 = `AZAI_MC_EVERY`(1 vs 5)、`AZAI_MC_TOPK`(5 vs 3)（**ckpt 两边相同**——本 goal 改的是决策机器），若配置相同会直接判"镜像、门失败"。
 
+## 1b. 无上下文独立验证（13/13 吻合）
+
+一名**不知情**验证者（只读、**自写解析器**、不调用 `analyze_paired.py` / `goal_gate_vs_baseline.py`）从原始 `RESULT` 行重算了本报告 §1–§2 的全部 13 条声明：
+**A 组 4 条判据（含组成与执先/执后）、B 组 8 条筛查、C 组配置指纹——逐位吻合**（4 位小数），并用"配对均值"与"总局胜场/2"两条独立算法互验；
+逐局一致性检查（`winner_side`↔`engine_winner`、`winner`↔`p*-side`、`base_hp`↔`winner`）**未发现任何矛盾**，无自镜像、无重复或缺失 token。
+
+**它同时抓出 4 个异常（都不影响任何判分数字）**：
+① `S1C_G1_posonly_wide` 的 **seed 70/70r 是超时局**（`verdict=timeout`、`winner=INVALID`、`terminal=False`）⇒ 12 条臂中唯一的非 engine 局（全段 0.8125→0.8016，无效 1.56% < 10% 门槛仍过）；
+② **`RESULT` 行在日志里缩进 2 格**（非行首）⇒ `^RESULT` 锚定的解析器会静默得 0 局；
+③ **标签歧义**：`ex_pkg/main.py` 在 RESULT 里也写 `p*=main`，与 `base_pkg/main.py` 相同 ⇒ **只看 RESULT 无法区分"对基线"与"对 example"**，必须读 bridge 头 `AI1=...`；
+④ **`<tag>/stderr/` 归档被污染**（ladder 按 label 子串从共享目录 glob，`main` 区分不了 `base_pkg`/`ex_pkg`）⇒ **stderr 派生读数（如 dec_max）不保证来自本 tag**；源文件已被后续 run 截断为 0 字节。
+
 ## 2. 已确证的**最强效应**：仲裁覆盖（单调、剂量相关、机制可解释）
 
 | `MC_EVERY`（仲裁覆盖）| 5 = 20%（基线）| 2 = 50% | **1 = 100%** |
@@ -136,3 +148,7 @@ powershell -File _tmp_arm.ps1 -Name S2_VALUE -Ckpt <把新 value 嫁接进 graft
 
 **未达标**（历史最好固定段 `0.6797`，距 0.80 差 12pp；随机段按规则未跑）。**达成概率我最后给 ~10%**。
 所有读数、预测对照与偏离均在 `docs/goal_register.md` 与 `docs/experiment_log.md`；本报告的每一条"未达标"都在**预注册的判据与决策树**之下得出。
+
+> **附加局限（独立验证发现，2026-10-09）**：判分只用 `<tag>/<token>.log` 的 `RESULT` 行 ⇒ 上述异常**不改变任何 p̂**；
+> 但 (i) 只看 `RESULT` 无法区分对手是冻结基线还是 example（需读 bridge 头 `AI1=`），(ii) `<tag>/stderr/` 归档会被同 seed 的别臂污染
+> ⇒ 本报告引用的 `dec_max` 一类 **stderr 派生读数应视为"同 seed 的近似"**，不作为判据。
