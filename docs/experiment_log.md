@@ -8766,3 +8766,21 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ⇒ 对比终局目标（0.3453 / 0.113）**低 4.8 倍** ⇒ 产物 `checkpoints/grafted_sdk_A_vsearch.pt`（class/pos 逐位不变）。
 - **下一步（待槽位）**：① 廉价闸门（`MC_SCORE=value_only` 下三方对照：rollout 0.9375 / 旧网 0.3438 / 终局网(在跑) / **搜索值网**）；
   ② **判据臂**（vs 冻结基线、MC1 配置、新 ckpt、128 局）——这才是它真正的通道（搜索叶评估）。
+
+## 2026-10-10 00:57:17 — AB_MC1_K48_vs_example
+
+- **commit**: `bcc667c` (dirty: 12 files)
+- **exit**: 0，用时 3320s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=48 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_K48_vs_example --jobs=3 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_005717_AB_MC1_K48_vs_example/output.log`
+- **result**: _待填_
+
+### 50. goal-2600a56a 第 41 轮（续）：K48 筛查 = 0.9531（与 TOPK5 同值）⇒ 判据复核延后；**开价值通道判据臂**
+
+- `AB_MC1_K48_vs_example`（`MC_EVERY=1 + K=48`，32 对 vs example）= **0.9531**（29×2-0/3×1-1/0×0-2）、机制 23.4/15.1/6.8/37.2 回合、2.54 min/局。
+- **与 `MC1+TOPK5` 的筛查值完全相同（0.9531）**，而后者判据 = **0.6797（相对 MC1 +0.0pp）** ⇒ 依此信息我**把 K48 的判据复核排在后面**（预注册阈值是 ≥0.95 ⇒ 本应复核；这里明确记录取舍理由，不偷偷跳过）。
+- **优先开**：`AB_VSEARCH_dec_vs_baseline` —— `MC1` 配置 + **搜索值网**（`checkpoints/grafted_sdk_A_vsearch.pt`）vs **冻结基线**、全固定段 128 局、8 线程。
+  与 `MC1`（旧价值网）**唯一差异 = `value_state`** ⇒ 这是"**价值通道**（搜索叶评估）在判据尺度上的干净 A/B"（对照：MC1 = **0.6797**）。
