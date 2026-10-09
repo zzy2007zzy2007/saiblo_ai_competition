@@ -21,7 +21,20 @@
 
 ## 2. 训练
 
-- 只训**价值头**（`value_state`），class/pos 网**冻住**（= 现有 `add_value_baseline.py` 一类脚本的做法；先核对脚本是否已支持"只训 value"）。
+- **只训价值网**。⚠️ 措辞更正（2026-10-19，用户提问触发核查）：三网是**三个独立的 `AntWarNetwork` 实例**
+  （`load_three_models`；部署 ckpt 里 `class_state`/`pos_state`/`value_state` 是三个独立 state_dict，
+  各自 94 张量；**原始 `posnet_A_k5_m32.pt` 里三者哈希互不相同** ⇒ 本来就是分开训练的）⇒
+  **训练价值网根本碰不到 class/pos，"冻住"是自动成立、无须特判**。真正的要求只有三条：
+  ① **产物拼装**：保存时**只替换 `value_state`**、原样保留 `class_state`/`pos_state`
+     （否则会把 0.80 的策略换成随机网——这是嫁接/保存层面的风险，与训练无关）；
+  ② **按局切分**训练/验证（同局相邻帧相关，随机切会泄漏）；
+  ③ **热启动与否是设计选择**（现有 `code/my_ai/train_value_net.py` 只支持从零训 ⇒ 若要热启动需加 `--init` 小开关）。
+- 📉 **机制推论（降低本预注册的期望）**：三网独立 ⇒ **价值网只能经"搜索的叶评估"影响行为**
+  （MC 的仲裁用**引擎安静 rollout**、不是网）⇒ 换价值网**几乎不该改变行为** ⇒ 这正好解释历史两次
+  "离线 MSE 变好、棋力没动"，也把闸门 B 的通过概率**下调到 ~10–20%**（原写 20–30%）。
+- 数据与训练路径**已存在**（更正：不需新写训练器）：`code/my_ai/collect_value_data.py` →
+  `merge_value_npz.py` → `code/my_ai/train_value_net.py`；或桥接端 `AZAI_DUMP_RAW_DIR` +
+  `code/my_ai/az_intent/ingest_bridge_dump.py`（从 ladder 日志补标签）→ 同一个训练器。
 - 从现有 `value_state` **热启动**（微调），学习率取 1/5；训练/验证按"局"切分（**不能把同一局的相邻局面分到两边**，否则泄漏）。
 
 ## 3. 闸门与判据（**先写死**）
