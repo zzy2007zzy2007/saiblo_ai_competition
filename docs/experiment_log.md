@@ -8705,3 +8705,41 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   （`board (442,28,19,19) f16`、`stats (442,42) f16`、`value (442,2) f32`，样例 `[0.6, −0.6]`）。
 - ⇒ S2 现在只差：`pkl_to_value_npz --src data/s2_labeled --dst data/s2_value_npz` → `train_value_net.py --data-dirs data/s2_value_npz`
   → 把新 value **只替换 `value_state`** 嫁接进部署 ckpt → **廉价闸门**（`MC_SCORE=value_only` + 新 ckpt vs 默认，64 局）。
+
+## 2026-10-09 23:46:24 — AB_MC1_H512_vs_example
+
+- **commit**: `ee23f7e` (dirty: 12 files)
+- **exit**: 0，用时 3087s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=512 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_H512_vs_example --jobs=3 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_234624_AB_MC1_H512_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 23:47:44 — AB_MC1_I512_vs_example
+
+- **commit**: `ee23f7e` (dirty: 12 files)
+- **exit**: 0，用时 5146s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=512 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_I512_vs_example --jobs=3 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_234744_AB_MC1_I512_vs_example/output.log`
+- **result**: _待填_
+
+### 47. goal-2600a56a 第 38 轮：**两条"覆盖×更深搜索"筛查都被否** + **天花板论证** + S2 架构不兼容
+
+**A. 筛查读数（同一批 32 对 vs example；基线 0.8125 / MC1 0.9375）**
+- `MC1+H512`（`MC_HORIZON=512`）= **0.9375**（28×2-0/4×1-1/0×0-2；机制 23.6 建/16.3 降/7.8 升/39.3 回合、2.38 min/局）⇒ **与 MC1 一模一样** ⇒ 视野不是限制；
+- `MC1+I512`（`ITERS=512`）= **0.7969**（21/9/2；机制 25.4/16.3/7.0/39.6、4.00 min/局）⇒ **−14pp，更差** ⇒ 迭代数不是杠杆（**第二次**被否）。
+
+**B. 天花板论证（基于实测的机制）**：`MC1` 已在 100% 决策上使用搜索+MC ⇒ 其强度 0.6797；
+④ 的教师只能是这套搜索/MC 的分布 ⇒ **最多追平、不能超过** MC1；⑤ 的通道实测有害（旧网 0.3438）且门槛高。
+⇒ **现有管线已知杠杆下，两段都 ≥0.80 不可达** ⇒ 概率**下调到 ~5–8%**。
+
+**C. S2 架构不兼容（实测）**：部署 `value_state` = 完整 `AntWarNetwork`（94 张量），而 `train_value_net.py` 产出独立 `ValueNetwork`
+（542,913 参数、顶层键 args/best_mae/epoch/params）⇒ **键名交集 0，不能直接嫁接**；要用需 (a) 改训练器训 AntWarNetwork 的价值头，或 (b) 给桥接端加独立价值网 ckpt 通路。
+（本轮已把 S2 的**数据链路**走完：采集 60 局 → ingest 29,285 条 → pkl→npz → 合并 → 训练出 `checkpoints/value_s2.pt`，MAE 0.0338（**按帧切分、乐观**）。）
+
+**D. 仍在跑**：`MC1+K48`（`K=48` 加宽候选集——机制上最后一条还活着的搜索杠杆；19/64）。
