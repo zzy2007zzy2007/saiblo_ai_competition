@@ -88,57 +88,6 @@ _DUMP: dict = {"dir": "", "seed": 0, "player": 0, "fh": None, "n": 0}
 _AZ: dict = {"dir": None, "seed": 0, "player": 0, "fh": None, "n": 0}
 
 
-def _log(msg: str) -> None:
-    sys.stderr.write(f"[azai] {msg}\n")
-    sys.stderr.flush()
-
-
-# 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
-STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
-
-
-def _report(*_args) -> None:
-    """收尾报告。bridge 在 finally 里会 kill 我们，所以 atexit/SIGTERM 都要挂上，
-    否则"对拍次数"这个**状态同步的证据**会丢。"""
-    _mc = ""
-    try:
-        _mt = int(getattr(mcts, "mc_taken", 0))
-        _mf = int(getattr(mcts, "mc_fallback", 0))
-        if _mt or _mf:
-            _mc = f" mc_taken={_mt} mc_fallback={_mf}"
-    except Exception:  # noqa: BLE001
-        pass
-    _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
-         f"illegal={STATS['illegal']}{_mc} dec_n={STATS.get('dec_n')} "
-         f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
-    sys.stderr.flush()
-
-
-def _install_reporters() -> None:
-    import atexit
-    import signal
-    atexit.register(_report)
-    atexit.register(_dump_value_data)
-
-
-def _close_az() -> None:
-    if _AZ.get("fh") is not None:
-        _AZ["fh"].flush()
-        _AZ["fh"].close()
-        _AZ["fh"] = None
-        _log(f"[az-dump] 已写入 {_AZ['n']} 条决策 -> {_AZ.get('path')}")
-
-
-atexit.register(_close_az)
-    for sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGINT", None)):
-        if sig is None:
-            continue
-        try:
-            signal.signal(sig, lambda *_a: (_report(), _dump_value_data(), sys.exit(0)))
-        except (ValueError, OSError):
-            pass
-
-
 def _record_az(res) -> None:
     """把一次决策的**搜索软策略**追加进 JSONL（`AZAI_AZ_DUMP=<dir>` 时才写）。
 
@@ -175,6 +124,59 @@ def _record_az(res) -> None:
     _AZ["fh"].flush()
 
 
+def _close_az() -> None:
+    if _AZ.get("fh") is not None:
+        _AZ["fh"].flush()
+        _AZ["fh"].close()
+        _AZ["fh"] = None
+        _log(f"[az-dump] 已写入 {_AZ['n']} 条决策 -> {_AZ.get('path')}")
+
+
+atexit.register(_close_az)
+
+
+def _log(msg: str) -> None:
+    sys.stderr.write(f"[azai] {msg}\n")
+    sys.stderr.flush()
+
+
+# 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
+STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
+
+
+def _report(*_args) -> None:
+    """收尾报告。bridge 在 finally 里会 kill 我们，所以 atexit/SIGTERM 都要挂上，
+    否则"对拍次数"这个**状态同步的证据**会丢。"""
+    _mc = ""
+    try:
+        _mt = int(getattr(mcts, "mc_taken", 0))
+        _mf = int(getattr(mcts, "mc_fallback", 0))
+        if _mt or _mf:
+            _mc = f" mc_taken={_mt} mc_fallback={_mf}"
+    except Exception:  # noqa: BLE001
+        pass
+    _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
+         f"illegal={STATS['illegal']}{_mc} dec_n={STATS.get('dec_n')} "
+         f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
+    sys.stderr.flush()
+
+
+def _install_reporters() -> None:
+    import atexit
+    import signal
+    atexit.register(_report)
+    atexit.register(_dump_value_data)
+
+
+    for sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGINT", None)):
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, lambda *_a: (_report(), _dump_value_data(), sys.exit(0)))
+        except (ValueError, OSError):
+            pass
+
+
 def _dump_value_data() -> None:
     """收尾：关掉裸 dump 文件并（尽力）写一个 sidecar（**标签主要靠 ladder 日志反推**）。
 
@@ -189,7 +191,6 @@ def _dump_value_data() -> None:
             pass
         _DUMP["fh"] = None
         _log(f"[dump] 已写入 {_DUMP['n']} 条观测 -> {_DUMP['dir']}")
-
 
 
 class ProtocolIO:
