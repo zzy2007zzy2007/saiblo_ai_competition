@@ -8605,3 +8605,14 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 **C. 已开**（按内存规则：在跑比赛 ≤8）：
 1. `MC1_TOPK5_dec`：**vs 冻结基线**、全固定段 128 局、`jobs=4`（本 goal 当前最强候选的判据读数）；
 2. `MC1_TOP5C8`（筛查）：`MC_EVERY=1 + MC_TOPK=5 + MC_CELLS=8`（**最大菜单**）vs example 64 局、`jobs=4`。
+
+### 40. 记录更正（真实日期）：本 goal 条目里写的 2026-10-19 应为 **2026-10-09**
+
+- 证据：系统时钟 = 2026-10-09 22:36；今日新建 run 目录名 = `20261009_*`；更早工作对应 `20261006_/20261008_` ⇒ 时间线自洽。
+- 影响：本 goal 的预注册**文件名**（`prereg_20261019_goal2_*.md`）与我手写的日期文字；**git 时间戳本身正确**。
+- 处理：不改文件名（避免破坏引用），在正文加更正说明；此后一律用真实日期。
+
+### 41. 家务：把本 goal 新建的 6 个 checkpoint 纳入版本库
+
+`distill_maponly.pt` / `distill_clsonly.pt` / `distill_phold10.pt` 与 `grafted_maponly.pt` / `grafted_clsonly.pt` / `grafted_phold10.pt`
+（`docs/checkpoints.md` 已记录其训练命令与终值；项目本就跟踪 checkpoint —— `grafted_sdk_A.pt` 在库内）。
