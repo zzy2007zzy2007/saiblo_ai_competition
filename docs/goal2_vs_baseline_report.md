@@ -74,3 +74,65 @@
 
 - `MC1_H512`（`MC_HORIZON=512`）与 `MC1_I512`（`ITERS=512`）的筛查（"覆盖 × 更深搜索"——此前 80% 决策不进搜索，故 K/ITERS 单独测时无效，现在才值得重测）；
 - `COLLECT_S2`（训练专用波段 `10001..`，双 dump）完成后 → `ingest_bridge_dump.py` → `train_value_net.py` → **40 min 廉价闸门**（`MC_SCORE=value_only` + 新 ckpt vs 默认）。
+
+## 8. 交接：本 goal 结束时**仍在跑**的任务 + 结果怎么读 + 判据怎么走
+
+> 写于 2026-10-09 23:46（自动轮的轮次预算将尽，而机器任务尚需 ~1 h ⇒ 把"怎么接手"写清楚，避免结果白跑）。
+
+### 8.1 三个在跑任务（各自 tag 即目录名）
+
+| 任务 | tag（`match_results/ladder_logs/<tag>/`）| 配置 | 规模 |
+|---|---|---|---|
+| 更长 rollout 视野 | `AB_MC1_H512_vs_example` | `MC_EVERY=1 + MC_HORIZON=512`，其余同基线 | 64 局（seed `7..38` 双序）|
+| 更深搜索（覆盖×搜索）| `AB_MC1_I512_vs_example` | `MC_EVERY=1 + ITERS=512`，其余同基线 | 64 局（同上）|
+| S2 价值/AZ 数据采集 | `COLLECT_S2`（数据在 `data/s2_obs/COLLECT_S2`、`data/s2_policy/COLLECT_S2`）| 冻结基线配置双方禁闪电自对弈 | 60 局（seed `10001..10030` 双序）|
+
+**读结果（两条筛查）**：
+```
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/analyze_paired.py --tag AB_MC1_H512_vs_example --seeds=7-38
+D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/analyze_paired.py --tag AB_MC1_I512_vs_example --seeds=7-38
+```
+**比较基准（同 32 对、同一把尺子 vs example）**：基线 **0.8125**、EV2 0.8750、**MC1 0.9375**、MC1+TOPK5 0.9531。
+**决策规则（预注册的决策树的延伸）**：
+- 若某条 **≥ 0.95**（明显高于 MC1 的 0.9375）⇒ 送**判据复核**：
+  ```
+  powershell -File _tmp_arm.ps1 -Name MC1_H512_dec -Ckpt checkpoints/grafted_sdk_A.pt -Mode pos-only `
+     -Pin mc_quiet -Tclass 0.5 -McEvery 1 -McHorizon 512 -Opp baseline -SeedSpec 7-70 -Jobs 8
+  ```
+  （I512 同理，把 `-McHorizon 512` 换成 `-Iters 512`；`-Name` 相应改）
+- 判据若 **≥0.80** ⇒ 跑**随机段**（用已固化的 seed 列表）：
+  ```
+  # seed 列表：docs/random_segment_seeds.txt
+  python -u _tmp_ladder.py --tag <TAG>_rand --jobs=8 --ai0=code/test_match/az_bridge_ai.py `
+      --ai1=code/test_match/base_pkg/main.py <64 个 seed 各自加 r>
+  ```
+  ⇒ 两段都 ≥0.80 ⇒ **机械门**：
+  ```
+  python -u code/test_match/goal_gate_vs_baseline.py --tag <TAG> --seeds-fixed=7-70 --seeds-random=<列表> --threshold 0.80
+  ```
+  （该门会核对两侧配置指纹不同；若相同判"镜像"失败）⇒ 再过**无上下文独立验证** ⇒ 才可宣布达标。
+- 若两条筛查都 **≤ 0.94** ⇒ 记"**覆盖 × 更深搜索也不迁移**"，本 goal 的剩余杠杆即用尽（**这就是当前最可能的结局**）。
+
+### 8.2 S2 的下一步（若继续做）
+
+```
+python -u code/my_ai/az_intent/ingest_bridge_dump.py --raw-dir data/s2_obs/COLLECT_S2 \
+    --ladder-tag COLLECT_S2 --out-dir data/s2_labeled
+python -u code/my_ai/train_value_net.py --data-dirs data/s2_labeled --epochs 50 ...   # 见该脚本 --help
+# 廉价闸门（40 min）：新价值网当 MC 评分器 vs 默认（安静 rollout），64 局 vs example
+powershell -File _tmp_arm.ps1 -Name S2_VALUE -Ckpt <把新 value 嫁接进 grafted_sdk_A 后的文件> `
+    -Mode pos-only -Pin mc_quiet -Tclass 0.5 -McEvery 1 -McScore value_only -Opp example -SeedSpec 7-38 -Jobs 4
+```
+**判词**：闸门读数 **> 0.9375（MC1 的筛查值）** ⇒ 价值网在评分器位置**打赢了 rollout**，S2 有价值；**≤** 则价值网仍不如 rollout ⇒ 记"价值网不是本管线的瓶颈"（第三次否证）。
+
+### 8.3 未完成的其他队列（按机制排序）
+
+1. **`joint` 臂的判据复核**（预注册守卫为"过"，但冒烟 churn 严重 + 慢 2.6× ⇒ 当时降级待跑）；
+2. **`MC1 + K=48`**（覆盖 × 候选数；与 I512 同类，若 I512 无效则大概率同样无效）；
+3. **AZ 环**：链路已通（`AZAI_AZ_DUMP` + `convert_az_dump.py`），但**教师退化已实测**（880/880 单点、91% 单候选）⇒ 需先换教师（例如只用"多候选决策"上的搜索分布）；
+4. **独立验证者的报告**（本 goal 已派出一名不知情验证者复核全部 13 条读数，其结论应补进本报告 §1–§2）。
+
+### 8.4 口径（结束时不变）
+
+**未达标**（历史最好固定段 `0.6797`，距 0.80 差 12pp；随机段按规则未跑）。**达成概率我最后给 ~10%**。
+所有读数、预测对照与偏离均在 `docs/goal_register.md` 与 `docs/experiment_log.md`；本报告的每一条"未达标"都在**预注册的判据与决策树**之下得出。
