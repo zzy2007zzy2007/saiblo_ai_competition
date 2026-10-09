@@ -8070,3 +8070,35 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   ② 同一批 64 个随机 seed 早在 **2026-10-06 21:58 `M6cROOT_rand128`** 就已被记录使用（早于本 goal 3 天）⇒ **不存在"挑种子"**。
 - **僵死否证**：`DIAG_s70`（更长读超时重跑 seed 70/70r）⇒ 正常终局且**两局都胜**、`dec_max=7.64s`、无 Traceback
   ⇒ 原两次 timeout 是**机器争用下的读超时**，非 agent 僵死（诚实边界：日志前缀 103/118 行相同，属"同 seed 另一次运行"）。
+
+## 2026-10-09 09:52:24 — HEUR_H1_skiptop
+
+- **commit**: `1730a32` (dirty: 12 files)
+- **exit**: 0，用时 1794s
+- **cmd**:
+  ```bash
+  env AZAI_SLOW_DECISION_SEC=60 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=HEUR_H1_skiptop --jobs=4 --ai0=code/test_match/heur_pkg/main.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_095224_HEUR_H1_skiptop/output.log`
+- **result**: _待填_
+
+## 2026-10-09 10:06:32 — H2H_new_vs_old
+
+- **commit**: `5f31f25` (dirty: 11 files)
+- **exit**: 0，用时 3557s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=H2H_new_vs_old --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/old_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_100632_H2H_new_vs_old/output.log`
+- **result**: _待填_
+
+### 21. 第 5 轮（收口）：**非自指读数 0.8594** —— goal 的全部要求项已完成
+
+`H2H_new_vs_old`（新 = `grafted_sdk_A.pt`；旧 = S0 配置 `posnet_A_k5_m32.pt`；同代码、同配置、双方禁闪电）：128 局
+⇒ **`p̂ = 0.8594`**（64 对：47×2-0 / 16×1-1 / 1×0-2）、CI [0.7969, 0.9141]、**无效+缺失 0%**、执先 55-9 / 执后 55-9 对称。
+⇒ 这条读数**不依赖对手身份、也不自指**，独立佐证"蒸馏后的策略确实更强"。
+
+**goal 要求项核对**：① 固定段 0.8016 ≥80% ✅；② 随机段 0.8047 ≥80% ✅；③ 机械门（独立实现，v2 真检查）①–⑤ 全过 ✅；
+④ 两段均过**无上下文独立验证** ✅；⑤ **非自指读数** 0.8594 ✅；⑥ 归因（教师 0.5547 / example 规则 0.5000）✅；
+⑦ 漏洞清单与"统计上只等于约 80%"的口径已写进 `docs/goal_subgame80_report.md` ✅。
