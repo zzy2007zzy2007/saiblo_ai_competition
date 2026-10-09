@@ -8479,3 +8479,24 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
 **C. 概率更新（如实、双向）**：本 goal 达成概率从 ~3–6% **上调到 ~15–25%**（理由：这是第一个**通过预注册门槛**的候选，
 且机制上与第 20 轮的实测发现自洽——"把仲裁覆盖从 20% 提到 50%"确有可测收益）。**但不预设结论**：决胜局的读数才是判据。
+
+## 2026-10-09 18:19:36 — AB_MC1_screen_vs_example
+
+- **commit**: `020be3c` (dirty: 11 files)
+- **exit**: 0，用时 2333s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_screen_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_181936_AB_MC1_screen_vs_example/output.log`
+- **result**: _待填_
+
+### 35. goal-2600a56a 第 22 轮（续）：**MC1 = 0.9375 ⇒ 单调剂量-反应确认** + 两条决胜局并行
+
+- `AB_MC1_screen_vs_example`（64 局前缀 `7..38` = 32 对）：**`p̂ = 0.9375`**（**28×2-0 / 4×1-1 / 0×0-2**）；CI [0.8750, 0.9844]；**无效+缺失 0%**。
+- 同批 32 对的**剂量-反应**：`MC_EVERY=5` **0.8125** → `=2` **0.8750** → `=1` **0.9375**（+6.3pp / +12.5pp），且 `=1/=2` **都没有输过一对**。
+- **机制解释**：第 20 轮实测"只有 20% 的决策真进仲裁/搜索，其余 80% 直接执行策略 argmax"，而头消融显示"类头单独"只有 **0.5781**
+  ⇒ **提高仲裁覆盖 = 用更强的类决策者（MC 的 rollout 评分）替换较弱的 argmax** ⇒ 效应随覆盖单调上升，与机制自洽。
+- ⇒ 按预注册决策树，**两条决胜局已并行开跑**（vs 冻结基线、全固定段 128 局、各 8 线程 = 16 上限）：
+  `AB_EV2_dec_vs_baseline`、`AB_MC1_dec_vs_baseline`；若任一 `≥0.80` ⇒ 立刻跑**随机段** ⇒ 两段都过 ⇒ 机械门 + 独立验证。
+- **概率如实上调：~15–25% → ~20–35%**（理由：首个单调剂量-反应 + 机制自洽；但判据要求**两段都 ≥0.80**，筛查只剩 32 对、尺子是 example）。
