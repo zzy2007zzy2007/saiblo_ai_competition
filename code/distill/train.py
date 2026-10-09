@@ -78,6 +78,9 @@ def main():
                         help="clip class weights to this maximum (prevents collapse)")
     parser.add_argument("--log", type=str, default=None,
                         help="log file path")
+    # 2026-10-19（AZ 环预注册 `prereg_20261019_goal2_az_loop.md`）：**微调**而不是从零重训
+    parser.add_argument("--init", type=str, default=None,
+                        help="从该 ckpt 初始化（支持 model_state（单模型）或 class_state（三网部署格式））")
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -116,6 +119,27 @@ def main():
     # ── Model ─────────────────────────────────────────────────────────
     model = create_model(num_heads=args.num_heads)
     print(f"Model: {model.count_parameters():,} params, {args.num_heads} heads")
+
+    if args.init:
+        import torch as _torch
+        ck = _torch.load(args.init, map_location="cpu")
+        if isinstance(ck, dict) and "model_state" in ck:
+            sd = ck["model_state"]
+        elif isinstance(ck, dict) and "class_state" in ck:
+            sd = ck["class_state"]
+        else:
+            sd = ck
+        sd = {k: v for k, v in sd.items() if hasattr(v, "shape")}
+        cur = model.state_dict()
+        miss = [k for k in cur if k not in sd]
+        extra = [k for k in sd if k not in cur]
+        shape_bad = [k for k in cur if k in sd and tuple(sd[k].shape) != tuple(cur[k].shape)]
+        keep = {k: v for k, v in sd.items() if k in cur and tuple(sd[k].shape) == tuple(cur[k].shape)}
+        cur.update(keep)
+        model.load_state_dict(cur)
+        print(f"  --init={args.init}: 载入 {len(keep)}/{len(cur)} 个张量；缺 {len(miss)}；多 {len(extra)}；形状不符 {len(shape_bad)}")
+        if miss[:3]:
+            print(f"    缺失示例: {miss[:3]}")
 
     # ── Train ─────────────────────────────────────────────────────────
     print(f"\nTraining: epochs={args.epochs}, lr={args.lr}, bs={args.batch_size}")
