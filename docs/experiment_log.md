@@ -8811,3 +8811,23 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   **对终局值**：0.4202 / **0.3453** / 0.3468 ⇒ 搜索值网与终局目标网**打平**（自举无外部信息，符合预期）。
 - 判读：① 支撑"更好叶值 ⇒ 更强搜索"的**机制前提**；② 但**转化不保证** ⇒ 只认判据臂 `AB_VSEARCH_dec_vs_baseline`（MC1 配置 + 搜索值网 vs 冻结基线，128 局，与 MC1 唯一差异 = `value_state`）。
 - 修掉一处：两套 npz 命名前缀不同（`seed10001_p0.npz` vs `az_selfplay_seed10001_p0.npz`）⇒ 改为按后缀匹配。
+
+## 2026-10-10 02:01:42 — AB_VSEARCH_dec_vs_baseline
+
+- **commit**: `9c6821a` (dirty: 12 files)
+- **exit**: 0，用时 3875s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VSEARCH_dec_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261010_020142_AB_VSEARCH_dec_vs_baseline/output.log`
+- **result**: _待填_
+
+### 53. goal-2600a56a 第 47 轮：**★ 价值通道判据 = 0.7188（+3.9pp）** ⇒ 按预注册做**一轮**第二轮（标"不显著"）
+
+- `AB_VSEARCH_dec_vs_baseline`：`MC1` 配置 + **搜索值网** vs **冻结基线**、全固定段 128 局 ⇒ **`p̂ = 0.7188`**
+  （33×2-0/26×1-1/5×0-2；CI [0.6406,0.7969]；**0% 无效**；判词 128/128 engine；机制 28.2/20.6/8.4/46.7 回合、3.93 min/局）。
+- 对照 `MC1`（旧价值网）= **0.6797** ⇒ **+3.9pp** ⇒ **本 goal 第一个推动判据的非覆盖类杠杆**（其余非覆盖杠杆均为 0 或负）。
+- **按预注册处置**：0.7188 落在 0.68–0.72 带（**信号微弱、±4pp 噪声带内**）⇒ **允许再做一轮**，但**结论一律标"不显著"**；<0.68 的"关闭价值线"分支不触发。
+- **下一步（协议已预注册）**：价值迭代第二轮——用**该网** + MC1 配置在**新的训练 seed 段**（`10031..10060`）采 60 局（双 dump）→ `azjsonl_to_value_npz` → `train_value_antwar`（护栏：若按局 `val_mae` 劣于 **0.0718** 判自举发散、中止）→ 判据臂 128 局 vs 冻结基线。
+- 概率：**~8–12% → ~12–18%**（理由：价值通道被证明是真实杠杆，但每轮仅 +2–5pp 且需固定段与随机段**双过 0.80**）。
