@@ -12,6 +12,10 @@ param(
     [string]$Repo = $PSScriptRoot,
     [string]$Py = 'D:/anaconda3/envs/pytorch-gpu/python.exe'
 )
+# ⚠️ 2026-10-19 修：`param()` 默认值里的 `$PSScriptRoot` 在某些调用方式下是空的
+#   ⇒ 导致 `$Repo` 为空、"$Repo/code/run_logged.ps1" 变成 "/code/..."（B 臂因此没跑成 128 局）
+if (-not $Repo) { $Repo = Split-Path -Parent $PSCommandPath }
+if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS='256'; $env:AZAI_DEPTH='4'; $env:AZAI_K='24'; $env:AZAI_SAMPLE_MULT='15'
