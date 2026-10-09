@@ -132,9 +132,6 @@ def _close_az() -> None:
         _log(f"[az-dump] 已写入 {_AZ['n']} 条决策 -> {_AZ.get('path')}")
 
 
-atexit.register(_close_az)
-
-
 def _log(msg: str) -> None:
     sys.stderr.write(f"[azai] {msg}\n")
     sys.stderr.flush()
@@ -166,6 +163,7 @@ def _install_reporters() -> None:
     import signal
     atexit.register(_report)
     atexit.register(_dump_value_data)
+    atexit.register(_close_az)  # AZ 软策略 dump（默认关闭）
 
 
     for sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGINT", None)):
