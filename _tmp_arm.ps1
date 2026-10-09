@@ -14,6 +14,11 @@ param(
     [string]$Depth = '4',         # 束展开深度
     [string]$SampleMult = '15',
     [string]$SeedSpec = '7-70',   # 可只跑前缀筛查（如 7-38 = 64 局）
+    [string]$McEvery = '5',       # MC 仲裁频率（MC 覆盖度扫描：1 = 每个决策都仲裁）
+    [string]$McTopk = '3',        # 经济类菜单宽度
+    [string]$McCells = '0',       # 菜单里加入"前 N 个格子"
+    [string]$McHorizon = '256',   # 安静 rollout 视野
+    [string]$McScore = '',        # 评分模式（'' = 安静 rollout；value_only/delta = 价值网）
     [string]$Repo = $PSScriptRoot,
     [string]$Py = 'D:/anaconda3/envs/pytorch-gpu/python.exe'
 )
@@ -27,10 +32,10 @@ $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE
 $env:AZAI_MODE=$Mode; $env:AZAI_SKIP1='1'; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP='1e-6'
 $env:AZAI_POSPRIOR='off'; $env:AZAI_VERIFY='1'; $env:AZAI_TRACE='1'; $env:AZAI_TIMING_EVERY='25'
 $env:AZAI_POSPIN=$Pin; $env:AZAI_TCLASS=$Tclass
-$env:AZAI_MC_HORIZON='256'; $env:AZAI_MC_EVERY='5'; $env:AZAI_MC_ROOTONLY='1'; $env:AZAI_MC_MARGIN='0'
-$env:AZAI_MC_SCORE=''; $env:AZAI_MC_SELFSPEND='0'; $env:AZAI_MC_SELFSPEND_MIX='1.0'
-$env:AZAI_MC_BIDIR='0'; $env:AZAI_MC_NO_LIGHT='0'; $env:AZAI_MC_CELLS='0'; $env:AZAI_MC_TOP2='0'
-$env:AZAI_MC_M4='0'; $env:AZAI_MC_NODOWN='0'; $env:AZAI_MC_UPG='1'; $env:AZAI_MC_TOPK='3'
+$env:AZAI_MC_HORIZON=$McHorizon; $env:AZAI_MC_EVERY=$McEvery; $env:AZAI_MC_ROOTONLY='1'; $env:AZAI_MC_MARGIN='0'
+$env:AZAI_MC_SCORE=$McScore; $env:AZAI_MC_SELFSPEND='0'; $env:AZAI_MC_SELFSPEND_MIX='1.0'
+$env:AZAI_MC_BIDIR='0'; $env:AZAI_MC_NO_LIGHT='0'; $env:AZAI_MC_CELLS=$McCells; $env:AZAI_MC_TOP2='0'
+$env:AZAI_MC_M4='0'; $env:AZAI_MC_NODOWN='0'; $env:AZAI_MC_UPG='1'; $env:AZAI_MC_TOPK=$McTopk
 $env:AZAI_LIGHT_MIN_COINS='0'; $env:AZAI_BUILD_MIN_COINS='0'
 $env:AZAI_FORCE_UPG='0'; $env:AZAI_NO_DOWNGRADE='0'; $env:AZAI_PROBE_UPG='0'
 $env:AZAI_SLOW_DECISION_SEC='60'
