@@ -8694,3 +8694,14 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ⇒ **60 个 pkl、29,285 条样本**（价值标签由 ladder 日志的 `RESULT ... base_hp=` 反推，例：`v_p0=+0.150/-0.250/±1.000`），**572 MB**。
 - ⇒ 下一步：`train_value_net.py --data-dirs data/s2_labeled`（GPU，~20 min）→ 把新 value 嫁接进部署 ckpt（**只替换 `value_state`**）→
   **廉价闸门**（`MC_SCORE=value_only` + 新 ckpt vs 默认，64 局 ≈40 min）：闸门 > **0.9375**（MC1 的筛查值）⇒ 价值网在评分器位置打赢 rollout、S2 有价值；≤ ⇒ 价值网不是本管线瓶颈（第三次否证）。
+
+### 46. 补上 S2 的最后一块拼图：**pkl → npz 转换器**（并实测）
+
+- 发现缺口：`ingest_bridge_dump.py` 产出 `.pkl`（样本：`board/stats/player/value_target`），而 `train_value_net.py` 的 `ValueDataset`
+  要 `.npz`（`board (T,28,19,19) f16` / `stats (T,42) f16` / **`value (T,2) f32`**）；仓库里 `convert_pkl_to_warm_npz.py` 是**另一种用途**（要重前向生成 anchor 目标）。
+- 新增 `code/my_ai/az_intent/pkl_to_value_npz.py`：按样本 `player` 把标签还原成 p0 视角（`player=0 ⇒ v_p0=value_target`；`player=1 ⇒ v_p0=−value_target`），
+  写出 `value=(v_p0, −v_p0)`。
+- **验证**：`--selftest` 全过；在**真实 pkl** 上试转 3 个文件 ⇒ 3 个 npz、**1337 条样本**，schema 正确
+  （`board (442,28,19,19) f16`、`stats (442,42) f16`、`value (442,2) f32`，样例 `[0.6, −0.6]`）。
+- ⇒ S2 现在只差：`pkl_to_value_npz --src data/s2_labeled --dst data/s2_value_npz` → `train_value_net.py --data-dirs data/s2_value_npz`
+  → 把新 value **只替换 `value_state`** 嫁接进部署 ckpt → **廉价闸门**（`MC_SCORE=value_only` + 新 ckpt vs 默认，64 局）。
