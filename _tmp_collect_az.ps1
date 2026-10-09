@@ -3,7 +3,8 @@
 #   设定：双方禁闪电（我方掩码层禁类 + 执行层禁 op；对侧用我们自己的 base_pkg）+
 #         **冻结基线配置**（同一个 `grafted_sdk_A.pt`、pos-only + mc_quiet + 宽菜单）
 #         ⇒ 同策略镜像自对弈（数据可用；配对标尺退化，这里不看胜负）。
-#   seed 段：**训练专用**（默认 5001..5100；预注册 `prereg_20261019_goal2_az_loop.md` 写的是 5001..5400）
+#   seed 段：**训练专用**（默认 10001..10400）。⚠️ 2026-10-19 纪律自查：随机段含 **seed 5004** ⇒ 原计划的 5001..5100 **与判据 seed 重叠**！
+#         而随机段 64 个 seed 最大仅 9927 ⇒ **任何 ≥10000 的段可证明干净**（判据段 7..70、未见段 501..564 也都 < 10000）。
 #         ⇒ 与判据段（7..70）/随机段/**未见段（501..564）全不重叠**；判据 seed 一律不入训。
 #   两个 dump（都由 `code/test_match/az_bridge_ai.py` 写，默认关闭，这里打开）：
 #         `AZAI_DUMP_RAW_DIR` -> obs_seed*_p*.bin（定长 20328 B/决策：board+stats+player+chosen+类掩码）
@@ -12,8 +13,8 @@
 param(
     [string]$Repo = $PSScriptRoot,
     [string]$Py = 'D:/anaconda3/envs/pytorch-gpu/python.exe',
-    [int]$Lo = 5001,
-    [int]$Hi = 5100,
+    [int]$Lo = 10001,
+    [int]$Hi = 10400,
     [int]$Jobs = 8,
     [string]$Tag = 'COLLECT_AZ',
     [string]$ObsDir = 'data/az_obs',
