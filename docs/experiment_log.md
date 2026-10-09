@@ -8852,3 +8852,24 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ⚠️ 两个增量都在 **±4pp 噪声带内** ⇒ 一律标"不显著"。
 - **下一步（已预注册）**：**叠加两个独立小杠杆** `V+K48`（搜索值网 + K=48）vs 冻结基线、128 局 —— 预测 **0.72–0.75**、给"≥0.80"**≤10%**；
   若 ≥0.74 则再叠第三个小杠杆；若 <0.72 则判"小杠杆叠加饱和"⇒ 转路 C（换架构）或改口径。见 `docs/prereg_20261009_goal2_stack_levers.md`。
+
+## 2026-10-10 04:19:41 — AB_VSEARCH_gate_vs_example
+
+- **commit**: `84868db` (dirty: 12 files)
+- **exit**: 0，用时 2357s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SCORE=value_only AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VSEARCH_gate_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_041941_AB_VSEARCH_gate_vs_example/output.log`
+- **result**: _待填_
+
+### 55. goal-2600a56a 第 51 轮：**搜索值网当 MC 评分器 = 0.2031（最差）⇒ 角色分离结论**
+
+- `AB_VSEARCH_gate_vs_example`（搜索值网 + `MC_SCORE=value_only` + MC1 配置；32 对 vs example）= **0.2031**
+  （0×2-0 / 13×1-1 / **19×0-2**；CI [0.1250,0.2969]；无效率 0%；机制 34.5 建 / 21.3 降 / 3.7 升 / 40.8 回合）。
+- **四方对照（MC 评分器角色）**：安静 rollout **0.9375** ▸ 终局目标网 **0.4531** ▸ 旧网 **0.3438** ▸ **搜索值网 0.2031**
+  ⇒ **"让价值网替代 rollout 当裁判"彻底否证（三张网全败）**。
+- **但同一张网在"搜索叶评估"上给出判据 +3.9pp**（0.6797 → 0.7188）⇒ **"预测搜索" ≠ "给候选打分"**：
+  前者要贴合搜索自身（含偏置）的估计，后者要的是候选的**因果效应** ⇒ **价值网的正确用法是叶评估，不是当裁判**。
+- 队列 `pwsh-1097` 已跑完（K48 判据复核 + 本闸门）⇒ **iter2（价值迭代第二轮）守卫解除、应已接续**。
