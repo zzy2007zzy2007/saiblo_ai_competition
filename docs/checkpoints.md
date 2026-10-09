@@ -135,3 +135,12 @@ python -u code/tools/extract_model_from_ckpt.py \
   **`value_state` 保留原 `posnet_A_k5_m32.pt`**（本轮不动价值网，S2 再单独重训）
 - **冒烟（双方禁闪电、pos-only+宽菜单、2 局）**：我方 **15.0 建 / 6.5 降 / 7.5 升** / 有操作回合 22.0
   ⇒ **升级从基线 2.9 跳到 7.5/局**（example 自身 5.5–6.0）⇒ 蒸馏确实注入了经济行为
+
+## 头消融产物（2026-10-19，goal-2600a56a 第 1–2 轮；预注册 `docs/prereg_20261019_goal2_head_ablation.md`）
+| 产物 | 训练 | 终值 | 说明 |
+|---|---|---|---|
+| `checkpoints/distill_maponly.pt` → `grafted_maponly.pt` | `--lambda-class 0`（只训动作图）| `map 0.1308`（比完整蒸馏 0.1491 更低，容量全给图）；`cls 42.3`（类头未约束、漂移）| 用于回答"那 +42pp 来自哪个头" |
+| `checkpoints/distill_clsonly.pt` → `grafted_clsonly.pt` | `--lambda-map 0`（只训类头）| `cls 0.7023`；`map 24.9`（未约束）| 同上（互补）|
+| `checkpoints/distill_phold10.pt` → `grafted_phold10.pt` | `--p-hold 0.1`（HOLD 降采样 10×）| 训练中 | 目的：让**类头分布可用**，为 `joint`（类交给学习）铺路 |
+> ⚠️ 解读口径：λ=0 的那一头**不受约束会漂移** ⇒ 这些臂的准确含义是"**一个头受训 + 另一个头未被约束**"，
+> 不是"另一个头保持原样"。若结果含糊，应改用小 λ（如 0.05）重训一版。
