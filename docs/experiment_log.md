@@ -8563,3 +8563,45 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 ⇒ **筛查工作流的有效性得到验证**：vs example 的排序（基线 < EV2 < MC1）与判据排序一致 ✓
 ⇒ 下一步（同一杠杆的邻域，按预注册 `prereg_20261019_goal2_mc_coverage.md` 的 TOPK5/CELLS8/H512 与 `..._value_arbitration.md`）：
 **MC1 + 更宽菜单**（`MC_TOPK=5`/`MC_CELLS=8`）与 **MC1 + 价值网评分**（`MC_SCORE=value_only`，去掉 23.6% 平局的弱评分器）。
+
+## 2026-10-09 20:38:36 — AB_MC1_TOPK5_vs_example
+
+- **commit**: `36b0ae0` (dirty: 11 files)
+- **exit**: 0，用时 2259s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=5 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_TOPK5_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_203836_AB_MC1_TOPK5_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 20:37:53 — AB_MC1_VALUE_vs_example
+
+- **commit**: `36b0ae0` (dirty: 11 files)
+- **exit**: 0，用时 2656s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SCORE=value_only AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_VALUE_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_203753_AB_MC1_VALUE_vs_example/output.log`
+- **result**: _待填_
+
+### 39. goal-2600a56a 第 27 轮：**菜单加宽继续单调（MC1+TOPK5 = 0.9531）** + **价值网评分器被证伪（0.3438）**
+
+**A. 筛查读数（64 局前缀 `7..38` = 32 对，vs example）**
+| 臂 | `p̂` | 组成 | 机制（建/降/升/回合，min/局）|
+|---|---|---|---|
+| 基线 `MC_EVERY=5` | 0.8125 | — | — |
+| EV2 `=2` | 0.8750 | 24/8/0 | — |
+| MC1 `=1` | 0.9375 | 28/4/0 | 2.40 |
+| **MC1+TOPK5** | **0.9531** | **29/3/0** | 22.5/15.7/8.0/38.1，2.30 |
+| **MC1+VALUE** | **0.3438** | 2/18/12 | 39.2/22.5/5.8/50.8 |
+⇒ 菜单加宽（3→5 类）与仲裁覆盖是**同一杠杆族的两个维度**，都单调有利 ⇒ MC1+TOPK5 送判据复核。
+
+**B. 价值网评分器证伪**（`MC_SCORE=value_only`）：0.3438 ≪ 0.8125（基线）⇒ 旧价值网在子博弈里的偏好**有害**（churn 风暴）。
+⇒ 这解释了历史两次价值网重训"无感"的结构原因（通道未被使用或直接用就变差），
+⇒ 并给出 **S2 的廉价新闸门**：*新价值网能在此位置打赢安静 rollout 即有��*（`MC_SCORE=value_only` + 新 ckpt vs 默认，64 局 ≈40 min）⇒ 比原预注册的"闸门 B（128 局棋力）"更快、更对症。
+
+**C. 已开**（按内存规则：在跑比赛 ≤8）：
+1. `MC1_TOPK5_dec`：**vs 冻结基线**、全固定段 128 局、`jobs=4`（本 goal 当前最强候选的判据读数）；
+2. `MC1_TOP5C8`（筛查）：`MC_EVERY=1 + MC_TOPK=5 + MC_CELLS=8`（**最大菜单**）vs example 64 局、`jobs=4`。
