@@ -63,6 +63,11 @@ def main():
                         help="extra L2 penalty on policy head biases")
     parser.add_argument("--lambda-div", type=float, default=0.01,
                         help="head diversity loss weight")
+    # 2026-10-19（本 goal 第 1 轮）：消融"那 +42pp 来自哪个头"
+    parser.add_argument("--lambda-class", type=float, default=1.0,
+                        help="class-head loss weight (0 = 只训动作图)")
+    parser.add_argument("--lambda-map", type=float, default=1.0,
+                        help="action-map loss weight (0 = 只训类头)")
     parser.add_argument("--lambda-soft", type=float, default=0.5,
                         help="soft-target KL loss weight (0=disable)")
     parser.add_argument("--soft-temperature", type=float, default=2.0,
@@ -126,6 +131,8 @@ def main():
                                weight_decay=args.weight_decay,
                                bias_decay=args.bias_decay,
                                lambda_div=args.lambda_div,
+                               lambda_class=args.lambda_class,
+                               lambda_map=args.lambda_map,
                                lambda_soft=args.lambda_soft,
                                soft_temperature=args.soft_temperature,
                                class_weights=class_weights,
