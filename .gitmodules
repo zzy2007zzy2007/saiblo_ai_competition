@@ -10,3 +10,6 @@
 [submodule "其他版本ai/Antwat_2/Ant-Game"]
 	path = 其他版本ai/Antwat_2/Ant-Game
 	url = https://github.com/LorenzLorentz/Ant-Game.git
+[submodule "其他版本ai/AAArena"]
+	path = 其他版本ai/AAArena
+	url = https://github.com/THU-CST-SAST/AAArena.git

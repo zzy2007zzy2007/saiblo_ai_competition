@@ -402,34 +402,36 @@ tar -xzf assets/antwar2.tar.gz -C <目标目录> games/antwar2/players
 - [ ] **比赛规则是否禁止参考/使用他人代码** —— 没查
 - [ ] AAArena 的 antwar2 **冻结榜**与第 30 届真实最终榜的关系 —— 未核对（论文榜是"各提交版本为独立测例"）
 - [ ] `zzy25__ent_a46f6d616d9cd9b3__v1` 是否是你自己的提交 —— 待你确认
-- [ ] 是否把 AAArena 登记成**真子模块**（见下一节）
+- [x] 把 AAArena 登记成**真子模块** —— 2026-10-09 已完成（见第 11 节）
 
 ---
 
-## 11. 版本控制注意事项
+## 11. 版本控制：已登记为真子模块（2026-10-09）
 
-AAArena 现在是**普通 clone（134 MB，含自己的 `.git`）**，还没有按本仓库既有约定登记成子模块（参考 [`../docs/other_versions_ai_sources.md`](../docs/other_versions_ai_sources.md)：`saiblo-30th-AI` / `ant-war2-magica-v3` / `Antwat_2/Ant-Game` 三个都已经是真子模块）。
+AAArena 按本仓库既有约定登记成了**真子模块**，和顶层 `Ant-Game` 以及 `saiblo-30th-AI` / `ant-war2-magica-v3` / `Antwat_2/Ant-Game` 一致（见 [`../docs/other_versions_ai_sources.md`](../docs/other_versions_ai_sources.md)）。
 
-**在登记之前注意**：`.gitignore` 里**没有**忽略 `其他版本ai/AAArena/`。
+| 项 | 值 |
+|---|---|
+| `.gitmodules` 条目 | `[submodule "其他版本ai/AAArena"]` |
+| url | `https://github.com/THU-CST-SAST/AAArena.git` |
+| 钉住的提交 | `fd52d2337b6711f0f3a239216f48720c125750be`（= 上游 `main` 尖端，已 `git ls-remote` 核实） |
+| gitlink 模式 | `160000` |
+| 工作区状态 | **干净**（不像另外三个子模块分别有 2 / 6 / 4 处本地改动） |
 
-好消息是 git 会把它识别成**内嵌仓库**，所以 `git status` 里只显示一条：
-
-```
-?? 其他版本ai/AAArena/
-```
-
-坏消息是**一旦跑 `git add -A`**，git 只会把它记成一个 **gitlink**（而且没有对应的 `.gitmodules` 条目）——这正是 [`../docs/other_versions_ai_sources.md`](../docs/other_versions_ai_sources.md) 里描述过的坏状态：*"git 遇到这种目录只会记成一个 gitlink，既不能真正 clone 下来、内容也进不了本仓库"*。
-
-实测：AAArena 工作区（不含 `assets/*.tar.gz` 内部）共 **301 个文件**，`git status --porcelain` 里它只占 1 条。
-
-> **千万别在这个仓库里直接跑 `git add -A` / `git add .`**（这一点 `other_versions_ai_sources.md` 也强调过）。要提交被忽略的东西用 `git add -f <路径>`。
-
-登记子模块的做法（等确认后再执行）：
+登记命令（已执行）：
 
 ```bash
 git submodule add https://github.com/THU-CST-SAST/AAArena.git 其他版本ai/AAArena
-# 若目录已存在：git submodule add 会提示 "Adding existing repo at ... to the index"
-git commit -m "add AAArena as submodule"
+# 输出：Adding existing repo at '其他版本ai/AAArena' to the index
 ```
 
-钉住的提交：`fd52d2337b6711f0f3a239216f48720c125750be`（= 上游 `main` 尖端）。
+别人 clone 本仓库之后初始化：
+
+```bash
+git clone --recurse-submodules <本仓库url>     # 或者 clone 完再：
+git submodule update --init --recursive
+```
+
+**登记之后仓库体积不受影响** —— 134 MB 只在本地，超级仓库里只存一个指针。
+
+> 仍然适用：**千万别在这个仓库里直接跑 `git add -A` / `git add .`**（除 `.gitignore` 覆盖的之外，还有大量 `_tmp_*` 临时脚本和 `submission/` 下的产物是未跟踪的）。要提交被忽略的东西用 `git add -f <路径>`。
