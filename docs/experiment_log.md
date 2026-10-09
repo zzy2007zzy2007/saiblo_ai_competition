@@ -8674,3 +8674,23 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ③ **标签歧义**：`ex_pkg/main.py` 与 `base_pkg/main.py` 在 RESULT 里都写 `p*=main` ⇒ 必须读 bridge 头才能区分对手；
   ④ **stderr 归档污染**：`_tmp_ladder.py` 按 label 子串从共享目录 glob，`main` 区分不了 `base_pkg`/`ex_pkg` ⇒ stderr 派生读数不可靠；源文件已被截断为 0 字节。
 - ⇒ 已把验证结论写进 `docs/goal2_vs_baseline_report.md` §1b，把卫生局限写进该报告末段；寄存器新增两行。
+
+## 2026-10-09 23:06:01 — COLLECT_S2
+
+- **commit**: `7a70cb6` (dirty: 12 files)
+- **exit**: 0，用时 4658s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/s2_policy/COLLECT_S2 AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/s2_obs/COLLECT_S2 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=250 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=COLLECT_S2 --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 10001 10001r 10002 10002r 10003 10003r 10004 10004r 10005 10005r 10006 10006r 10007 10007r 10008 10008r 10009 10009r 10010 10010r 10011 10011r 10012 10012r 10013 10013r 10014 10014r 10015 10015r 10016 10016r 10017 10017r 10018 10018r 10019 10019r 10020 10020r 10021 10021r 10022 10022r 10023 10023r 10024 10024r 10025 10025r 10026 10026r 10027 10027r 10028 10028r 10029 10029r 10030 10030r
+  ```
+- **output**: `training_history/runs/20261009_230601_COLLECT_S2/output.log`
+- **result**: _待填_
+
+### 45. S2（价值网）数据链路走通：采集 60 局 → ingest 29285 条带标签样本
+
+- 采集（`COLLECT_S2`，冻结基线配置双方禁闪电自对弈，训练专用 seed `10001..10030` 双序，60 局）**完成**；
+  双 dump 产物：观测 `data/s2_obs/COLLECT_S2`（60 个 `.bin`，定长 20328 B/决策） + 搜索软策略 `data/s2_policy/COLLECT_S2`。
+- `ingest_bridge_dump.py --raw-dir data/s2_obs/COLLECT_S2 --ladder-tag COLLECT_S2 --out-dir data/s2_labeled`
+  ⇒ **60 个 pkl、29,285 条样本**（价值标签由 ladder 日志的 `RESULT ... base_hp=` 反推，例：`v_p0=+0.150/-0.250/±1.000`），**572 MB**。
+- ⇒ 下一步：`train_value_net.py --data-dirs data/s2_labeled`（GPU，~20 min）→ 把新 value 嫁接进部署 ckpt（**只替换 `value_state`**）→
+  **廉价闸门**（`MC_SCORE=value_only` + 新 ckpt vs 默认，64 局 ≈40 min）：闸门 > **0.9375**（MC1 的筛查值）⇒ 价值网在评分器位置打赢 rollout、S2 有价值；≤ ⇒ 价值网不是本管线瓶颈（第三次否证）。
