@@ -8616,3 +8616,24 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
 `distill_maponly.pt` / `distill_clsonly.pt` / `distill_phold10.pt` 与 `grafted_maponly.pt` / `grafted_clsonly.pt` / `grafted_phold10.pt`
 （`docs/checkpoints.md` 已记录其训练命令与终值；项目本就跟踪 checkpoint —— `grafted_sdk_A.pt` 在库内）。
+
+## 2026-10-09 21:31:37 — AB_MC1_TOP5C8_vs_example
+
+- **commit**: `361149e` (dirty: 11 files)
+- **exit**: 0，用时 5232s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=8 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=5 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_TOP5C8_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_213137_AB_MC1_TOP5C8_vs_example/output.log`
+- **result**: _待填_
+
+### 42. goal-2600a56a 第 30 轮：**格子菜单加宽有害（0.6250）⇒ 类/格两维对比清晰**
+
+- `AB_MC1_TOP5C8_vs_example`（`MC_EVERY=1 + MC_TOPK=5 + MC_CELLS=8`，64 局前缀 = 32 对，vs example）：
+  **`p̂ = 0.6250`**（12×2-0 / 16×1-1 / 4×0-2）；**无效+缺失 0%**；
+  机制 **55.8 建 / 46.3 降 / 9.5 升 / 98.1 有操作回合**、5.42 min/局 ⇒ **churn 风暴**。
+- 对照同批：基线 0.8125、MC1 0.9375、**MC1+TOPK5 0.9531**。
+  ⇒ **类菜单加宽（TOPK 3→5）有利；格子菜单加宽（CELLS 0→8）有害** ⇒ 与"只训动作图 ⇒ churn 型"（53 回合/33 建/17 降）自洽
+  ⇒ 后续**不再往位置/格子候选方向加东西**。
+- 判据读数 `MC1_TOPK5_dec`（vs 冻结基线 128 局）仍在跑（87/128）⇒ 下轮出结果。
