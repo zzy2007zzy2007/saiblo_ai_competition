@@ -8525,3 +8525,41 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 1. **在跑比赛总数 ≤ 8**（单梯 `jobs=8`，或两梯 `jobs=4+4`）⇒ 约 10 GB ⇒ 留 ≥15 GB 余量；
 2. 每次开跑**前先看可用内存**，目标**保持 ≥8 GB 空闲**；若低于 ~2 GB 立即停一条臂（比赛独立、丢局不影响其它局）；
 3. CPU 不是瓶颈（16 场时总 CPU 仅 ~48% ⇒ 每梯 ~24%）⇒ 之前"两梯各 8 线程"是把内存当线程算了。
+
+## 2026-10-09 19:01:08 — AB_EV2_dec_vs_baseline
+
+- **commit**: `73516bc` (dirty: 11 files)
+- **exit**: 0，用时 4763s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=2 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_EV2_dec_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_190108_AB_EV2_dec_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-09 19:03:44 — AB_MC1_dec_vs_baseline
+
+- **commit**: `73516bc` (dirty: 11 files)
+- **exit**: 0，用时 5338s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1_dec_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_190344_AB_MC1_dec_vs_baseline/output.log`
+- **result**: _待填_
+
+### 38. goal-2600a56a 第 26 轮：**两条判据读数落地 ⇒ 未达标，但"仲裁覆盖"效应单调且史最强**
+
+**判据读数（vs 冻结基线 `base_pkg`，全固定段 128 局 = 64 对，均 0% 无效、判词全 engine）**：
+
+| 臂 | `p̂` | 组成 | CI | 机制（建/降/升/回合，min/局）|
+|---|---|---|---|---|
+| `EV2`（`MC_EVERY=2`）| **0.6016** | 20×2-0 / 37×1-1 / 7×0-2 | [0.5234, 0.6797] | 25.5 / 14.0 / 6.7 / 37.2，4.89 |
+| `MC1`（`MC_EVERY=1`）| **0.6797** | 29×2-0 / 29×1-1 / 6×0-2 | [0.6016, 0.7578] | 29.0 / 19.9 / 7.8 / 46.2，5.46 |
+
+⇒ **两臂都未过 0.80 ⇒ 按目标规则（两段都须 ≥0.80）判"未达标"，不跑随机段**（如实记录）。
+⇒ 但**剂量-反应在两个量尺上都成立**：vs example 0.8125→0.8750→0.9375；**vs 基线 0.50→0.6016→0.6797**（+18pp）。
+⇒ **预注册的两条预测命中**：① "没有任何一臂对基线达到 0.80（≤5%）"✓；② EV2 落在"0.45–0.60"边缘 ✓（0.6016）。
+⇒ **筛查工作流的有效性得到验证**：vs example 的排序（基线 < EV2 < MC1）与判据排序一致 ✓
+⇒ 下一步（同一杠杆的邻域，按预注册 `prereg_20261019_goal2_mc_coverage.md` 的 TOPK5/CELLS8/H512 与 `..._value_arbitration.md`）：
+**MC1 + 更宽菜单**（`MC_TOPK=5`/`MC_CELLS=8`）与 **MC1 + 价值网评分**（`MC_SCORE=value_only`，去掉 23.6% 平局的弱评分器）。
