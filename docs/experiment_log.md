@@ -8183,3 +8183,35 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
   这**推翻**了我第 5 轮写下的"类头在 pos-only 里不被采信 ⇒ 蒸馏类头 0/32 变化"的推广（那次结论本身没错，
   错在我把它推广成"类头这一维没用"）。预注册里我预测"clsonly ≈0.35–0.45" ⇒ **预测错误，如实记录**。
 - 待：A（**只训动作图**）仍在跑（94→?/128）⇒ 两者合起来才能给出"哪个头贡献多少"的完整消融。
+
+## 2026-10-09 13:54:21 — AB_A_maponly_vs_example
+
+- **commit**: `1b94325` (dirty: 11 files)
+- **exit**: 0，用时 7962s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_CKPT=checkpoints/grafted_maponly.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_BIDIR=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_A_maponly_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_135421_AB_A_maponly_vs_example/output.log`
+- **result**: _待填_
+
+### 26. goal-2600a56a 第 10 轮：**头消融完成（A 臂 = 只训动作图 0.6016）+ SF-ex 开跑**
+
+`AB_A_maponly_vs_example`（只训动作图、类头未约束；pos-only + mc_quiet + 宽菜单；双方禁闪电；固定段 128 局）：
+- **`p̂ = 0.6016`**（64 对：23×2-0 / 31×1-1 / 10×0-2）；CI [0.5156, 0.6875]；**无效+缺失 0%**；判词全 engine。
+- 机制：**33.5 建 / 17.0 降 / 8.1 升 / 53.2 有操作回合**、**8.18 min/局**（比完整版慢/更 churn）。
+
+**头消融总表**（vs example，固定段 128 局）：
+
+| 臂 | p̂ | 提升份额 | 建/降/升/回合 |
+|---|---|---|---|
+| S0（旧 ckpt）| 0.3828 | 0% | 19.8/…/2.9/19.6 |
+| 只训动作图 | **0.6016** | **52%** | 33.5/17.0/8.1/53.2 |
+| 只训类头 | **0.5781** | **47%** | 24.5/8.7/5.6/29.9 |
+| 完整蒸馏 | **0.8016** | 100% | 18.4/…/5.0/21.2 |
+
+⇒ **两个头贡献几乎相等且基本可加**；两条旧说法（"类头没用"/"动作图是主因"）**都修正**。
+⇒ 对路线的影响：**"改类头"（自蒸馏/数据）与"改动作图"都是有效杠杆**，且**分工**（类头管"何时动/动多少"，动作图管"动哪里"）。
+
+**同时**：A 腾出槽位 ⇒ 已开 **SF-ex**（`K=1 ITERS=1` ⇒ 跳过搜索，vs example，8 线程）⇒ 它的读数决定 AZ 环（④）走不走。
+另注：**`joint` 模式比 pos-only 慢 ~2.6×**（冒烟实测 13 s/回合 ⇒ 单局 ~55 min）⇒ 若 E 用 joint，128 局约 **13 h**（成本要事先算清）。
