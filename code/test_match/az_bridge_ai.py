@@ -82,6 +82,10 @@ def _env(name: str, default: str) -> str:
 # （那个日志是 bridge 自己写的，不会被杀）⇒ 竞态彻底消失。
 # 默认关闭（`AZAI_DUMP_RAW_DIR` 为空）⇒ 不影响任何既有读数。
 _DUMP: dict = {"dir": "", "seed": 0, "player": 0, "fh": None, "n": 0}
+# ── AZ 环数据（2026-10-19；预注册 `docs/prereg_20261019_goal2_az_loop.md`）────────────
+# 把**搜索的软策略**（root 的候选束 + 访问分布 + intent_counts）dump 成 JSONL；观测（board/stats）
+# 走既有的 `AZAI_DUMP_RAW_DIR` 路径，两者按 (seed, player, 决策序号 n) 对齐。**默认关闭**（`AZAI_AZ_DUMP` 空）。
+_AZ: dict = {"dir": None, "seed": 0, "player": 0, "fh": None, "n": 0}
 
 
 def _log(msg: str) -> None:
@@ -115,6 +119,17 @@ def _install_reporters() -> None:
     import signal
     atexit.register(_report)
     atexit.register(_dump_value_data)
+
+
+def _close_az() -> None:
+    if _AZ.get("fh") is not None:
+        _AZ["fh"].flush()
+        _AZ["fh"].close()
+        _AZ["fh"] = None
+        _log(f"[az-dump] 已写入 {_AZ['n']} 条决策 -> {_AZ.get('path')}")
+
+
+atexit.register(_close_az)
     for sig in (getattr(signal, "SIGTERM", None), getattr(signal, "SIGINT", None)):
         if sig is None:
             continue
@@ -122,6 +137,42 @@ def _install_reporters() -> None:
             signal.signal(sig, lambda *_a: (_report(), _dump_value_data(), sys.exit(0)))
         except (ValueError, OSError):
             pass
+
+
+def _record_az(res) -> None:
+    """把一次决策的**搜索软策略**追加进 JSONL（`AZAI_AZ_DUMP=<dir>` 时才写）。
+
+    字段：`n`(决策序号) `seed` `player` `cands`(候选束，每个束 ≤3 个 op) `visits`(访问分布，与 cands 同序)
+    `chosen`(选中下标) `intent`(3 个头的 intent 计数) `root_value`。默认关闭 ⇒ 不影响任何既有读数。
+    """
+    if _AZ["dir"] is None:
+        _AZ["dir"] = _env("AZAI_AZ_DUMP", "")
+        if _AZ["dir"]:
+            out = Path(_AZ["dir"])
+            if not out.is_absolute():
+                out = Path(MVS.REPO_ROOT) / out
+            out.mkdir(parents=True, exist_ok=True)
+            _AZ["path"] = str(out / f"az_seed{_AZ['seed']:05d}_p{_AZ['player']}.jsonl")
+            _AZ["fh"] = open(_AZ["path"], "a", encoding="utf-8")
+            _log(f"AZ 软策略 dump 已开启 -> {_AZ['path']}")
+    if not _AZ["dir"]:
+        return
+    import json
+    try:
+        vp = getattr(res, "visit_policy", None)
+        vp = [float(x) for x in vp] if vp is not None else []
+        bs = getattr(res, "bundles", None) or []
+        cands = [[[int(o[0]), int(o[1]), int(o[2])] for o in b] for b in bs]
+        rec = {"n": int(_AZ["n"]), "seed": int(_AZ["seed"]), "player": int(_AZ["player"]),
+               "cands": cands, "visits": vp, "chosen": int(getattr(res, "chosen_index", -1)),
+               "intent": [int(x) for x in (getattr(res, "intent_counts", None) or [])],
+               "root_value": float(getattr(res, "root_value", 0.0))}
+    except Exception as _e:  # noqa: BLE001
+        _log(f"AZ dump 记录失败（跳过该条）: {type(_e).__name__}: {_e}")
+        return
+    _AZ["n"] += 1
+    _AZ["fh"].write(json.dumps(rec, ensure_ascii=False) + "\n")
+    _AZ["fh"].flush()
 
 
 def _dump_value_data() -> None:
@@ -318,6 +369,8 @@ def main() -> int:
     _DUMP["player"] = player
     _DUMP["fh"] = None
     _DUMP["n"] = 0
+    _AZ["seed"] = seed
+    _AZ["player"] = player
     if _DUMP["dir"]:
         import numpy as np
         out = Path(_DUMP["dir"])
@@ -334,6 +387,7 @@ def main() -> int:
         （= 访问量最高候选里、该 head 采样次数最多的 intent 的类号）；没有就记 255。
         掩码由解码器自己推（`intent_decoding=True`）⇒ 与"能不能真解出操作"一致。
         """
+        _record_az(res)
         if not _DUMP["dir"]:
             return
         import numpy as np
