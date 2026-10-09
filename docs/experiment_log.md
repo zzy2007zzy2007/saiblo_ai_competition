@@ -8784,3 +8784,22 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **与 `MC1+TOPK5` 的筛查值完全相同（0.9531）**，而后者判据 = **0.6797（相对 MC1 +0.0pp）** ⇒ 依此信息我**把 K48 的判据复核排在后面**（预注册阈值是 ≥0.95 ⇒ 本应复核；这里明确记录取舍理由，不偷偷跳过）。
 - **优先开**：`AB_VSEARCH_dec_vs_baseline` —— `MC1` 配置 + **搜索值网**（`checkpoints/grafted_sdk_A_vsearch.pt`）vs **冻结基线**、全固定段 128 局、8 线程。
   与 `MC1`（旧价值网）**唯一差异 = `value_state`** ⇒ 这是"**价值通道**（搜索叶评估）在判据尺度上的干净 A/B"（对照：MC1 = **0.6797**）。
+
+## 2026-10-10 01:22:20 — AB_S2_VNEW_vs_example
+
+- **commit**: `8f55df4` (dirty: 11 files)
+- **exit**: 0，用时 2276s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vs2.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SCORE=value_only AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_S2_VNEW_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_012220_AB_S2_VNEW_vs_example/output.log`
+- **result**: _待填_
+
+### 51. goal-2600a56a 第 42 轮：**S2 四方闸门齐 ⇒ 价值网在"MC 评分器"角色上第三次被否**（但重训有 +11pp 的实质改善）
+
+- `AB_S2_VNEW_vs_example`（**终局胜负目标**训出的部署形状价值网当 MC 评分器；MC1 配置；32 对 vs example）= **0.4531**
+  （6×2-0/17×1-1/9×0-2；CI [0.3281,0.5781]；无效+缺失 0%；机制 27.6 建/10.4 降/6.0 升/39.6 回合、2.31 min/局）。
+- **四方对照**：安静 rollout **0.9375** ▸ 旧价值网 **0.3438** ▸ 新的终局目标网 **0.4531** ⇒
+  **重训有实质改善（+11pp）**，但**"让价值网给类决策打分"这条路仍然不是 rollout 的对手** ⇒ 第三次否证"价值网是瓶颈"（该角色）。
+- **价值通道的主战场仍是"搜索叶评估"**：`AB_VSEARCH_dec_vs_baseline`（MC1 配置 + **搜索值网**（按局 val_mae 0.0718）vs 冻结基线、128 局）**在跑** ⇒ 与 `MC1`（旧网，0.6797）唯一差异 = `value_state`。
