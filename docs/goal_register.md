@@ -120,6 +120,14 @@
 | 结论 | 支撑（run / 文件）| 强度 |
 | 结论 | 支撑（run / 文件）| 强度 |
 |---|---|---|
+| 🎯 **"从搜索蒸馏价值"是本管线里最好学、且机制上还没试过的目标**（2026-10-09 第 41 轮）：
+  新增 `code/my_ai/az_intent/azjsonl_to_value_npz.py`（把观测 dump + AZ 软策略 dump 按决策序号对齐，目标 = 搜索回传的 `root_value`）
+  ⇒ **60 文件 / 29,285 条**样本（target ∈ [−0.845, +0.857]、均值 0.019、std 0.246；相邻决策平滑、开局 ≈ −0.085 中性）；
+  用 `train_value_antwar.py` 训部署形状的价值网：**按局 `val_mae = 0.0718`**（`train_mse 0.0066`）
+  ⇒ 对比**用终局胜负当目标**的 **0.3453**（`train_mse 0.113`）⇒ **误差低 4.8 倍**、且开局校准合理（对比终局网开局给 +0.44 的过度自信）
+  ⇒ 产物 `checkpoints/grafted_sdk_A_vsearch.pt`（class/pos 与原文件**逐位相同**）。机理：`value_state` **确实进入搜索叶评估**（已实测）⇒ 更好的叶值应改善搜索 | `azjsonl_to_value_npz.py` + `train_value_antwar.py` + 日志 | **中强**（指标 + 机制）|
+| 结论 | 支撑（run / 文件）| 强度 |
+|---|---|---|
 | ✅ **S2 做出"部署形状"的价值网，并**实测通道有效**（2026-10-09 第 39 轮）：
   新增 `code/my_ai/train_value_antwar.py`：`create_model(**model_kwargs_from_ckpt(base))` 造**同架构**网（94 张量与部署 `value_state` 逐一核对通过）、
   以 `MSE(tanh(value), target)` 训练（部署口径 `value=tanh(裸输出)`，见 `az_selfplay.make_three_net_fn`）、**按局切分**、训练完**只替换 `value_state`** 产出

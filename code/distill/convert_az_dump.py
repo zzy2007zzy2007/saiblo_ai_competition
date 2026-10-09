@@ -58,7 +58,14 @@ def read_obs(path: Path) -> list[dict]:
 
 def convert_pair(obs_path: Path, az_path: Path, min_visit: float = 0.0) -> dict:
     obs = read_obs(obs_path)
-    lines = [json.loads(s) for s in az_path.read_text(encoding="utf-8").splitlines() if s.strip()]
+    lines = []
+    for s in az_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if not s.strip():
+            continue
+        try:
+            lines.append(json.loads(s))
+        except Exception:  # noqa: BLE001  硬杀可能留下截断行
+            print(f"  ⚠️ {az_path.name}: 跳过 1 行坏 JSON")
     n = min(len(obs), len(lines))
     if len(obs) != len(lines):
         print(f"  ⚠️ {az_path.name}: 观测 {len(obs)} 条 vs AZ {len(lines)} 条 ⇒ 取前 {n} 条（对齐按序号）")
