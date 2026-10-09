@@ -144,3 +144,23 @@ python -u code/tools/extract_model_from_ckpt.py \
 | `checkpoints/distill_phold10.pt` → `grafted_phold10.pt` | `--p-hold 0.1`（HOLD 降采样 10×）| 训练中 | 目的：让**类头分布可用**，为 `joint`（类交给学习）铺路 |
 > ⚠️ 解读口径：λ=0 的那一头**不受约束会漂移** ⇒ 这些臂的准确含义是"**一个头受训 + 另一个头未被约束**"，
 > 不是"另一个头保持原样"。若结果含糊，应改用小 λ（如 0.05）重训一版。
+
+## 价值网（S2 / 搜索值）相关 ckpt（2026-10-09 第 38–51 轮）
+
+**部署可直接加载的"三网 ckpt"**（`class_state`/`pos_state` 与冻结基线 `grafted_sdk_A.pt` **逐位相同**，**只换 `value_state`**）：
+
+| 文件 | 大小 / sha256(前 16) | `value_state` 怎么来的 | 判据读数（vs 冻结基线、MC1 口径、128 局）|
+|---|---|---|---|
+| `checkpoints/grafted_sdk_A_vs2.pt` | 4.29 MB / `71616f81b4e2ceef` | `train_value_antwar.py`，目标 = **该局终局胜负**（按局 `val_mae 0.3453`）| 未单跑判据；其"MC 评分器"角色读数 **0.4531**（vs example、32 对）|
+| `checkpoints/grafted_sdk_A_vsearch.pt` | 4.29 MB / `03e5f83a2a8bf52e` | `train_value_antwar.py`，目标 = **搜索回传的 `root_value`**（按局 `val_mae 0.0718`）| **0.7188**（当前最好；MC1+旧网 = 0.6797）|
+
+**独立的训练网**（**不能**被 `load_three_models` 直接加载——它是 `ValueNetwork` 小网，键名与部署 `value_state` 交集为 0；仅供离线诊断/再训练）：
+
+| 文件 | 大小 / sha256(前 16) | 说明 |
+|---|---|---|
+| `checkpoints/value_s2.pt` | 2.10 MB / `b9942fb2a5b7d718` | 终局胜负目标的小网（`train_value_net.py --stream` 产物，按局验证集会泄漏 ⇒ 只用它做实验记录）|
+| `checkpoints/value_search_net.pt` | 2.14 MB / `cbfc767f11783169` | 搜索值目标的小网（`train_value_antwar.py --save-net` 产物）|
+
+> **口径提醒**：判据只能由"部署形状的三网 ckpt"取得（`grafted_sdk_A_vs2/_vsearch`）；
+> 离线 `val_mae` **按局切分**才有意义（按帧切分会泄漏，实测差 10 倍：0.0338 vs 0.3453）。
+> 训练数据都在**训练专用 seed 段**（`10001..10030` 第一轮、`10031..10060` 第二轮）采集，**不含**判据段/随机段/未见段。
