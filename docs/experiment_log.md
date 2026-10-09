@@ -8328,3 +8328,21 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
 **C. 已开（按预注册）**：① 搜索扫描筛查臂 **I512**（`ITERS=512`，**64 局前缀 `7..38`**，vs example；**偏离预注册的"vs base_pkg"语境，理由=成本，已记录**）；
 ② 消融臂 **C**（`phold10` + `pos-only` + `mc_quiet`，K=24，vs example，128 局）⇒ 补全标定表并回答"HOLD 降采样在部署配置里是否有用"。
+
+### 30. goal-2600a56a 第 15 轮：**AZ 环数据链路打通**（dump → 转换器 → 训练器可用）
+
+- **桥接端**（`code/test_match/az_bridge_ai.py`，默认关闭 `AZAI_AZ_DUMP`）：
+  每次决策 dump 搜索软策略（候选束 + **访问分布** + intent + root_value），并**新增 `labels`**——
+  每个 op 已解出的 `(class, x, y)`。**为什么必须在桥接端解**：升级/降级的格子要靠"塔 id → (x,y)"，
+  而观测 dump 里只有**类型网格**、没有塔 id ⇒ 离线转换器解不出（新增 `_op_label` 助手复刻 `collect.py:_op_to_label` 口径）。
+- **转换器** `code/distill/convert_az_dump.py`：把 AZ JSONL + 观测 `.bin`（定长 **20328 B/决策**：
+  board f16 28×19×19 | stats f16 42 | player u8 | chosen u8×3 | 类掩码 u8×24）转成**与 `distill_data/` 同 schema** 的 npz：
+  `board/stats/class_/action_map/head_logits`，其中 `action_map`/`head_logits` = **访问分布的软目标**（教师）、
+  `class_` = **实际执行**的类（每头一个）。
+- **验证（不跑对局）**：`--selftest` 用合成数据 **12/12 全过**（形状、`class_` 硬标签、`head_logits` 0.75/0.25 投影、
+  `action_map` 落点 0.75/1.0、board 通道值）；并用**现有训练器** `my_ai.ss_train.SSDataset` 实载转换产物成功
+  （键名 `action_map/board/class_label/head_logits/stats`）⇒ **训练器可直接吃，无需改 schema**。
+- 剩下只有**采集本身**（~100–200 局，训练专用 seed 段 `5001..5100`）⇒ 一旦有槽位就开；之后
+  `train.py --init checkpoints/distill_sdk_A.pt --lambda-soft>0`，评估先 **K=1 筛查**（回答"策略头是否变好"）、入围者 K=24 复核。
+- ⚠️ 本轮我又因**插入点判断错误**踩了两个坑（缩进切断、`atexit` 导入顺序），都是**单元级验证当场抓到**的
+  ⇒ 记入经验：桥接端的 dump 助手都在**外层函数体内**，追加代码必须对齐其缩进；`atexit` 是函数内 import。

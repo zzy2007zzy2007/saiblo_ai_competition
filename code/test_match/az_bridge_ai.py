@@ -88,7 +88,40 @@ _DUMP: dict = {"dir": "", "seed": 0, "player": 0, "fh": None, "n": 0}
 _AZ: dict = {"dir": None, "seed": 0, "player": 0, "fh": None, "n": 0}
 
 
-def _record_az(res) -> None:
+def _op_label(op_type: int, a0: int, a1: int, facade, player: int):
+    """把 (op_type, arg0, arg1) 解成 (class, x, y)；解不出就 (23, -1, -1)。
+
+    与 `code/distill/collect.py:_op_to_label` 同一口径（类号约定：0–15 = 目标塔型通道、16 = 降级、
+    17 = 闪电、23 = HOLD）。**升级/降级需要局面**（塔 id → 格子）⇒ 所以必须在桥接端（有 facade）解，
+    不能留给离线转换器（观测 dump 里只有类型网格，没有塔 id）。
+    """
+    try:
+        from SDK.utils.constants import OperationType as _OT
+        from my_ai.decoder import CHANNEL_TO_TOWER_TYPE, upgrade_step
+        if int(op_type) == int(_OT.BUILD_TOWER):
+            return (0, int(a0), int(a1))
+        if int(op_type) == int(_OT.UPGRADE_TOWER):
+            for _t in facade.towers_of(int(player)):
+                if int(getattr(_t, "tower_id", -1)) == int(a0):
+                    for _ch in range(1, 16):
+                        _tt = CHANNEL_TO_TOWER_TYPE[_ch]
+                        _step = upgrade_step(getattr(_t, "tower_type", None), _tt)
+                        if _step is not None and int(_step) == int(a1):
+                            return (_ch, int(_t.x), int(_t.y))
+            return (23, -1, -1)
+        if int(op_type) == int(_OT.DOWNGRADE_TOWER):
+            for _t in facade.towers_of(int(player)):
+                if int(getattr(_t, "tower_id", -1)) == int(a0):
+                    return (16, int(_t.x), int(_t.y))
+            return (23, -1, -1)
+        if int(op_type) == int(_OT.USE_LIGHTNING_STORM):
+            return (17, int(a0), int(a1))
+    except Exception:  # noqa: BLE001
+        pass
+    return (23, -1, -1)
+
+
+def _record_az(res, facade=None, player=None) -> None:
     """把一次决策的**搜索软策略**追加进 JSONL（`AZAI_AZ_DUMP=<dir>` 时才写）。
 
     字段：`n`(决策序号) `seed` `player` `cands`(候选束，每个束 ≤3 个 op) `visits`(访问分布，与 cands 同序)
@@ -112,8 +145,11 @@ def _record_az(res) -> None:
         vp = [float(x) for x in vp] if vp is not None else []
         bs = getattr(res, "bundles", None) or []
         cands = [[[int(o[0]), int(o[1]), int(o[2])] for o in b] for b in bs]
+        # 已解出的 (class, x, y) 标签（升级/降级要局面 ⇒ 在这里解；供离线转换器直接构目标）
+        labels = [[list(_op_label(int(o[0]), int(o[1]), int(o[2]), facade, _AZ["player"]))
+                   for o in b] for b in bs] if facade is not None else []
         rec = {"n": int(_AZ["n"]), "seed": int(_AZ["seed"]), "player": int(_AZ["player"]),
-               "cands": cands, "visits": vp, "chosen": int(getattr(res, "chosen_index", -1)),
+               "cands": cands, "labels": labels, "visits": vp, "chosen": int(getattr(res, "chosen_index", -1)),
                "intent": [int(x) for x in (getattr(res, "intent_counts", None) or [])],
                "root_value": float(getattr(res, "root_value", 0.0))}
     except Exception as _e:  # noqa: BLE001
@@ -386,7 +422,7 @@ def main() -> int:
         （= 访问量最高候选里、该 head 采样次数最多的 intent 的类号）；没有就记 255。
         掩码由解码器自己推（`intent_decoding=True`）⇒ 与"能不能真解出操作"一致。
         """
-        _record_az(res)
+        _record_az(res, facade, player)
         if not _DUMP["dir"]:
             return
         import numpy as np
