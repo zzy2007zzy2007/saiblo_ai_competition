@@ -35,8 +35,13 @@ for _s in (sys.stdout, sys.stderr):
 
 def read_obs(path: Path) -> list[dict]:
     buf = path.read_bytes()
-    if len(buf) % REC:
-        raise ValueError(f"{path.name}: 字节数 {len(buf)} 不是记录长度 {REC} 的整数倍")
+    n_full = len(buf) // REC
+    tail = len(buf) % REC
+    if tail:
+        # 实测（2026-10-19 AZTEST）：bridge 被**硬杀**时最后一条记录可能只写了一半
+        # （观测到 seed05002_p0.bin 余 20216 = 20328-112 ⇒ board 写完、player/chosen/mask 未写）
+        print(f"  ⚠️ {path.name}: 末尾有 {tail} 字节残记录（共 {len(buf)} B，整条 {n_full} 条）⇒ 丢弃残记录")
+    buf = buf[:n_full * REC]
     out = []
     for i in range(len(buf) // REC):
         o = i * REC

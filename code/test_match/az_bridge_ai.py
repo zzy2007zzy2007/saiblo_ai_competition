@@ -88,6 +88,65 @@ _DUMP: dict = {"dir": "", "seed": 0, "player": 0, "fh": None, "n": 0}
 _AZ: dict = {"dir": None, "seed": 0, "player": 0, "fh": None, "n": 0}
 
 
+def _json_safe(o, depth: int = 0):
+    """把任意嵌套结构（numpy / 元组 / 字典 / op 对象）转 JSON 安全纯类型。
+
+    实测踩坑（2026-10-19 AZTEST，第二次）：`intent_counts` 是**字典的嵌套**（键本身还可下标），
+    `chosen_index`/`visits` 的形状也不保证是标量 ⇒ 逐字段 int() 会 TypeError（整个 dump 变空）。
+    """
+    if depth > 4:
+        return None
+    if o is None or isinstance(o, (bool, int, float, str)):
+        return o
+    if hasattr(o, "op_type"):
+        return [int(o.op_type), int(getattr(o, "arg0", 0)), int(getattr(o, "arg1", 0))]
+    if hasattr(o, "tolist"):
+        try:
+            return _json_safe(o.tolist(), depth + 1)
+        except Exception:  # noqa: BLE001
+            pass
+    if isinstance(o, dict):
+        return {str(_json_safe(k, depth + 1)): _json_safe(v, depth + 1) for k, v in list(o.items())[:128]}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v, depth + 1) for v in list(o)[:256]]
+    try:
+        return int(o)
+    except Exception:  # noqa: BLE001
+        try:
+            return float(o)
+        except Exception:  # noqa: BLE001
+            return str(o)[:64]
+
+
+def _bundle_ops(b):
+    """从一个候选束里取出 op 三元组列表（**稳健**）。
+
+    实测踩坑（2026-10-19 AZTEST）：`res.bundles` 的元素**外层还包了一层**（不是直接的 op 序列），
+    直接 `int(o[0])` 会 `TypeError: int() ... not 'list'`。这里递归抽取，兼容：
+    ① `(op_type, arg0, arg1)` 三元组；② 带 `op_type/arg0/arg1` 属性的 op 对象；③ 上述两者的任意嵌套。
+    """
+    out: list = []
+
+    def _is_scalar(v) -> bool:
+        return isinstance(v, (int, float, bool)) or (hasattr(v, "__int__") and not isinstance(v, (list, tuple, dict)))
+
+    def _walk(x) -> None:
+        if x is None:
+            return
+        if hasattr(x, "op_type"):
+            out.append((int(x.op_type), int(getattr(x, "arg0", 0)), int(getattr(x, "arg1", 0))))
+            return
+        if isinstance(x, (list, tuple)):
+            if len(x) >= 3 and all(_is_scalar(v) for v in x[:3]):
+                out.append((int(x[0]), int(x[1]), int(x[2])))
+                return
+            for v in x:
+                _walk(v)
+
+    _walk(b)
+    return out
+
+
 def _op_label(op_type: int, a0: int, a1: int, facade, player: int):
     """把 (op_type, arg0, arg1) 解成 (class, x, y)；解不出就 (23, -1, -1)。
 
@@ -141,17 +200,17 @@ def _record_az(res, facade=None, player=None) -> None:
         return
     import json
     try:
-        vp = getattr(res, "visit_policy", None)
-        vp = [float(x) for x in vp] if vp is not None else []
+        vp = _json_safe(getattr(res, "visit_policy", None)) or []
         bs = getattr(res, "bundles", None) or []
-        cands = [[[int(o[0]), int(o[1]), int(o[2])] for o in b] for b in bs]
+        cands = [[[int(o[0]), int(o[1]), int(o[2])] for o in _bundle_ops(b)] for b in bs]
         # 已解出的 (class, x, y) 标签（升级/降级要局面 ⇒ 在这里解；供离线转换器直接构目标）
         labels = [[list(_op_label(int(o[0]), int(o[1]), int(o[2]), facade, _AZ["player"]))
-                   for o in b] for b in bs] if facade is not None else []
+                   for o in _bundle_ops(b)] for b in bs] if facade is not None else []
         rec = {"n": int(_AZ["n"]), "seed": int(_AZ["seed"]), "player": int(_AZ["player"]),
-               "cands": cands, "labels": labels, "visits": vp, "chosen": int(getattr(res, "chosen_index", -1)),
-               "intent": [int(x) for x in (getattr(res, "intent_counts", None) or [])],
-               "root_value": float(getattr(res, "root_value", 0.0))}
+               "cands": cands, "labels": labels, "visits": vp,
+               "chosen": _json_safe(getattr(res, "chosen_index", -1)),
+               "intent": _json_safe(getattr(res, "intent_counts", None)),
+               "root_value": _json_safe(getattr(res, "root_value", 0.0))}
     except Exception as _e:  # noqa: BLE001
         _log(f"AZ dump 记录失败（跳过该条）: {type(_e).__name__}: {_e}")
         return

@@ -8358,3 +8358,73 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 - 📉 **推论（重要）**：三网独立 ⇒ **价值网只能经"搜索的叶评估"影响行为**（MC 仲裁用引擎 rollout、不用网）
   ⇒ 换价值网几乎不该改变行为 ⇒ 机制上解释了历史两次"MSE 变好、棋力没动"⇒ S2 闸门 B 的先验**下调到 ~10–20%**。
 - 更正另一处：S2 **不缺训练器**（`code/my_ai/train_value_net.py` 存在），缺的只是**数据**（= 我准备的同一份采集）。
+
+## 2026-10-09 17:08:48 — AB_I512_screen_vs_example
+
+- **commit**: `8db777e` (dirty: 11 files)
+- **exit**: 0，用时 2757s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=512 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_I512_screen_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261009_170848_AB_I512_screen_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 17:59:45 — AZTEST
+
+- **commit**: `1022775` (dirty: 12 files)
+- **exit**: 0，用时 300s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/az_policy/AZTEST AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/az_obs/AZTEST AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=250 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AZTEST --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 5001 5001r 5002 5002r
+  ```
+- **output**: `training_history/runs/20261009_175945_AZTEST/output.log`
+- **result**: _待填_
+
+## 2026-10-09 17:08:18 — AB_C_phold10_vs_example
+
+- **commit**: `d62447d` (dirty: 11 files)
+- **exit**: 0，用时 3608s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_phold10.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_C_phold10_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_170818_AB_C_phold10_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-09 18:05:56 — AZTEST2
+
+- **commit**: `1022775` (dirty: 14 files)
+- **exit**: 0，用时 160s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/az_policy/AZTEST2 AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/az_obs/AZTEST2 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=250 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AZTEST2 --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 5001 5001r
+  ```
+- **output**: `training_history/runs/20261009_180556_AZTEST2/output.log`
+- **result**: _待填_
+
+## 2026-10-09 18:09:13 — AZTEST3
+
+- **commit**: `1022775` (dirty: 14 files)
+- **exit**: 0，用时 107s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/az_policy/AZTEST3 AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/az_obs/AZTEST3 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_MARGIN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=250 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AZTEST3 --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 5001 5001r
+  ```
+- **output**: `training_history/runs/20261009_180913_AZTEST3/output.log`
+- **result**: _待填_
+
+### 32. goal-2600a56a 第 20 轮：**AZ 数据链路修好并实测** + **机制总解释（管线只在 ~20% 决策上真的决策）** + C/I512 结果
+
+**A. 采集端到端（4 局 → 2 局复测）暴露并修掉 3 个问题**（这条测试的价值远超预期）：
+1. **`.bin` 末尾会有半条记录**（进程被硬杀：实测余数 20216 = 20328−112 ⇒ board 写完、player/chosen/mask 未写）⇒ 转换器改为容忍残记录并告警；
+2. **`res.bundles` 的元素外层还包了一层** ⇒ 直接 `int(o[0])` 抛 `TypeError: int() ... not 'list'` ⇒ 4 个 JSONL 全空 ⇒ 新增 `_bundle_ops()` 递归抽取；
+3. **`intent_counts` 是"字典的嵌套"（键本身还可下标）** ⇒ 逐字段 `int()` 再抛 TypeError ⇒ 新增 `_json_safe()` 把**整个记录**归一化（对未知形状免疫）。
+   ⇒ 复测：**440 行 JSONL/方**、结构正确（`cands` 为候选束列表）✅
+
+**B. 机制总解释（本轮最重要的读数）**：见寄存器新增行。要点：**91% 决策单候选**；**只有 mod 5 = 0 的相位（20%）真的进搜索/仲裁**（多候选 30.1%）；**访问分布 880/880 单点**。
+⇒ **④ 的教师近乎退化（克隆自己）⇒ ④ 降级；⑤ 的通道也只覆盖那 20% ⇒ ⑤ 降级**；**`MC_EVERY=1`（MC1）是唯一直接改变这一点的旋钮** ⇒ MC 覆盖度扫描升为最优先。
+
+**C. 另两条读数**：**C 臂（`phold10` K=24）= 0.7288**（59/64；无效+缺失 7.8%；**11.0 升/局**）⇒ 比基线差 7.3pp；
+**K=1 四点标定与 K=24 排序完全一致**（基线 > phold10 > maponly > clsonly）⇒ 早先"K=1 不预测 K=24"精确化为**不保数值但保排序**（可当 10 min 级排序筛查工具）。
+**I512 = 0.7344 vs 基线同段 0.8125 ⇒ 加倍迭代 −7.8pp**（迭代数不是杠杆）。
