@@ -8215,3 +8215,32 @@ ule_v4（seed **7..14**）| ⚠️ **是（判据段）** | **已用于候选 R 
 
 **同时**：A 腾出槽位 ⇒ 已开 **SF-ex**（`K=1 ITERS=1` ⇒ 跳过搜索，vs example，8 线程）⇒ 它的读数决定 AZ 环（④）走不走。
 另注：**`joint` 模式比 pos-only 慢 ~2.6×**（冒烟实测 13 s/回合 ⇒ 单局 ~55 min）⇒ 若 E 用 joint，128 局约 **13 h**（成本要事先算清）。
+
+## 2026-10-09 16:13:36 — AB_SF_ex_vs_example
+
+- **commit**: `8463012` (dirty: 11 files)
+- **exit**: 0，用时 603s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=1 AZAI_K=1 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_SF_ex_vs_example --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261009_161336_AB_SF_ex_vs_example/output.log`
+- **result**: _待填_
+
+### 27. goal-2600a56a 第 11 轮：**SF-ex = 0.6875（搜索只值 +11.4pp）** + joint 冒烟（E 降级）+ 开 F
+
+**A. SF-ex（决定 ④ 走不走的那个读数）**
+- `K=1 ITERS=1`（跳过搜索）+ 同一个 `grafted_sdk_A` + 同配置 + 双方禁闪电 + vs example、固定段 128 局：
+  **`p̂ = 0.6875`**（64 对：32×2-0 / 24×1-1 / 8×0-2）；CI [0.6016, 0.7734]；**无效+缺失 0%**；判词 128/128 engine。
+- 机制：**20.7 建 / 5.8 降 / 4.2 升 / 22.2 有操作回合**（完整搜索：18.4/…/5.0/21.2）⇒ **行为画像几乎相同**；**单局 0.61 min（快 33×）**。
+- ⇒ **搜索在子博弈只贡献 +11.4pp**（0.8016 − 0.6875）；真实对局里是 +56pp ⇒ ④（自蒸馏）**信号预算 ~11pp**。
+  按预注册判读：落在"0.35–0.70 中等价值"档 ⇒ **④ 可做，但上限低**。
+- **本 goal 达成概率下调：10–15% → ~5–8%**（打基线 80% 需要 ~30pp 台阶；唯一新信息源预算 ~11pp）。
+- ⚠️ 我的预测（SF-ex 0.25–0.45）**错误**（实际 0.6875）。
+- 🔧 **实用杠杆**：搜索关掉后 **0.61 min/局 vs 20 min/局（33×）** ⇒ 筛查臂可先用 `K=1`，只对入围者用 `K=24` 复核。
+
+**B. joint 冒烟（E 的门）**
+`joint`+`phold10`+`TCLASS=1.0` vs 基线（2 局）：我方 **8.0 建 / 33.0 降 / 36.5 升 / 79.0 有操作回合** ⇒ **非退化**（过守卫）
+但**极端 churn**，且**两局都输**（均值 0.000）⇒ 加上 `joint` 慢 2.6×（128 局 ≈13 h）⇒ 依上轮已写明的排序**先 F 后 E**；E 记"待跑"。
+
+**C. 已开 F**（`pos-only`+`POSPIN=masked`+`phold10` 头 vs 冻结基线，8 线程）⇒ "类头自己选类"的便宜版（~5 h）。
