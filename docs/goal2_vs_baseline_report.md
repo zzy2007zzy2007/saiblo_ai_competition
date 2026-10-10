@@ -278,4 +278,7 @@ powershell -File _tmp_arm.ps1 -Name S2_VALUE -Ckpt <把新 value 嫁接进 graft
 1. **未见段 501..564 上的 MC1 对照**（把"价值网无可靠效应"的结论钉到第三段）；
 2. **`MC_NODOWN` / `MC_TOP2` / 更短 `MC_HORIZON`** 三个现成未测旋钮；
 3. **前史标签线在本子博弈的复测**（`--label-mode rel --label-weight kgeo --tau≈50`，部署须加 `AZAI_VALUE_TANH=0 + AZAI_REL2ABS=1.0`），
-   预期只是"小/噪声级"（见 `docs/goal2_value_label_prior_art.md`）。
+   预期只是"小/噪声级"（见 `docs/goal2_value_label_prior_art.md`）；
+4. **`MC_MARGIN > 0`**（近平分时**不接管** ⇒ 交回策略 argmax）与 **HOLD-tie-break**（ε 内偏向 HOLD）——**都没测**；
+   先验偏低（覆盖实验说明"MC 比 argmax 强"），但两者都是**针对"23.6% 精确平局 + 菜单顺序兜底"**这个已知弱点的直接改动；
+5. **`MC_ROOTONLY=0`**（把仲裁放进搜索内部）——**成本上不可行**（每个节点都要跑满 rollout；代码注释估 ~20 min/局），仅记录。
