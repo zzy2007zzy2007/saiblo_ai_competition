@@ -20,12 +20,14 @@ param(
     [string]$ObsDir = 'data/az_obs',
     [string]$AkDir = 'data/az_policy',
     [string]$Ckpt  = 'checkpoints/grafted_sdk_A.pt'   # 采集用哪张网（价值迭代第二轮要传上一轮的网）
+    ,[hashtable]$ExtraEnv = @{}                     # 额外/覆盖的 AZAI_* 环境变量（如路C: MODE=joint, SKIP1=0, CLASS_FEAS_MASK=1）
 )
 if (-not $Repo) { $Repo = Split-Path -Parent $PSCommandPath }
 Set-Location $Repo
 
 # ── 冻结基线配置（与 goal 文本逐项一致；双方禁闪电）──
 $env:AZAI_CKPT = $Ckpt
+foreach ($k in $ExtraEnv.Keys) { Set-Item -Path ("Env:" + $k) -Value $ExtraEnv[$k]; Write-Host "[collect] ExtraEnv $k=$($ExtraEnv[$k])" }
 $env:AZAI_ITERS='256'; $env:AZAI_DEPTH='4'; $env:AZAI_K='24'; $env:AZAI_SAMPLE_MULT='15'
 $env:AZAI_MODE='pos-only'; $env:AZAI_POSPIN='mc_quiet'; $env:AZAI_TCLASS='0.5'
 $env:AZAI_MC_EVERY='5'; $env:AZAI_MC_ROOTONLY='1'; $env:AZAI_MC_MARGIN='0'
