@@ -9531,3 +9531,57 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **交付文档初稿**：`docs/actionnet_retrain_summary.md`（"重训动作网在禁闪电子博弈里到底能拿到什么"），
   含：判据尺度结论表（B ❌ −11.7pp / A ❌ 自闸门 / C ⏳）、三条机制发现（visit 教师无信息；2 格二选一结构限制；
   类头有活通道）、九条工程口径教训、对"能不能拿到 +10pp"的判断（真杠杆在部署侧 MC 仲裁覆盖率）、完整复现清单。
+
+## 2026-10-11 04:32:07 — AB_POSROLL_C_collect2_vs_baseline
+
+- **commit**: `ad5cd7a` (dirty: 14 files)
+- **exit**: 0，用时 2539s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/posroll_c_policy/POSROLL_C AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/posroll_c_obs/POSROLL_C AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_POSROLL_C_collect2_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 22000 22000r 22001 22001r 22002 22002r 22003 22003r 22004 22004r 22005 22005r 22006 22006r 22007 22007r 22008 22008r 22009 22009r 22010 22010r 22011 22011r 22012 22012r 22013 22013r 22014 22014r 22015 22015r 22016 22016r 22017 22017r 22018 22018r 22019 22019r 22020 22020r 22021 22021r 22022 22022r 22023 22023r 22024 22024r 22025 22025r 22026 22026r 22027 22027r 22028 22028r 22029 22029r
+  ```
+- **output**: `training_history/runs/20261011_043207_AB_POSROLL_C_collect2_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-11 05:18:36 — CLSC_train
+
+- **commit**: `79e21e4` (dirty: 14 files)
+- **exit**: 0，用时 86s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt checkpoints/grafted_sdk_A.pt --data data/posroll_c_labeled --out checkpoints/grafted_sdk_A_clsC.pt --epochs 10 --beta 0.5 --class-weight auto
+  ```
+- **output**: `training_history/runs/20261011_051836_CLSC_train/output.log`
+- **result**: _待填_
+
+## 2026-10-11 05:23:44 — CLSC_train_e3
+
+- **commit**: `79e21e4` (dirty: 14 files)
+- **exit**: 0，用时 30s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_class_outcome.py --ckpt checkpoints/grafted_sdk_A.pt --data data/posroll_c_labeled --out checkpoints/grafted_sdk_A_clsC_e3.pt --epochs 3 --beta 0.5 --class-weight auto
+  ```
+- **output**: `training_history/runs/20261011_052344_CLSC_train_e3/output.log`
+- **result**: _待填_
+
+### 85. goal-2600a56a 第 9 轮：**路线 C 闸门 ① 不达标 ⇒ 关闭**；并发现"类头其实是 HOLD 预测器"
+
+- 采集完成：60 对（训练专用 seed 22000–22029 双向；**训练段上 incumbent 均分 1.533/2 = 0.7665** ⇒ 固定段 7..70 对我方偏难）。
+  ⚠️ 冒烟写的 seed 7 dump 已移出（`*seed00007*` 共 4 个文件）后才 ingest ✓。
+- ingest：**28,629 条样本 / 85,887 个有效 (头,类) 目标**；类掩码平均可选 6.5 类；
+  类权重（auto）类0 cnt=24067 w=0.40、类23(HOLD) cnt=12955 w=0.55、类5 w=2.23、类16 w=2.34、类13 w=4.21。
+- 训练（`train_class_outcome.py`，只训类头，pos/value 逐位不变）：10 epoch 时 **train 0.7473→0.3396 但 val 0.5956→（第2–4轮最优 0.5706）→0.8442 ⇒ 明显过拟合**；改训 3 epoch 取 val 最优区。
+- **闸门 ①（新写 `code/my_ai/az_intent/eval_class_head_agree.py`，val 子集 2862 条，argmax 掩码内 vs 实际执行类）**：
+
+  | 类头 | 总体 | **HOLD(23)** | **非 HOLD 动作** |
+  |---|---|---|---|
+  | incumbent `grafted_sdk_A` | 39.82% | **98.72%** | **0.96%** |
+  | `clsC_e3`（3 ep）| 36.90% | 91.61% | 0.80% |
+  | `clsC`（10 ep）| 34.45% | 84.12% | 1.69% |
+
+  ⇒ **incumbent 类头等价于"永远猜 HOLD"**（HOLD 98.7% 对、动作行 0.96% 对）；AWR-BC 只把 HOLD 精度换成 ≈0 的动作精度
+  ⇒ **"实际执行类"从观测里不可预测**（它由 **MC 用 rollout 分数在菜单上仲裁**而来）⇒ 按预注册 §9 **不投判据** ✓（省 ~2 h）。
+- ⇒ **三条路线全部有实测结论**：B ❌（−11.7pp，判据尺度）、A ❌（教师不可学，自闸门）、C ❌（目标不可预测，自闸门）。
+- 下一手（仍在本目标范围内）：把"教师"换成 **MC 自己的每类 rollout 分数**（类间分差大、可学 ⇒ 目标质量可过闸门），
+  目标是拿到 **效率收益**（P4 ~50%）：用类头替代/削减 MC 的类搜索（压 `MC_TOPK`/`MC_EVERY`）在**等强度**下省算力。
