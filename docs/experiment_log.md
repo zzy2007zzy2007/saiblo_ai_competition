@@ -9506,3 +9506,28 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **路线 A 由它自己的闸门判死**：即便尝试全部合法格，每决策**只有 ~2 格可解码** ⇒ 目标天然是"2 格二选一"
   ⇒ CE 只取决于"谁大"这一离散量，46k 行训练实测 **top1 停在 45~56%（≈随机）** ⇒ 位置头**学不会**安静 rollout 的偏好
   ⇒ 按 §8.1（要求 top1 ≥0.65、val CE 降 ≥0.10）**不投判据**，并**取消** 240 局宽格采集（省 ~2 h）。
+
+## 2026-10-11 04:22:54 — POSROLL_C_collect
+
+- **commit**: `ad5cd7a` (dirty: 13 files)
+- **exit**: 0，用时 100s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/posroll_c_policy/POSROLL_C AZAI_DUMP_RAW_DIR=data/posroll_c_obs/POSROLL_C D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=POSROLL_C_collect --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 22000 22000r 22001 22001r 22002 22002r 22003 22003r 22004 22004r 22005 22005r 22006 22006r 22007 22007r 22008 22008r 22009 22009r 22010 22010r 22011 22011r 22012 22012r 22013 22013r 22014 22014r 22015 22015r 22016 22016r 22017 22017r 22018 22018r 22019 22019r 22020 22020r 22021 22021r 22022 22022r 22023 22023r 22024 22024r 22025 22025r 22026 22026r 22027 22027r 22028 22028r 22029 22029r
+  ```
+- **output**: `training_history/runs/20261011_042254_POSROLL_C_collect/output.log`
+- **result**: _待填_
+
+### 84. goal-2600a56a 第 8 轮：路线 C 管线就绪 + 交付文档初稿
+
+- **确认 `train_class_outcome.py` 是干净的单变量类头训练器**（L108-111 冻结 pos/value 并 `eval()`；L113 优化器只含类头参数；
+  L210 `save_three_net` 写三网 ⇒ 另两头逐位不变）⇒ **路线 C 不需要新训练代码** ✓。
+  历史 ingest 的样本字段：`board / stats / player / chosen_cls[3]（255=该头无操作 ⇒ 跳过）/ class_mask[24] / value_target`。
+- **预注册 §9**（`aae73d3`）：路线 C 的唯一变量、数据（incumbent 配置 + seed 22000–22029 双向 60 局）、
+  **三道闸门**（① 目标质量：类头对"实际执行类"一致率须高于 incumbent 类头；② 机制必须可辨不同；③ 才跑 128 局判据）、
+  以及**止损**（若 `p̂` < incumbent 0.6797 ⇒ 路线 C 关闭，转总结）。
+- **采集成本实测**：打开 AZ dump 后对局**慢约 8 倍**（5.5 min → ~24 min/局）⇒ 60 局 ≈ 2.5–5 h（已在预注册与总结里记下）。
+  ⚠️ 驱动的冒烟会写 **seed 7（判据 seed）** ⇒ ingest 前必须把 seed 7 的 dump 移出（判据段永不入训）。
+- **交付文档初稿**：`docs/actionnet_retrain_summary.md`（"重训动作网在禁闪电子博弈里到底能拿到什么"），
+  含：判据尺度结论表（B ❌ −11.7pp / A ❌ 自闸门 / C ⏳）、三条机制发现（visit 教师无信息；2 格二选一结构限制；
+  类头有活通道）、九条工程口径教训、对"能不能拿到 +10pp"的判断（真杠杆在部署侧 MC 仲裁覆盖率）、完整复现清单。
