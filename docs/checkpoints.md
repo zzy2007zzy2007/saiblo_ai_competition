@@ -199,3 +199,21 @@ python -u code/tools/extract_model_from_ckpt.py \
 
 ### 判据读数（进行中）
 - `AB_E90_vs_baseline_vs_baseline`（固定段 7..70、128 局、8 线程、incumbent 配置、**只换 ckpt**）——见 `docs/experiment_log.md` 第 79–81 轮。
+
+### 路线 C / C′（类头 / 跨类教师）的产物（2026-10-11）
+| 文件 | 大小 | sha256(前 16) | 说明 |
+|---|---|---|---|
+| `grafted_sdk_A_clsC.pt` | 6.44 MB | `fe894e680be8f570` | 路线 C：只换类头，AWR-BC 到"实际执行类"，10 epoch（**过拟合**：val 0.5706@ep2-4 → 0.8442）|
+| `grafted_sdk_A_clsC_e3.pt` | 6.44 MB | `52ac48edd8627ba8` | 同上，3 epoch（val 最优区）；**闸门①不达标**（见 `docs/actionnet_retrain_summary.md` §3.4）|
+| `grafted_sdk_A_clsrank.pt` | 6.44 MB | `f5921dcd8eb30649` | 路线 C′：只换位置头，跨类 rollout 教师；**闸门不过**（§3.5）|
+| `grafted_clsonly_audit.pt` | 6.44 MB | `f967c5e26f84592d` | **机制审计用**只换类头对照（class 13/94 相同、pos/value 94/94 逐位相同）|
+
+**数据（只在盘上，不入库）**：
+- `data/posroll_c_policy/POSROLL_C` + `data/posroll_c_obs/POSROLL_C`：各 60 文件（22.4 MB / 555.2 MB）——
+  incumbent 配置下 seed 22000–22029 双向 dump（冒烟的 seed 7 已移出）；
+- `data/posroll_c_labeled`：60 个 pkl（559.8 MB）——ingest 产物，**28,629 样本 / 85,887 (头,类) 目标**（含 `chosen_cls`/`class_mask`/`value_target`）；
+- `training_history/posroll/class30.npz`（0.81 MB）：跨类教师 30 局 ⇒ **15,360 行**；
+- `training_history/posroll/pilot30.npz`（2.33 MB）：格级教师 30 局 ⇒ 46,080 行。
+
+**脚本**：`collect_class_rollout_teacher.py`、`train_pos_class_rank.py`、`eval_class_head_agree.py`、
+`train_pos_rollout.py`、`collect_pos_rollout_teacher.py`、`code/test_match/audit_pos_head_vs_teacher.py`。
