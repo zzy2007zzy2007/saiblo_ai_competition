@@ -9248,3 +9248,29 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   | 削到 64 + 补尾 | **救回（= 256 档）** | **+37%（更慢）** |
   ⇒ **"削上限省时间"的前提不成立**（安静 rollout 不是瓶颈：中局早到终局）⇒ **补尾设计正确、却无处可用**。
 - 仍在跑：`T32V` / `T64M`（若 `T32V` 大幅补回 32 档的损失，更能说明"补尾是有效替代品，只是本管线不需要"）。
+
+## 2026-10-10 17:54:21 — AB_TAIL_T32V_vs_example
+
+- **commit**: `3803409` (dirty: 13 files)
+- **exit**: 0，用时 2921s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=32 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL=value AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T32V_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_175421_AB_TAIL_T32V_vs_example/output.log`
+- **result**: _待填_
+
+### 75. goal-2600a56a 第 75 轮：**补尾在 32 档也成立（+7.8pp）⇒ 用户提议的机制被完整验证，但本管线无处可用**
+
+- `TAIL_T32V`（H=32 + 补尾 MIX=1.0）= **`p̂ = 0.8906`**（25/7/0；CI [0.8125,0.9531]；0% 无效）vs **H=32 无尾 0.8125** ⇒ **+7.8pp**（仍比 H=256 档 0.9219 低 3.1pp）；
+  **机时 2.38 → 3.00 min/局（+26%）**；机制 37.0 建 / 29.4 降 / 60.9 有操作回合。
+- **6 臂完整阶梯**：
+  | 做法 | 胜率 | 机时 |
+  |---|---|---|
+  | 削 128 / 64（无尾）| 不掉分（−1.6pp 噪声内）| **不省时** |
+  | 削 32（无尾）| **−9.4pp** | **更慢** |
+  | 削 64 + 补尾 | **救回（0.9219）** | **+37%** |
+  | 削 32 + 补尾 | **+7.8pp（0.8906）** | **+26%** |
+- ⇒ **结论**：补尾（用价值网替代被截断的 rollout）**机制上真实有效**（预注册 P-T2 在两档均成立），
+  但**每一档都更慢**，而"省时间"正是该想法的全部目的 ⇒ **在本管线上无处可用**（安静 rollout 不是瓶颈：中局早已到终局）。
+- 仍在跑：`T64M`（补尾 mix=0.5，信息量最低）；跑完本 goal **已无排队实验**。
