@@ -120,6 +120,19 @@
 | 结论 | 支撑（run / 文件）| 强度 |
 | 结论 | 支撑（run / 文件）| 强度 |
 |---|---|---|
+| ✅✅ **第二轮无上下文独立验证：声明 1–8、10 全部逐位复现；声明 9 事件精确可读但需修正口径**（2026-10-09 第 59 轮；验证者 id `99502312`，只读、**自写 Python + 第二套独立 PowerShell 实现**，两套一致、均未调用我的分析脚本）：
+  7 个 tag 的 p̂ 全部吻合（0.7188 / 0.7031 / 0.7188 / 0.7109 / 0.2031 / 0.4531 / 0.6797），无效+缺失 **全 0**、判词 **100% engine**；
+  `val_mae` 0.0718（`value_search_s2.log`）与 0.0973（`value_search_iter2.log`，**UTF-16 文件**）均确认；
+  ckpt 比对：`grafted_sdk_A_vsearch.pt` vs `grafted_sdk_A.pt` ⇒ **class 94/94、pos 94/94 逐位相同，value 94/94 全不同**；
+  配置指纹：三个 run 的 `cmd.txt` 均为 `--ai0=az_bridge_ai.py --ai1=base_pkg/main.py` ⇒ 对手确为冻结基线。
+  **反作弊全表扫描（约 220 个 tag）**：全仓库**没有任何两个 `.log` 内容相同**、无重复/缺失 token、token 集合 == 磁盘文件集合、
+  `winner_side` 与"胜方横幅 + `base_hp` 败方 hp=0"三方零矛盾、`rounds=` 100% 等于正文最大回合、角色映射零例外。
+  ⚠️ **修正（我给的实时快照 vs 文件当前最大值）**：C1 冒烟我报"第 163 回合 / 塔 104"（运行中尾部快照，run 08:49:29 被中断）⇒ 文件实际 **max 回合 269 / max 塔 id 184**；
+  C1b 我报"105 / 72" ⇒ 实际 **109 / 74**（对照 `AB_VSEARCH_dec/7.log` 全程只到塔 **62**）⇒ **"无节制建塔"的机制结论成立且更极端**。
+  ⚠️ 另两条记录级提醒：`grafted_sdk_A_vs2.pt`（终局目标网）**≠** `grafted_sdk_A_vsearch2.pt`（第二轮网，对应 0.0973）；`training_history/value_search_*.log` 是 **UTF-16**；
+  复核之外的**历史 tag 确有** aborted/timeout/INVALID 局（如 `M6_mc_128` 41 局 aborted）⇒ 引用它们必须先按 `verdict=engine 且 winner!=INVALID` 过滤 | 独立验证报告（本会话）| **强（独立）** |
+| 结论 | 支撑（run / 文件）| 强度 |
+|---|---|---|
 | ❌ **路 C 的第一道闸门（C1）两种配方都不过：churn 治好了，但 `joint` 模式退化为"建塔刷屏/僵持"**（2026-10-09 第 57 轮）：
   **C1**（`joint K=24 SKIP1=0 PIN=argmax` + `AZAI_CLASS_FEAS_MASK=1`，类头 = `grafted_phold10.pt`）：seed 7 跑到**第 163 回合仍在继续、塔 id 到 104（≈100 座塔）**
   （对照 MC1 基线 **~46 回合/局、~28 建塔/局**）⇒ 机制闸门（回合 ≤60）**不过**；
