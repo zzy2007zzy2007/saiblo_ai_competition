@@ -9301,3 +9301,66 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - ⇒ **额外发现**：**混合（0.5）比纯 rollout（0.9062）和纯补尾（0.9219）都差** ⇒ **量纲不同的评分不能线性混合**；要用补尾就整用。
 - ⇒ 与前面四档一致的总结论：**削上限不省时、补尾必更慢** ⇒ 该方向对"效率"的初衷不成立（机制本身有效）。
 - 矩阵跑完 ⇒ **本 goal 已无排队实验**。
+
+## 2026-10-11 00:52:04 — POSROLL_pilot50
+
+- **commit**: `4fdf228` (dirty: 13 files)
+- **exit**: 1，用时 16s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 50 --workers 8 --max-cells 4 --rollout-rounds 256 --seed 20000 --out training_history/posroll/pilot50.npz
+  ```
+- **output**: `training_history/runs/20261011_005204_POSROLL_pilot50/output.log`
+- **result**: _待填_
+
+## 2026-10-11 01:08:04 — POSROLL_pilot30
+
+- **commit**: `4fdf228` (dirty: 14 files)
+- **exit**: 0，用时 708s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 30 --workers 8 --max-cells 4 --rollout-rounds 256 --seed 20000 --out training_history/posroll/pilot30.npz
+  ```
+- **output**: `training_history/runs/20261011_010804_POSROLL_pilot30/output.log`
+- **result**: _待填_
+
+## 2026-10-11 01:25:36 — POSROLL_train30
+
+- **commit**: `4fdf228` (dirty: 14 files)
+- **exit**: 1，用时 3s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_prior.py --ckpt checkpoints/grafted_sdk_A.pt --data training_history/posroll/pilot30.npz --epochs 60 --batch-size 256 --lr 1e-3 --target-tau 1.0 --t-pos 1.0 --out checkpoints/grafted_sdk_A_posroll30.pt
+  ```
+- **output**: `training_history/runs/20261011_012536_POSROLL_train30/output.log`
+- **result**: _待填_
+
+## 2026-10-11 01:31:28 — POSROLL_train30b
+
+- **commit**: `4fdf228` (dirty: 14 files)
+- **exit**: 1，用时 7s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_prior.py --ckpt checkpoints/grafted_sdk_A.pt --data training_history/posroll/pilot30_fixed.npz --epochs 60 --batch-size 256 --lr 1e-3 --target-tau 1.0 --t-pos 1.0 --out checkpoints/grafted_sdk_A_posroll30.pt
+  ```
+- **output**: `training_history/runs/20261011_013128_POSROLL_train30b/output.log`
+- **result**: _待填_
+
+### 78. goal-2600a56a 新目标第 2 轮：**路线 A 教师信号闸门通过；抓到三处口径/接口 bug**
+
+- **试点（路线 A 修订版）**：`POSROLL_pilot30`（30 局 / 8 线程 / 12 min）产出 **46,080 训练行**（1,536 行/局），
+  rollout 92,160 次；**安静 rollout 的区分度**：`|top1-top2|` 中位 **0.100**、均值 0.120、
+  **≥0.05(=1 HP) 占 100%**、≥0.10(=2 HP) 占 56%；**完全平局的决策仅 7,680/46,080 = 16.7%**
+  ⇒ **与"搜索 visit 教师"（100% 平局、熵 1.000）形成鲜明对比** ⇒ **路线 A 通过信号闸门，GO** ✓
+- **三处 bug（都记下来，避免重复）**：
+  1. **子进程 `ModuleNotFoundError: No module named 'SDK'`** ⇒ 路径必须在**模块级**设置
+     （`_REPO = parents[3]`；`Ant-Game` + `code` 入 `sys.path`），否则 Windows spawn 的子进程里不生效；
+  2. **格选择 bug**：先按位置图截前 M 格再试解码 ⇒ 多数格解不出可执行 op ⇒ `rows=0`
+     （实测每局 3,072 个位置决策却 0 训练行）⇒ 改为**按值降序扫描、连续取前 M 个"真能解出"的格**；
+  3. **npz 键与坐标口径**：训练器读的是 **`board`/`cell`/`cnt`**（不是我写的 `boards`/`cells` ✗），
+     `cnt` = **每行有效格数**（配 `valid = arange(MAXC) < cnt` 掩码）；且**历史 npz 存的是 (row,col)=(y,x)**，
+     而我的采集器存 **(x,y)** ⇒ **转置** ⇒ 会训出偏好转置格的坏候选（**待修**）。
+- **训练器日志"逐位不动"的定位进展**：参数 553,313 全部可训；**手工梯度探针**（同一 ckpt + 同一 npz）
+  测得梯度范数 **2.5e-5（极小但非零）**，而**手工 30 步 Adam 把 loss 从 1.8885 降到 0.3653** ✓
+  ⇒ **学习本身没问题**，问题在训练器那条路径里（下一轮继续：对比两者的 batch/索引/优化器差异）。
+- 路线 B（把 SDK 蒸馏 30→90 epoch）跑到 **78/90**（`tot` 2.03→0.588，仍在降）⇒ 训完即嫁接 + 冒烟 + 128 局判据。
