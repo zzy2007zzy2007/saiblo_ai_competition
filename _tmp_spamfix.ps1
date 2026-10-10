@@ -39,9 +39,14 @@ New-Item -ItemType Directory -Force -Path "data/c1spam_obs/$Tag", "data/c1spam_p
 # 而 dump 用的两个变量驱动脚本**并不覆盖** ⇒ 直接在**父进程**设 env 即可（子进程继承）。
 $env:AZAI_DUMP_RAW_DIR = "data/c1spam_obs/$Tag"
 $env:AZAI_AZ_DUMP     = "data/c1spam_policy/$Tag"
+# ⚠️ 2026-10-09 实测：`joint + K=24 + SAMPLE_MULT=15`（= C1 冒烟那套）**单决策 ~30 min**（两个 bridge 各 ~92% 单核，
+#    28 分钟没有产出任何决策）⇒ 一局数小时 ⇒ 60 局是"天"级，**不可行**。
+#    但本采集只需要"**刷屏局面 + 其结局**"这个**数据特征**，并不需要最强搜索 ⇒ 改用**廉价搜索**（约快 50×）：
+#      K=4 / ITERS=32 / SAMPLE_MULT=2（其余仍与 C1 一致：joint + 不短路 + 可行性掩蔽 + 对冻结基线）
+#    并在冒烟里**核对刷屏仍在**（回合数/塔数）。
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name $Tag `
     -Ckpt 'checkpoints/grafted_phold10_vsearch.pt' -Mode 'joint' -Pin 'argmax' -Tclass '0.5' `
-    -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec "$Lo-$Hi" -Jobs 8 -Repo $Repo
+    -K 4 -Iters 32 -SampleMult 2 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec "$Lo-$Hi" -Jobs 8 -Repo $Repo
 # ── fail-fast：采集必须有局 ──
 $rr = Get-ChildItem training_history/runs -Directory | Where-Object Name -like "*$Tag*" | Sort-Object Name -Descending | Select-Object -First 1
 $ndone = if ($rr) { (Select-String -Path (Join-Path $rr.FullName 'output.log') -Pattern 'rc=' | Measure-Object).Count } else { 0 }
