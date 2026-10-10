@@ -9037,3 +9037,24 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   机制 `--label-mode rel/abs/mix + --tau + --label-weight geo/kgeo` **早已实现**；前史实测：32 局 kgeo_gap 46.9% 但姊妹臂 12.5%（噪声主导）、
   svs 64 局 60.9% 却拆出"执后手 +28pp / 执先手 −3pp"（偏置）、`rel+kgeo τ=50` 32 局 0.5938（最强但幅度小）、`abs` 有抄 `stats[1]` 捷径（R² 0.57–0.90）；
   2026-09-09 已记「价值头是瓶颈」与「链式自对弈被退化价值头污染」⇒ **我的"第二轮退化"是复现，不算新发现**；`rel` 头部署需 `AZAI_VALUE_TANH=0 + AZAI_REL2ABS=1.0`。
+
+## 2026-10-10 10:04:30 — MC1_rand_ctrl
+
+- **commit**: `1f88986` (dirty: 12 files)
+- **exit**: 0，用时 3850s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=MC1_rand_ctrl --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 1000 1000r 1091 1091r 1188 1188r 1479 1479r 1526 1526r 1621 1621r 1630 1630r 1660 1660r 1662 1662r 1982 1982r 2031 2031r 2316 2316r 2332 2332r 2407 2407r 2598 2598r 2600 2600r 2765 2765r 2908 2908r 2918 2918r 3017 3017r 3098 3098r 3199 3199r 3604 3604r 3678 3678r 3721 3721r 3778 3778r 3992 3992r 4229 4229r 4431 4431r 4475 4475r 4567 4567r 4717 4717r 4734 4734r 4820 4820r 4855 4855r 5004 5004r 5216 5216r 5473 5473r 5695 5695r 5729 5729r 5806 5806r 6054 6054r 6420 6420r 6755 6755r 6846 6846r 7038 7038r 7343 7343r 7730 7730r 7992 7992r 7993 7993r 8145 8145r 8500 8500r 8564 8564r 8936 8936r 9106 9106r 9125 9125r 9128 9128r 9169 9169r 9352 9352r 9358 9358r 9577 9577r 9597 9597r 9693 9693r 9927 9927r
+  ```
+- **output**: `training_history/runs/20261010_100430_MC1_rand_ctrl/output.log`
+- **result**: _待填_
+
+### 66. goal-2600a56a 第 62 轮：**控制臂证伪"价值网 +3.9pp"**（两段反向 + 分侧混合）并给出"墙在固定段"的新框架
+
+- **控制臂** `MC1_rand_ctrl`（MC1 旧网、**冻结随机段**、128 局 = 64 对）= **`p̂ = 0.7812`**（41/18/5；CI [0.7031,0.8594]；0% 无效、判词 128/128 engine）。
+- 同一随机段上 `MC1+搜索值网` = **0.7031** ⇒ **−7.8pp**，且**执先 0.734/执后 0.672 两侧都差于 MC1 的 0.828/0.734** ⇒ **不是分侧假象**。
+- 固定段上 MC1 0.6797（执先 0.719/执后 0.641）▸ 网 0.7188（执先 **0.672**/执后 **0.766**）⇒ **那 +3.9pp = 执先 −4.7pp + 执后 +12.5pp 的混合**。
+  ⇒ **两段合看：价值网替换不是可靠效应**（这与价值标签前史里"svs 60.9% 但执后手 +28pp/执先手 −3pp"完全同型）。
+- **框架修正**：**随机段已接近达标（MC1 0.7812，差 1.9pp）**，而**固定段是墙（最好 0.7188，差 8.1pp）**；
+  同一 MC1 在两段相差 **10.2pp** ⇒ 判据约束实际绑在固定段 ⇒ **今后候选先看固定段**；并值得做"两段特征对比"弄清固定段为何更难。
+- ⇒ 已同步修正报告 §9.2 里"叶评估 ✅ 一次性有效"那一行（改为"段/分侧依赖 ⇒ 不可靠"）。
