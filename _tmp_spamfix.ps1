@@ -20,21 +20,41 @@ param(
 if (-not $Repo) { $Repo = Split-Path -Parent $PSCommandPath }
 Set-Location $Repo
 $guard = 'match_results/ladder_logs/MC1_rand_ctrl/_analysis.txt'
+function Test-CtrlDone {
+    if (Test-Path $guard) { return $true }
+    $r = Get-ChildItem training_history/runs -Directory -ErrorAction SilentlyContinue |
+         Where-Object Name -like '*MC1_rand_ctrl*' | Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $r) { return $false }
+    return ((Select-String -Path (Join-Path $r.FullName 'output.log') -Pattern 'rc=' -ErrorAction SilentlyContinue |
+             Measure-Object).Count -ge 128)
+}
 $t0 = Get-Date
 Write-Host ("[spamfix] 等控制臂 MC1_rand_ctrl 完成… {0}" -f (Get-Date -Format 'HH:mm:ss'))
-while (-not (Test-Path $guard) -and ((Get-Date) - $t0).TotalMinutes -lt $GuardTimeoutMin) { Start-Sleep -Seconds 45 }
+while ((-not (Test-CtrlDone)) -and ((Get-Date) - $t0).TotalMinutes -lt $GuardTimeoutMin) { Start-Sleep -Seconds 45 }
 Write-Host ("[spamfix] 守卫就绪/超时 {0} ⇒ 开始采集（C1b 配置 vs 冻结基线）" -f (Get-Date -Format 'HH:mm:ss'))
 
 New-Item -ItemType Directory -Force -Path "data/c1spam_obs/$Tag", "data/c1spam_policy/$Tag" | Out-Null
 # 1) 采集：ai0 = 我们的桥（joint + 不短路 + 可行性掩蔽 + 双 dump），ai1 = base_pkg（冻结基线）
+# ⚠️ 教训：`-ExtraEnv @{...}` **无法经命令行传给 -File 脚本**（会被字符串化 ⇒ 参数绑定失败）。
+# 而 dump 用的两个变量驱动脚本**并不覆盖** ⇒ 直接在**父进程**设 env 即可（子进程继承）。
+$env:AZAI_DUMP_RAW_DIR = "data/c1spam_obs/$Tag"
+$env:AZAI_AZ_DUMP     = "data/c1spam_policy/$Tag"
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name $Tag `
     -Ckpt 'checkpoints/grafted_phold10_vsearch.pt' -Mode 'joint' -Pin 'argmax' -Tclass '0.5' `
-    -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec "$Lo-$Hi" -Jobs 8 -Repo $Repo `
-    -ExtraEnv @{ AZAI_DUMP_RAW_DIR = "data/c1spam_obs/$Tag"; AZAI_AZ_DUMP = "data/c1spam_policy/$Tag" }
-Write-Host ("[spamfix] 采集完成 {0}" -f (Get-Date -Format 'HH:mm:ss'))
+    -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec "$Lo-$Hi" -Jobs 8 -Repo $Repo
+# ── fail-fast：采集必须有局 ──
+$rr = Get-ChildItem training_history/runs -Directory | Where-Object Name -like "*$Tag*" | Sort-Object Name -Descending | Select-Object -First 1
+$ndone = if ($rr) { (Select-String -Path (Join-Path $rr.FullName 'output.log') -Pattern 'rc=' | Measure-Object).Count } else { 0 }
+Write-Host ("[spamfix] 采集完成 {0}（$ndone 局）" -f (Get-Date -Format 'HH:mm:ss'))
+if ($ndone -lt (2 * ($Hi - $Lo + 1))) { Write-Host "[spamfix] ⛔ 采集未跑满（$ndone 局）⇒ 中止，不继续空转"; exit 1 }
+$nobs = @(Get-ChildItem "data/c1spam_obs/$Tag" -Filter '*.bin' -ErrorAction SilentlyContinue).Count
+if ($nobs -eq 0) { Write-Host "[spamfix] ⛔ 观测 dump 为 0 个 ⇒ 中止"; exit 1 }
+Write-Host "[spamfix] 观测 dump 文件数 = $nobs"
 
 # 2) ingest（从 ladder 日志取**终局标签**）→ 3) pkl→npz
 & $Py -u code/my_ai/az_intent/ingest_bridge_dump.py --raw-dir "data/c1spam_obs/$Tag" --ladder-tag $Tag --out-dir 'data/c1spam_labeled' 2>&1 | Select-Object -Last 3
+$npkl = @(Get-ChildItem 'data/c1spam_labeled' -Filter '*.pkl' -ErrorAction SilentlyContinue).Count
+if ($npkl -eq 0) { Write-Host "[spamfix] ⛔ ingest 产出 0 个 pkl ⇒ 中止"; exit 1 }
 & $Py -u code/my_ai/az_intent/pkl_to_value_npz.py --src 'data/c1spam_labeled' --dst 'data/c1spam_npz' 2>&1 | Select-Object -Last 2
 
 # 4) 训练（**终局目标**；同架构；按局切分；只替换 value_state）
@@ -42,9 +62,11 @@ Write-Host ("[spamfix] 采集完成 {0}" -f (Get-Date -Format 'HH:mm:ss'))
     --out checkpoints/value_c1spam.pt --epochs 30 --batch-size 256 --lr 1e-3 --val-games 6 2>&1 | Select-Object -Last 3
 
 # 5) 嫁接：phold10 的 class/pos + 新价值（graft_value.py 三方核对）
+if (-not (Test-Path 'checkpoints/value_c1spam.pt')) { Write-Host "[spamfix] ⛔ 训练未产出 value_c1spam.pt ⇒ 中止"; exit 1 }
 & $Py -u code/tools/graft_value.py --policy checkpoints/grafted_phold10.pt --value checkpoints/value_c1spam.pt --out checkpoints/grafted_phold10_vspam.pt 2>&1 | Select-Object -Last 3
 
 # 6) 重跑 C1 冒烟（机制闸门）
+if (-not (Test-Path 'checkpoints/grafted_phold10_vspam.pt')) { Write-Host "[spamfix] ⛔ 嫁接未产出 ⇒ 中止"; exit 1 }
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name 'C1c_spamfix' `
     -Ckpt 'checkpoints/grafted_phold10_vspam.pt' -Mode 'joint' -Pin 'argmax' -Tclass '0.5' `
     -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec '3-4' -Jobs 2 -Repo $Repo
