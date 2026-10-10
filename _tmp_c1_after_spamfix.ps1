@@ -38,7 +38,10 @@ while (((Get-Date) - $t0).TotalMinutes -lt $GuardTimeoutMin) {
 }
 if (-not $smokeOk) { Write-Host "[c1] 守卫超时/未拿到冒烟结果 ⇒ 不跑判据臂（如实记录）"; exit 0 }
 Write-Host ("[c1] 冒烟未退化 {0} ⇒ 跑 C1 缩短版判据臂（seed 7..38 = 32 对，8 线程）" -f (Get-Date -Format 'HH:mm:ss'))
+# ⚠️ 2026-10-09 实测：`K=24 + SAMPLE_MULT=15` 在 joint 模式下**单决策可达 ~30 min**（不可行）⇒
+#    本臂用**廉价搜索**（K=4 / ITERS=32 / SAMPLE_MULT=2）以保证跑得完；
+#    ⇒ **代价**：这是"**缩短版 + 廉价搜索版**"，其强度只是**下界**，**绝不能**当作部署候选的成绩（已在输出里明确标注）。
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name 'C1c_crit32' `
     -Ckpt 'checkpoints/grafted_phold10_vspam.pt' -Mode 'joint' -Pin 'argmax' -Tclass '0.5' `
-    -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec '7-38' -Jobs 8 -Repo $Repo
-Write-Host ("[c1] 跑完 {0}；⚠️ 缩短版读数 ⇒ 只作方向性判断，不构成成功声明" -f (Get-Date -Format 'HH:mm:ss'))
+    -K 4 -Iters 32 -SampleMult 2 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec '7-38' -Jobs 8 -Repo $Repo
+Write-Host ("[c1] 跑完 {0}；⚠️ 缩短版 + 廉价搜索版 ⇒ 强度只是下界，只作方向性判断，绝不构成成功声明" -f (Get-Date -Format 'HH:mm:ss'))
