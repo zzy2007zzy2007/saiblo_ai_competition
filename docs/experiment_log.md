@@ -9412,3 +9412,30 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   但在**难子集**上待测；且训练器在 512 行上 1 epoch 即 100% 命中（该子集是对角线格 ⇒ **转置不变**）⇒ 说明冻结与"数据/口径"之外的训练器路径有关。
   **决定**：下一轮直接写 `train_pos_rollout.py`（自写循环，只训 `pos_state`，存三网 ckpt），绕开该训练器。
 - 另记：`PYTHONIOENCODING=utf-8` 必须设 —— 训练器末尾打印含 `⇒`（U+21D2）在 GBK 控制台下抛 `UnicodeEncodeError`（我的探针同因崩过）。
+
+## 2026-10-11 02:23:06 — POSROLL_train_s1
+
+- **commit**: `5380998` (dirty: 13 files)
+- **exit**: 0，用时 82s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_pos_rollout.py --ckpt checkpoints/grafted_sdk_A.pt --data training_history/posroll/pilot30_yx.npz --out checkpoints/grafted_sdk_A_posroll_s1.pt --epochs 6 --batch-size 256 --lr 1e-3
+  ```
+- **output**: `training_history/runs/20261011_022306_POSROLL_train_s1/output.log`
+- **result**: _待填_
+
+### 80. goal-2600a56a 第 4 轮：**"训练器冻结"真相 = 目标几乎无可学信息（我的采样设计缺陷）**
+
+- **自写训练器**（`code/my_ai/az_intent/train_pos_rollout.py`，绕开 `train_value_prior.py`）在全量 46,080 行上跑 6 epoch：
+  每 epoch 打印 **参数变化范数**（这正是原训练器缺的观测）＝ **0.1509 / 0.1451 / 0.1462 / 0.2247 / 0.2137 / 0.2175** ⇒ **参数确实在动** ✓；
+  但 **train CE=1.0523 top1=45.10% / val CE=1.0423 top1=55.56% 逐位不变** ✗
+  ⇒ **问题不在优化器，而在"损失对参数几乎不敏感"**：C=2 且逐行 z-score ⇒ z 恒为 ±1 ⇒ CE 只取决于**两个格谁大**这一个**离散**量
+  ⇒ 参数连续移动但"谁大"不变 ⇒ CE 不动 ✓（这也解释了原训练器 6+ epoch 逐位不变的观感）。
+- **根因（我的设计缺陷）**：采集器只取**位置图自己的前 2 格**（`--max-cells 4` 但可解码者只有 2 个）
+  ⇒ 目标 = "网络本就最看好的两格之间二选一" ⇒ **几乎无信息**（top1 停在 45~56% ≈ 随机）。
+  对照历史唯一涨分的那次（`vprior_r1`）：**每行 271 个格**（后来 32 格）⇒ 目标是**覆盖很广的分布** ⇒ 信息量大得多。
+  ⇒ 且几何上：只有 2 个候选时"z-score + softmax"退化成符号判断，梯度只推动"谁大"，一旦排序固定就再无梯度信号 ✓
+- **修法（下一轮）**：采集时**放宽采样格** = 位置图前 2 格 + 若干**分散**格（目标 8 格；必要时 16~32 格），
+  让目标是真正的分布；成本 ≈ 0.4 s/格 × 8 格 × ~50 决策/局 ≈ 160 s/局 ⇒ 8 线程 300 局 ≈ **1.7 h**（用户已授权）。
+- 顺带：`grafted_sdk_A_posroll_s1.pt` 已产出（pos_state 已移动、class/value 不变）但**先验很低**（教师没被学到）⇒ 暂不投判据，先修数据。
+- 判据臂 `AB_E90_vs_baseline_vs_baseline` 进行中（26/128，每局 ~5.7 min）。
