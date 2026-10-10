@@ -72,7 +72,8 @@ if (-not (Test-Path 'checkpoints/value_c1spam.pt')) { Write-Host "[spamfix] ⛔ 
 
 # 6) 重跑 C1 冒烟（机制闸门）
 if (-not (Test-Path 'checkpoints/grafted_phold10_vspam.pt')) { Write-Host "[spamfix] ⛔ 嫁接未产出 ⇒ 中止"; exit 1 }
+# 同一条链里的"判据臂"也用廉价搜索（见上文实测）⇒ **冒烟与判据同配置**，口径一致。
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name 'C1c_spamfix' `
     -Ckpt 'checkpoints/grafted_phold10_vspam.pt' -Mode 'joint' -Pin 'argmax' -Tclass '0.5' `
-    -K 24 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec '3-4' -Jobs 2 -Repo $Repo
+    -K 4 -Iters 32 -SampleMult 2 -Skip1 0 -ClassFeasMask 1 -Opp 'baseline' -SeedSpec '3-4' -Jobs 2 -Repo $Repo
 Write-Host ("[spamfix] 全流程结束 {0} —— 看 C1c 冒烟的机制行：回合数/塔数是否回归正常" -f (Get-Date -Format 'HH:mm:ss'))
