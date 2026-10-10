@@ -164,3 +164,12 @@ python -u code/tools/extract_model_from_ckpt.py \
 > **口径提醒**：判据只能由"部署形状的三网 ckpt"取得（`grafted_sdk_A_vs2/_vsearch`）；
 > 离线 `val_mae` **按局切分**才有意义（按帧切分会泄漏，实测差 10 倍：0.0338 vs 0.3453）。
 > 训练数据都在**训练专用 seed 段**（`10001..10030` 第一轮、`10031..10060` 第二轮）采集，**不含**判据段/随机段/未见段。
+
+### 路 C（joint + 类搜索）用到的**混合体**（2026-10-09 第 57 轮）
+
+| 文件 | 组成 | 为什么 |
+|---|---|---|
+| `checkpoints/grafted_phold10_vsearch.pt` | `class_state`/`pos_state` ← `grafted_phold10.pt`（HOLD 降采样 10× 重训 ⇒ **类头有分布**，joint 采样才不退化）；`value_state` ← `grafted_sdk_A_vsearch.pt`（**搜索值网**，离线对搜索值 MAE 0.0718 ⇒ 叶值能看见"花钱的代价"）| C1 首次冒烟（用 `grafted_phold10.pt` 的**陈旧旧网**当叶值）出现**建塔刷屏/僵持**（第 163 回合、≈100 座塔）⇒ 换叶值重试 |
+
+> 生成工具：`code/tools/graft_value.py`（`graft_policy.py` 的**镜像**；后者只认蒸馏格式 `model_state`，对**部署格式** ckpt 会 0 覆盖并静默出错）。
+> 三方逐位核对（class/pos 与策略来源、value 与价值来源）在写出时自动打印。
