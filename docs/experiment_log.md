@@ -9439,3 +9439,25 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   让目标是真正的分布；成本 ≈ 0.4 s/格 × 8 格 × ~50 决策/局 ≈ 160 s/局 ⇒ 8 线程 300 局 ≈ **1.7 h**（用户已授权）。
 - 顺带：`grafted_sdk_A_posroll_s1.pt` 已产出（pos_state 已移动、class/value 不变）但**先验很低**（教师没被学到）⇒ 暂不投判据，先修数据。
 - 判据臂 `AB_E90_vs_baseline_vs_baseline` 进行中（26/128，每局 ~5.7 min）。
+
+## 2026-10-11 02:09:43 — AB_E90_vs_baseline_vs_baseline
+
+- **commit**: `c2889d4` (dirty: 14 files)
+- **exit**: 0，用时 5419s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_e90.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_E90_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261011_020943_AB_E90_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 81. goal-2600a56a 第 5 轮：**路线 B 判据落地 ⇒ 未达标且点估计更低（−11.7pp）**
+
+- `AB_E90_vs_baseline_vs_baseline`（固定段 7..70、128 局、incumbent 配置、**只换 ckpt**）：
+  **`p̂ = 0.5625`**（21×2-0 / 30×1-1 / 13×0-2；CI [0.4766, 0.6484]；**0% 无效**；判词 128/128 engine；执先 33/64、执后 39/64）
+  vs incumbent `MC1` **0.6797** ⇒ **−11.7pp**；配对 McNemar **22 差 / 12 好，p = 0.1214**（不显著）。
+- **机制几乎不变**：30.3 建 / 19.3 降 / 6.3 升 / 45.9 有操作回合 / 240 回合（incumbent 29.0/19.9/7.8/46.2/243；均 5.46 min/局）
+  ⇒ 行为微变、棋力掉了 11.7pp（方向不显著但点估计明确低于 incumbent）。
+- ⚠️ **训练指标确实更好**（cls 0.6715→0.6288、map 0.1491→0.1418）**却更弱** ⇒ 与历史 `phold10 −7.3pp`、价值网"离线更准棋力更差"同型 ✓。
+- ⇒ **路线 B 关闭**（P1 预测方向正确：≤5% 达标）。下一手转**路线 A 修订版（宽格采样）**：已启动
+  `POSROLL_wide240`（240 局 / 8 线程 / `--max-cells 8` / seed 21000+）。
