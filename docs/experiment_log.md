@@ -9151,3 +9151,50 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ```
 - **output**: `training_history/runs/20261010_142644_AB_TAIL_SMOKETEST_vs_example/output.log`
 - **result**: _待填_
+
+## 2026-10-10 14:34:04 — AB_TAIL_T256_vs_example
+
+- **commit**: `ad78e32` (dirty: 13 files)
+- **exit**: 0，用时 2011s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T256_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_143404_AB_TAIL_T256_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-10 15:09:52 — AB_TAIL_T128_vs_example
+
+- **commit**: `ad78e32` (dirty: 14 files)
+- **exit**: 0，用时 2135s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=128 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T128_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_150952_AB_TAIL_T128_vs_example/output.log`
+- **result**: _待填_
+
+## 2026-10-10 15:46:51 — AB_TAIL_T64_vs_example
+
+- **commit**: `ad78e32` (dirty: 14 files)
+- **exit**: 0，用时 2060s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=64 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T64_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_154651_AB_TAIL_T64_vs_example/output.log`
+- **result**: _待填_
+
+### 72. goal-2600a56a 第 72 轮：**"削 rollout 上限 + 补尾"实测 —— 不涨分也不省时间**（推翻我自己的"必须补尾"判断）
+
+- 预注册 `prereg_20261009_goal2_mc_tail_screen.md`；三臂已完成（`MC1` 口径 vs **example**、seed 7..38 = 32 对、4 线程）：
+  | 臂 | `MC_HORIZON` | 补尾 | `p̂` | min/局 | 组成 |
+  |---|---|---|---|---|---|
+  | `TAIL_T256`（对照=现状）| 256 | 关 | **0.9219** | 2.03 | 27/5/0 |
+  | `TAIL_T128` | 128 | 关 | 0.9062 | 2.18 | 26/6/0 |
+  | `TAIL_T64` | 64 | 关 | 0.9062 | 2.11 | 26/6/0 |
+  三臂 **0% 无效、判词全 engine、0 个 0-2**。
+- ⇒ **H 256→64 只差 1.6pp（噪声内）、耗时几乎不变**；**我的 P-T1（"无尾截断应随 horizon 缩短而掉分"）不成立** ⇒ **"必须补尾"的判断被推翻**。
+- **机制**：开局 245 回合是均衡局面的最坏情形；MC 真正仲裁时多已在**中局**，安静 rollout 远早于 64 回合结束 ⇒ 上限几乎从不生效 ⇒ 评分与成本都不变。
+- ⇒ **"削上限省时间"这条效率路线本身也不成立**（没有可省的东西）；`MC_TAIL` 的实现保留（默认关）。
+- 仍在跑：`T32` / `T64V` / `T32V` / `T64M`（补尾对照）⇒ 若它们与 `T64/T32` 无差别（预期如此），则整条"截断/补尾"议题就此定论。
