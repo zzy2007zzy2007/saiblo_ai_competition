@@ -9364,3 +9364,51 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   测得梯度范数 **2.5e-5（极小但非零）**，而**手工 30 步 Adam 把 loss 从 1.8885 降到 0.3653** ✓
   ⇒ **学习本身没问题**，问题在训练器那条路径里（下一轮继续：对比两者的 batch/索引/优化器差异）。
 - 路线 B（把 SDK 蒸馏 30→90 epoch）跑到 **78/90**（`tot` 2.03→0.588，仍在降）⇒ 训完即嫁接 + 冒烟 + 128 局判据。
+
+## 2026-10-11 01:35:54 — POSROLL_train30c
+
+- **commit**: `4fdf228` (dirty: 14 files)
+- **exit**: -1，用时 376s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_prior.py --ckpt checkpoints/grafted_sdk_A.pt --data training_history/posroll/pilot30_hist.npz --epochs 60 --batch-size 256 --lr 1e-3 --target-tau 1.0 --t-pos 1.0 --out checkpoints/grafted_sdk_A_posroll30.pt
+  ```
+- **output**: `training_history/runs/20261011_013554_POSROLL_train30c/output.log`
+- **result**: _待填_
+
+## 2026-10-11 01:43:09 — POSROLL_train30d
+
+- **commit**: `c2889d4` (dirty: 14 files)
+- **exit**: 0，用时 1079s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/train_value_prior.py --ckpt checkpoints/grafted_sdk_A.pt --data training_history/posroll/pilot30_yx.npz --epochs 60 --batch-size 256 --lr 1e-3 --target-tau 1.0 --t-pos 1.0 --out checkpoints/grafted_sdk_A_posroll30.pt
+  ```
+- **output**: `training_history/runs/20261011_014309_POSROLL_train30d/output.log`
+- **result**: _待填_
+
+## 2026-10-11 00:43:13 — distill_sdk_A_e90
+
+- **commit**: `003afb4` (dirty: 13 files)
+- **exit**: 0，用时 4681s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/distill/train.py distill_data/ --out checkpoints/distill_sdk_A_e90.pt --epochs 90 --lambda-soft 0 --log training_history/distill_sdk_A_e90.log
+  ```
+- **output**: `training_history/runs/20261011_004313_distill_sdk_A_e90/output.log`
+- **result**: _待填_
+
+### 79. goal-2600a56a 第 3 轮：路线 B 训完（90 epoch）；判据臂起跑；位置教师数据诊断
+
+- **路线 B 训完**：`checkpoints/distill_sdk_A_e90.pt`（90 epoch；末值 cls 0.6288 / map 0.1418，优于 30 epoch 的 0.6715/0.1491）。
+  嫁接 `grafted_sdk_A_e90.pt`（class/pos ← e90，value ← 原 `posnet_A_k5_m32`）
+  ⇒ 与 incumbent **单变量核对通过**：`class_state` **0/94 相同**、`pos_state` **0/94 相同**、**`value_state` 94/94 逐位相同** ✓
+  ⇒ 冒烟过关：我方 **18.5 建 / 18.0 降 / 10.5 升** / 有操作回合 40.0 / 闪电 0（**升级 10.5 明显高于 incumbent ~5**）。
+- **判据臂已起跑**：`AB_E90_vs_baseline_vs_baseline`（固定段 7..70、128 局、8 线程、`MC_EVERY=1` = incumbent 配置、**只换 ckpt**）。
+- **位置教师数据的 CPU 诊断**（`pilot30_yx.npz`，抽样 5000 行）：重复 (board,cls) 的偏好 **一致 4970 / 矛盾 0**（目标自洽）；
+  `adv[0]>adv[1]` 占 **37.6%**（系统性偏斜，非 50/50）；`|adv 差|` =0 占 17.0%、=0.05 占 37.6%、≥0.10 占 45.4%；
+  **抽样行全是 `cls=0`**（pin 经 playable 扫描几乎总落到类 0）。
+- **训练器冻结仍未解释**（⇒ 不再纠缠，改走自写训练循环）：已排除"目标自相矛盾"；手工循环在**易子集**上能学（1.89→0.37）
+  但在**难子集**上待测；且训练器在 512 行上 1 epoch 即 100% 命中（该子集是对角线格 ⇒ **转置不变**）⇒ 说明冻结与"数据/口径"之外的训练器路径有关。
+  **决定**：下一轮直接写 `train_pos_rollout.py`（自写循环，只训 `pos_state`，存三网 ckpt），绕开该训练器。
+- 另记：`PYTHONIOENCODING=utf-8` 必须设 —— 训练器末尾打印含 `⇒`（U+21D2）在 GBK 控制台下抛 `UnicodeEncodeError`（我的探针同因崩过）。
