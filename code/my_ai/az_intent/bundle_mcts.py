@@ -662,6 +662,10 @@ class BundleMCTS:
                                 _v_before = float(self.net_fn(node.state, node.player)['value'])
                             except Exception as _exc:
                                 print(f'[mc_score] V(before) 计算失败: {type(_exc).__name__}: {_exc}', flush=True)
+                        # C-效率（2026-10-09）：**截断补尾**开关（默认关 ⇒ 旧行为逐位不变）
+                        _tail_fn = (None if _os.environ.get('AZAI_MC_TAIL', '') != 'value'
+                                    else (lambda _s, _p: float(self.net_fn(_s, _p)['value'])))
+                        _tail_mix = float(_os.environ.get('AZAI_MC_TAIL_MIX', '1.0'))
                         _c, _sc = mc_quiet_choose(node.state, node.player, _cands, _hl0, _AM,
                                                   base_cls_mask, base_pos_mask,
                                                   max_rounds=int(self.mc_horizon),
@@ -669,6 +673,8 @@ class BundleMCTS:
                                                   net_fn=self.net_fn,
                                                   margin_gate=float(self.mc_margin),
                                                   score_mode=str(self.mc_score),
+                                                  tail_fn=_tail_fn, tail_mix=_tail_mix,
+
                                                   v_before=float(_v_before),
                                                   selfspend_k=int(self.mc_selfspend),
                                                   selfspend_mix=float(self.mc_selfspend_mix))

@@ -40,7 +40,8 @@ def _decode_class_op(head_logits, action_map, class_mask, position_mask, state, 
     return (int(op.op_type), int(op.arg0), int(op.arg1))
 
 
-def quiet_value(state, player, max_rounds: int = 512, return_rounds: bool = False):
+def quiet_value(state, player, max_rounds: int = 512, return_rounds: bool = False,
+                tail_fn=None, tail_mix: float = 0.0):
     """把**当前这一步之后**的局面"谁都不出招"地推到终局，返回该玩家视角的终局 HP 差（clip ±1）。"""
     st = state.clone()
     r = 0
@@ -50,6 +51,18 @@ def quiet_value(state, player, max_rounds: int = 512, return_rounds: bool = Fals
     diff = float(st.bases[0].hp - st.bases[1].hp)
     v = float(np.clip(diff / HP_SCALE, -1.0, 1.0))
     _v = float(v if player == 0 else -v)
+    # 2026-10-09（用户提议 + 效率改进，默认关）：**截断补尾**。
+    # 实测：开局安静 rollout 要 245 回合才到真终局；一旦按 max_rounds 截断，HP 差只剩 ±0.1 的粗粒度
+    # ⇒ 信号基本被毁。所以"因上限截断（非终局）"时，用**价值网在截断态上的估计**替换/混合它。
+    # `tail_mix=0`（默认）⇒ 与旧行为**逐位相同**；`tail_mix=1` ⇒ 完全用价值网。
+    if (not st.terminal) and (tail_fn is not None) and float(tail_mix) > 0.0:
+        try:
+            _t = float(tail_fn(st, player))
+        except Exception:  # noqa: BLE001
+            _t = None
+        if _t is not None:
+            _m = min(1.0, max(0.0, float(tail_mix)))
+            _v = (1.0 - _m) * _v + _m * _t
     return (_v, int(r)) if return_rounds else _v
 
 
@@ -100,7 +113,7 @@ def selfspend_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512)
             st.apply_operation_list(int(player), [Operation(OperationType(int(op[0])),
                                                            int(op[1]), int(op[2]))])
         st.advance_round()
-    return quiet_value(st, player, max_rounds=max_rounds)
+    return quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
 
 
 def bidir_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> float:
@@ -126,7 +139,7 @@ def bidir_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> 
         BIDIR_STATS["terminal"] += 1
     BIDIR_STATS["n"] += 1
     BIDIR_STATS["steps"] += steps
-    return quiet_value(st, player, max_rounds=max_rounds)
+    return quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
 
 
 def _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
@@ -142,7 +155,7 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     class_mask, position_mask, max_rounds: int = 512,
                     bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0,
                     score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0,
-                    selfspend_mix: float = 1.0):
+                    selfspend_mix: float = 1.0, tail_fn=None, tail_mix: float = 0.0):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
@@ -180,7 +193,7 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
             scores[_key] = _v - float(v_before)
         elif score_mode == 'delta' and net_fn is not None:
             # potential-based shaping（Φ=V）：只修掉"安静 rollout 看不见花钱代价"的短视
-            _q = quiet_value(st, player, max_rounds=max_rounds)
+            _q = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
             _v = float(net_fn(st, player)['value'])
             scores[_key] = _q + (_v - float(v_before))
         elif (int(selfspend_k) > 0 or int(bidir_k) > 0) and net_fn is not None:
@@ -191,12 +204,12 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
             if _mix >= 1.0:
                 scores[_key] = float(_s)
             elif _mix <= 0.0:
-                scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
+                scores[_key] = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
             else:
-                _q = quiet_value(st, player, max_rounds=max_rounds)
+                _q = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
                 scores[_key] = (1.0 - _mix) * float(_q) + _mix * float(_s)
         else:
-            scores[_key] = quiet_value(st, player, max_rounds=max_rounds)
+            scores[_key] = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
     # 分差门控：最高分与次高分相差太小 ⇒ **不接管**（返回 None，由调用方保留原 pin）
     # 依据：dump 里 23.6% 的决策是完全平局、另有 17.8% 在 1 HP 内 ⇒ 这些"接管"没有依据。
     if margin_gate and float(margin_gate) > 0 and len(scores) >= 2:
