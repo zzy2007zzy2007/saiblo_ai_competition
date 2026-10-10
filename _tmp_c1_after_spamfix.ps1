@@ -16,12 +16,19 @@ param(
 if (-not $Repo) { $Repo = Split-Path -Parent $PSCommandPath }
 Set-Location $Repo
 $t0 = Get-Date
-Write-Host ("[c1] 等 C1c_spamfix 冒烟结果… {0}" -f (Get-Date -Format 'HH:mm:ss'))
+Write-Host ("[c1] 第一道守卫：等刷屏链产出 ckpt `checkpoints/grafted_phold10_vspam.pt`… {0}" -f (Get-Date -Format 'HH:mm:ss'))
+while ((-not (Test-Path 'checkpoints/grafted_phold10_vspam.pt')) -and ((Get-Date) - $t0).TotalMinutes -lt $GuardTimeoutMin) { Start-Sleep -Seconds 60 }
+if (-not (Test-Path 'checkpoints/grafted_phold10_vspam.pt')) { Write-Host "[c1] 超时未见 ckpt ⇒ 不跑判据臂（如实记录）"; exit 0 }
+Write-Host ("[c1] ckpt 已就绪 {0} ⇒ 再看冒烟（只看**本次之后**修改过的日志，避免陈旧目录误判）" -f (Get-Date -Format 'HH:mm:ss'))
+$smokeStart = Get-Date
 $smokeOk = $false
 while (((Get-Date) - $t0).TotalMinutes -lt $GuardTimeoutMin) {
     $d = 'match_results/ladder_logs/SMK_AB_C1c_spamfix_vs_baseline'
     if (Test-Path $d) {
-        $txt = (Get-ChildItem $d -Filter '*.log' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content -Raw -Encoding UTF8 $_.FullName }) -join "`n"
+        $txt = (Get-ChildItem $d -Filter '*.log' -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -gt $smokeStart } |
+                ForEach-Object { Get-Content -Raw -Encoding UTF8 $_.FullName }) -join "`n"
+        if (-not $txt) { Start-Sleep -Seconds 60; continue }   # 本次还没写日志 ⇒ 继续等（不拿陈旧日志判）
         if ($txt -match 'RESULT') {                     # 至少有一局出结果
             if ($txt -match 'SKIP') { Write-Host "[c1] 冒烟退化（日志含 SKIP 标记）⇒ 不跑判据臂"; exit 0 }
             $smokeOk = $true; break
