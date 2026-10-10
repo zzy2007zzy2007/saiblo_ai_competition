@@ -9461,3 +9461,48 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - ⚠️ **训练指标确实更好**（cls 0.6715→0.6288、map 0.1491→0.1418）**却更弱** ⇒ 与历史 `phold10 −7.3pp`、价值网"离线更准棋力更差"同型 ✓。
 - ⇒ **路线 B 关闭**（P1 预测方向正确：≤5% 达标）。下一手转**路线 A 修订版（宽格采样）**：已启动
   `POSROLL_wide240`（240 局 / 8 线程 / `--max-cells 8` / seed 21000+）。
+
+## 2026-10-11 03:53:52 — AB_AUD_CLS_vs_baseline
+
+- **commit**: `6b707b7` (dirty: 14 files)
+- **exit**: 0，用时 604s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_clsonly_audit.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_AUD_CLS_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 3 3r 4 4r
+  ```
+- **output**: `training_history/runs/20261011_035352_AB_AUD_CLS_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-11 04:12:06 — AB_AUD_INC_vs_baseline
+
+- **commit**: `6b707b7` (dirty: 15 files)
+- **exit**: 0，用时 435s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_AUD_INC_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 3 3r 4 4r
+  ```
+- **output**: `training_history/runs/20261011_041206_AB_AUD_INC_vs_baseline/output.log`
+- **result**: _待填_
+
+### 82–83. goal-2600a56a 第 6–7 轮：**路线 C 机制审计：类头在现配置下有活通道（被证实）**
+
+- **静态审计**（读 `bundle_mcts.py`）：`POSPIN=mc_quiet + MC_EVERY=1` 下类头有三条可能活通道 ——
+  ① 兜底 pin（MC 不接管时用其 argmax；`MC_MARGIN=0` 且菜单 ≥2 时 MC 几乎总接管 ⇒ 罕见）；
+  ② `decode_head` 的合法性闸门；③ **类内塔型**（同类下选哪种塔由 logits 定）。
+- **动态审计**（只换类头，`checkpoints/grafted_clsonly_audit.pt`：`class_state` 与 incumbent 仅 **13/94** 张量相同；
+  `pos_state`/`value_state` **94/94 逐位相同**）在**同 seed（3、3r、4、4r）**上与 incumbent 对比：
+
+  | 臂（4 局）| p̂ | 建塔 | 降级 | 升级 | **有操作回合** | 回合 | min/局 |
+  |---|---|---|---|---|---|---|---|
+  | incumbent | 1.0000 | **22.0** | 17.5 | 8.5 | **37.5** | 230 | 3.45 |
+  | **只换类头** | 0.7500 | **33.0** | 22.2 | 7.2 | **50.2** | 248 | 4.92 |
+
+  逐局动作行：seed3 `78→95`、seed3r `60→97`，日志哈希全不同 ✓
+  ⇒ **类头确实控制行为（建塔 +50%、有操作回合 +34%）** ⇒ **路线 C 有活通道** ✓
+  （对照历史 `C156`"0/32 对翻转"：那是 `pos_pin=argmax` 时代，类头只被 argmax 读 ⇒ **本次不是重复** ✓）
+- 顺带修掉采集器两个真 bug（都在此期间实测到）：① **只试"前 M 格"会得到行 0**（可解码格常常不在前几名）
+  ⇒ 改为"按值降序**尝试全部合法格**先收集，再**只记录分散的 M 个**"；② 键名不一致（init/append 用 `boards`/`cells`、
+  save 用 `board`）⇒ 会在跑完 2 小时后崩在存盘 ⇒ 统一为 `board`/`cell`。2 局复验：**3,072 行** ✓。
+- **路线 A 由它自己的闸门判死**：即便尝试全部合法格，每决策**只有 ~2 格可解码** ⇒ 目标天然是"2 格二选一"
+  ⇒ CE 只取决于"谁大"这一离散量，46k 行训练实测 **top1 停在 45~56%（≈随机）** ⇒ 位置头**学不会**安静 rollout 的偏好
+  ⇒ 按 §8.1（要求 top1 ≥0.65、val CE 降 ≥0.10）**不投判据**，并**取消** 240 局宽格采集（省 ~2 h）。

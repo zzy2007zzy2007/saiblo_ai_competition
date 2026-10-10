@@ -61,7 +61,7 @@ def _worker(job) -> dict:
 
     # ⚠️ 键名必须是 `board`（单数）—— `train_value_prior.py:82` 读 `d["board"]`（2026-10-10 踩到）
     out = {"board": [], "stats": [], "player": [], "head": [], "cls": [],
-           "cells": [], "adv": [], "weight": []}
+           "cell": [], "adv": [], "weight": []}
     stats_cnt = collections.Counter()
     n_turn = n_pos_dec = n_rows = n_cell_drop = n_eval = 0
     deltas = []                 # 每行的 |top1-top2|（判定"教师有没有区分度"）
@@ -118,12 +118,15 @@ def _worker(job) -> dict:
                                 picks.append(j)
                             if len(picks) >= int(M):
                                 break
-                    keep_idx = picks
+                    # ⚠️ 2026-10-11 实测教训：**只试"前 M 格"会得到行 0** —— 可解码的格常常不在位置图前几名里。
+                    #    正确做法：按值降序**尝试全部合法格**先收集（CAP 个），再**只记录分散的 M 个**。
+                    keep_idx = order_all
+                    collect_cap = max(int(M), 12)
                     n_pos_dec += 1
 
                     rows_cells, rows_adv = [], []
                     for i in keep_idx:
-                        if len(rows_adv) >= max(2, int(M)):
+                        if len(rows_adv) >= collect_cap:
                             break
                         x, y = int(cells_all[i][1]), int(cells_all[i][0])
                         am2 = am.copy()
@@ -148,18 +151,30 @@ def _worker(job) -> dict:
                         rows_adv.append(s)
                     if len(rows_adv) < 2:
                         continue
+                    # 只保留**分散**的 M 个（含最优 2 个 + 按排名分位分散），让目标是真正的分布
+                    n_c = len(rows_adv)
+                    sel = [0, 1] if n_c >= 2 else [0]
+                    if int(M) > len(sel) and n_c > len(sel):
+                        for q in np.linspace(0, n_c - 1, num=int(M)).astype(int):
+                            if int(q) not in sel:
+                                sel.append(int(q))
+                            if len(sel) >= int(M):
+                                break
+                    sel = sorted(set(sel))[:max(2, int(M))]
+                    rows_cells = [rows_cells[j] for j in sel]
+                    rows_adv = [rows_adv[j] for j in sel]
                     a = np.asarray(rows_adv, dtype=np.float32)
                     if float(np.ptp(a)) <= 0.0:
                         stats_cnt["all_equal"] += 1
                     else:
                         srt = np.sort(a)[::-1]
                         deltas.append(float(srt[0] - srt[1]))
-                    out["boards"].append(obs["board"])
+                    out["board"].append(obs["board"])
                     out["stats"].append(obs["stats"])
                     out["player"].append(int(pl))
                     out["head"].append(int(h))
                     out["cls"].append(int(c_pin))
-                    out["cells"].append(np.asarray(rows_cells, dtype=np.int16))
+                    out["cell"].append(np.asarray(rows_cells, dtype=np.int16))
                     out["adv"].append(a)
                     out["weight"].append(np.ones(len(rows_adv), dtype=np.float32))
                     n_rows += 1
@@ -211,7 +226,7 @@ def main() -> int:
                 print(f"[posroll] 一个 worker 完成（累计 {len(results)}/{len(jobs)}）", flush=True)
 
     merged = {"board": [], "stats": [], "player": [], "head": [], "cls": [],
-              "cells": [], "adv": [], "weight": []}
+              "cell": [], "adv": [], "weight": []}
     n_turn = n_pos = n_rows = n_eval = n_cell_drop = 0
     deltas = []
     stats_cnt = collections.Counter()
@@ -230,7 +245,7 @@ def main() -> int:
         player=np.asarray(merged["player"], dtype=np.int8),
         head=np.asarray(merged["head"], dtype=np.int8),
         cls=np.asarray(merged["cls"], dtype=np.int16),
-        cells=np.asarray(merged["cells"], dtype=np.int16),
+        cells=np.asarray(merged["cell"], dtype=np.int16),
         adv=np.asarray(merged["adv"], dtype=np.float32),
         weight=np.asarray(merged["weight"], dtype=np.float32),
     )
