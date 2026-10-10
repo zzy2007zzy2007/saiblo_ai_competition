@@ -12,7 +12,7 @@ param(
     [string]$K = '24',            # 搜索候选数（搜索超参扫描用）
     [string]$Skip1 = '1',         # 1 = 单候选短路（旧行为）；0 = **不短路**（路 C 的 C1 需要）
     [string]$ClassFeasMask = '0', # 1 = 启用 C1.1 类采样前的可行性掩蔽（默认关，旧行为逐位不变）
-    [hashtable]$ExtraEnv = @{}    # 额外/覆盖 AZAI_*（如 AZAI_DUMP_RAW_DIR / AZAI_AZ_DUMP / AZAI_MODE=joint）
+    [hashtable]$ExtraEnv = @{},   # 额外/覆盖 AZAI_*（如 AZAI_DUMP_RAW_DIR / AZAI_AZ_DUMP / AZAI_MODE=joint）
     [string]$Iters = '256',       # MCTS 迭代
     [string]$Depth = '4',         # 束展开深度
     [string]$SampleMult = '15',
