@@ -9223,3 +9223,28 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   **32 才有代价，且是"掉 9.4pp + 更慢"**（截断砍掉终局信息 ⇒ 仲裁变差 ⇒ 无效操作变多：31.5 建 / 21.1 降 / 49.1 有操作回合、259 回合）。
 - ⇒ **结论**：本管线上"掉分换效率"连"效率"都换不到 ⇒ 该方向关闭（`MC_TAIL` 实现保留、默认关）。
 - 补尾对照 `T64V`/`T32V`/`T64M` 仍在排队：若能把 `T32` 的 9.4pp 补回来 ⇒ 说明补尾**能救截断**，但**仍无效率价值**。
+
+## 2026-10-10 17:06:04 — AB_TAIL_T64V_vs_example
+
+- **commit**: `feb9844` (dirty: 13 files)
+- **exit**: 0，用时 2712s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=64 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL=value AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T64V_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_170604_AB_TAIL_T64V_vs_example/output.log`
+- **result**: _待填_
+
+### 74. goal-2600a56a 第 74 轮：**"补尾"机制成立但无处可用（用户提议的完整实测收尾）**
+
+- `TAIL_T64V`（H=64 + `AZAI_MC_TAIL=value`、MIX=1.0）= **`p̂ = 0.9219`**（27/5/0；CI [0.8594,0.9844]；0% 无效）
+  ⇒ **正好回到 H=256 档的 0.9219**（H=64 无尾 = 0.9062）⇒ **补尾救回了截断丢掉的 1.6pp** ✓（预注册 P-T2 在 H=64 成立）。
+- **但机时 2.03 → 2.77 min/局（+37%）**；机制显著变化：建塔 **23.6→34.1**、降级 **15.6→26.0**、有操作回合 **37.5→53.3**。
+- **完整答案（用户提问的全部四档）**：
+  | 做法 | 胜率 | 机时 |
+  |---|---|---|
+  | 削到 128 / 64（无尾）| 不掉分 | **一分没省**（上限几乎从不生效）|
+  | 削到 32（无尾）| **−9.4pp** | **更慢**（仲裁变差 ⇒ 无效操作变多）|
+  | 削到 64 + 补尾 | **救回（= 256 档）** | **+37%（更慢）** |
+  ⇒ **"削上限省时间"的前提不成立**（安静 rollout 不是瓶颈：中局早到终局）⇒ **补尾设计正确、却无处可用**。
+- 仍在跑：`T32V` / `T64M`（若 `T32V` 大幅补回 32 档的损失，更能说明"补尾是有效替代品，只是本管线不需要"）。
