@@ -8954,3 +8954,23 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **回退分支（立刻执行）**：换成 **`class_state/pos_state` 来自 phold10、`value_state` 来自搜索值网** 的混合体
   （新工具 `code/tools/graft_value.py`，是 `graft_policy.py` 的镜像；后者只认蒸馏格式 `model_state`，
   对我们的**部署格式** ckpt 会 0 覆盖并静默产出错误产物——本轮踩到并修掉）⇒ 重跑 C1b 冒烟。
+
+## 2026-10-10 06:42:33 — AB_VSEARCH_unseen_vs_baseline
+
+- **commit**: `023df96` (dirty: 11 files)
+- **exit**: 0，用时 7462s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VSEARCH_unseen_vs_baseline --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 501 501r 502 502r 503 503r 504 504r 505 505r 506 506r 507 507r 508 508r 509 509r 510 510r 511 511r 512 512r 513 513r 514 514r 515 515r 516 516r 517 517r 518 518r 519 519r 520 520r 521 521r 522 522r 523 523r 524 524r 525 525r 526 526r 527 527r 528 528r 529 529r 530 530r 531 531r 532 532r 533 533r 534 534r 535 535r 536 536r 537 537r 538 538r 539 539r 540 540r 541 541r 542 542r 543 543r 544 544r 545 545r 546 546r 547 547r 548 548r 549 549r 550 550r 551 551r 552 552r 553 553r 554 554r 555 555r 556 556r 557 557r 558 558r 559 559r 560 560r 561 561r 562 562r 563 563r 564 564r
+  ```
+- **output**: `training_history/runs/20261010_064233_AB_VSEARCH_unseen_vs_baseline/output.log`
+- **result**: _待填_
+
+### 61. goal-2600a56a 第 57 轮（续）：**未见 seed（501..564）确认通过** —— 0.7109 vs 固定段 0.7188
+
+- `AB_VSEARCH_unseen_vs_baseline`（`MC1 + 搜索值网` vs 冻结基线、**seed 501..564**、128 局 = 64 对）= **`p̂ = 0.7109`**
+  （33×2-0 / 25×1-1 / 6×0-2；CI [0.6250,0.7891]；**0% 无效**；判词 128/128 engine；机制 28.8/20.7/8.4/46.2 回合、3.80 min/局）。
+- 与**固定段 0.7188** 相差仅 **0.8pp** ⇒ 按章程"采纳类结论必须在未见 seed（501..564）确认"⇒ **通过** ✓（排除对判据 seed 过拟合）。
+- 两段相对"基线自比 0.50"都是 **+21pp** ⇒ 该项目史上最强效应；距目标 0.80 仍差 **8–9pp**。
+- 同轮另一条线：**C1 冒烟机制闸门不过**（churn 治好了但换成**建塔刷屏/僵持**：第 163 回合、≈100 座塔）⇒ 已停、已记录病灶（叶值用陈旧旧网看不见代价），
+  并已换 **phold10+vsearch 混合体**重跑 **C1b 冒烟**（`C1b_joint_vnet`）。
