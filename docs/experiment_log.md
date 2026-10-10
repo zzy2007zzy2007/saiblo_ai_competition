@@ -9585,3 +9585,48 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - ⇒ **三条路线全部有实测结论**：B ❌（−11.7pp，判据尺度）、A ❌（教师不可学，自闸门）、C ❌（目标不可预测，自闸门）。
 - 下一手（仍在本目标范围内）：把"教师"换成 **MC 自己的每类 rollout 分数**（类间分差大、可学 ⇒ 目标质量可过闸门），
   目标是拿到 **效率收益**（P4 ~50%）：用类头替代/削减 MC 的类搜索（压 `MC_TOPK`/`MC_EVERY`）在**等强度**下省算力。
+
+## 2026-10-11 05:30:36 — CLSROLL_collect30
+
+- **commit**: `19cc6b9` (dirty: 13 files)
+- **exit**: 0，用时 453s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_class_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 30 --workers 8 --top-classes 4 --rollout-rounds 256 --seed 23000 --out training_history/posroll/class30.npz
+  ```
+- **output**: `training_history/runs/20261011_053036_CLSROLL_collect30/output.log`
+- **result**: _待填_
+
+## 2026-10-11 05:38:02 — CLSROLL_collect30b
+
+- **commit**: `19cc6b9` (dirty: 13 files)
+- **exit**: 0，用时 608s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_class_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 30 --workers 5 --top-classes 4 --rollout-rounds 256 --seed 23000 --out training_history/posroll/class30.npz
+  ```
+- **output**: `training_history/runs/20261011_053802_CLSROLL_collect30b/output.log`
+- **result**: _待填_
+
+### 86. goal-2600a56a 第 10 轮：**跨类 rollout 教师（第 4 个目标）也不可学 ⇒ 动作网参数轴量完**
+
+- 动机（读代码）：MC 菜单的类候选来自 `bundle_mcts.py:_econ_rank` —— `v_c = max over c 合法格 of AM[c]`，
+  **按 v_c 跨类排序**取前 `MC_TOPK` ⇒ **位置头决定菜单组成**（代码注释自承"跨类 map 最大值不可比" ⇒ 菜单长期被类 0/16 占据、
+  升级进不了菜单）⇒ 这是一条**有机制理由**的通道（不是路线 A 的"同类内选格"）。
+- 新采集器 `code/my_ai/az_intent/collect_class_rollout_teacher.py`（候选集**复刻 MC 菜单** = HOLD + 经济类前 k；
+  每类按值降序试最多 8 格直到解码成功；安静 rollout 打分）。修掉两个"行 0"坑：
+  ① 只试 argmax 一格 ⇒ 那格解码失败整类作废（实测落格失效率 ~90%）⇒ 改多试几格；
+  ② 只取"经济类前 5" ⇒ **类间分差 100% 为 0**（它们实质是同一动作）⇒ 必须把 **HOLD** 放进候选集。
+- 采集 30 局（seed 23000+，5–8 线程）：**15,360 行**；**类间分差 =0 占 63.3%**、≥0.05 占 36.7%、≥0.20 占 6.7%
+  （中位 0.0）⇒ 目标**比格级那条更弱**。
+- 新训练器 `code/my_ai/az_intent/train_pos_class_rank.py`（只训位置头；逐行的类值 = `AM[cls,y,x]` = 部署 `max` 口径的近似；
+  两边 z-score 后软 CE；**按"最后 15% 行"切会切到局面尾部切片 ⇒ val 只剩 9 条非平局行** ⇒ 已改为**随机行切分**）：
+  **train argmax 50.15% / val argmax 49.18%（≈二选一随机）逐 epoch 不变**，CE 1.72→1.71，
+  参数变化范数 8.3→9.3（参数在动但学不到）⇒ **闸门不通过**（要求比训练前 ≥+10pp）。
+- ⇒ **动作网参数轴至此量完**（四个独立目标 + 一条判据尺度）：
+  ① 类头 ← 实际执行类（AWR-BC）：非 HOLD 动作一致率 0.96% ✗；
+  ② 位置头 ← 搜索 visit（历史教师）：教师**全平**（100% 近平局、熵 1.0）✗；
+  ③ 位置头 ← 安静 rollout 格级：2 格二选一 ⇒ ≈50% 随机 ✗；
+  ④ 位置头 ← 安静 rollout 跨类：≈49–50% 随机 ✗；
+  ⑤ 路线 B（把同一配方训得更收敛）：判据尺度 **0.5625 vs 0.6797（−11.7pp）** ✗。
+  ⇒ **在"双方禁闪电 + 配置与 value 全冻结 + 只改动作网参数"的约束下，+10pp 不可达**（这是本目标的答案）。
