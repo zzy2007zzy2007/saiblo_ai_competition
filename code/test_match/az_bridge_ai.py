@@ -211,6 +211,20 @@ def _record_az(res, facade=None, player=None) -> None:
                "chosen": _json_safe(getattr(res, "chosen_index", -1)),
                "intent": _json_safe(getattr(res, "intent_counts", None)),
                "root_value": _json_safe(getattr(res, "root_value", 0.0))}
+        # 2026-10-09（用户建议）：**与 MC 裁判角色完全匹配的标签** —— 裁判用的就是这个函数，
+        # 所以用它当训练目标，才是"接在截断 rollout 后面补尾 / 当裁判"的合适价值网；
+        # 同时记录 rollout **实际用掉多少回合**（判断 MC_HORIZON 上限卡不卡）。默认关：AZAI_DUMP_QUIET=1。
+        if _env("AZAI_DUMP_QUIET", "0") == "1" and facade is not None:
+            try:
+                from my_ai.az_intent.mc_quiet import quiet_value
+                _qv, _qr = quiet_value(facade, int(_AZ["player"]),
+                                       max_rounds=int(_env("AZAI_MC_HORIZON", "256")), return_rounds=True)
+                rec["quiet_value"] = float(_qv)
+                rec["quiet_rounds"] = int(_qr)
+            except Exception as _qe:  # noqa: BLE001
+                rec["quiet_value"] = None
+                rec["quiet_rounds"] = None
+                _log(f"quiet 标签计算失败（该条留空）: {type(_qe).__name__}: {_qe}")
     except Exception as _e:  # noqa: BLE001
         _log(f"AZ dump 记录失败（跳过该条）: {type(_e).__name__}: {_e}")
         return

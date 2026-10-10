@@ -40,7 +40,7 @@ def _decode_class_op(head_logits, action_map, class_mask, position_mask, state, 
     return (int(op.op_type), int(op.arg0), int(op.arg1))
 
 
-def quiet_value(state, player, max_rounds: int = 512) -> float:
+def quiet_value(state, player, max_rounds: int = 512, return_rounds: bool = False):
     """把**当前这一步之后**的局面"谁都不出招"地推到终局，返回该玩家视角的终局 HP 差（clip ±1）。"""
     st = state.clone()
     r = 0
@@ -49,7 +49,8 @@ def quiet_value(state, player, max_rounds: int = 512) -> float:
         r += 1
     diff = float(st.bases[0].hp - st.bases[1].hp)
     v = float(np.clip(diff / HP_SCALE, -1.0, 1.0))
-    return float(v if player == 0 else -v)
+    _v = float(v if player == 0 else -v)
+    return (_v, int(r)) if return_rounds else _v
 
 
 def _policy_op(state, player, net_fn):
