@@ -9080,3 +9080,24 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
   ⇒ **长局的败局里我方金币并未堆积**（107 vs 96 几乎相同）⇒ **"经济没转化/钱没花"这条假设被排除**；
   剩下解释："**长局里的决策质量**"（或基线在消耗战里更强）⇒ 仍指向评分器/决策 ⇒ `delta` 臂（rollout+V差分，给花钱定价）仍是合理下一测。
 - 附带教训：从日志的 `towers=` 行统计塔数会**严重偏低**（该行只列最后几座）⇒ 需要塔数时应从 `BUILD_TOWER` 计数或 bridge 的机制统计里取。
+
+## 2026-10-10 11:48:59 — AB_DELTA_vsearch_vs_baseline
+
+- **commit**: `cb7ff07` (dirty: 12 files)
+- **exit**: 0，用时 4793s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SCORE=delta AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_DELTA_vsearch_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261010_114859_AB_DELTA_vsearch_vs_baseline/output.log`
+- **result**: _待填_
+
+### 69. goal-2600a56a 第 65 轮：**`delta` 评分器证伪（机制再次反向）** ⇒ "价值网当裁判"路线彻底关闭
+
+- `AB_DELTA_vsearch_vs_baseline`（`MC1` + `MC_SCORE=delta` + 搜索值网 vs 冻结基线、128 局）= **`p̂ = 0.6797`**（28/31/5；CI [0.6016,0.7578]；0% 无效；执先 42/64、执后 45/64）
+  ⇒ 与 `MC1` 相同、低于最好 0.7188；耗时 **4.89 min/局**（MC1 ~2.3）。
+- **机制（预注册 P1：建塔数必须下降）——反而全面上升**：建塔 **29.0→37.4**、降级 **19.9→28.2**、有操作回合 **46.2→60.2**
+  ⇒ 与 2026-10-08 前史在旧设定里的「**机制反向**」一致（同失效模式复现）⇒ **关闭该线**。
+- **汇总**："价值网替代/混合 rollout 当裁判"共 **五次否证**（`value_only`×3 张网 + `delta` + 前史旧设定）⇒ 该方向在本管线**彻底关闭**；
+  价值网唯一有效用法仍是**搜索叶评估**，而那条 +3.9pp 已被控制臂证明**段/分侧依赖、不可靠**。
+- **决定**：跳过 `DELTA_old`（信息量低），把机器转投**刷屏重训链**（`_tmp_spamfix.ps1` 已重启 `pwsh-1301`）。
