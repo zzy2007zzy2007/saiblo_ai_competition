@@ -107,7 +107,18 @@ def _worker(job) -> dict:
                     #     ⚠️ 2026-10-10 实测坑：先截前 M 格再试解码 ⇒ 多数格解不出 ⇒ rows=0
                     #     （每局 3072 个位置决策但只 1536 次 rollout、训练行 0）
                     vals_all = np.array([float(am[c_pin, y, x]) for (y, x) in cells_all])
-                    keep_idx = np.argsort(-vals_all)
+                    order_all = np.argsort(-vals_all)
+                    # ②' 宽格采样（2026-10-11 修订，修"只有 2 个候选 ⇒ 目标无信息"的缺陷）：
+                    #      取位置图**前 2 格**（用户口径）+ 按排名**分位分散**补若干格 ⇒ 目标是真正的分布
+                    picks = [int(i) for i in order_all[:2]]
+                    if int(M) > len(picks) and len(order_all) > len(picks):
+                        for i in np.linspace(0, len(order_all) - 1, num=int(M)).astype(int):
+                            j = int(order_all[int(i)])
+                            if j not in picks:
+                                picks.append(j)
+                            if len(picks) >= int(M):
+                                break
+                    keep_idx = picks
                     n_pos_dec += 1
 
                     rows_cells, rows_adv = [], []

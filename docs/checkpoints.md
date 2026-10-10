@@ -173,3 +173,29 @@ python -u code/tools/extract_model_from_ckpt.py \
 
 > 生成工具：`code/tools/graft_value.py`（`graft_policy.py` 的**镜像**；后者只认蒸馏格式 `model_state`，对**部署格式** ckpt 会 0 覆盖并静默出错）。
 > 三方逐位核对（class/pos 与策略来源、value 与价值来源）在写出时自动打印。
+
+## 新目标（重训动作网拿 +10pp）的产物（2026-10-11，goal 第 1–4 轮）
+
+### 已入库的 ckpt（`checkpoints/`）
+| 文件 | 大小 | sha256(前 16) | 是什么 |
+|---|---|---|---|
+| `distill_sdk_A_e90.pt` | 6.37 MB | `a1345fa87dfe84be` | **路线 B**：把 incumbent 动作网的来源（SDK 蒸馏）从 30 epoch 拉到 **90 epoch**（末值 cls 0.6288 / map 0.1418，优于 30 epoch 的 0.6715/0.1491）|
+| `grafted_sdk_A_e90.pt` | 4.30 MB | `849a501dfefcf82e` | **路线 B 的单变量候选**：`class_state`/`pos_state` ← e90 蒸馏网；**`value_state` ← 原 `posnet_A_k5_m32`（94/94 逐位相同）**；与 incumbent 核对：class 0/94、pos 0/94、value 94/94 ✓ |
+| `grafted_sdk_A_posroll_s1.pt` | 6.45 MB | `747801d12308b3a5` | **路线 A 第 1 版候选**（`pos_state` ← 安静 rollout 教师蒸馏；class/value 不变）。⚠️ **先验低**：教师未被学到（top1 ≈ 随机）⇒ 未投判据；等"宽格采样"重采后重训 |
+| （对照）`grafted_sdk_A.pt` | 4.29 MB | `8c21f44d73bcefb3` | **incumbent**（= 冻结基线本身）|
+| （对照）`distill_sdk_A.pt` | 6.37 MB | `e542ff209c83810c` | 30 epoch 版蒸馏网（incumbent 的动作网来源）|
+
+### 数据（只在盘上，不入库）
+| 路径 | 大小 | 说明 |
+|---|---|---|
+| `training_history/posroll/pilot30.npz` | 2.33 MB | 路线 A 首次试点（30 局）：**坐标是 (x,y)**（口径错误版，保留作对照）|
+| `training_history/posroll/pilot30_yx.npz` | 2.33 MB | **正确口径 (row,col)=(y,x)** + `cnt`/`weight` ⇒ 训练用这份 |
+| `training_history/posroll/pilot30.npz.summary.json` | <1 MB | 信号闸门摘要：`|top1−top2|` 中位 0.100、≥0.05 占 100%、完全平局仅 16.7% |
+
+### 脚本
+- `code/my_ai/az_intent/collect_pos_rollout_teacher.py`：**安静 rollout 位置教师**采集器（宽格采样：位置图前 2 格 + 分位分散，`--max-cells` 控制格数）；
+- `code/my_ai/az_intent/train_pos_rollout.py`：**自写训练循环**（只训 `pos_state`，用 `az_train.save_three_net` 写三网 ckpt；每 epoch 打印**参数变化范数**——正是排查"训练器冻结"缺的那个观测量）；
+- `code/test_match/audit_pos_head_vs_teacher.py`：位置头 vs 教师的一致性审计（含 dump 语义/配对/坐标三处口径坑的注释）。
+
+### 判据读数（进行中）
+- `AB_E90_vs_baseline_vs_baseline`（固定段 7..70、128 局、8 线程、incumbent 配置、**只换 ckpt**）——见 `docs/experiment_log.md` 第 79–81 轮。
