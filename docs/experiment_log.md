@@ -9198,3 +9198,28 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **机制**：开局 245 回合是均衡局面的最坏情形；MC 真正仲裁时多已在**中局**，安静 rollout 远早于 64 回合结束 ⇒ 上限几乎从不生效 ⇒ 评分与成本都不变。
 - ⇒ **"削上限省时间"这条效率路线本身也不成立**（没有可省的东西）；`MC_TAIL` 的实现保留（默认关）。
 - 仍在跑：`T32` / `T64V` / `T32V` / `T64M`（补尾对照）⇒ 若它们与 `T64/T32` 无差别（预期如此），则整条"截断/补尾"议题就此定论。
+
+## 2026-10-10 16:23:55 — AB_TAIL_T32_vs_example
+
+- **commit**: `ad78e32` (dirty: 14 files)
+- **exit**: 0，用时 2323s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=32 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TAIL_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_T32_vs_example --jobs=4 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r
+  ```
+- **output**: `training_history/runs/20261010_162355_AB_TAIL_T32_vs_example/output.log`
+- **result**: _待填_
+
+### 73. goal-2600a56a 第 73 轮：**"削上限"完整阶梯 —— 削到 64 不掉分不省时；削到 32 掉 9.4pp 且更慢**
+
+- 阶梯（`MC1` 口径 vs example、seed 7..38 = 32 对、0% 无效、判词全 engine）：
+  | 臂 | H | 补尾 | `p̂` | min/局 | 组成 |
+  |---|---|---|---|---|---|
+  | `TAIL_T256`（对照）| 256 | 关 | **0.9219** | 2.03 | 27/5/0 |
+  | `TAIL_T128` | 128 | 关 | 0.9062 | 2.18 | 26/6/0 |
+  | `TAIL_T64` | 64 | 关 | 0.9062 | 2.11 | 26/6/0 |
+  | **`TAIL_T32`** | **32** | 关 | **0.8125** | **2.38** | 21/10/**1** |
+- ⇒ **64 以内几乎无损益**（上限几乎从不生效：MC 仲裁多在中局、安静 rollout 早于 64 回合结束）；
+  **32 才有代价，且是"掉 9.4pp + 更慢"**（截断砍掉终局信息 ⇒ 仲裁变差 ⇒ 无效操作变多：31.5 建 / 21.1 降 / 49.1 有操作回合、259 回合）。
+- ⇒ **结论**：本管线上"掉分换效率"连"效率"都换不到 ⇒ 该方向关闭（`MC_TAIL` 实现保留、默认关）。
+- 补尾对照 `T64V`/`T32V`/`T64M` 仍在排队：若能把 `T32` 的 9.4pp 补回来 ⇒ 说明补尾**能救截断**，但**仍无效率价值**。
