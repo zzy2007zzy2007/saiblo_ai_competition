@@ -9140,3 +9140,14 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **行为侧（同配置、只换价值网）**：`AB_C1c_spamfix_vs_baseline` = 我方 **111.5 建 / 106.5 降 / 189 有操作回合**（对照 124.3/115.3/218.4），结果 **4 局全负**。
   ⇒ **建塔只降 ~10%、仍然一局不赢** ⇒ **价值网的判断不是刷屏的驱动因素**；要治它必须换掉"类从哪来"（真正 RL/新架构）⇒ **路 C 关闭**。
 - 顺带修/学：① 链条 fail-fast **正确拦下**了"ingest 0 pkl"（原因：驱动实际 tag 是 `AB_${Tag}_vs_baseline`，我传了裸 `$Tag`）；② 采集配置从 `K24/SAMPLE_MULT15`（单决策 ~30 min，不可行）改为 `K4/ITERS32/SAMPLE_MULT2`（~2–4 min/局）。
+
+## 2026-10-10 14:26:44 — AB_TAIL_SMOKETEST_vs_example
+
+- **commit**: `6886644` (dirty: 13 files)
+- **exit**: 0，用时 281s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vsearch.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=32 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TAIL_SMOKETEST_vs_example --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/ex_pkg/main.py 7 7r 8 8r
+  ```
+- **output**: `training_history/runs/20261010_142644_AB_TAIL_SMOKETEST_vs_example/output.log`
+- **result**: _待填_

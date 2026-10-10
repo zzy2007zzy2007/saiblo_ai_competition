@@ -28,7 +28,7 @@ foreach ($a in $arms) {
     $env:AZAI_MC_TAIL_MIX = $a.mix
     & powershell -NoProfile -ExecutionPolicy Bypass -File "$Repo/_tmp_arm.ps1" -Name $a.n `
         -Ckpt 'checkpoints/grafted_sdk_A_vsearch.pt' -Mode 'pos-only' -Pin 'mc_quiet' -Tclass '0.5' `
-        -McEvery 1 -McHorizon $a.h -McScore '' -Opp 'example' -SeedSpec '7-38' -Jobs $Jobs -Repo $Repo 2>&1 |
+        -McEvery 1 -McHorizon $a.h -Opp 'example' -SeedSpec '7-38' -Jobs $Jobs -Repo $Repo 2>&1 |
         Select-Object -Last 6
     Write-Host ("[tail] {0} 完成 {1}" -f $a.n, (Get-Date -Format 'HH:mm:ss'))
 }
