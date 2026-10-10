@@ -9109,3 +9109,34 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 - **核对（冒烟机制行）**：我方/局 **建 152.5 / 降 141.5**、有操作回合 251、总回合 251；对手 23.0/5.0/4.0
   ⇒ **刷屏仍在且更极端**；该局 **刷屏方（我们）输** ✓ ⇒ "刷屏 ⇒ 输"的数据特征存在 ✓；速率 **~2–4 min/局** ⇒ 60 局 ≈ 1–1.5 h（主跑已 1/60，27 进程）。
 - 附带清理：旧的 obs 文件移到 `data/c1spam_obs/STALE_20261010/`、旧冒烟目录改名 `*_STALE_20261010_1312`（**留证不删**）。
+
+## 2026-10-10 13:45:04 — AB_C1SPAM_collect_vs_baseline
+
+- **commit**: `8a4f21e` (dirty: 12 files)
+- **exit**: 0，用时 1269s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/c1spam_policy/C1SPAM_collect AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_phold10_vsearch.pt AZAI_CLASS_FEAS_MASK=1 AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/c1spam_obs/C1SPAM_collect AZAI_FORCE_UPG=0 AZAI_ITERS=32 AZAI_K=4 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=joint AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=2 AZAI_SKIP1=0 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_C1SPAM_collect_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 10061 10061r 10062 10062r 10063 10063r 10064 10064r 10065 10065r 10066 10066r 10067 10067r 10068 10068r 10069 10069r 10070 10070r 10071 10071r 10072 10072r 10073 10073r 10074 10074r 10075 10075r 10076 10076r 10077 10077r 10078 10078r 10079 10079r 10080 10080r 10081 10081r 10082 10082r 10083 10083r 10084 10084r 10085 10085r 10086 10086r 10087 10087r 10088 10088r 10089 10089r 10090 10090r
+  ```
+- **output**: `training_history/runs/20261010_134504_AB_C1SPAM_collect_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-10 14:18:28 — AB_C1c_spamfix_vs_baseline
+
+- **commit**: `05c1769` (dirty: 14 files)
+- **exit**: 0，用时 258s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_phold10_vspam.pt AZAI_CLASS_FEAS_MASK=1 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=32 AZAI_K=4 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=joint AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=argmax AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=2 AZAI_SKIP1=0 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_C1c_spamfix_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 3 3r 4 4r
+  ```
+- **output**: `training_history/runs/20261010_141828_AB_C1c_spamfix_vs_baseline/output.log`
+- **result**: _待填_
+
+### 71. goal-2600a56a 第 69 轮：**刷屏数据重训证伪 ⇒ 路 C 关闭**（价值网不是刷屏的驱动）
+
+- **采集（数据侧，信号极强）**：`AB_C1SPAM_collect_vs_baseline`（`joint + K=4/ITERS=32/SAMPLE_MULT=2` + 可行性掩蔽、对冻结基线、seed 10061..10090 双序 = 60 局）
+  = **`p̂ = 0.0000`**（**30 对全 0-2**）⇒ **刷屏模式一局不赢**；机制 我方 124.3 建 / 115.3 降 / 218.4 有操作回合（对手 17.9/5.1/4.8）。
+- **训练**：`ingest`（正确 tag `AB_..._vs_baseline`）→ 60 pkl / **26,809 条** → npz → `train_value_antwar`（终局 HP 差目标、同架构、按局切分）⇒ 按局 `val_mae = **0.2533**`（低于终局目标版 0.3453）→ `graft_value` 嫁接（三方核对通过）。
+- **行为侧（同配置、只换价值网）**：`AB_C1c_spamfix_vs_baseline` = 我方 **111.5 建 / 106.5 降 / 189 有操作回合**（对照 124.3/115.3/218.4），结果 **4 局全负**。
+  ⇒ **建塔只降 ~10%、仍然一局不赢** ⇒ **价值网的判断不是刷屏的驱动因素**；要治它必须换掉"类从哪来"（真正 RL/新架构）⇒ **路 C 关闭**。
+- 顺带修/学：① 链条 fail-fast **正确拦下**了"ingest 0 pkl"（原因：驱动实际 tag 是 `AB_${Tag}_vs_baseline`，我传了裸 `$Tag`）；② 采集配置从 `K24/SAMPLE_MULT15`（单决策 ~30 min，不可行）改为 `K4/ITERS32/SAMPLE_MULT2`（~2–4 min/局）。
