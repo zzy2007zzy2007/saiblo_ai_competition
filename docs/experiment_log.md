@@ -9845,3 +9845,30 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
 - **先写死的预测（跑判据之前）**：`p̂` 落在 **0.60–0.70**（很可能不超过 incumbent 0.6797；若 <0.60 则强烈支持
   "近视叶评估在这类决策上与棋力不对齐"）；**若 ≥0.78 则推翻我对该族的判断** ✓。
 - 候选：`checkpoints/grafted_sdk_A_vprior2.pt`（warm start 自 incumbent、**只改 `pos_state`**；单变量指纹同批核对）。
+
+## 2026-10-11 17:54:17 — AB_VPRIOR2_vs_baseline_vs_baseline
+
+- **commit**: `414c6c2` (dirty: 13 files)
+- **exit**: 0，用时 3621s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_vprior2.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VPRIOR2_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261011_175417_AB_VPRIOR2_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86g. **r1 配方（价值先验 relabel）判据落地：`p̂ = 0.6016` ⇒ −7.8pp**（预测命中）
+
+- `AB_VPRIOR2_vs_baseline_vs_baseline`（固定段 7..70、128 局、8 线程、incumbent 配置、**只换 ckpt**，用时 3,621 s）：
+  **`p̂ = 0.6016`**（22×2-0 / 33×1-1 / 9×0-2；CI [0.5156, 0.6797]；**0% 无效**；判词 128/128 engine）；
+  vs incumbent `MC1` **0.6797 ⇒ −7.8pp** ✗（比镜像 0.5 高 +10.2pp）；
+  冒烟 30 建/局、闪电 0、有操作回合 50.5；机制 **26.4 建 / 18.1 降 / 8.2 升 / 44.1 有操作回合 / 230 回合**（3.70 min/局）。
+- **我跑之前写下的预测**是"`p̂` 落在 0.60–0.70、很可能不超过 0.6797"⇒ **实测 0.6016 命中** ✓。
+- **机制结论（这次是第二个独立实例）**："**在教师指标下更忠实的学生，棋力反而更弱**"：
+  A②（安静 rollout）：后悔值 0.2141→**0.1620** ⇒ 判据 **−15.6pp**；
+  r1 配方（价值网 1-ply）：后悔值 0.0394→**0.0023**（命中最优 11.4%→**58.2%**）⇒ 判据 **−7.8pp**。
+  ⇒ 两次都指向"**近视叶评估与棋力不对齐**"，而不是"学生没学好 / 数据坏 / 换错头" ✓。
+- ⚠️ **老实修正一条经验规律**：本候选的机制是**更少出手**（44.1 vs incumbent 46.2 有操作回合、26.4 vs 29.0 建塔）
+  却仍更弱 ⇒ **先前"churn 型=更弱"的说法在这里不成立**，机制列只能当旁证（决定性证据是上面那张后悔值表）✓。
+- ⚠️ **样本覆盖不对等的局限**：本轮训练只用了 **前 20 万行（≈前 28k 个决策）**，而 incumbent 的 SDK 蒸馏用了 **106,694 个决策**
+  ⇒ 还差一个对照：**随机子采样把覆盖补到 ~125k 个决策**再打一次（下一轮做）✓。
