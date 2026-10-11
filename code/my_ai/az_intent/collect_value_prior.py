@@ -74,7 +74,7 @@ def _op_matches_cell(op, st, pl, c: int, x: int, y: int) -> bool:
 
 def _worker(job) -> dict:
     (ckpt, games, seed, max_rounds, native, progress_dir,
-     K, M, lam) = job
+     K, M, lam, max_class) = job
     import torch
     torch.set_num_threads(1)
     from SDK.utils.features import FeatureExtractor
@@ -132,9 +132,14 @@ def _worker(job) -> dict:
                     if K <= 1:
                         picks = [(c_arg, 1.0)]
                     else:
-                        usable = [c for c in range(len(cm))
+                        # ⚠️ 2026-10-11：pin 只允许 0..max_class（默认 16=经济类）。
+                        #    历史 `vp_400.npz` 的 `cls` **全是 17（闪电）**（本文件 docstring 自述）⇒ 原样跑会把监督
+                        #    全给闪电通道，而本子博弈**禁闪电** ⇒ 必须限制到经济类，教师才落在我们的 regime 里。
+                        usable = [c for c in range(min(len(cm), int(max_class) + 1))
                                   if c != HOLD and cm[c] and pm[c].any()]
                         picks = []
+                        if c_arg not in usable and usable:
+                            c_arg = int(max(usable, key=lambda c: float(hl[h][c])))
                         if c_arg in usable:
                             picks.append((c_arg, 1.0))
                             others = [c for c in usable if c != c_arg]
@@ -228,6 +233,8 @@ def main() -> None:
                     help="每个 (回合, 头) 记录几个类。1 = 只记 argmax 类（**逐位等价于旧行为**）；"
                          ">1 = argmax 类(weight=1) + 随机抽 K-1 个可用类(weight=lambda)。"
                          "见 docs/az_posnet_v2_plan.md §3")
+    ap.add_argument("--max-class", type=int, default=16,
+                    help="只钉 <= 该类的类（默认 16=经济类；17-20 是超武/闪电，本子博弈禁闪电）")
     ap.add_argument("--max-cells", type=int, default=0,
                     help="每类最多取几格（0=不封顶）。用于压成本（裸记全部是 51.5x 价值网前向）")
     ap.add_argument("--row-weight-lambda", type=float, default=0.2,
@@ -242,7 +249,7 @@ def main() -> None:
         if n <= 0:
             continue
         jobs.append((args.checkpoint, n, s, args.max_rounds, args.native_engine, pdir,
-                     args.multi_class_k, args.max_cells, args.row_weight_lambda))
+                     args.multi_class_k, args.max_cells, args.row_weight_lambda, args.max_class))
         s += n * 1000
     print("[collect] %d 局 / %d worker，seed 起 %d；K=%d M=%d lambda=%.3f"
           % (args.games, len(jobs), args.seed, args.multi_class_k, args.max_cells,

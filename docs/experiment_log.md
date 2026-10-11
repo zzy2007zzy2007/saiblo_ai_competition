@@ -9769,3 +9769,43 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
 - ⇒ 按预注册止损（候选 `p̂` 低于 incumbent）**关闭 A②**。下一手转**文档里的"当时的解决方案"**：
   r1 的 **1-ply 价值先验 relabel**（教师 = 冻结价值网在钉类合法格上的优势 ⇒ **是观测的函数** ⇒ 历史上"learned ≈ oracle"，
   且"换 critic ⇒ 重新打标 ⇒ 重训头"被独立验证两次：+14.1pp / +16.8pp）。先 120 局试点过闸门再决定全量。
+
+## 2026-10-11 14:45:10 — VPRIOR2_pilot120
+
+- **commit**: `889e73b` (dirty: 13 files)
+- **exit**: -1，用时 388s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_value_prior.py --checkpoint checkpoints/grafted_sdk_A.pt --games 120 --workers 8 --seed 27000 --max-rounds 512 --max-cells 0 --multi-class-k 5 --tau 1.0 --out training_history/vprior2/pilot120.npz
+  ```
+- **output**: `training_history/runs/20261011_144510_VPRIOR2_pilot120/output.log`
+- **result**: _待填_
+
+## 2026-10-11 14:51:46 — VPRIOR2_pilot120b
+
+- **commit**: `889e73b` (dirty: 14 files)
+- **exit**: 2，用时 1s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_value_prior.py --checkpoint checkpoints/grafted_sdk_A.pt --games 120 --workers 8 --seed 27000 --max-rounds 512 --max-cells 0 --multi-class-k 5 --max-class 16 --tau 1.0 --out training_history/vprior2/pilot120.npz
+  ```
+- **output**: `training_history/runs/20261011_145146_VPRIOR2_pilot120b/output.log`
+- **result**: _待填_
+
+### 86e. **决定性机制结论（A② 收尾）**：安静 rollout 教师**与棋力不对齐**，不是"学生没学好"
+
+- 新工具 `code/my_ai/az_intent/eval_map_vs_teacher.py`：在**同一批** 42,495 个决策上、用**教师自己的 rollout 分**衡量两张位置网的选格
+  （零对局，纯前向）。⚠️ 途中踩到一个坑：位置图是 **`pos_model`** 的输出，我第一版误用 `class_model`（两 ckpt 的 class 逐位相同 ⇒
+  两行读数完全一样，正好自证 bug），改用 `pos_model` 后：
+
+  | 网 | 选中格教师分均值 | 后悔值均值 | 命中最优 | 零后悔 |
+  |---|---|---|---|---|
+  | `grafted_sdk_A`（incumbent）| +0.0164 | 0.2141 | 11.64% | 11.64% |
+  | `grafted_sdk_A_posroll_v2`（A② 候选）| **+0.0685** | **0.1620** | **15.93%** | 23.37% |
+
+  ⇒ **候选在教师指标下严格更优，却在判据上 −15.6pp** ⇒ **教师指标与棋力不对齐**（不是数据坏、不是没学到、不是单变量问题）。
+- 机制旁证：候选机制行 31.9 建/22.4 降/6.4 升/**51.3 有操作回合** 落在历史上较弱的 "churn 型"
+  （`maponly` 33.5/17.0/**53.2** ⇒ 0.6016 vs 完整 0.8016）⇒ **安静 rollout 是近视评估：奖励"出手/搅动"，而"该 HOLD 时 HOLD"在本游戏极有价值**
+  （4 臂 ablation：「pass the round 极有价值」）。
+- 影响：**任何"用近视叶评估当教师"的路线都被降级** ⚠️——包括正在跑的 value-prior（教师=冻结价值网的 1-ply 优势）；
+  历史上 r1 的 +14.1pp 场景是**闪电落点**（那类决策的近视评估恰好与棋力对齐 ✓），与我们子博弈的建/升级决策不是一回事。
