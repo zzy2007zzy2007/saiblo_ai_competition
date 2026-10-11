@@ -49,6 +49,9 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=512)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--which", default="val", choices=["val", "train", "all"])
+    ap.add_argument("--split", default="random", choices=["block", "random"],
+                    help="random=随机行切（默认，避免块切成局面尾部切片）；block=最后 10% 行（历史口径）")
+    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
     import torch
@@ -60,7 +63,17 @@ def main() -> int:
     rows = load_rows(Path(args.data))
     N = len(rows)
     n_val = max(1, int(N * 0.1))
-    if args.which == "val":
+    if args.split == "random":
+        _perm = np.random.default_rng(args.seed).permutation(N)
+        _va = np.sort(_perm[:n_val]); _tr = np.sort(_perm[n_val:])
+        if args.which == "val":
+            idx = _va
+        elif args.which == "train":
+            idx = _tr
+        else:
+            idx = np.arange(N)
+        print(f"[gate1] 切分=random（n_val={n_val}）", flush=True)
+    elif args.which == "val":
         idx = np.arange(N - n_val, N)
     elif args.which == "train":
         idx = np.arange(0, N - n_val)
