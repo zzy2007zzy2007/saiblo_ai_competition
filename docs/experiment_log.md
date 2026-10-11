@@ -9911,3 +9911,30 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
   incumbent 总体 **33.53%**（块切 39.82%）、HOLD **98.61%**、**非 HOLD 动作 1.00%**（块切 0.96%）⇒ **结论不变** ✓
   （块切主要影响总体一致率的构成，不影响"动作行几乎全错"这个结论 ✓）。
 - 说明：闸门①与 Q1 审计的两个数字（1.00% vs 6.98%）**目标定义不同**（前者用 obs 里 3 个**采样类字节**，后者用**实际执行束标签**）✓ 两者都 ≪ 随机 ✓。
+
+## 2026-10-11 19:32:50 — AB_NO_MC_raw_vs_baseline_vs_baseline
+
+- **commit**: `a004397` (dirty: 13 files)
+- **exit**: 0，用时 1297s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=100000 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_NO_MC_raw_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261011_193250_AB_NO_MC_raw_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86k. **Q2 判据落地：MC1 vs 裸 argmax = `0.6797` vs `0.0312`（+64.9pp）** —— MC 仲裁是"整个游戏"
+
+- `AB_NO_MC_raw_vs_baseline_vs_baseline`（固定段 7..70、128 局、8 线程、**只把 `MC_EVERY` 拉到 100000 ≈ 关掉仲裁**，其余配置与 incumbent 完全相同；
+  用时 1,297 s）：**`p̂ = 0.0312`**（0×2-0 / 4×1-1 / **60×0-2**；CI [0.0078, 0.0625]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs MC1 **0.6797** ⇒ **+64.9pp** ✓✓。
+- 机制：**13.3 建 / 0.0 降 / 0.3 升 / 有操作回合 5.5 / 236 回合**（MC1：29.0 / 19.9 / 7.8 / **46.2** / 243）
+  ⇒ **裸 argmax 时几乎全程 HOLD**（每局仅出手 5.5 回合、降级 0 次）⇒ 与"incumbent 类头等价于'永远猜 HOLD'"
+  （HOLD 98.61%、非 HOLD 动作 1.00%）**完全自洽** ✓。
+- **交叉证据**：历史 4 臂 ablation 里"**强制出手**"的臂（`pos-only(playable)`）是 **0W/32L** ✗
+  ⇒ 所以价值**不在"出手"本身，而在 MC 的"出手选择质量"** ✓。
+- ⇒ **战略结论**：在"禁闪电 + 配置冻结 + 只改动作网"的约束下，动作网这条轴走完（B −11.7 / A② −15.6 / C 1.00% / C′ 47% 并列 / r1 配方 −7.8，
+  且"更忠实的学生反而更弱"两例）；而**同一张网在 MC 仲裁下值 0.68、不在仲裁下值 0.03** ⇒ **杠杆全在类维的仲裁/菜单**。
+- **下一步最有先验、且属"配置维"的未试旋钮**（本次目标不允许改配置，故未跑，供后续）：
+  `MC_TOPK` 3→5/8（菜单更宽）、`MC_CELLS>0`（把"选类×选格"一起进菜单）、`MC_HORIZON`、`MC_BIDIR`；
+  每条都是 ~1–1.5 h 的固定段判据臂 ✓。
