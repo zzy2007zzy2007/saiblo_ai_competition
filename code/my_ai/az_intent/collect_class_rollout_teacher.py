@@ -212,7 +212,10 @@ def main() -> int:
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     def _pad(rows, dtype, fill):
-        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度；行数不固定是因为"能解码的候选数"逐决策不同）"""
+        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度）。
+        ⚠️ 若每行是**标量**（如 cell 采集器的 `cls` = 每行一个类）⇒ 直接返回 1-D 数组（2026-10-11 踩到 `len(int)` 崩）"""
+        if not rows or np.isscalar(rows[0]):
+            return np.asarray(rows, dtype=dtype)
         C = max((len(r) for r in rows), default=1)
         arr = np.full((len(rows), C), fill, dtype=dtype)
         for i, r in enumerate(rows):

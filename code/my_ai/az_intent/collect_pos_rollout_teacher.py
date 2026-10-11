@@ -255,7 +255,10 @@ def main() -> int:
         stats_cnt.update(r["stats_cnt"]); pin_hist.update(r["pin_hist"]); head_hist.update(r["head_hist"])
 
     def _pad(rows, dtype, fill):
-        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度；行数不固定是因为"能解码的候选数"逐决策不同）"""
+        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度）。
+        ⚠️ 若每行是**标量**（如 cell 采集器的 `cls` = 每行一个类）⇒ 直接返回 1-D 数组（2026-10-11 踩到 `len(int)` 崩）"""
+        if not rows or np.isscalar(rows[0]):
+            return np.asarray(rows, dtype=dtype)
         C = max((len(r) for r in rows), default=1)
         arr = np.full((len(rows), C), fill, dtype=dtype)
         for i, r in enumerate(rows):
@@ -277,7 +280,7 @@ def main() -> int:
         stats=np.asarray(merged["stats"], dtype=np.float16),
         player=np.asarray(merged["player"], dtype=np.int8),
         head=np.asarray(merged["head"], dtype=np.int8),
-        cls=_pad(merged["cls"], np.int16, -1),
+        cls=np.asarray(merged["cls"], dtype=np.int16),   # 每行一个钉类（1-D；cell 的每行格都属于同一个类）
         cell=_pad2(merged["cell"], np.int16, -1),             # (x, y)
         adv=_pad(merged["adv"], np.float32, 0.0),
         weight=_pad(merged["weight"], np.float32, 0.0),

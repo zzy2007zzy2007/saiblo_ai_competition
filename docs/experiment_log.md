@@ -9715,3 +9715,57 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
 - **类间分差**：中位 0.050、均值 0.070；**≥0.20 占 13.4%**、=0 占 **47.3%**
   ⇒ 比坏版（中位 0、=0 占 63.3%）好，但**类级目标仍偏退化**（近一半决策各候选类打出相同分）⚠️
   ⇒ 这条线（C′）即便重采，也要先过"目标质量闸门"再谈判据。
+
+## 2026-10-11 11:03:50 — CELLROLL_h1_90g_v2
+
+- **commit**: `d500d8d` (dirty: 16 files)
+- **exit**: -1，用时 621s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 90 --workers 8 --max-cells 0 --collect-cap 64 --heads 1 --rollout-rounds 256 --seed 25000 --out training_history/posroll2/cell90_h1.npz
+  ```
+- **output**: `training_history/runs/20261011_110350_CELLROLL_h1_90g_v2/output.log`
+- **result**: _待填_
+
+## 2026-10-11 11:14:18 — CELLROLL_h1_90g_v3
+
+- **commit**: `877b978` (dirty: 16 files)
+- **exit**: 0，用时 6587s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 90 --workers 8 --max-cells 0 --collect-cap 64 --heads 1 --rollout-rounds 256 --seed 25000 --out training_history/posroll2/cell90_h1.npz
+  ```
+- **output**: `training_history/runs/20261011_111418_CELLROLL_h1_90g_v3/output.log`
+- **result**: _待填_
+
+## 2026-10-11 13:10:22 — AB_POSROLLv2_vs_baseline_vs_baseline
+
+- **commit**: `877b978` (dirty: 16 files)
+- **exit**: 0，用时 5647s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_posroll_v2.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_POSROLLv2_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261011_131022_AB_POSROLLv2_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86d. **A② 判据落地（修正口径）：0.5234 ⇒ −15.6pp，路线关闭**
+
+- 采集（`CELLROLL_h1_90g_v3`，90 局 × **只采头 0**，忠实全记录）：**回合 47,166 / 位置决策 42,495 / 训练行 42,495（32.1 格/行）/
+  rollout 1,365,607 / 落格失效 0**；钉类 `{5:19033, 1:15828, 0:5436, 13:2198}`；
+  行内 `|Δ|` 中位 0.050、≥0.05 占 43.7%、≥0.10 占 19.0%、全平仅 **2.6%**；用时 6,584 s。
+- 目标质量闸门（12 epoch，11 s/epoch）：**val CE 4.5404→3.5346（−1.01）**、**val top1 7.59%→14.51%**（随机 3.1%）、
+  参数变化范数 12.7→39.0 ⇒ **目标确实可学** ✓（坏数据版：CE 逐位不动 ✗）。
+  ⚠️ **门槛偏离**：预注册 §8.1 的 top1 ≥0.65 未达（14.5%）——该阈值照"271 格+价值网教师"拍，不适合"32 路+1 HP 量化 rollout 教师"
+  （近一半的行两格只差 1 HP）；CE 那条（≥0.10）以 −1.01 远超 ⇒ 记为"闸门字面不过、目的已达成"后投判据。
+- **判据**（`AB_POSROLLv2_vs_baseline_vs_baseline`，固定段 7..70，128 局，8 线程）：
+  **`p̂ = 0.5234`**（14×2-0/39×1-1/11×0-2；CI [0.4453,0.6016]；**0% 无效**；判词 128/128 engine；冒烟 30.5 建/局、闪电 0）
+  vs incumbent `MC1` **0.6797 ⇒ −15.6pp** ✗；
+  机制：**31.9 建 / 22.4 降 / 6.4 升 / 51.3 有操作回合 / 232 回合**（incumbent 29.0/19.9/7.8/46.2/243）。
+- 单变量核对：`class_state` **94/94 相同**、`value_state` **94/94 相同**、`pos_state` 14/94 ⇒ **只改了位置头** ✓。
+- 解释（两条线索）：① 教师是**安静 rollout**（当裁判时历史上就不稳：固定段 +3.9pp / 随机段 −7.8pp）；
+  ② 候选机制落在历史上被判**较弱**的"churn 型"（`maponly`：33.5/17.0/53.2，分数 0.6016 vs 完整 0.8016）；
+  ③ 反向结论：**incumbent 的位置图在这段上有实质作用**（换坏它要付 15.6pp）。
+- ⇒ 按预注册止损（候选 `p̂` 低于 incumbent）**关闭 A②**。下一手转**文档里的"当时的解决方案"**：
+  r1 的 **1-ply 价值先验 relabel**（教师 = 冻结价值网在钉类合法格上的优势 ⇒ **是观测的函数** ⇒ 历史上"learned ≈ oracle"，
+  且"换 critic ⇒ 重新打标 ⇒ 重训头"被独立验证两次：+14.1pp / +16.8pp）。先 120 局试点过闸门再决定全量。
