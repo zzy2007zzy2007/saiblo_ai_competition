@@ -9658,3 +9658,25 @@ ckpt 两侧相同（我们改的是决策机器，不是网络）⇒ 该门的"�
 
 **推论**：A②/C′ 必须**修好重采**再判（目标从"2 格二选一"变成"~33 格选择"，可学性完全是另一个问题）；
 A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder dump）、B（真实 128 局判据）**不受影响**。
+
+## 2026-10-11 10:36:50 — CELLROLL_faithful30
+
+- **commit**: `5970f40` (dirty: 14 files)
+- **exit**: -1，用时 117s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 30 --workers 8 --max-cells 0 --collect-cap 64 --heads 3 --rollout-rounds 256 --seed 25000 --out training_history/posroll2/cell30.npz
+  ```
+- **output**: `training_history/runs/20261011_103650_CELLROLL_faithful30/output.log`
+- **result**: _待填_
+
+## 2026-10-11 10:38:54 — CELLROLL_faithful30b
+
+- **commit**: `5970f40` (dirty: 15 files)
+- **exit**: -1，用时 62s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 30 --workers 8 --max-cells 0 --collect-cap 64 --heads 3 --rollout-rounds 256 --seed 25000 --out training_history/posroll2/cell30.npz
+  ```
+- **output**: `training_history/runs/20261011_103854_CELLROLL_faithful30b/output.log`
+- **result**: _待填_

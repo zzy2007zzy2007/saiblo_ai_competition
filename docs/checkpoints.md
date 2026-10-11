@@ -181,7 +181,7 @@ python -u code/tools/extract_model_from_ckpt.py \
 |---|---|---|---|
 | `distill_sdk_A_e90.pt` | 6.37 MB | `a1345fa87dfe84be` | **路线 B**：把 incumbent 动作网的来源（SDK 蒸馏）从 30 epoch 拉到 **90 epoch**（末值 cls 0.6288 / map 0.1418，优于 30 epoch 的 0.6715/0.1491）|
 | `grafted_sdk_A_e90.pt` | 4.30 MB | `849a501dfefcf82e` | **路线 B 的单变量候选**：`class_state`/`pos_state` ← e90 蒸馏网；**`value_state` ← 原 `posnet_A_k5_m32`（94/94 逐位相同）**；与 incumbent 核对：class 0/94、pos 0/94、value 94/94 ✓ |
-| `grafted_sdk_A_posroll_s1.pt` | 6.45 MB | `747801d12308b3a5` | **路线 A 第 1 版候选**（`pos_state` ← 安静 rollout 教师蒸馏；class/value 不变）。⚠️ **先验低**：教师未被学到（top1 ≈ 随机）⇒ 未投判据；等"宽格采样"重采后重训 |
+| ~~`grafted_sdk_A_posroll_s1.pt`~~ | 6.45 MB | `747801d12308b3a5` | ⚠️ **已隔离（基于坏数据）**：路线 A 第 1 版候选（`pos_state` ← 安静 rollout 教师蒸馏；class/value 不变）。⚠️ **先验低**：教师未被学到（top1 ≈ 随机）⇒ 未投判据；等"宽格采样"重采后重训 |
 | （对照）`grafted_sdk_A.pt` | 4.29 MB | `8c21f44d73bcefb3` | **incumbent**（= 冻结基线本身）|
 | （对照）`distill_sdk_A.pt` | 6.37 MB | `e542ff209c83810c` | 30 epoch 版蒸馏网（incumbent 的动作网来源）|
 
@@ -205,7 +205,7 @@ python -u code/tools/extract_model_from_ckpt.py \
 |---|---|---|---|
 | `grafted_sdk_A_clsC.pt` | 6.44 MB | `fe894e680be8f570` | 路线 C：只换类头，AWR-BC 到"实际执行类"，10 epoch（**过拟合**：val 0.5706@ep2-4 → 0.8442）|
 | `grafted_sdk_A_clsC_e3.pt` | 6.44 MB | `52ac48edd8627ba8` | 同上，3 epoch（val 最优区）；**闸门①不达标**（见 `docs/actionnet_retrain_summary.md` §3.4）|
-| `grafted_sdk_A_clsrank.pt` | 6.44 MB | `f5921dcd8eb30649` | 路线 C′：只换位置头，跨类 rollout 教师；**闸门不过**（§3.5）|
+| ~~`grafted_sdk_A_clsrank.pt`~~ | 6.44 MB | `f5921dcd8eb30649` | ⚠️ **已隔离**：路线 C′ 第 1 版，**基于坏数据**（局面不推进 + 坐标写反）⇒ 移到 `training_history/posroll/_BROKEN_2bugs/`，**勿用** |
 | `grafted_clsonly_audit.pt` | 6.44 MB | `f967c5e26f84592d` | **机制审计用**只换类头对照（class 13/94 相同、pos/value 94/94 逐位相同）|
 
 **数据（只在盘上，不入库）**：
@@ -217,3 +217,13 @@ python -u code/tools/extract_model_from_ckpt.py \
 
 **脚本**：`collect_class_rollout_teacher.py`、`train_pos_class_rank.py`、`eval_class_head_agree.py`、
 `train_pos_rollout.py`、`collect_pos_rollout_teacher.py`、`code/test_match/audit_pos_head_vs_teacher.py`。
+
+### 更正与隔离（2026-10-11，用户追问逼出的两个采集器 bug）
+- **作废并隔离**（移到 `training_history/posroll/_BROKEN_2bugs/`）：`pilot30*.npz`、`class30.npz`、`cls_verify2*.npz`、
+  `verify2.npz`、`probe512.npz`、`grafted_sdk_A_posroll_s1.pt`、`grafted_sdk_A_clsrank.pt`
+  —— 它们的采集器**局面从不推进**（只对 `st.clone()` 落子）且**坐标轴写反**（`_op_matches_cell` 只放对角格）。
+- **修正后重采（进行中）**：`training_history/posroll2/cell90_h1.npz`（`CELLROLL_h1_90g`：90 局、**只采头 0**、
+  `--max-cells 0` 全记录、真实对局推进、seed 25000+）。依据：真实对局日志统计"出手时平均 **1.24** 个动作、
+  78% 单动作"（`{0:2453,1:467,2:115,3:13}`）⇒ 头 0 覆盖 ~77% 决策点，省下的时间换成 3 倍局数。
+- **诊断工具**：`code/my_ai/az_intent/diag_pos_cells.py`（真实推进 + 统一 `[x,y]` + 轴序证明 +
+  成功数直方图 + 按格类别成率 + 每头决策点占比）。

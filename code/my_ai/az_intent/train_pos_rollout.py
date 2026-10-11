@@ -71,8 +71,11 @@ def main() -> int:
                                              cell[:args.limit], adv[:args.limit], cnt[:args.limit])
     N, C = adv.shape
     n_val = max(int(N * args.val_frac), 2)
-    val_idx = np.arange(N - n_val, N)          # **行块**切（不随机 ⇒ 不泄漏到训练块）
-    tr_idx = np.arange(0, N - n_val)
+    # ⚠️ 2026-10-11：按"最后 15% 行"切会切到**局面尾部切片**（在类头那条线上实测 val 只剩 9 条非平局行）
+    #    ⇒ 改为**随机行切分**（每行是一个决策、只出现一次 ⇒ 无行级泄漏）
+    _perm = rng.permutation(N)
+    val_idx = np.sort(_perm[:n_val])
+    tr_idx = np.sort(_perm[n_val:])
     print(f"[posroll-train] data={args.data} N={N} C={C} 训练块={len(tr_idx)} 验证块={len(val_idx)} "
           f"device={dev} epochs={args.epochs} bs={args.batch_size} lr={args.lr}", flush=True)
     print(f"[posroll-train] cls 分布 = {np.bincount(cls, minlength=24).tolist()[:6]}…；"
@@ -145,7 +148,10 @@ def main() -> int:
         return tot_ce / max(tot_n, 1), tot_hit / max(tot_n, 1)
 
     base_ce, base_hit = run(val_idx, False)
-    print(f"[posroll-train] 训练前 val: CE={base_ce:.4f} top1={base_hit*100:.2f}%", flush=True)
+    tr_ce0, tr_hit0 = run(tr_idx, False)
+    print(f"[posroll-train] **训练前 train**: CE={tr_ce0:.4f} top1={tr_hit0*100:.2f}%", flush=True)
+    print(f"[posroll-train] **训练前 val**:   CE={base_ce:.4f} top1={base_hit*100:.2f}%（N={N}，"
+          f"每行格数均值={cnt.mean():.1f}）", flush=True)
     best = base_ce
     for ep in range(1, args.epochs + 1):
         t0 = time.time()
