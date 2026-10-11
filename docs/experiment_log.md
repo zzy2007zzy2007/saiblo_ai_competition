@@ -9809,3 +9809,39 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
   （4 臂 ablation：「pass the round 极有价值」）。
 - 影响：**任何"用近视叶评估当教师"的路线都被降级** ⚠️——包括正在跑的 value-prior（教师=冻结价值网的 1-ply 优势）；
   历史上 r1 的 +14.1pp 场景是**闪电落点**（那类决策的近视评估恰好与棋力对齐 ✓），与我们子博弈的建/升级决策不是一回事。
+
+## 2026-10-11 14:57:28 — VPRIOR2_pilot120c
+
+- **commit**: `889e73b` (dirty: 15 files)
+- **exit**: 0，用时 9040s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_value_prior.py --checkpoint checkpoints/grafted_sdk_A.pt --games 120 --workers 8 --seed 27000 --max-rounds 512 --max-cells 0 --multi-class-k 5 --max-class 16 --tau 1.0 --out training_history/vprior2/pilot120.npz
+  ```
+- **output**: `training_history/runs/20261011_145728_VPRIOR2_pilot120c/output.log`
+- **result**: _待填_
+
+### 86f. value-prior（r1 配方，in-regime）试点：**闸门过了 + 先写下预测**（A② 的教训）
+
+- **采集**（`VPRIOR2_pilot120c`，120 局 × 8 线程，`--max-class 16` 把 pin 限制到经济类）：用时 **9,040 s**；
+  62,682 回合；**862,134 行**（7,184 行/局）；价值网前向 26.3M；顶格校验丢弃 **0**、退化 2,903（0.34%）；
+  **类覆盖恰为 0–16 共 17 个类，无闪电 17** ✓（分布 5:11.3% / 1:9.8% / 0:6.8% / 13:6.6% / 16:6.0% …）；
+  `cell (862134, 33, 2)`、`cnt` 中位 **33**、均值 30.4；npz 键与 `train_value_prior.py` 一致 ✓（0.16 GB）。
+  ⚠️ **重要口径**：采集器**每个 (头,类) 各存一行、共用同一张 board** ⇒ 862k 行只对应 **~125k 个决策**；
+  我这轮训练/诊断用 `--limit 200000 / 100000` ⇒ 仅覆盖**前 ~28k 个决策**（后续若要扩数据需改随机子采样）。
+- **目标质量闸门**（`train_pos_rollout.py --limit 200000 --epochs 10`，51 s/epoch）：
+  val CE **3.7134 → 2.5734（−1.14）**、val top1 **14.82% → 53.30%（+38.5pp；30 格随机 3.3%）**、参数变化范数 29.5 → 88.3
+  ⇒ **目标确实可学**（且远好于 A② 的 +6.9pp ✓）。
+  ⚠️ 预注册 §8.1 的 `top1 ≥0.65` 字面仍未达（53.3%）——与 A② 同一处阈值设定问题（照 271 格+价值网教师拍），
+  CE 那条以 −1.14 远超 ⇒ 记为"闸门字面不过、目的已达成"。
+- **它自己教师下的选格后悔值**（`eval_map_vs_teacher.py --limit 100000`）：
+
+  | 网 | 选中格教师分 | 后悔值 | 命中最优格 |
+  |---|---|---|---|
+  | `grafted_sdk_A`（incumbent）| +0.0220 | 0.0394 | 11.36% |
+  | `grafted_sdk_A_vprior2`（候选）| +0.0591 | **0.0023** | **58.23%** |
+
+  ⇒ 候选是**极忠实的学生**（命中 11.4%→58.2%）⇒ 比 A② 那次彻底得多 ⇒ **按 A② 的教训必须先写预测** ✓
+- **先写死的预测（跑判据之前）**：`p̂` 落在 **0.60–0.70**（很可能不超过 incumbent 0.6797；若 <0.60 则强烈支持
+  "近视叶评估在这类决策上与棋力不对齐"）；**若 ≥0.78 则推翻我对该族的判断** ✓。
+- 候选：`checkpoints/grafted_sdk_A_vprior2.pt`（warm start 自 incumbent、**只改 `pos_state`**；单变量指纹同批核对）。

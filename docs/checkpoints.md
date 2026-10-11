@@ -227,3 +227,10 @@ python -u code/tools/extract_model_from_ckpt.py \
   78% 单动作"（`{0:2453,1:467,2:115,3:13}`）⇒ 头 0 覆盖 ~77% 决策点，省下的时间换成 3 倍局数。
 - **诊断工具**：`code/my_ai/az_intent/diag_pos_cells.py`（真实推进 + 统一 `[x,y]` + 轴序证明 +
   成功数直方图 + 按格类别成率 + 每头决策点占比）。
+
+### 路线 r1 配方（价值先验 relabel，in-regime）产物（2026-10-11）
+| 文件/数据 | 大小 | 说明 |
+|---|---|---|
+| `checkpoints/grafted_sdk_A_vprior2.pt` | ~6.4 MB | **候选**：warm start 自 incumbent、**只改 `pos_state`**；教师 = 冻结价值网在钉类（经济类 0–16）合法格上的 1-ply 优势 |
+| `training_history/vprior2/pilot120.npz` | 0.16 GB | 采集：120 局、**862,134 行**（≈125k 个决策）、每行 ~30.4 格；类覆盖 0–16 共 17 类（**无闪电** ✓）|
+| 工具 | — | `collect_value_prior.py`（新增 `--max-class`，把 pin 限制到经济类）、`train_pos_rollout.py`、`eval_map_vs_teacher.py` |
