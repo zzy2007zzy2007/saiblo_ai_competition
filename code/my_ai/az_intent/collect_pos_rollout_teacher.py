@@ -254,6 +254,22 @@ def main() -> int:
         n_eval += r["n_eval"]; n_cell_drop += r["n_cell_drop"]; deltas += r["deltas"]
         stats_cnt.update(r["stats_cnt"]); pin_hist.update(r["pin_hist"]); head_hist.update(r["head_hist"])
 
+    def _pad(rows, dtype, fill):
+        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度；行数不固定是因为"能解码的候选数"逐决策不同）"""
+        C = max((len(r) for r in rows), default=1)
+        arr = np.full((len(rows), C), fill, dtype=dtype)
+        for i, r in enumerate(rows):
+            arr[i, :len(r)] = r
+        return arr
+
+    def _pad2(rows, dtype, fill):
+        """ragged 的 (n, 2) 坐标 ⇒ (N, C, 2)"""
+        C = max((len(r) for r in rows), default=1)
+        arr = np.full((len(rows), C, 2), fill, dtype=dtype)
+        for i, r in enumerate(rows):
+            arr[i, :len(r)] = r
+        return arr
+
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         args.out,
@@ -261,10 +277,10 @@ def main() -> int:
         stats=np.asarray(merged["stats"], dtype=np.float16),
         player=np.asarray(merged["player"], dtype=np.int8),
         head=np.asarray(merged["head"], dtype=np.int8),
-        cls=np.asarray(merged["cls"], dtype=np.int16),
-        cell=np.asarray(merged["cell"], dtype=np.int16),      # (x, y)
-        adv=np.asarray(merged["adv"], dtype=np.float32),
-        weight=np.asarray(merged["weight"], dtype=np.float32),
+        cls=_pad(merged["cls"], np.int16, -1),
+        cell=_pad2(merged["cell"], np.int16, -1),             # (x, y)
+        adv=_pad(merged["adv"], np.float32, 0.0),
+        weight=_pad(merged["weight"], np.float32, 0.0),
         cnt=np.asarray([len(a) for a in merged["adv"]], dtype=np.int16),
     )
     d = np.asarray(deltas, dtype=np.float64) if deltas else np.zeros(0)

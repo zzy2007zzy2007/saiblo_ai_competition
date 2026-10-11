@@ -1,4 +1,4 @@
-"""⚠️⚠️ 本文件仍带两个已知 bug（2026-10-11 修正了 `collect_pos_rollout_teacher.py`，本文件待同步）：\n   ① **局面不推进**（只对 `post = st.clone()` 落子）⇒ 一局所有决策看同一冻结局面；\n   ② **坐标交换** ⇒ `_op_matches_cell` 只对 x==y 的对角格通过（实测落格失效率 6.8:1）。\n   **在那之前不要用它的产物下任何结论**（既有的 `class30.npz` / `grafted_sdk_A_clsrank.pt` 已隔离）。\n\n采集**跨类**教师：对每个决策，给"若干候选类各自的最佳落格"打**安静 rollout** 分。
+"""采集**跨类**教师：对每个决策，给"若干候选类各自的最佳落格"打**安静 rollout** 分。
 
 动机（2026-10-11 第 86 轮，读代码得到）：
 - MC 的候选菜单来自 `_econ_rank`：对每个经济类 c 取
@@ -47,7 +47,8 @@ def _worker(job) -> dict:
     from my_ai.az_intent.az_selfplay import make_initial_state, make_net_fn_from_ckpt
     from my_ai.az_intent.collect_value_prior import _op_matches_cell
     from my_ai.az_intent.mc_quiet import quiet_value
-    from my_ai.decoder import decode_head, make_class_mask, make_position_masks
+    from my_ai.decoder import (decode_head, decode_network_output, make_class_mask,
+                               make_position_masks)
 
     feat = FeatureExtractor(max_actions=96)
     pol, _ = make_net_fn_from_ckpt(ckpt, feat)
@@ -104,26 +105,28 @@ def _worker(job) -> dict:
                         continue
                     # ⚠️ 2026-10-11 实测：**只试该类 argmax 的那一个格会得到行 0**（那个格解码失败整个类就废，
                     #    实测落格失效率 ~90%）。⇒ 按值降序**多试几格直到成功**（复刻部署的取值口径：掩码内最大值）。
-                    ys, xs = np.where(pm[c])
-                    if len(ys) == 0:
+                    # ⚠️ 2026-10-11 修：掩码是 `mask[ch, x, y]` ⇒ `np.argwhere` 给的就是 **(x, y)**
+                    #    （旧版把变量命名成 ys/xs 再交换去校验 ⇒ 只有 x==y 的对角格能过 `_op_matches_cell`）
+                    cells_xy = np.argwhere(pm[c])
+                    if len(cells_xy) == 0:
                         continue
-                    vals = am[c][ys, xs]
-                    order = np.argsort(-vals)[:8]
-                    op = y = x = None
-                    for i in order:
-                        _y, _x = int(ys[i]), int(xs[i])
+                    vals = am[c][cells_xy[:, 0], cells_xy[:, 1]]
+                    op = None
+                    x = y = -1
+                    for i in np.argsort(-vals)[:8]:
+                        x, y = int(cells_xy[i][0]), int(cells_xy[i][1])
                         am2 = am.copy()
                         am2[c] = -1e9
-                        am2[c, _y, _x] = 1e9
+                        am2[c, x, y] = 1e9
                         _op = decode_head(hl[0], am2, cm.copy(), pm.copy(), st, pl, class_id=int(c),
                                           temperature=0.0, pos_temperature=0.0, intent_decoding=True)
                         if _op is None or not st.can_apply_operation(pl, _op, ()):
                             n_drop += 1
                             continue
-                        if not _op_matches_cell(_op, st, pl, int(c), int(_x), int(_y)):
+                        if not _op_matches_cell(_op, st, pl, int(c), x, y):
                             n_drop += 1
                             continue
-                        op, y, x = _op, _y, _x
+                        op = _op
                         break
                     if op is None:
                         continue
@@ -134,7 +137,7 @@ def _worker(job) -> dict:
                     s = float(quiet_value(post, pl, max_rounds=int(rollout_rounds)))
                     n_eval += 1
                     keep.append(int(c))
-                    cells.append([int(y), int(x)])       # (row,col) 口径
+                    cells.append([x, y])                 # (x, y) 口径（与掩码/train_pos_class_rank 一致）
                     scores.append(s)
                 if len(scores) < 2:
                     continue
@@ -149,7 +152,14 @@ def _worker(job) -> dict:
                 out["score"].append(a)
                 out["cnt"].append(int(len(keep)))
                 n_rows += 1
-        if (g + 1) % 5 == 0:
+
+                # ⚠️ 2026-10-11 修（原版缺失）：把该玩家网络的束**真的打到局面上**。
+                #    必须**顺序**应用（p1 决策时必须已经看到 p0 的操作），所以不能用 resolve_turn。
+                ops = decode_network_output(o, st, pl, temperature=0.0, intent_decoding=True)
+                st.apply_operation_list(pl, ops)
+            if not st.terminal:          # 双方都操作完 ⇒ **每回合唯一一次结算**（README §9 / 桥接 L719）
+                st.advance_round()
+        if True:                         # 每局都打印（worker 只有 2~12 局，原来 %5 等于没有中间输出）
             print(f"  [worker seed={seed}] {g+1}/{games} 局，决策 {n_dec}，行 {n_rows}，"
                   f"rollout {n_eval}，{time.time()-t0:.0f}s", flush=True)
 
@@ -201,15 +211,31 @@ def main() -> int:
         gaps += r["gaps"]
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    def _pad(rows, dtype, fill):
+        """ragged ⇒ (N, C) padding（配 `cnt` 记录每行有效长度；行数不固定是因为"能解码的候选数"逐决策不同）"""
+        C = max((len(r) for r in rows), default=1)
+        arr = np.full((len(rows), C), fill, dtype=dtype)
+        for i, r in enumerate(rows):
+            arr[i, :len(r)] = r
+        return arr
+
+    def _pad2(rows, dtype, fill):
+        """ragged 的 (n, 2) 坐标 ⇒ (N, C, 2)"""
+        C = max((len(r) for r in rows), default=1)
+        arr = np.full((len(rows), C, 2), fill, dtype=dtype)
+        for i, r in enumerate(rows):
+            arr[i, :len(r)] = r
+        return arr
+
     np.savez_compressed(
         args.out,
         board=np.asarray(merged["board"], dtype=np.float16),
         stats=np.asarray(merged["stats"], dtype=np.float16),
         player=np.asarray(merged["player"], dtype=np.int8),
-        cls=np.asarray(merged["cls"], dtype=np.int16),
-        cell=np.asarray(merged["cell"], dtype=np.int16),
-        score=np.asarray(merged["score"], dtype=np.float32),
-        cnt=np.asarray(merged["cnt"], dtype=np.int16),
+        cls=_pad(merged["cls"], np.int16, -1),
+        cell=_pad2(merged["cell"], np.int16, -1),             # (x, y)
+        score=_pad(merged["score"], np.float32, 0.0),
+        cnt=np.asarray([len(a) for a in merged["score"]], dtype=np.int16),
     )
     garr = np.asarray(gaps, dtype=np.float64) if gaps else np.zeros(0)
     summary = {

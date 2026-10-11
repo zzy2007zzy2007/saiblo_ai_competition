@@ -9680,3 +9680,38 @@ A①（visit 教师，用真实 ladder dump）、C（类头，用真实 ladder d
   ```
 - **output**: `training_history/runs/20261011_103854_CELLROLL_faithful30b/output.log`
 - **result**: _待填_
+
+## 2026-10-11 10:40:00 — CELLROLL_h1_90g
+
+- **commit**: `5970f40` (dirty: 16 files)
+- **exit**: -1，用时 1426s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/collect_pos_rollout_teacher.py --checkpoint checkpoints/grafted_sdk_A.pt --games 90 --workers 8 --max-cells 0 --collect-cap 64 --heads 1 --rollout-rounds 256 --seed 25000 --out training_history/posroll2/cell90_h1.npz
+  ```
+- **output**: `training_history/runs/20261011_104000_CELLROLL_h1_90g/output.log`
+- **result**: _待填_
+
+### 86c. 采集器修复完成（三处 bug）+ 口径结论：**顺序 apply 不能换成 `resolve_turn`**
+
+用户问"这游戏是不是双方分别操作后**再回合结算**"⇒ 核对三处原文后确认**规则与代码都对**，并顺手修完类头采集器：
+
+- **规则**（`Ant-Game/README.md` §9 L302-324）：`1. 玩家操作` → 等 p0、执行 p0 → **"然后对玩家1执行同样的步骤"** → `2. 回合结算`（一长串）→ `13. 回合数+1`；
+  [L13](Ant-Game/README.md#L13)"双方分别操作一次算作一回合" ✓
+- **SDK**（`SDK/backend/state.py` L258/261/264）：`apply_operation_list`（只执行）与 `advance_round`（结算）**分开**，另有规范入口 `resolve_turn(ops0, ops1)` ✓
+- **部署桥接**（`code/test_match/az_bridge_ai.py:700-719`）：`_apply(0,…)` → `_apply(1,…)` → **一次** `facade.advance_round()`；且 L718-728 把影子状态与引擎推进后的文本**逐行对拍** ⇒ 我们的回合语义**每回合被官方引擎校验** ✓
+- ⚠️ **结论：不能在自对弈/采集里把 `apply(0)→apply(1)→advance` 换成 `resolve_turn(p0,p1)`** —— `resolve_turn` 会**同时**应用两方操作，
+  而 p1 必须看到"p0 已操作"之后的局面才能决策（桥接就是这个顺序）⇒ 顺序 apply 是**唯一正确形式** ✓
+
+### 三个 bug 与修法（都已在文件里留注释）
+1. **局面从不推进**（只对 `st.clone()` 落子）⇒ 补上"顺序 apply 两方 + 每回合唯一一次 `advance_round()`"；
+2. **坐标轴写反**（掩码是 `mask[ch, x, y]`，我给 `_op_matches_cell` 传了交换后的坐标）⇒ 全程 `[x, y]`；
+3. **ragged 存盘崩溃**（候选/格数逐决策不同 ⇒ `np.asarray` 抛 `inhomogeneous shape`）⇒ 两个采集器的 `savez` 一律
+   **padding 到最大宽度 + `cnt` 记录每行有效长度**。⚠️ 这条会让**正在跑的 cell 采集在最后一步崩掉、数据全丢** ⇒ 已重启（损失 ~20 min）。
+
+### 类头采集器（C′）冒烟（2 局、头 0，seed 26000）
+- 决策 1034（534/500 每局）⇒ **行 = 决策**；rollout 4945（≈4.8/行 = HOLD + 最多 4 个经济类）；
+  **落格失效 0** ✓；输出 0.7 MB npz ✓；
+- **类间分差**：中位 0.050、均值 0.070；**≥0.20 占 13.4%**、=0 占 **47.3%**
+  ⇒ 比坏版（中位 0、=0 占 63.3%）好，但**类级目标仍偏退化**（近一半决策各候选类打出相同分）⚠️
+  ⇒ 这条线（C′）即便重采，也要先过"目标质量闸门"再谈判据。
