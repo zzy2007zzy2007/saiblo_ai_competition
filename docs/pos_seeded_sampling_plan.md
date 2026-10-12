@@ -53,3 +53,9 @@
 - 文档：本计划 + 实验日志 86s（预检）/判据读数 + `docs/actionnet_retrain_summary.md`（§10 汇总）;
 - 纪律更正：**所有零对局预检必须显式设 `AZAI_BAN_CLASSES=17`**（`decoder.make_class_mask` 在**调用时**读 env，`decoder.py:167`）——
   本会话有两批数字曾跑在"允许闪电"制度里（86p/网格）⚠️，其结构性结论仍成立但数值口径需重测 ✓。
+
+### 2.1 ✅ 门槛 4 判据结果（2026-10-12）：**不掉强度**
+
+`AB_SEEDSTATE_vs_baseline_vs_baseline`（固定段 7..70、128 局）：**`p̂ = 0.7266`**（CI [0.6562, 0.7891]；0% 无效；128/128 engine）
+vs incumbent 0.6797 ⇒ **+4.7pp**（CI 覆盖 incumbent ⇒ **不可分辨** ✓）；机制 27.7/19.9/8.4/46.4/242 与 incumbent 几乎相同 ✓
+⇒ **门槛 4 通过** ✓（`AZAI_SEED_STATE=1` 可视为"免费"的确定性化开关）。

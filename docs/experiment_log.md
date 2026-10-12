@@ -10095,3 +10095,29 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 **纪律更正**：本会话的"零对局预检"（`diag_search_repro` 的 A–D 臂、`diag_visit_sharpness` 网格）**都没禁闪电** ✗
 ⇒ 其**结构性结论**（采样候选不可复现 / 确定化可复现 / 迭代数×4 会变尖）仍成立 ✓，但**数值口径属于闪电制度** ⚠️，
 后续预检必须显式设 `AZAI_BAN_CLASSES=17` ✓（已在探针里修正；其余工具待补）。
+
+## 2026-10-12 12:25:10 — AB_SEEDSTATE_vs_baseline_vs_baseline
+
+- **commit**: `e98e8ea` (dirty: 13 files)
+- **exit**: 0，用时 4422s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SEED_STATE=1 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_SEEDSTATE_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_122510_AB_SEEDSTATE_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86t. **判据落地：确定性播种不掉强度**（`p̂ = 0.7266`；CI 覆盖 incumbent ⇒ 不可分辨）
+
+- `AB_SEEDSTATE_vs_baseline_vs_baseline`（固定段 7..70、128 局、4,422 s；与 `MC1` 逐项相同，**唯一改动 `AZAI_SEED_STATE=1`**）：
+  **`p̂ = 0.7266`**（31×2-0 / 31×1-1 / **2×0-2**；CI [0.6562, 0.7891]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs incumbent **0.6797 ⇒ +4.7pp**，但 **CI 覆盖 0.6797** ⇒ 本项目分辨力下**"与 incumbent 不可分辨"** ✓
+  ⇒ 预注册门槛 `≥0.6797` ⇒ **通过** ✓。
+- 机制 **27.7 建 / 19.9 降 / 8.4 升 / 46.4 有操作回合 / 242 回合**（incumbent 29.0 / 19.9 / 7.8 / 46.2 / 243）
+  ⇒ **行为画像几乎不变** ✓ —— 与"只换 rng 实现、不换决策分布"的预期一致 ✓。
+- ⇒ **四道门槛全过**（可复现 ✓ / 信息量不塌 ✓ / 耗时不变 ✓ / 不掉强度 ✓）⇒ `AZAI_SEED_STATE=1` 是**"免费"的确定性化开关** ✓。
+- **下一步（计划 §3）**：在**真实中局状态**上量目标质量。⚠️ 技术点：搜索的访问分布是在**束**（≤3 op 组合）上的 ✗，
+  而位置头预测的是**格**上的分布 ✗ ⇒ 目标必须先**按类边缘化到格**（代码里的 `intent_counts` 正是为 AZ 边缘化设计 ✓）。
+  ⇒ 先采一批真对局 dump（`AZAI_SEED_STATE=1` + `AZAI_AZ_DUMP` + `AZAI_DUMP_RAW_DIR`，训练种子 22000–22020 ✓ 与判据段隔离 ✓），
+  把 `visits_raw` 边缘化后看真实局面上的 top1/熵 ⇒ **再决定是否写"边缘化目标"训练器** ✓（预期不高：无塔状态 top1 仅 ~0.17、
+  且天花板仍是冻结价值网 ⚠️）。
