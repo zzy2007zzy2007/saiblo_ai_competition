@@ -381,6 +381,13 @@ class BundleMCTS:
         #   但采样的候选**每次重采** ⇒ 目标不可复现 ✗。本开关**不改采样分布**，只在**根节点**用"状态指纹"
         #   重置 `self.rng` ⇒ 同一状态跑两次搜索得到同一串随机数 ⇒ **候选集合/访问分布 = 状态的确定性函数** ✓
         seed_from_state: bool = False,
+        # ── 「按 visit 名次取动作」（AZAI_VISIT_RANK，默认 1 = 今天的行为逐位不变 ✓）──────────────
+        #   动因（用户 2026-10-12 指出的方法论问题）：`TEMP=1.0`（按分布采样）与 argmax 的比较**没有判别力** ✗ ——
+        #   任何分布（哪怕完美）都有非众数质量 ⇒ 采样必然不优于 argmax ⇒ 该对比只反映"随机化代价"，❌ 不能判"分布对不对"。
+        #   正确测法：**取 visit 排序里的第 r 名**（r=1 即 argmax）⇒ 若 visit 排序有信息，强度应**随 r 单调下降** ✓；
+        #   若各名次强度持平 ⇒ visit 名次不含质量信息 ⇒ 拿它当蒸馏目标从根上无意义 ✗。
+        #   实现：`argsort(-visits, kind="stable")[r-1]`（并列按候选下标稳定排序 ⇒ 确定性 ✓）。
+        visit_rank: int = 1,
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
@@ -497,6 +504,7 @@ class BundleMCTS:
         self.candidate_fn = candidate_fn
         self.rng = np.random.default_rng(seed)
         self.seed_from_state = bool(seed_from_state)
+        self.visit_rank = max(1, int(visit_rank))
         self.last_root: BundleNode | None = None
 
     # ── internals ────────────────────────────────────────────────────────
@@ -1093,6 +1101,12 @@ class BundleMCTS:
             visits = np.asarray([c.prior for c in root.children], dtype=np.float32)
         policy = self._policy_from_visits(visits, temperature)
         chosen = int(np.argmax(visits)) if temperature <= 1e-6 else self._sample(policy)
+        # 名次实验（AZAI_VISIT_RANK>1）：改取 visit 排序里的第 r 名（r=1 即上面的 argmax ⇒ 旧行为不变 ✓）。
+        # 判读：强度随 r 单调下降 ⇒ visit 排序有信息 ✓；持平 ⇒ 名次无信息 ✗（见 __init__ 的注释）。
+        if int(self.visit_rank) > 1 and visits.size > 0:
+            _ord = np.argsort(-visits, kind="stable")
+            _ri = min(int(self.visit_rank), len(_ord)) - 1
+            chosen = int(_ord[_ri])
         if not root.bundles:
             chosen = 0
         root_value = root.mean_value if root.visits else (root.net_value if root.expanded else 0.0)

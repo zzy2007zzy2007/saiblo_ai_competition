@@ -10271,3 +10271,43 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   —— 但在那个制度里，**类维搜索根本没法表达有用动作**（候选类都是不可执行的闪电/HOLD ✗）⇒ "类搜索无增益"是**退化假象** ✗。
 - **现在（禁闪电）制度下类维归 MC 仲裁**，而本会话实测：**有 MC 仲裁 0.6797 vs 无仲裁 0.0312（+64.9pp）** ✓ ⇒ **类维才是主战场** ✓
   ⇒ **旧结论不可迁移** ✓，已排 `POSARGMAX_vs_baseline` 臂（`CANDS=topk` + `CANDS_K=1` + `SKIP1=1` ⇒ 位置不搜索 ✓）测**当前制度下**位置搜索的价值 ✓。
+
+## 2026-10-12 17:16:06 — AB_POSARGMAX_vs_baseline_vs_baseline
+
+- **commit**: `f0bbb41` (dirty: 13 files)
+- **exit**: 0，用时 523s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CANDS=topk AZAI_CANDS_K=1 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_POSARGMAX_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_171606_AB_POSARGMAX_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ab. **判据落地：位置搜索值 +13.3pp**（`POSARGMAX` = `0.5469`）⇒ **两个维度的价值都量出来了**
+
+- `AB_POSARGMAX_vs_baseline_vs_baseline`（固定段 7..70、128 局、523 s；与 `MC1` 逐项相同，
+  **唯一改动 `AZAI_CANDS=topk` + `AZAI_CANDS_K=1` + `SKIP1=1`** ⇒ 候选只有"钉住类图上的 top-1 格" ⇒ **位置不搜索** ✓）：
+  **`p̂ = 0.5469`**（15×2-0 / 40×1-1 / 9×0-2；CI [0.4766, 0.6172]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs incumbent **0.6797 ⇒ −13.3pp** ✓ ⇒ **位置搜索确实值 13.3pp** ✓（**否掉我"位置搜索≈0"的猜测** ✗）。
+- 机制 **29.6 建 / 19.9 降 / 10.4 升 / 60.0 有操作回合 / 243 回合**（incumbent 29.0/19.9/7.8/**46.2**/243）
+  ⇒ 固定成图 argmax 后**出手更勤、升级更多而强度更低** ⇒ **搜索的偏离（包括"少出手"）是有价值的** ✓；单局 **0.53 min**（位置不搜索 ⇒ 决策几乎免费 ✓）。
+- ⇒ **两维价值**：类维（MC 仲裁）**+64.9pp**（0.6797 vs 0.0312 ✓）/ 位置维（搜索 vs 图 argmax）**+13.3pp** ✓
+  ⇒ 类维主导（约 5×）但**位置维非零** ⇒ 7 条路线失败**不能**归因于"改了没用的部件" ✗
+  ⇒ 归因仍是：**把图的独立信号（官方 SDK 启发式）换成了我们自己搜索的投影** ✓。
+
+### 86ac. **新实验（用户设计，已预注册）：按 visit 名次取动作** —— 检验"visit 名次是否含质量信息"
+
+**方法论修正（用户 2026-10-12 指出，采纳）**：`TEMP=1.0`（按分布采样）vs argmax 的比较**没有判别力** ✗ ——
+任何分布（哪怕完美 ✓）都有非众数质量 ⇒ 采样**必然**不优于 argmax ⇒ 该对比只反映"**随机化代价**"，**不能判分布对不对** ✗。
+⇒ §10.2 里"分布的非众数质量有害 ⇒ 解释 −43pp"是**过度推断，撤回** ✓
+（正确说法：学生被教去给低名次动作分配质量 ✗ —— 其**是否有害，取决于 visit 名次是否真的排出好坏** ⇒ 由本实验判 ✓）。
+
+**设计**：`AZAI_VISIT_RANK=r`（默认 1 ⇒ 旧行为逐位不变 ✓）；`bundle_mcts.search`：
+`chosen = argsort(-visits, kind="stable")[r-1]`（并列按候选下标稳定排序 ⇒ **确定性** ✓，不引入采样噪声 ✓）。
+臂：**r = 2 / 3 / 5**（r=1 的参照点 = incumbent `0.6797` ✓），各固定段 128 局、单变量 ✓。
+**预注册判读**：
+- **强度随 r 单调下降** ⇒ visit 名次**含质量信息** ✓ ⇒ 那 −43pp 应归因于**蒸法**（边缘化 / 反馈漂移 / 超参 ✓）
+  ⇒ 硬标签版 / 全合法格版才有意义 ✓；
+- **各 r 持平**（落在 ±6pp 内 = 与平坦不可分辨 ✓）⇒ visit 名次**不含质量信息** ✗ ⇒ **蒸 visit 从根上无意义** ✓
+  ⇒ 整条 visit 线彻底关闭 ✓（同时解释 r1 配方 / 蒸 visit 的失败 ✓）。
+⚠️ 分辨力：单臂 64 对 ⇒ ±~11pp ✗ ⇒ 看**跨名次的整体形状** ✓。

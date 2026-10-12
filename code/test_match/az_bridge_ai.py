@@ -410,6 +410,8 @@ def build_engine(seed: int, player: int):
         cands_combo=int(_env("AZAI_CANDS_COMBO", "1")),
         cands_prior=_env("AZAI_CANDS_PRIOR", "uniform"),
         seed_from_state=bool(int(_env("AZAI_SEED_STATE", "0"))),
+        # 名次实验（用户 2026-10-12 设计）：取 visit 排序的第 r 名（1 = argmax = 旧行为 ✓）
+        visit_rank=int(_env("AZAI_VISIT_RANK", "1")),
         t_class=float(_env("AZAI_TCLASS", "0.5")),
         t_pos=float(_env("AZAI_TPOS", "1.0")),
         c_puct=float(_env("AZAI_C_PUCT", "1.25")),

@@ -1,4 +1,4 @@
-﻿# _tmp_arm.ps1 —— 单臂驱动：冒烟守卫 → 128 局 → 分析（供逐臂调度，避免一次拉起 7 臂）
+# _tmp_arm.ps1 —— 单臂驱动：冒烟守卫 → 128 局 → 分析（供逐臂调度，避免一次拉起 7 臂）
 #   用法: powershell -File _tmp_arm.ps1 -Name B_clsonly -Ckpt checkpoints/grafted_clsonly.pt `
 #             -Mode pos-only -Pin mc_quiet -Tclass 0.5 -Opp example -Jobs 8
 param(
@@ -13,6 +13,7 @@ param(
     [string]$K = '24',            # 搜索候选数（搜索超参扫描用）
     [string]$Skip1 = '1',         # 1 = 单候选短路（旧行为）；0 = **不短路**（路 C 的 C1 需要）
     [string]$ClassFeasMask = '0', # 1 = 启用 C1.1 类采样前的可行性掩蔽（默认关，旧行为逐位不变）
+    [string]$VisitRank = '1',     # 名次实验（用户 2026-10-12 设计）：取 visit 排序第 r 名（1 = argmax = 旧行为 ✓）
     [hashtable]$ExtraEnv = @{},   # 额外/覆盖 AZAI_*（如 AZAI_DUMP_RAW_DIR / AZAI_AZ_DUMP / AZAI_MODE=joint）
     [string]$Iters = '256',       # MCTS 迭代
     [string]$Depth = '4',         # 束展开深度
@@ -33,7 +34,7 @@ if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
-$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp
+$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp; $env:AZAI_VISIT_RANK=$VisitRank
 $env:AZAI_CLASS_FEAS_MASK=$ClassFeasMask
 foreach ($k in $ExtraEnv.Keys) { Set-Item -Path ("Env:" + $k) -Value $ExtraEnv[$k]; Write-Host "[arm] ExtraEnv $k=$($ExtraEnv[$k])" }
 $env:AZAI_POSPRIOR='off'; $env:AZAI_VERIFY='1'; $env:AZAI_TRACE='1'; $env:AZAI_TIMING_EVERY='25'
