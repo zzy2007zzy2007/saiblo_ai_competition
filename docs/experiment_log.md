@@ -10037,3 +10037,33 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   候选集合成为状态的确定性函数（可复现 ✓）**且保留有信息量的那一版（top1 ≈0.28 ✓）** ⇒ 这才是值得蒸的目标 ✓。
 - ⏳ 判据臂 `CANDS_TOPK_vs_baseline`（combo=1）仍在跑：它现在回答的是"**确定化是否伤强度**"；
   由于部署取 `visits` 的 argmax，而 visits 近均匀 ⇒ **我现在的预期是"会掉"** ⚠️（预注册门槛 `<0.6497` ⇒ 停）。
+
+## 2026-10-12 09:24:27 — AB_CANDS_TOPK_vs_baseline_vs_baseline
+
+- **commit**: `96ca20f` (dirty: 15 files)
+- **exit**: 0，用时 4529s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CANDS=topk AZAI_CANDS_COMBO=1 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_CANDS_TOPK_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_092427_AB_CANDS_TOPK_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86q. **判据落地：`CANDS=topk` 削弱 AI（`p̂ = 0.5781` ⇒ −10.2pp）** ⇒ 方案否决；"蒸搜索偏好"路线随之关闭
+
+`AB_CANDS_TOPK_vs_baseline_vs_baseline`（固定段 7..70、128 局、4,529 s；与 `MC1` 逐项相同，**唯一改动 `AZAI_CANDS=topk` + `CANDS_COMBO=1`**）：
+
+- **`p̂ = 0.5781`**（19×2-0 / 36×1-1 / 9×0-2；CI [0.5000, 0.6562]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs incumbent **0.6797 ⇒ −10.2pp** ✗ ⇒ **预注册门槛 `<0.6497` 触发 ⇒ 停** ✓；
+- 冒烟 27 建/局、闪电 0、有操作回合 45.5（非退化 ✓）；
+- 机制 **28.5 建 / 18.9 降 / 9.0 升 / 56.4 有操作回合 / 240 回合**（incumbent：29.0 / 19.9 / 7.8 / **46.2** / 243）
+  ⇒ **出手更多却更弱** ✗ —— 与"visits 近均匀 ⇒ 部署的 argmax 相当于在图的前 24 格里近乎随机挑"一致 ✓。
+
+**我跑之前的预测（86p）就是"预期会掉" ⇒ 命中** ✓；用户的担忧（"不然学一个弱的老师也没用"）在数据上成立 ✓。
+
+**更深的含义（这条比本次判据更重要）**：把"蒸搜索偏好"这条路彻底关掉的不是 `topk` 本身，而是**两个读数合起来**：
+- **要让它可复现 ⇒ 目标就变近均匀**（topk：top1 **0.098**、熵 4.49/4.58）⇒ **老师没信息** ✗；
+- **要保留信息量 ⇒ 就得留着采样那套重复结构**（sample：top1 **0.277**）⇒ 而那部分集中度**主要来自"同一束被重复采样"= 位置图自己的先验** ⇒
+  即便做成"多次抽样取期望"得到良定义目标，它也只是**位置图的回声**，**不含地图之外的新信息** ✗。
+⇒ **"蒸搜索偏好来改进位置图"在本子博弈不再有证据支持** ✓（动作网轴自此 0/6：B −11.7 / A② −15.6 / C 1.00% / C′ 47%并列 / r1配方 −7.8 / topk −10.2）。
+⇒ 杠杆仍在**类维的仲裁/菜单**（`MC_CELLS` / `MC_TOPK`，属配置维）——与本项目"MC 覆盖 +18/+28pp"的历史一致 ✓。
