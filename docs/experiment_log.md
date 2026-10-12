@@ -10411,3 +10411,33 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 我们这边搜索浅（~10 次/候选）、critic 冻结、只做一次离线蒸馏 ⇒ 那 47% 尾部**不是信息而是"该扔掉的动作"** ✗
 ⇒ 学它 = 教模型去搅动 ⇒ −43pp ✓。
 **要让 AZ 那套运转，缺的四件（全在本目标冻结之外）**：① 解冻/改进 critic；② 多代 on-policy；③ 大幅提高每步搜索量；④ 把"类"也放进搜索 ✓。
+
+## 2026-10-12 22:33:07 — AB_VHARD_vs_baseline_vs_baseline
+
+- **commit**: `904bfd2` (dirty: 13 files)
+- **exit**: 0，用时 3959s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A_visithard.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VHARD_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_223307_AB_VHARD_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ag. **判据落地：硬标签版（只蒸 rank-1）= `p̂ 0.5000` ⇒ −18.0pp** ✗ ⇒ **"忠实学生更弱"第四例** ⇒ **蒸馏方向收口**
+
+- `AB_VHARD_vs_baseline_vs_baseline`（固定段 7..70、128 局、3,959 s；与 `MC1` 逐项相同，**唯一改动 = 换 ckpt** ✓）；
+  读数以 UTF-8 重取（首次因控制台编码导致分析行未打印 ✗，数字未受影响 ✓）：
+  **`p̂ = 0.5000`**（17×2-0 / 30×1-1 / 17×0-2；CI [0.4062, 0.5938]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs incumbent **0.6797 ⇒ −18.0pp** ✗（**恰好等于镜像** ⇒ incumbent 的 +18pp 优势被全部抹掉 ✓）。
+- 机制 **32.9 建 / 20.4 降 / 5.5 升 / 47.6 有操作回合 / 241 回合**
+  （incumbent 29.0/19.9/7.8/46.2/243；**软标签版 35.4/22.2/5.6/50.5**）
+  ⇒ ① **硬标签避开了"churn 灾难"** ✓（−18 vs −43 ✓，画像几乎与 incumbent 相同 ✓）；
+  ② 但强度仍丢 18pp，且**不是"多搅动"**（47.6 vs 46.2 ✓）而是**选择质量**（升级 5.5 vs 7.8，**−30%** ✗）
+  ⇒ 与"**图的独立 SDK 先验被换成我们自己浅搜索的投影**"一致 ✓（即：这次自蒸馏只是把搜索已在做的事**重新编码**，
+  同时**丢掉了外部先验** ✓）。
+- **预注册命中** ✓：§10.7 预测"≈incumbent 或略差（冻结 critic 无法注入新信息）" ⇒ 实测 −18pp ✓
+  ⇒ **AZ 那套在我们条件下不成立是结构性的**（不是调参问题 ✓）。
+- ⇒ **蒸馏方向收口**：**8 条路线全负** —— B −11.7 / A② −15.6 / C 1.00% / C′ 47%并列 / r1 配方 −7.8 / topk −10.2 /
+  **蒸分布 −43.0** / **蒸硬标签 −18.0** ✓。
+- ⇒ 剩下**唯一有证据支撑**的杠杆：**配置维**（`MC_TOPK` 3→5/8 = 菜单加宽 ✓；`MC_CELLS=1` = 把"类×格"放进仲裁 ✓）；
+  依据：**类维（MC 仲裁）值 +64.9pp** vs 位置维 +13.3pp ✓。

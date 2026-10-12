@@ -34,6 +34,9 @@ if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
 # ⚠️ 2026-10-12：子进程 stdout 统一 UTF-8（否则中文标签在控制台/日志里会乱码 ✗；数字不受影响但可读性差）
 $env:PYTHONIOENCODING = 'utf-8'
+# 2026-10-12 补：**控制台**输出编码也设成 UTF-8 —— 否则 `Select-String -Pattern '配对胜率'` 匹配不上
+#   ⇒ 臂跑完只打印 [mech] 行、**分析行（p̂/CI）不显示**（数字没丢，可用 analyze_paired.py 重取 ✓）
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
 $env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp; $env:AZAI_VISIT_RANK=$VisitRank
