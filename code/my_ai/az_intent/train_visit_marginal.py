@@ -128,6 +128,8 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--val-frac", type=float, default=0.15)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--hard", action="store_true",
+                    help="目标改为 one-hot（只蒸 visit 的 rank-1 = 被选中候选那一格）；见日志 86ad：分布里 ~47% 质量在 rank>=2 的搅动动作上 ✗")
     args = ap.parse_args()
 
     import torch
@@ -159,6 +161,12 @@ def main() -> int:
     CE_ = torch.from_numpy(np.asarray(cell, dtype=np.int64))
     P = torch.from_numpy(np.asarray(prob, dtype=np.float32))
     CN = torch.from_numpy(np.asarray(cnt, dtype=np.int64))
+    if args.hard:
+        # ⚠️ 2026-10-12（名次实验 86ad 的结论）：只蒸 **rank-1**（搜索实际选中的那一格 ✓），
+        #   而不是整条分布 —— 因为该分布 ~47% 的质量落在 rank>=2 的"搅动动作"上（实测 r>=2 ⇒ 0.5469 / 0.4922 ✗）。
+        _arg = P.argmax(dim=1)
+        P = torch.zeros_like(P).scatter_(1, _arg.unsqueeze(1), 1.0)
+        print("[vm] **硬标签模式**：目标 = 每行边缘分布的 argmax（one-hot）✓", flush=True)
 
     def evaluate(idx):
         pm.eval()
