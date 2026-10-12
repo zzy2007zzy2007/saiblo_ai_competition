@@ -7,6 +7,7 @@ param(
     [string]$Mode = 'pos-only',
     [string]$Pin = 'mc_quiet',
     [string]$Tclass = '0.5',
+    [string]$Temp = '1e-6',          # 决策温度：1e-6 ⇒ 取 visits 的 argmax（现状）；1.0 ⇒ 按 visits 分布**采样**（= "教师作为分布" 的强度测量）
     [string]$Opp = 'example',            # 'example' 或 'baseline'
     [int]$Jobs = 8,
     [string]$K = '24',            # 搜索候选数（搜索超参扫描用）
@@ -32,7 +33,7 @@ if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
-$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP='1e-6'
+$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp
 $env:AZAI_CLASS_FEAS_MASK=$ClassFeasMask
 foreach ($k in $ExtraEnv.Keys) { Set-Item -Path ("Env:" + $k) -Value $ExtraEnv[$k]; Write-Host "[arm] ExtraEnv $k=$($ExtraEnv[$k])" }
 $env:AZAI_POSPRIOR='off'; $env:AZAI_VERIFY='1'; $env:AZAI_TRACE='1'; $env:AZAI_TIMING_EVERY='25'
