@@ -37,6 +37,8 @@ def main() -> int:
     ap.add_argument("--games", type=int, default=3)
     ap.add_argument("--snapshots", default="40,80,120,160")
     ap.add_argument("--seed0", type=int, default=90000)
+    ap.add_argument("--cands-k", type=int, default=0, help="topk 模式取前几个格（0 ⇒ 用 k=24）")
+    ap.add_argument("--combo", type=int, default=1, help="topk 模式：1 ⇒ 各头拼束（≤3 op）；0 ⇒ 只用 head0（单 op）")
     ap.add_argument("--out", default="training_history/posroll2/diag_search_repro.json")
     args = ap.parse_args()
 
@@ -51,7 +53,7 @@ def main() -> int:
     _model, net_fn = make_net_fn_from_ckpt(args.ckpt, feat)
     snaps = [int(x) for x in args.snapshots.split(",")]
 
-    def make_mcts(seed: int, tc: float, tp: float) -> BundleMCTS:
+    def make_mcts(seed: int, tc: float, tp: float, cands: str = "sample") -> BundleMCTS:
         return BundleMCTS(
             net_fn, iterations=256, max_depth_rounds=4, k=24, sample_mult=15,
             t_class=tc, t_pos=tp, c_puct=1.25, seed=seed, search_mode="pos-only",
@@ -59,6 +61,7 @@ def main() -> int:
             mc_every=1, mc_no_downgrade=0, mc_m4=0, mc_root_only=1, mc_top2=0,
             mc_topk=3, mc_cells=0, mc_upg=1, mc_margin=0.0, mc_score="",
             mc_selfspend=0, mc_selfspend_mix=1.0,
+            cands_mode=cands, cands_k=args.cands_k, cands_combo=args.combo,
         )
 
     # 1) 造中局状态：**只推进回合**（双方都不落子 ⇒ 无人建塔，棋盘上有蚂蚁/金币/血量变化）
@@ -74,23 +77,30 @@ def main() -> int:
             st.advance_round()
     print(f"[repro] 造出 {len(states)} 个中局状态（{args.games} 局 × 快照 {snaps}）", flush=True)
 
-    def run(state, player, seed, tc, tp):
-        m = make_mcts(seed, tc, tp)
+    import time as _time
+    TIMES: list = []
+
+    def run(state, player, seed, tc, tp, cands="sample"):
+        m = make_mcts(seed, tc, tp, cands)
+        _t0 = _time.time()
         r = m.search(state, player, temperature=1.0)     # >1e-6 ⇒ policy ∝ 原始访问计数
+        TIMES.append(_time.time() - _t0)
         bundles = [tuple(tuple(int(v) for v in op) for op in b) for b in r.bundles]
         w = np.asarray(r.visit_policy, dtype=np.float64)
         return bundles, w
 
-    arms = [("A 部署温度 0.5/1.0", (0.5, 1.0)),
-            ("B 类确定 1e-6/1.0", (1e-6, 1.0)),
-            ("C 全确定 1e-6/1e-6", (1e-6, 1e-6))]
+    arms = [("A 部署温度 0.5/1.0", (0.5, 1.0), "sample"),
+            ("B 类确定 1e-6/1.0", (1e-6, 1.0), "sample"),
+            ("C 全确定 1e-6/1e-6", (1e-6, 1e-6), "sample"),
+            ("D **候选确定化 topk(combo=1)**", (0.5, 1.0), "topk")]  # D 臂恒 topk，A/B/C 恒 sample
     out = {}
-    for name, (tc, tp) in arms:
+    for name, (tc, tp), cands in arms:
+        TIMES.clear()
         n = eq = agr = agr_eq = n_eq = agr_neq = n_neq = 0
         jac, cos, sizes = [], [], []
         for st in states:
-            b1, w1 = run(st, 0, 101, tc, tp)
-            b2, w2 = run(st, 0, 202, tc, tp)
+            b1, w1 = run(st, 0, 101, tc, tp, cands)
+            b2, w2 = run(st, 0, 202, tc, tp, cands)
             n += 1
             s1, s2 = set(b1), set(b2)
             same = (s1 == s2)
@@ -123,7 +133,8 @@ def main() -> int:
               f"（集合相同时 {d['chosen_agree_given_same']}/{max(d['n_same'],1)}，"
               f"集合不同时 {d['chosen_agree_given_diff']}/{max(d['n_diff'],1)}）；"
               f"Jaccard 中位 {d['jaccard_median']}；余弦中位 {d['cosine_median']}；"
-              f"候选数均值 {d['sizes_mean'][0]:.1f} vs {d['sizes_mean'][1]:.1f}", flush=True)
+              f"候选数均值 {d['sizes_mean'][0]:.1f} vs {d['sizes_mean'][1]:.1f}；"
+              f"单次搜索均值 {float(np.mean(TIMES)) * 1000:.0f} ms", flush=True)
 
     import json
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

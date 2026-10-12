@@ -59,3 +59,14 @@
 - 代码：`bundle_mcts.py`（`topk` 分支）、`az_bridge_ai.py`（env 透传）、`diag_search_repro.py`（`--cands` 参数）；
 - 文档：本计划 + 实验日志（零对局预检、判据臂）+ `docs/checkpoints.md` 若产生新 ckpt（本改动不训网，预计无）；
 - 结论无论正负都写入 `docs/actionnet_retrain_summary.md`（§10：候选确定化的收益与代价）。
+
+---
+
+## 7. 状态（2026-10-11 更新）
+
+- ✅ **已实现**（`bundle_mcts.py` / `az_bridge_ai.py` / `diag_search_repro.py`，**默认关**）；
+- ✅ **零对局预检三门全过**：候选集合相同率 **12/12**；"现部署所选格"落在图的 highland 前 24 名内 **96.16%**（下界）；
+  单次搜索耗时 **2,538 ms vs 3,336 ms（−24%）**；
+- ✅ **副产品**：候选固定后**访问分布余弦 = 0.99999999998** ⇒ visit 分布成为良定义目标（为路线 A 的重做打开门，天花板仍是冻结价值网 ⚠️）；
+- ⏳ **判据臂 `CANDS_TOPK_vs_baseline` 在跑**（固定段 7..70、128 局；唯一改动 `AZAI_CANDS=topk`+`CANDS_COMBO=1`）；
+  门槛：`≥0.6797` 不掉强度、`<0.6497` 伤强度停。

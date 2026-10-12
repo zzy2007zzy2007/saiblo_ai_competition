@@ -401,6 +401,10 @@ def build_engine(seed: int, player: int):
         max_depth_rounds=int(_env("AZAI_DEPTH", "4")),
         k=int(_env("AZAI_K", "1")),
         sample_mult=int(_env("AZAI_SAMPLE_MULT", "1")),
+        # 候选确定化（docs/pos_topk_candidates_plan.md）：默认 sample ⇒ 既有读数逐位不变 ✓
+        cands_mode=_env("AZAI_CANDS", "sample"),
+        cands_k=int(_env("AZAI_CANDS_K", "0")),
+        cands_combo=int(_env("AZAI_CANDS_COMBO", "1")),
         t_class=float(_env("AZAI_TCLASS", "0.5")),
         t_pos=float(_env("AZAI_TPOS", "1.0")),
         c_puct=float(_env("AZAI_C_PUCT", "1.25")),

@@ -359,6 +359,13 @@ class BundleMCTS:
         t_class: float = 1.0,
         t_pos: float = 1.0,
         sample_mult: int = 15,
+        # ── 候选确定化（docs/pos_topk_candidates_plan.md，2026-10-11）─────────────────
+        #   "sample" = 现状（采样 n_samples 次，按解码结果出现次数取前 k）
+        #   "topk"   = **不采样**：每头把它钉住的类的合法格按 `action_map[类]` 降序（并列按 (x,y) 字典序）
+        #              排序，第 i 个候选束 = 各头第 i 名拼成的 op 列表 ⇒ 候选集合 = 状态的确定性函数 ✓
+        cands_mode: str = "sample",
+        cands_k: int = 0,      # topk 模式取前几个格（0 ⇒ 用 k）
+        cands_combo: int = 1,  # topk 模式：1 ⇒ 各头拼束（≤3 op，保留"一回合多动作"表达）；0 ⇒ 只用 head0（单 op）
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
@@ -387,6 +394,8 @@ class BundleMCTS:
             raise ValueError(f"unknown search_mode: {search_mode}")
         if pos_pin not in ("argmax", "playable", "reserve", "reserve_up", "masked", "q", "mc_light", "mc_quiet"):
             raise ValueError(f"unknown pos_pin: {pos_pin}")
+        if cands_mode not in ("sample", "topk"):
+            raise ValueError(f"unknown cands_mode: {cands_mode}")
         self.net_fn = net_fn
         self.iterations = iterations
         self.max_depth_rounds = max_depth_rounds
@@ -395,6 +404,12 @@ class BundleMCTS:
         self.t_class = t_class
         self.t_pos = t_pos
         self.sample_mult = sample_mult  # sample k*sample_mult times, keep top-k by count
+        self.cands_mode = cands_mode
+        self.cands_k = int(cands_k)
+        self.cands_combo = int(cands_combo)
+        if cands_mode == "topk" and search_mode != "pos-only":
+            print(f"[cands] ⚠️ CANDS=topk 只在 search_mode=pos-only 生效；当前 {search_mode} ⇒ 回退 sample（既有行为不变）",
+                  flush=True)
         self.search_mode = search_mode
         self.pos_pin = pos_pin
         # OPTIONAL「随机钉类」(2026-10-05 实施 docs/az_posnet_random_class_plan.md 的计划)：
@@ -479,6 +494,71 @@ class BundleMCTS:
         if diff == 0:
             v = 0.1 if state.winner == player else -0.1
         return v
+
+    def _topk_candidates(self, net_out, node, pinned, k: int, head_logits_list,
+                         base_cls_mask, base_pos_mask) -> dict:
+        """**候选确定化**（`cands_mode="topk"`，见 `docs/pos_topk_candidates_plan.md`）。
+
+        动因（本会话实测，见实验日志 86n）：现状是"采样 n_samples 次、按**出现次数**取前 k"，
+        频率估计带噪 ⇒ 同一局面换 seed 两次搜索的候选集合只有 1/12 完全相同（Jaccard 0.45）✗。
+
+        本函数**完全不调用 `self.rng`**：对每个头，把它**钉住的类**的合法格按 `action_map[类]` 降序
+        （**并列按 (x,y) 字典序** ⇒ 严格确定性）排序；第 i 个候选束 = 各头第 i 名拼起来的 op 列表
+        （`cands_combo=1` ⇒ ≤3 op，保留"一回合多动作"的表达 ✓；`=0` ⇒ 只用 head0 ⇒ 单 op）。
+        ⇒ 候选集合 = **状态的确定性函数** ✓（两次搜索必然同清单）。
+
+        返回结构与采样路径一致：`{key: {"count": 1, "heads": [3 个 dict]}}`（count 恒为 1 ⇒ prior 均匀；
+        `heads` 用于 AZ 边缘化/dump，键与采样路径同形 `(类, x, y)`）。
+        """
+        from my_ai.az_intent.mc_quiet import _decode_class_op_at_cell
+
+        _K = int(self.cands_k) if int(self.cands_k) > 0 else int(k)
+        am = np.asarray(net_out["action_map"], dtype=np.float32)
+        ranked: list = []
+        for h, c in enumerate(pinned):
+            c = int(c)
+            if not (0 <= c < am.shape[0]) or not base_pos_mask[c].any():
+                ranked.append([])
+                continue
+            xs, ys = np.nonzero(base_pos_mask[c])
+            vals = am[c][xs, ys]
+            order = sorted(range(len(xs)), key=lambda i: (-float(vals[i]), int(xs[i]), int(ys[i])))
+            ranked.append([(int(xs[i]), int(ys[i])) for i in order])
+        n_heads = 3 if int(self.cands_combo) else 1
+        agg: dict = {}
+        n_skip_invalid = 0
+        for i in range(_K):
+            ops, heads = [], [dict(), dict(), dict()]
+            for h in range(min(n_heads, len(ranked))):
+                if i >= len(ranked[h]):
+                    continue
+                x, y = ranked[h][i]
+                t = _decode_class_op_at_cell(head_logits_list[h], am, base_cls_mask, base_pos_mask,
+                                             node.state, node.player, int(pinned[h]), x, y)
+                if t is None:
+                    continue
+                op3 = (int(t[0]), int(t[1]), int(t[2]))
+                if op3 in ops:            # 两头可能解出同一个 op ⇒ 去重（重复施加会崩）
+                    continue
+                ops.append(op3)
+                heads[h][(int(pinned[h]), int(x), int(y))] = 1
+            if not ops:
+                continue
+            # 联合可执行性校验（只影响 topk 路径；采样路径一字不动）
+            try:
+                _cs = node.state.clone()
+                _cs.apply_operation_list(node.player,
+                                         [Operation(OperationType(int(a)), int(b), int(c)) for a, b, c in ops])
+            except Exception:  # noqa: BLE001
+                n_skip_invalid += 1
+                continue
+            key = tuple(ops)
+            if key in agg:
+                continue
+            agg[key] = {"count": 1, "heads": heads}
+        if n_skip_invalid:
+            print(f"[cands] topk：{n_skip_invalid} 个候选束联合不可执行 ⇒ 已丢弃", flush=True)
+        return agg
 
     def _expand(self, node: BundleNode, k: int) -> float:
         if node.state.terminal:
@@ -837,7 +917,14 @@ class BundleMCTS:
 
         eff_t_pos = 0.0 if self.search_mode == "class-only" else self.t_pos
         agg: dict[tuple, dict] = {}
-        for idx in range(n_samples):
+        # ── 候选确定化（AZAI_CANDS=topk，默认关）：不采样，直接取"每头按图分数前 K 名"拼束 ──
+        #    见 docs/pos_topk_candidates_plan.md ⇒ 候选集合 = 状态的确定性函数 ✓（且省掉 n_samples 次解码）
+        _use_topk = (self.cands_mode == "topk" and self.search_mode == "pos-only"
+                     and pinned is not None)
+        if _use_topk:
+            agg = self._topk_candidates(net_out, node, pinned, k, head_logits_list,
+                                        base_cls_mask, base_pos_mask)
+        for idx in range(0 if _use_topk else n_samples):
             ops, intents = sample_bundle(
                 net_out, node.state, node.player,
                 t_class=self.t_class, t_pos=eff_t_pos, rng=self.rng,

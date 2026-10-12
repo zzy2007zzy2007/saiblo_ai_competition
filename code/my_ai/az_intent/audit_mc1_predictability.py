@@ -138,6 +138,7 @@ def main() -> int:
             "rank1": f"{rank_hist_hw.get(1, 0) / max(n_rows, 1) * 100:.2f}%",
             "rank<=3": f"{sum(rank_hist_hw.get(k, 0) for k in range(1, 4)) / max(n_rows, 1) * 100:.2f}%",
             "rank<=10": f"{sum(rank_hist_hw.get(k, 0) for k in range(1, 11)) / max(n_rows, 1) * 100:.2f}%",
+            "rank<=24": f"{sum(rank_hist_hw.get(k, 0) for k in range(1, 25)) / max(n_rows, 1) * 100:.2f}%",
             "rank<=33": f"{sum(rank_hist_hw.get(k, 0) for k in range(1, 34)) / max(n_rows, 1) * 100:.2f}%",
             "rank>33": f"{rank_hist_hw.get(40, 0) / max(n_rows, 1) * 100:.2f}%"},
         "executed_cell_rank_in_map": {"rank1": rh(1), "rank<=3": f"{(rank_hist.get(1, 0) + rank_hist.get(2, 0) + rank_hist.get(3, 0)) / max(n_rows, 1) * 100:.2f}%",
