@@ -32,6 +32,8 @@ param(
 if (-not $Repo) { $Repo = Split-Path -Parent $PSCommandPath }
 if (-not $Repo) { $Repo = (Get-Location).Path }
 Set-Location $Repo
+# ⚠️ 2026-10-12：子进程 stdout 统一 UTF-8（否则中文标签在控制台/日志里会乱码 ✗；数字不受影响但可读性差）
+$env:PYTHONIOENCODING = 'utf-8'
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
 $env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp; $env:AZAI_VISIT_RANK=$VisitRank
