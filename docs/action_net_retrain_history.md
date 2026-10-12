@@ -238,3 +238,14 @@ Get-Content training_history/runs/20261008_233652_S1C_G1_posonly_wide/env.txt   
   搜索 visit 教师**全平**，rollout 教师（格级/跨类）**不可学**。
 - 因此本项目的强度杠杆仍然只有两个：**部署侧 MC 仲裁覆盖率**（`MC_EVERY` 5→1：固定 +18pp / 随机 +28pp）与
   **动作网来源**（换网，而非重训已收敛的网）。
+
+
+> ### ⚠️ 更正之更正（2026-10-11，用户第三次追问）：那个"单点/全平"是在描述一个**被 argmax 掉的 dump 字段**
+> `bundle_mcts.py:975-981`：`_policy_from_visits(visits, temperature)` 在 **`temperature <= 1e-6`** 时**返回 argmax one-hot**；
+> 冻结配置 `TEMP=1e-6` ⇒ **dump 的 `visits` 从构造上就是 one-hot**（实测：100% 决策只有 1 个非零元素、**和 = 1.0**；
+> 真访问分布的和应≈迭代数几百）✗。真正的访问计数（`[c.visits for c in root.children]`，L958）**没有被 dump**。
+> ⇒ **本 dump 无法回答"搜索的 visit 分布有没有偏好"**；我前后两次的"熵 1.0 / 单点退化"都是在描述这个假字段 ✗
+> （"838/838 自检"也随之是**同义反复**：one-hot 的 argmax 当然等于 `chosen`）。
+> **结论不变、依据更换**：visit 教师不可用，靠的是 ① 历史可复现性测量（换 rng 两次选中一致率 1.5%、余弦 0.350、bundle 相同 42.5%）；
+> ② 代码注释的实测"**pos-only 下 ~97% 回合只有 1 个候选束**"（那些回合的选择本来就平凡）。
+> **要真正测量搜索偏好**：dump 原始 `[c.visits]`（一行改动）或在 dump 时用 `TEMP>0`。
