@@ -41,6 +41,11 @@ def main() -> int:
     ap.add_argument("--combo", type=int, default=1, help="topk 模式：1 ⇒ 各头拼束（≤3 op）；0 ⇒ 只用 head0（单 op）")
     ap.add_argument("--out", default="training_history/posroll2/diag_search_repro.json")
     args = ap.parse_args()
+    # ⚠️ 2026-10-12（踩坑修正）：`decoder.make_class_mask` 在**调用时**读 `AZAI_BAN_CLASSES`（decoder.py:167）
+    #   ⇒ 诊断工具默认必须与冻结配置同制度（禁闪电类 17 + op 21），否则数字属于别的制度 ✗
+    import os as _os
+    _os.environ.setdefault("AZAI_BAN_CLASSES", "17")
+    _os.environ.setdefault("AZAI_BAN_OPS", "21")
 
     import torch
     from SDK.utils.features import FeatureExtractor
