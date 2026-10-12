@@ -10311,3 +10311,59 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 - **各 r 持平**（落在 ±6pp 内 = 与平坦不可分辨 ✓）⇒ visit 名次**不含质量信息** ✗ ⇒ **蒸 visit 从根上无意义** ✓
   ⇒ 整条 visit 线彻底关闭 ✓（同时解释 r1 配方 / 蒸 visit 的失败 ✓）。
 ⚠️ 分辨力：单臂 64 对 ⇒ ±~11pp ✗ ⇒ 看**跨名次的整体形状** ✓。
+
+## 2026-10-12 17:30:07 — AB_VISITRANK2_vs_baseline_vs_baseline
+
+- **commit**: `c02b049` (dirty: 13 files)
+- **exit**: 0，用时 4895s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=2 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VISITRANK2_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_173007_AB_VISITRANK2_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-12 18:55:31 — AB_VISITRANK3_vs_baseline_vs_baseline
+
+- **commit**: `128a0b4` (dirty: 14 files)
+- **exit**: 0，用时 5591s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=3 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VISITRANK3_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_185531_AB_VISITRANK3_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-12 20:35:08 — AB_VISITRANK5_vs_baseline_vs_baseline
+
+- **commit**: `128a0b4` (dirty: 14 files)
+- **exit**: 0，用时 6750s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=5 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VISITRANK5_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_203508_AB_VISITRANK5_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ad. **判据落地：visit 名次曲线 = 下降**（r=1 0.6797 → r=2 0.5469 → r=3 0.5469 → r=5 0.4922）✓
+⇒ **visit 名次含质量信息** ✓；且**分布目标在 rank≥2 上是"反对齐"的** ⇒ **−43pp 的确切原因** ✓
+
+三条臂（固定段 7..70、各 128 局；禁闪电 + 冻结配置，**唯一改动 `AZAI_VISIT_RANK=r`** ✓；读数用 UTF-8 重取 ✓）：
+
+| r | `p̂` | CI | 配对（2-0/1-1/0-2）| 机制（建/降/升/有操作回合/回合）|
+|---|---|---|---|---|
+| **1（incumbent）** | **0.6797** | [0.6016, 0.7578] | — | 29.0 / 19.9 / 7.8 / **46.2** / 243 |
+| **2** | **0.5469** | [0.4531, 0.6328] | 20 / 30 / 14 | **50.9 / 43.6** / 8.5 / **61.2** / 253 |
+| **3** | **0.5469** | [0.4531, 0.6406] | 22 / 26 / 16 | **52.1 / 42.6** / 6.6 / **61.5** / 250 |
+| **5** | **0.4922** | [0.4062, 0.5781] | 16 / 31 / 17 | 51.7 / 40.6 / 6.2 / **62.5** / 254 |
+
+- **预注册判读**：曲线**下降** ✓（r=1→2 掉 **13.3pp**，r=2→5 再掉 5.5pp）⇒ **visit 名次确实排出好坏** ✓。
+- **机制**：r≥2 全部塌进同一"churn 型"（~51 建 / ~42 降 / **~61 有操作回合** vs incumbent 29/19.9/**46.2**）
+  ⇒ **visit 的第 1 名 ≈ "那个克制的候选"，其余名次是"多建多降"的搅动动作** ✗。
+- **与 `POSARGMAX` 臂自洽**：搜索 rank-1 相对图 argmax 值 **+13.3pp** ✓（0.6797 vs 0.5469 ✓）；
+  而 **rank 2 的强度 0.5469 ≈ 图 argmax 的强度 0.5469** ⇒ 图 argmax 与"搜索第 2 名"同档 ✓
+  ⇒ **搜索的价值集中在它的 rank-1（= 克制动作），rank≥2 与"照图 argmax 走"一样差** ✓。
+- ⇒ **−43pp 的确切原因（被测量证明，非推测）**：我蒸的目标是"**整条分布的边缘**" ✗，而该分布把 **~47% 的质量放在 rank≥2 的搅动动作上** ✗
+  ⇒ 学生被教成学那些动作 ✓（机制读数 35.4 建 / 22.2 降 / 50.5 出手，与该预测一致 ✓）。
+- ⇒ **给"硬标签版"提供证据支持** ✓（不再是"低先验"）：应学的恰是 **rank-1（克制动作）**，而它在图上**并不是 argmax**
+  （Q1 审计：执行格仅 13% 是图纸 argmax ✓）⇒ **"只蒸众数"能学到图本身没有的东西** ✓。
