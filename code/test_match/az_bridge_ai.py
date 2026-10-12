@@ -408,6 +408,7 @@ def build_engine(seed: int, player: int):
         cands_mode=_env("AZAI_CANDS", "sample"),
         cands_k=int(_env("AZAI_CANDS_K", "0")),
         cands_combo=int(_env("AZAI_CANDS_COMBO", "1")),
+        cands_prior=_env("AZAI_CANDS_PRIOR", "uniform"),
         t_class=float(_env("AZAI_TCLASS", "0.5")),
         t_pos=float(_env("AZAI_TPOS", "1.0")),
         c_puct=float(_env("AZAI_C_PUCT", "1.25")),

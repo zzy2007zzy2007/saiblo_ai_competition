@@ -32,6 +32,8 @@ def main() -> int:
     ap.add_argument("--seed0", type=int, default=90000)
     ap.add_argument("--iters", type=int, default=256)
     ap.add_argument("--combo", type=int, default=1, help="topk 模式：1=各头拼束；0=只用 head0（单 op）")
+    ap.add_argument("--cands-prior", default="uniform", choices=["uniform", "map"],
+                    help="topk 候选的先验：uniform=每个候选 count=1（PUCT 先验均匀 ✗）；map=图上概率 Π_头 p(格)（公平对照 ✓）")
     args = ap.parse_args()
 
     from SDK.utils.features import FeatureExtractor
@@ -59,12 +61,17 @@ def main() -> int:
                           t_class=0.5, t_pos=1.0, c_puct=1.25, seed=seed, search_mode="pos-only",
                           pos_pin="mc_quiet", skip_single_candidate=True, mc_horizon=256, mc_every=1,
                           mc_root_only=1, mc_topk=3, mc_upg=1,
-                          cands_mode=cands, cands_k=0, cands_combo=args.combo)
+                          cands_mode=cands, cands_k=0, cands_combo=args.combo,
+                          cands_prior=args.cands_prior)
+
+    import time as _time
 
     for cands in (("topk",) if args.combo == 0 else ("sample", "topk")):
-        top1, ent, ncand, sums, cos = [], [], [], [], []
+        top1, ent, ncand, sums, cos, mrank, secs = [], [], [], [], [], [], []
         for st in states:
+            _t0 = _time.time()
             r = make_mcts(7, cands).search(st, 0, temperature=1e-6)   # 部署口径
+            secs.append(_time.time() - _t0)
             vr = np.asarray(r.visits_raw, dtype=np.float64)
             if vr.sum() <= 0:
                 continue
@@ -73,6 +80,17 @@ def main() -> int:
             ent.append(float(-(p[p > 0] * np.log2(p[p > 0])).sum()))
             ncand.append(len(vr))
             sums.append(float(vr.sum()))
+            # 新指标（2026-10-12，用户追问逼出）：**搜索的 pick（visits 的 argmax）在"按图分排序"里的名次**
+            #   rank=1 ⇒ 搜索选的就是图上最好的那一格；名次越大越"不贴图" ⇒ 直接预测部署强度 ✓
+            try:
+                am = np.asarray(net_fn(st, 0)["action_map"], dtype=np.float64)
+                keys = [tuple(tuple(int(v) for v in op) for op in b) for b in r.bundles]
+                vals = np.array([am[int(k[0][0]), int(k[0][1]), int(k[0][2])] for k in keys])
+                order = np.argsort(-vals, kind="stable")
+                pick = int(np.argmax(vr))
+                mrank.append(int(np.where(order == pick)[0][0]) + 1)
+            except Exception:  # noqa: BLE001
+                pass
             r2 = make_mcts(99, cands).search(st, 0, temperature=1e-6)
             b1 = {tuple(tuple(int(v) for v in op) for op in b) for b in r.bundles}
             b2 = {tuple(tuple(int(v) for v in op) for op in b) for b in r2.bundles}
@@ -87,11 +105,15 @@ def main() -> int:
         if not top1:
             print(f"  {cands}: 无有效样本")
             continue
-        print(f"  **{cands}**: 候选数 {np.mean(ncand):.1f}；visits_raw 和 {np.mean(sums):.1f}（=iters?）；"
+        _r1 = np.mean([x == 1 for x in mrank]) * 100 if mrank else float("nan")
+        _rm = np.median(mrank) if mrank else float("nan")
+        print(f"  **{cands}**（iters={args.iters}，prior={args.cands_prior}）: 候选数 {np.mean(ncand):.1f}；"
+              f"visits_raw 和 {np.mean(sums):.1f}；"
               f"**top1 份额 {np.median(top1):.3f}**（均值 {np.mean(top1):.3f}）；"
-              f"**归一化熵 {np.median(ent):.3f} bit**（并列参考 log2={np.log2(np.mean(ncand)):.2f}）；"
-              f"同候选集下两次搜索余弦 {'—' if not cos else f'{np.median(cos):.6f}'}"
-              f"（N={len(cos)}）", flush=True)
+              f"**归一化熵 {np.median(ent):.3f} bit**（并列 log2={np.log2(np.mean(ncand)):.2f}）；"
+              f"**搜索 pick 的图排名 rank1 {_r1:.1f}% / 中位 {_rm:.0f}**；"
+              f"同候选集余弦 {'—' if not cos else f'{np.median(cos):.6f}'}（N={len(cos)}）；"
+              f"单次 {np.mean(secs):.2f}s", flush=True)
     print("[sharp] 判读：top1 份额明显 >1/n 且熵明显 <log2(n) ⇒ **访问分布是清晰的偏好**（不是退化/全平）✓")
     return 0
 

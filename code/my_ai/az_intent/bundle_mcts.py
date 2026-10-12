@@ -370,6 +370,12 @@ class BundleMCTS:
         cands_mode: str = "sample",
         cands_k: int = 0,      # topk 模式取前几个格（0 ⇒ 用 k）
         cands_combo: int = 1,  # topk 模式：1 ⇒ 各头拼束（≤3 op，保留"一回合多动作"表达）；0 ⇒ 只用 head0（单 op）
+        # ⚠️ 2026-10-12（用户追问逼出）：**topk 候选的先验**
+        #   "uniform" = 每个候选 count=1 ⇒ PUCT 先验均匀 ✗（实测这会让 visits 摊平：top1 0.098、熵 4.49/4.58，
+        #               部署取 argmax 近乎随机 ⇒ 固定段 −10.2pp；见日志 86p/86q）
+        #   "map"     = 先验 = **采样器本来会给出的概率** Π_头 softmax(action_map[类]/t_pos)[该格] ⇒
+        #               等价于"拿掉采样的噪声、保留图的全部先验信息" ⇒ 这才是与 sample 的**公平对照** ✓
+        cands_prior: str = "uniform",
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
@@ -400,6 +406,8 @@ class BundleMCTS:
             raise ValueError(f"unknown pos_pin: {pos_pin}")
         if cands_mode not in ("sample", "topk"):
             raise ValueError(f"unknown cands_mode: {cands_mode}")
+        if cands_prior not in ("uniform", "map"):
+            raise ValueError(f"unknown cands_prior: {cands_prior}")
         self.net_fn = net_fn
         self.iterations = iterations
         self.max_depth_rounds = max_depth_rounds
@@ -411,6 +419,7 @@ class BundleMCTS:
         self.cands_mode = cands_mode
         self.cands_k = int(cands_k)
         self.cands_combo = int(cands_combo)
+        self.cands_prior = cands_prior
         if cands_mode == "topk" and search_mode != "pos-only":
             print(f"[cands] ⚠️ CANDS=topk 只在 search_mode=pos-only 生效；当前 {search_mode} ⇒ 回退 sample（既有行为不变）",
                   flush=True)
@@ -528,11 +537,25 @@ class BundleMCTS:
             vals = am[c][xs, ys]
             order = sorted(range(len(xs)), key=lambda i: (-float(vals[i]), int(xs[i]), int(ys[i])))
             ranked.append([(int(xs[i]), int(ys[i])) for i in order])
+        # "map" 先验：采样器本来会给出的概率（`t_pos` 温度的 softmax over 该类合法格）
+        probs: list = []
+        for _h, _c in enumerate(pinned):
+            _c = int(_c)
+            if not (0 <= _c < am.shape[0]) or not base_pos_mask[_c].any():
+                probs.append({})
+                continue
+            _xs, _ys = np.nonzero(base_pos_mask[_c])
+            _z = am[_c][_xs, _ys] / max(float(self.t_pos), 1e-6)
+            _z = _z - float(np.max(_z))
+            _e = np.exp(_z)
+            _s = max(float(_e.sum()), 1e-12)
+            probs.append({(int(_xs[k]), int(_ys[k])): float(_e[k]) / _s for k in range(len(_xs))})
         n_heads = 3 if int(self.cands_combo) else 1
         agg: dict = {}
         n_skip_invalid = 0
         for i in range(_K):
             ops, heads = [], [dict(), dict(), dict()]
+            _cnt = 1.0
             for h in range(min(n_heads, len(ranked))):
                 if i >= len(ranked[h]):
                     continue
@@ -546,6 +569,8 @@ class BundleMCTS:
                     continue
                 ops.append(op3)
                 heads[h][(int(pinned[h]), int(x), int(y))] = 1
+                if self.cands_prior == "map":
+                    _cnt *= max(probs[h].get((x, y), 0.0), 1e-12)
             if not ops:
                 continue
             # 联合可执行性校验（只影响 topk 路径；采样路径一字不动）
@@ -559,7 +584,7 @@ class BundleMCTS:
             key = tuple(ops)
             if key in agg:
                 continue
-            agg[key] = {"count": 1, "heads": heads}
+            agg[key] = {"count": (_cnt if self.cands_prior == "map" else 1.0), "heads": heads}
         if n_skip_invalid:
             print(f"[cands] topk：{n_skip_invalid} 个候选束联合不可执行 ⇒ 已丢弃", flush=True)
         return agg
