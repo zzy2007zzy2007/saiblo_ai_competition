@@ -217,8 +217,16 @@ def main() -> int:
               f"| val CE={ce_va2:.4f} 一致={hit_va2*100:.2f}% | 参数变化范数={dnorm:.3f}", flush=True)
         if ce_va2 <= best[0]:
             best = (ce_va2, ep)
-            torch.save({"class_state": _cm.state_dict(), "pos_state": pm.state_dict(),
-                        "value_state": _vm.state_dict()}, args.out)
+            # ⚠️ 2026-10-12 修（冒烟 0 建塔的根因 ✗）：必须**保留原 ckpt 的全部顶层键** ——
+            #   `no_bn`/`gn`/`gn_groups`/`latent_dim`/`num_resblocks`/`three_net` … 是**架构元数据**，
+            #   丢了就会被 `load_three_models` / `make_net_fn_from_ckpt` 按**默认架构**重建
+            #   ⇒ 加载失败或半随机 ⇒ 一局 0 建塔（冒烟守卫拦下 ✓）。
+            _out = dict(torch.load(args.ckpt, map_location="cpu", weights_only=False))
+            _out["class_state"] = _cm.state_dict()
+            _out["pos_state"] = pm.state_dict()
+            _out["value_state"] = _vm.state_dict()
+            _out["visitmarg_note"] = "pos_state ← 搜索访问分布（边缘化到格）软 CE 蒸馏；class/value 逐位不变"
+            torch.save(_out, args.out)
     print(f"[vm] 结束：best val CE={best[0]:.4f}（epoch {best[1]}）⇒ {args.out}", flush=True)
     print(f"[vm] **§9 闸门对照**：训练前 val CE={ce_va:.4f} / 一致率={hit_va*100:.2f}%  "
           f"⇒ 需 CE 下降 ≥0.10 且一致率超过 incumbent 头才算过关 ✓", flush=True)
