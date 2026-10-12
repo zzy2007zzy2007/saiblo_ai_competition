@@ -10121,3 +10121,28 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ⇒ 先采一批真对局 dump（`AZAI_SEED_STATE=1` + `AZAI_AZ_DUMP` + `AZAI_DUMP_RAW_DIR`，训练种子 22000–22020 ✓ 与判据段隔离 ✓），
   把 `visits_raw` 边缘化后看真实局面上的 top1/熵 ⇒ **再决定是否写"边缘化目标"训练器** ✓（预期不高：无塔状态 top1 仅 ~0.17、
   且天花板仍是冻结价值网 ⚠️）。
+
+## 2026-10-12 13:43:03 — AB_SEEDSTATE_DUMP_vs_baseline
+
+- **commit**: `83cf088` (dirty: 13 files)
+- **exit**: 0，用时 1312s
+- **cmd**:
+  ```bash
+  env AZAI_AZ_DUMP=data/seedstate_dump/az AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_DUMP_RAW_DIR=data/seedstate_dump/obs AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SEED_STATE=1 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_SEEDSTATE_DUMP_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 22000 22000r 22001 22001r 22002 22002r 22003 22003r 22004 22004r 22005 22005r 22006 22006r 22007 22007r 22008 22008r 22009 22009r 22010 22010r 22011 22011r 22012 22012r 22013 22013r 22014 22014r 22015 22015r 22016 22016r 22017 22017r 22018 22018r 22019 22019r 22020 22020r
+  ```
+- **output**: `training_history/runs/20261012_134303_AB_SEEDSTATE_DUMP_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86u. **§9 目标质量闸门通过**：位置头 ← 搜索访问分布（边缘化到格）**确实可学**
+
+- 数据（`AZAI_SEED_STATE=1` 真对局 dump，训练种子 22000–22020 ✓ 与判据段隔离）：**3,211 行**（每行 13.0 格，随机切 2,730/481 ✓）；
+- 目标构造：`visits_raw` 归一化后按 **(类, x, y)** 边缘化（`intent_counts` 设计给 AZ 的同一件事 ✓），取质量最大的类（≥2 格）；
+  损失 = **软 CE**（`CE(softmax(action_map[类] 在候选格上的 logits), p)`）——**不做逐行 z-score** ✓（保留目标的真实温度 ✓）。
+- 读数：**val CE 2.0467 → 1.8425（−0.204）** ✓（门槛 ≥0.10）、**val 与目标 argmax 一致率 18.09% → 40.12%（峰值 41.79%）** ✓
+  （train 2.1211/21.6% → 1.7163/57.1%，有轻微过拟合 ✓）；参数变化范数 2534 → 5812（确实在动 ✓）。
+  ⇒ **§9 闸门（CE 降 ≥0.10 且一致率超过 incumbent 头）通过** ✓。
+- ⇒ 这是本会话**动作网轴上第一次**同时具备"**可复现（余弦 1.0）+ 目标锋利（top1 0.53、熵 1.5/3.58）+ 可学（CE −0.20、一致率 ×2.2）**"的路 ✓。
+- 产物：`checkpoints/grafted_sdk_A_visitmarg.pt`（warm start 自 incumbent、**只训 `pos_state`** ✓）；
+  工具：`train_visit_marginal.py`（建集 + 训练一体，缓存 `training_history/visitmarg/seedstate_rows.npz`）、`diag_visit_marginal.py`。
+- **先写死的预测（跑判据之前）**：`p̂ ∈ 0.62–0.72`（大概率与 incumbent **不可分辨**；若 **≥0.78** 则说明"用搜索偏好自蒸馏位置头"这条**真的有效** ✓；
+  若 **<0.60** 则说明"目标虽可学但与棋力不对齐"，与 A②/r1 配方同族 ✗）。
