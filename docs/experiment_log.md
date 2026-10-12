@@ -10234,3 +10234,40 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 **预注册判读**：
 - **≈ 0.6797（不可分辨）** ⇒ **位置搜索在现行配置下价值 ≈0** ✓ ⇒ 那 7 条蒸馏路线**结构性注定失败**（都在改一个没有效果的部件 ✓✓）；
 - **明显更差** ⇒ 位置搜索确有价值 ⇒ 7 条失败归因于**目标选取**（不是"改错部件"）✓。
+
+## 2026-10-12 15:29:44 — AB_TEMP1_teacher_dist_vs_baseline_vs_baseline
+
+- **commit**: `34b1913` (dirty: 13 files)
+- **exit**: 0，用时 6300s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1.0 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_TEMP1_teacher_dist_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261012_152944_AB_TEMP1_teacher_dist_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86z. **判据落地：`AZAI_TEMP=1.0`（按访问分布采样）= `0.4766` ⇒ −20.3pp** ✗ ⇒ **分布的"非众数质量"是有害的**
+
+- `AB_TEMP1_teacher_dist_vs_baseline_vs_baseline`（固定段 7..70、128 局、6,300 s；与 `MC1` 逐项相同，
+  **唯一改动 `AZAI_TEMP=1.0`** ⇒ `policy = _policy_from_visits(visits, 1.0)`（= 归一化访问计数 ✓）、
+  `chosen = self._sample(policy)` ⇒ **按搜索的访问分布采样**，而不是取它的 argmax ✓）：
+  **`p̂ = 0.4766`**（17×2-0 / 27×1-1 / 20×0-2；CI [0.3828, 0.5703]；**0% 无效**；判词 128/128 engine）
+  ⇒ vs incumbent（取 argmax）**0.6797 ⇒ −20.3pp** ✗，且**低于镜像 0.5** ✗。
+- 冒烟 **42.5 建/局**；机制 **40.4 建 / 29.7 降 / 6.5 升 / 54.1 有操作回合 / 248 回合**（incumbent 29.0/19.9/7.8/46.2/243）
+  ⇒ **与蒸 visit 候选的漂移方向完全一致**（同一种"多建多降、少升级"的 churn 型 ✓）。
+- **判读（命中 86x 的预注册）**：搜索的**众数**是好动作 ✓，但**分布里非众数的那部分质量有害** ✗；
+  我蒸的目标是"**整条分布的边缘化**"✗ ⇒ 学生被教成把质量摊到"搜索会给分其实是坏棋"的格上 ✓
+  ⇒ **−43.0pp 的直接原因** ✓（因果闭环 ✓）。
+- 新读数：**"取众数"比"按分布采样"值 +20.3pp** ✓（部署 `TEMP=1e-6` 取 argmax 的价值首次被单独量化 ✓）。
+- ⇒ 由此外推的**最后一个自然变体**：**硬标签版**（目标 = 被选中候选的那一格 one-hot ✓）——风险应低于分布版 ✓，
+  但按 §10 第 4 条的天花板逻辑，收益预期仍低 ⚠️。
+
+### 86aa. 回答用户："搜索增益 100% 在位置维"是不是**旧制度**（有闪电 + 类头坍缩）的结论？—— **是，且不适用于现在** ✓
+
+文档证据（`docs/az_action_factorization_idea.md`）：
+- L90："策略的类头**全部坍缩到闪电**（原始 logits；加掩码后 **91% 回合 HOLD 胜出**）" ✓；L75 同（91% 回合 HOLD ✓）；L177："raw argmax 类经常**不可执行**" ✓；
+- L227-239：**"pos-only 的 97% 单候选都是'空过'、与位置轴无关"** ✓（该节明确记录这是**用户提出并已测**的 ✓ —— 与你现在这个质疑是同一个洞察 ✓）；
+- L194-195 给的判读规则是**条件式**的；实测落在"③ pos-only(argmax) ≈ ①joint、② class-only ≈ raw" ⇒ 被读作"增益在位置" ✓
+  —— 但在那个制度里，**类维搜索根本没法表达有用动作**（候选类都是不可执行的闪电/HOLD ✗）⇒ "类搜索无增益"是**退化假象** ✗。
+- **现在（禁闪电）制度下类维归 MC 仲裁**，而本会话实测：**有 MC 仲裁 0.6797 vs 无仲裁 0.0312（+64.9pp）** ✓ ⇒ **类维才是主战场** ✓
+  ⇒ **旧结论不可迁移** ✓，已排 `POSARGMAX_vs_baseline` 臂（`CANDS=topk` + `CANDS_K=1` + `SKIP1=1` ⇒ 位置不搜索 ✓）测**当前制度下**位置搜索的价值 ✓。
