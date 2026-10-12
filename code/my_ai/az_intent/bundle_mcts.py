@@ -345,6 +345,10 @@ class BundleSearchResult:
     chosen_bundle: tuple
     root_value: float
     intent_counts: list = field(default_factory=list)
+    # 2026-10-11（用户追问逼出）：**原始访问计数**（`root.children[i].visits`）。
+    # `visit_policy` 在 `TEMP<=1e-6` 下会被 `_policy_from_visits` **argmax 成 one-hot**（⇒ 不含分布），
+    # 而 `visits_raw` 就是真正的计数向量 ⇒ 只有它才能回答"搜索的偏好是什么" ✓。
+    visits_raw: list = field(default_factory=list)
 
 
 class BundleMCTS:
@@ -1023,6 +1027,7 @@ class BundleMCTS:
                 chosen_bundle=root.bundles[0] if root.bundles else (),
                 root_value=float(root.net_value),
                 intent_counts=list(root.intent_counts),
+                visits_raw=[float(c.visits) for c in root.children],
             )
 
         for _ in range(self.iterations):
@@ -1057,6 +1062,7 @@ class BundleMCTS:
             chosen_bundle=root.bundles[chosen] if root.bundles else (),
             root_value=float(root_value),
             intent_counts=list(root.intent_counts),
+            visits_raw=[float(v) for v in visits.tolist()],   # 原始访问计数（真分布，不是 argmax 后的 policy）
         )
 
     def _policy_from_visits(self, visits: np.ndarray, temperature: float) -> np.ndarray:

@@ -208,6 +208,9 @@ def _record_az(res, facade=None, player=None) -> None:
                    for o in _bundle_ops(b)] for b in bs] if facade is not None else []
         rec = {"n": int(_AZ["n"]), "seed": int(_AZ["seed"]), "player": int(_AZ["player"]),
                "cands": cands, "labels": labels, "visits": vp,
+               # 附加字段（2026-10-11）：**原始访问计数** —— `visits` 在 TEMP=1e-6 下已被 argmax 成 one-hot
+               # ⇒ 只有 `visits_raw` 才能用来做"蒸搜索偏好"的目标（见 docs/pos_topk_candidates_plan.md）
+               "visits_raw": _json_safe(getattr(res, "visits_raw", None)),
                "chosen": _json_safe(getattr(res, "chosen_index", -1)),
                "intent": _json_safe(getattr(res, "intent_counts", None)),
                "root_value": _json_safe(getattr(res, "root_value", 0.0))}
