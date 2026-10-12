@@ -34,7 +34,17 @@ def main() -> int:
     ap.add_argument("--combo", type=int, default=1, help="topk 模式：1=各头拼束；0=只用 head0（单 op）")
     ap.add_argument("--cands-prior", default="uniform", choices=["uniform", "map"],
                     help="topk 候选的先验：uniform=每个候选 count=1（PUCT 先验均匀 ✗）；map=图上概率 Π_头 p(格)（公平对照 ✓）")
+    ap.add_argument("--seed-state", type=int, default=0,
+                    help="1=确定性播种（根节点用状态指纹重置 rng ⇒ 候选/访问分布=状态的确定性函数）；0=现状")
+    ap.add_argument("--no-ban", action="store_true",
+                    help="不加禁闪电（默认会设 AZAI_BAN_CLASSES=17，与冻结配置一致；⚠️ 不加会跑在别的制度里 ✗）")
     args = ap.parse_args()
+    # ⚠️ 2026-10-12（踩坑修正）：`decoder.make_class_mask` 在**调用时**读 `AZAI_BAN_CLASSES`（decoder.py:167）
+    #   ⇒ 预检必须与冻结配置同制度（禁闪电类 17 + op 21），否则数字属于别的制度 ✗（我第一版就踩了）
+    import os as _os
+    if not args.no_ban:
+        _os.environ.setdefault("AZAI_BAN_CLASSES", "17")
+        _os.environ.setdefault("AZAI_BAN_OPS", "21")
 
     from SDK.utils.features import FeatureExtractor
 
@@ -62,7 +72,8 @@ def main() -> int:
                           pos_pin="mc_quiet", skip_single_candidate=True, mc_horizon=256, mc_every=1,
                           mc_root_only=1, mc_topk=3, mc_upg=1,
                           cands_mode=cands, cands_k=0, cands_combo=args.combo,
-                          cands_prior=args.cands_prior)
+                          cands_prior=args.cands_prior,
+                          seed_from_state=bool(args.seed_state))
 
     import time as _time
 
@@ -107,7 +118,7 @@ def main() -> int:
             continue
         _r1 = np.mean([x == 1 for x in mrank]) * 100 if mrank else float("nan")
         _rm = np.median(mrank) if mrank else float("nan")
-        print(f"  **{cands}**（iters={args.iters}，prior={args.cands_prior}）: 候选数 {np.mean(ncand):.1f}；"
+        print(f"  **{cands}**（iters={args.iters}，prior={args.cands_prior}，seed_state={int(args.seed_state)}）: 候选数 {np.mean(ncand):.1f}；"
               f"visits_raw 和 {np.mean(sums):.1f}；"
               f"**top1 份额 {np.median(top1):.3f}**（均值 {np.mean(top1):.3f}）；"
               f"**归一化熵 {np.median(ent):.3f} bit**（并列 log2={np.log2(np.mean(ncand)):.2f}）；"

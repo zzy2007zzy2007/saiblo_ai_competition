@@ -376,6 +376,11 @@ class BundleMCTS:
         #   "map"     = 先验 = **采样器本来会给出的概率** Π_头 softmax(action_map[类]/t_pos)[该格] ⇒
         #               等价于"拿掉采样的噪声、保留图的全部先验信息" ⇒ 这才是与 sample 的**公平对照** ✓
         cands_prior: str = "uniform",
+        # ── 「确定性播种」（AZAI_SEED_STATE=1，默认关；见 docs/experiment_log.md 86r）─────────────
+        #   真实（禁闪电）制度下搜索的访问分布**有实质信息**（先验全平、却把 50% 压在一个"三格建造组合"上 ✓），
+        #   但采样的候选**每次重采** ⇒ 目标不可复现 ✗。本开关**不改采样分布**，只在**根节点**用"状态指纹"
+        #   重置 `self.rng` ⇒ 同一状态跑两次搜索得到同一串随机数 ⇒ **候选集合/访问分布 = 状态的确定性函数** ✓
+        seed_from_state: bool = False,
         seed: int = 0,
         search_mode: str = "joint",
         pos_pin: str = "argmax",
@@ -491,6 +496,7 @@ class BundleMCTS:
         # 先验一律**均匀**（不掺官方 score，避免把"被检验的排序"又当先验偷回来）。
         self.candidate_fn = candidate_fn
         self.rng = np.random.default_rng(seed)
+        self.seed_from_state = bool(seed_from_state)
         self.last_root: BundleNode | None = None
 
     # ── internals ────────────────────────────────────────────────────────
@@ -594,6 +600,16 @@ class BundleMCTS:
             node.expanded = True
             return self._terminal_value(node.state, node.player)
         net_out = self.net_fn(node.state, node.player)
+        # ── 确定性播种（默认关）：只对**根节点**用状态指纹重置 rng ──────────────────────
+        #   之后整棵树的所有随机抽样都来自这串确定性随机数 ⇒ 同一状态 ⇒ 同一候选集合/访问分布 ✓
+        #   （只依赖 `net_out`（action_map + head_logits）与玩家号 ⇒ 零额外前向成本 ✓）
+        if self.seed_from_state and node is self.last_root:
+            import hashlib
+            _fp = (np.asarray(net_out["action_map"], dtype=np.float32).tobytes()
+                   + np.asarray(net_out["head_logits"], dtype=np.float32).tobytes()
+                   + bytes([int(node.player) & 0xFF]))
+            _h = hashlib.blake2b(_fp, digest_size=8).digest()
+            self.rng = np.random.default_rng(int.from_bytes(_h, "little") % (2 ** 63))
         node.net_value = float(net_out["value"])
 
         # 外部候选菜单（见 __init__ 的 candidate_fn 注释 / docs/az_heuristic_menu_search_plan.md）：
