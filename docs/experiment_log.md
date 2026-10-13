@@ -10668,3 +10668,28 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 - **预注册**：`≥0.68` ⇒ 筛选确实亏（动作网有可学目标 ✓）；`0.60–0.68` ⇒ 支撑集不是瓶颈（该往排序/价值找 ✓）；
   `<0.60` ⇒ 拓宽有害（先验筛选是净收益 ✓）。备选更便宜点 `K=50/ITERS=1100`（~3 h ✓）。
 - 计划文档：`docs/menu_width_plan.md` ✓。
+
+## 2026-10-13 18:06:56 — AB_MENU100_vs_baseline_vs_baseline
+
+- **commit**: `7e2acdf` (dirty: 13 files)
+- **exit**: 0，用时 19309s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=2000 AZAI_K=100 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU100_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261013_180656_AB_MENU100_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ar. **判据落地：拓宽菜单 `MENU100`（K=100 / ITERS=2000）= `p̂ 0.5391`** ✗ ⇒ 预注册 `<0.60` 成立 ⇒ **"先验筛选是净收益"**
+
+- 读数（固定段 7..70、128 局、19,309 s ≈ 5.4 h、**无效 0** ✓、128/128 engine ✓）：**`p̂ = 0.5391`**
+  ⇒ vs incumbent **0.6797** ⇒ **−14.1pp** ✗ ⇒ 落 **`<0.60`** 分支 ⇒ **拓宽候选菜单有害** ✗（预注册命中 ✓）。
+- 机制（本臂 vs incumbent，每局）：**33.5 建 / 24.3 降 / 7.6 升 / 51.9 有操作回合 / 250 回合**
+  vs **29.0 / 19.9 / 7.8 / 46.2 / 243** ⇒ **出手 +12% ✓、建塔 +15% ✓、降级 +22% ✗**
+  ⇒ 与所有失败蒸馏路线的签名**完全一致**（软标签版 35.4 / 22.2 / 5.6 / 50.5 ✗）。
+- **零对局预检成功预测方向** ✓：`top-1` 占比 **3.8% → 6.7%**（更平 ✗）⇒ argmax 领先边际更薄 ⇒ 选到更吵的动作 ✓。
+- ⇒ **对用户假设的回答**：动作网**不是**在"漏掉好动作" ✗ —— 它在**挡住噪声尾部** ✓
+  ⇒ **支撑集不是瓶颈；筛选是净收益** ✓，动作网的优化空间不在这一侧 ✓。
+- ⭐ **可迁移的机制表述（统一了本会话所有负面结果）**：**搜索只能改善 top-1（实测 +13.3pp ✓），却无法给其余候选排序**
+  （名次曲线：rank-1 之外不可分辨 ✗；Q 预检：排序跨抽样翻转 ✗）⇒ **拓宽菜单喂给它的正是"它排不了序的那部分"** ⇒ 必然有害 ✓✓。
+- ⇒ 剩余唯一有证据支撑的方向：**配置维的"类"侧**（类维 **+64.9pp** ✓）：`MC_TOPK` 3→5/8、`MC_CELLS=1` ✓。
