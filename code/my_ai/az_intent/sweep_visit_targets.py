@@ -70,8 +70,14 @@ def main() -> int:
     ap.add_argument("--out", default="training_history/visitmarg/sweep.json")
     args = ap.parse_args()
 
+    # ⚠️ 2026-10-12（用户指出）：**必须限制 CPU 线程** —— 训练默认开满 OMP 线程，会与对局采集抢 CPU ✗
+    #   （8 路对局本身已吃满 16 核；抢 CPU 会拖慢对局，甚至触发 SLOW_DECISION_SEC 影响**数据质量** ✓）
+    import os as _os
+    _os.environ.setdefault("OMP_NUM_THREADS", "2")
+    _os.environ.setdefault("MKL_NUM_THREADS", "2")
     import torch
     import torch.nn.functional as F
+    torch.set_num_threads(int(_os.environ.get("OMP_NUM_THREADS", "2")))
 
     from my_ai.az_intent.az_selfplay import load_three_models
 
@@ -181,6 +187,11 @@ def main() -> int:
                     loss = -(tt * F.log_softmax(lg, dim=1)).sum(1).mean()
                 opt.zero_grad(); loss.backward(); opt.step()
             ce_v, hit_v = evaluate(va)
+            # 逐 epoch 打印（用户 2026-10-12 要求：看训练/验证损失下降是否正常 ✓）
+            #   train 用 4,000 行子集估（控成本 ✓）；val 全量 ✓
+            ce_t, hit_t = evaluate(tr_idx[: min(len(tr_idx), 4000)])
+            print(f"    [{name:17s}] epoch {ep:2d}  train(4k) CE {ce_t:.4f} 命中 {hit_t * 100:5.1f}% "
+                  f"| **val CE {ce_v:.4f} 命中 {hit_v * 100:5.1f}%**", flush=True)
             if ce_v <= best[0]:
                 best = (ce_v, ep, {k: v.detach().clone() for k, v in pm.state_dict().items()})
         dnorm = float(np.sqrt(sum(float(((best[2][k].cpu() - base_sd[k].cpu()) ** 2).sum()) for k in base_sd)))
