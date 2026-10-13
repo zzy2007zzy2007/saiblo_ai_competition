@@ -10585,3 +10585,16 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   判据臂已串行起（`VANCHOR10_vs_baseline` → `VRANK1REST_vs_baseline`，各固定段 128 局、单变量 ✓）。
 - **预注册**：**两条都 `<0.60`** ⇒ 86ai 的"结构性（图的独立先验被替换 ⇒ 蒸馏必掉）"结论成立 ⇒ **蒸馏方向正式收口** ✓；
   任一条 **`≥0.68`** ⇒ 该机制成立 ⇒ 值得继续（阶段 2：1,200 局 ⇒ ~90k 行 ✓）。
+
+### 86an. **事故：两个入围臂的 ckpt 路径写错** ✗（不是产物问题）⇒ 已修正并重起
+
+- 症状：`VANCHOR10_vs_baseline` / `VRANK1REST_vs_baseline` 的冒烟都是 **0 建塔** ⇒ **冒烟守卫拦下，未跑 128 局** ✓。
+- 根因：我起臂时写 `checkpoints/visitsweep_*.pt` ✗，而扫描产物实际在 **`training_history/visitmarg/ckpts30k/`** ✓
+  ⇒ `checkpoints/` 下**根本没有这两个文件**（已核 ✓）⇒ AI 加载失败 ⇒ 退化成全程 HOLD ⇒ 0 建塔 ✓。
+- **产物本身健康**（静态体检 `code/my_ai/az_intent/diag_ckpt_health.py` ✓）：
+  `hard_anchor10` / `rank1_rest` / `visitsweep_hard` 三者：顶层键 **19**（含架构元数据 ✓）、`load_three_models` **往返 ok** ✓、
+  指纹 **class 94/94、value 94/94、pos 14/94**（单变量 ✓）、`action_map` finite ✓、**可解出 op 的类数 = 19（经济类 16）** ✓；
+  全图与 incumbent 的 |Δ|：incumbent 0、`visithard`(3.2k，已知能跑 ✓) 0.0874、**`anchor10` 0.0514**、**`rank1_rest` 0.0729**、`hard` 0.2797 ✓。
+  （图的标准差：incumbent 0.0254 / visithard 0.1953 / anchor10 0.1596 / rank1_rest 0.1453 ✓ —— 与"已知能跑"的那个同量级 ✓。）
+- 处置：把两个入围**拷贝进 `checkpoints/`**（符合项目约定 ✓）并用**正确路径**重起两条臂 ✓。
+- **纪律**：起臂前先 `Test-Path` 目标 ckpt ✓（这次是冒烟守卫替我兜住的第二步 ✓）。
