@@ -234,3 +234,12 @@ python -u code/tools/extract_model_from_ckpt.py \
 | `checkpoints/grafted_sdk_A_vprior2.pt` | ~6.4 MB | **候选**：warm start 自 incumbent、**只改 `pos_state`**；教师 = 冻结价值网在钉类（经济类 0–16）合法格上的 1-ply 优势 |
 | `training_history/vprior2/pilot120.npz` | 0.16 GB | 采集：120 局、**862,134 行**（≈125k 个决策）、每行 ~30.4 格；类覆盖 0–16 共 17 类（**无闪电** ✓）|
 | 工具 | — | `collect_value_prior.py`（新增 `--max-class`，把 pin 限制到经济类）、`train_pos_rollout.py`、`eval_map_vs_teacher.py` |
+
+### 阶段 1（26,718 行）扫描产物（2026-10-12）
+| 文件/目录 | 说明 |
+|---|---|
+| `training_history/visitmarg/ckpts30k/visitsweep_*.pt` | **16 个变体**的 best-val 产物（各 ~6.4 MB，均含完整顶层键 + 通过往返加载自检 ✓）|
+| **`…/visitsweep_hard_anchor10.pt`** | **入围 A**：硬标签 + 锚定 incumbent（λ=1.0）⇒ val 命中 45.07%、全局扰动 0.0559（最小 ✓）|
+| **`…/visitsweep_rank1_rest.pt`** | **入围 B**：目标 = rank-1 0.5 + 其余均分 0.5 ⇒ val 命中 44.17%、扰动 0.2525 ✓ |
+| `training_history/visitmarg/rows30k.npz` | 训练集：**26,718 行**（388 dump ⇒ 有效行 14.7% ✓）|
+| `training_history/visitmarg/sweep_30k.json` | 16 变体完整指标表（含"全局扰动"两列 ✓）|
