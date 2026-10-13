@@ -86,8 +86,10 @@ def main() -> int:
     N, C = int(board.shape[0]), int(cell.shape[1])
     print(f"[sweep] 数据 {N} 行 × 最多 {C} 格（每行格数均值 {cnt.mean():.1f}）", flush=True)
 
-    B = torch.from_numpy(np.asarray(board, dtype=np.float32))
-    S = torch.from_numpy(np.asarray(stats, dtype=np.float32))
+    # ⚠️ 2026-10-12：**保持 fp16**（原实现转 fp32 ⇒ 23k 行多占 ~0.9 GB、每次 H2D 搬运翻倍 ✗）；
+    #   在 GPU 上按批 `.float()` 转换 ✓（上传统减半 ✓）
+    B = torch.from_numpy(np.asarray(board, dtype=np.float16))
+    S = torch.from_numpy(np.asarray(stats, dtype=np.float16))
     CL = torch.from_numpy(np.asarray(cls, dtype=np.int64))
     CE_ = torch.from_numpy(np.asarray(cell, dtype=np.int64))
     P = torch.from_numpy(np.asarray(prob, dtype=np.float32))
@@ -139,13 +141,16 @@ def main() -> int:
         tr_idx = tr if not cfg["drop16"] else tr[CL[tr].numpy() != 16]
 
         def evaluate(idx_np):
+            # ⚠️ 2026-10-12：指标**累积在 GPU 上**，本函数结束时只 `.item()` 一次 ✓
+            #   （原来每个 batch 都 `float(...)` ⇒ 强制 CUDA 同步数百次/epoch ✗）
             pm.eval()
-            ce = hit = 0.0
+            ce_acc = None
+            hit_acc = None
             n = 0
             with torch.no_grad():
                 for i in range(0, len(idx_np), 256):
                     b = torch.as_tensor(idx_np[i:i + 256])
-                    am = pm(B[b].to(dev), S[b].to(dev))["action_map"]
+                    am = pm(B[b].to(dev).float(), S[b].to(dev).float())["action_map"]
                     rows = torch.arange(len(b), device=dev).unsqueeze(1)
                     cc = CL[b].to(dev).unsqueeze(1)
                     y = CE_[b][..., 0].to(dev).clamp(min=0)
@@ -155,10 +160,14 @@ def main() -> int:
                     t, m = t.to(dev), m.to(dev)
                     lg = torch.where(m, lg, torch.full_like(lg, -1e9))
                     tt = t / t.sum(1, keepdim=True).clamp(min=1e-9)
-                    ce += float(-(tt * F.log_softmax(lg, dim=1)).sum(1).sum())
-                    hit += float((lg.argmax(1) == tt.argmax(1)).sum())   # = 图 argmax 是否为目标 rank-1 格
+                    _ce = -(tt * F.log_softmax(lg, dim=1)).sum(1).sum()
+                    _hit = (lg.argmax(1) == tt.argmax(1)).sum()   # = 图 argmax 是否为目标 rank-1 格
+                    ce_acc = _ce if ce_acc is None else (ce_acc + _ce)
+                    hit_acc = _hit if hit_acc is None else (hit_acc + _hit)
                     n += len(b)
-            return ce / max(n, 1), hit / max(n, 1)
+            if ce_acc is None:
+                return float("nan"), float("nan")
+            return float(ce_acc.item()) / max(n, 1), float(hit_acc.item()) / max(n, 1)
 
         ce0, hit0 = evaluate(va)
         best = (1e9, -1, None)
@@ -167,7 +176,7 @@ def main() -> int:
             order = rng.permutation(tr_idx)
             for i in range(0, len(order), args.batch_size):
                 b = torch.as_tensor(order[i:i + args.batch_size])
-                am = pm(B[b].to(dev), S[b].to(dev))["action_map"]
+                am = pm(B[b].to(dev).float(), S[b].to(dev).float())["action_map"]
                 rows = torch.arange(len(b), device=dev).unsqueeze(1)
                 cc = CL[b].to(dev).unsqueeze(1)
                 y = CE_[b][..., 0].to(dev).clamp(min=0)
