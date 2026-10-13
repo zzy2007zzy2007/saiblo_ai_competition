@@ -45,15 +45,22 @@ VARIANTS: dict = {
     "rank1_rest":       dict(target="rank1_rest",  lr=1e-3, head_only=False, drop16=False, loss="ce"),
     "hard_dropclass16": dict(target="hard",        lr=1e-3, drop16=True),
     "hard_headonly":    dict(target="hard",        lr=1e-3, head_only=True),
+    "hard_lr1e4":       dict(target="hard",        lr=1e-4),
     "hard_lr3e4":       dict(target="hard",        lr=3e-4),
     "hard_lr3e3":       dict(target="hard",        lr=3e-3),
     "rank_hinge":       dict(target="hard",        lr=1e-3, loss="hinge"),
+    "hard_anchor01":    dict(target="hard",        lr=1e-3, anchor=0.1),
+    "hard_anchor10":    dict(target="hard",        lr=1e-3, anchor=1.0),
+    "hard_wd1e4":       dict(target="hard",        lr=1e-3, wd=1e-4),
+    "hard_wd1e3":       dict(target="hard",        lr=1e-3, wd=1e-3),
 }
 for _k, _v in VARIANTS.items():
     _v.setdefault("head_only", False)
     _v.setdefault("drop16", False)
     _v.setdefault("loss", "ce")
     _v.setdefault("eps", 0.10)
+    _v.setdefault("wd", 0.0)
+    _v.setdefault("anchor", 0.0)
 
 
 def main() -> int:
@@ -136,8 +143,15 @@ def main() -> int:
             p_.requires_grad_(bool((not cfg["head_only"]) or n_.startswith("action_map_conv")))
         n_train = int(sum(p_.numel() for p_ in pm.parameters() if p_.requires_grad))
         params = [p_ for p_ in pm.parameters() if p_.requires_grad]
-        opt = torch.optim.Adam(params, lr=float(cfg["lr"]))
+        opt = torch.optim.Adam(params, lr=float(cfg["lr"]), weight_decay=float(cfg.get("wd", 0.0)))
         base_sd = {k: v.detach().clone() for k, v in pm.state_dict().items()}
+        # 锚定项需要**冻结的 incumbent 副本**（只在 anchor>0 时用 ✓；553k 参数，内存可忽略 ✓）
+        pm0 = None
+        if float(cfg.get("anchor", 0.0)) > 0:
+            _cm0, pm0, _vm0 = load_three_models(args.ckpt)
+            pm0.to(dev).eval()
+            for _p in pm0.parameters():
+                _p.requires_grad_(False)
         tr_idx = tr if not cfg["drop16"] else tr[CL[tr].numpy() != 16]
 
         def evaluate(idx_np):
@@ -170,6 +184,23 @@ def main() -> int:
             return float(ce_acc.item()) / max(n, 1), float(hit_acc.item()) / max(n, 1)
 
         ce0, hit0 = evaluate(va)
+
+        def cls_map_argmax(model, idx_np):
+            """对 val 行取"**该行所属类**那一张图"的分布与 argmax 格 ✓（近似：不套真实合法掩码 ✓）。"""
+            mus, args = [], []
+            with torch.no_grad():
+                for i in range(0, len(idx_np), 128):
+                    b = torch.as_tensor(idx_np[i:i + 128])
+                    am = model(B[b].to(dev).float(), S[b].to(dev).float())["action_map"]
+                    rows = torch.arange(len(b), device=dev)
+                    cm = am[rows, CL[b].to(dev)]                       # (b,19,19)
+                    flat = cm.view(len(b), -1)
+                    mus.append(flat.mean(1).detach())
+                    args.append(flat.argmax(1).detach())
+            return torch.cat(mus, 0), torch.cat(args, 0)
+
+        # 训练前 = incumbent ✓（用于"全局扰动"：区分"定向改动"与"把图整体换掉" ✗）
+        inc_mean, inc_arg = cls_map_argmax(pm, va)
         best = (1e9, -1, None)
         for ep in range(1, args.epochs + 1):
             pm.train()
@@ -194,6 +225,11 @@ def main() -> int:
                 else:
                     tt = t / t.sum(1, keepdim=True).clamp(min=1e-9)
                     loss = -(tt * F.log_softmax(lg, dim=1)).sum(1).mean()
+                if pm0 is not None:
+                    # 对症"全盘重写" ✗：把图拉回 incumbent（只允许在目标指的地方改 ✓）
+                    with torch.no_grad():
+                        am0 = pm0(B[b].to(dev).float(), S[b].to(dev).float())["action_map"]
+                    loss = loss + float(cfg["anchor"]) * F.mse_loss(am, am0)
                 opt.zero_grad(); loss.backward(); opt.step()
             ce_v, hit_v = evaluate(va)
             # 逐 epoch 打印（用户 2026-10-12 要求：看训练/验证损失下降是否正常 ✓）
@@ -203,11 +239,17 @@ def main() -> int:
                   f"| **val CE {ce_v:.4f} 命中 {hit_v * 100:5.1f}%**", flush=True)
             if ce_v <= best[0]:
                 best = (ce_v, ep, {k: v.detach().clone() for k, v in pm.state_dict().items()})
+        # 全局扰动（对症"先验被替换"✗）：把 best 权重装回去再与 incumbent 比
+        pm.load_state_dict(best[2])
+        new_mean, new_arg = cls_map_argmax(pm, va)
+        global_dlogit = float((new_mean - inc_mean).abs().mean().item())
+        argmax_changed = float((new_arg != inc_arg).float().mean().item())
         dnorm = float(np.sqrt(sum(float(((best[2][k].cpu() - base_sd[k].cpu()) ** 2).sum()) for k in base_sd)))
         nchg = sum(1 for k in base_sd if not torch.equal(best[2][k], base_sd[k]))
         r = dict(variant=name, n_train=n_train, val_ce0=round(ce0, 4), val_hit0=round(hit0 * 100, 2),
                  val_ce=round(best[0], 4), val_hit=round(hit_v * 100, 2), best_epoch=int(best[1]),
-                 dnorm=round(dnorm, 1), n_changed=f"{nchg}/{len(base_sd)}", ckpt=None)
+                 dnorm=round(dnorm, 1), n_changed=f"{nchg}/{len(base_sd)}", ckpt=None,
+                 global_dlogit=round(global_dlogit, 4), argmax_changed=round(argmax_changed, 3))
         if args.save_dir:
             out = dict(torch.load(args.ckpt, map_location="cpu", weights_only=False))
             out["class_state"] = base_cm.state_dict()
@@ -233,7 +275,8 @@ def main() -> int:
         rows.append(r)
         print(f"  [{name:17s}] 可训参数 {r['n_train']:>7d} | 训练前 val CE {r['val_ce0']:.4f} / 命中 {r['val_hit0']:5.2f}% "
               f"| **训练后 val CE {r['val_ce']:.4f} / 命中 {r['val_hit']:5.2f}%** | best ep {r['best_epoch']:2d} "
-              f"| 参数范数 {r['dnorm']:8.1f} | 变更 {r['n_changed']}"
+              f"| 参数范数 {r['dnorm']:8.1f} | 变更 {r['n_changed']} "
+              f"| **全局扰动 |Δ| {r['global_dlogit']:.4f} / 类 argmax 变更 {r['argmax_changed'] * 100:.1f}%**"
               + (f" | 往返 {r.get('roundtrip')}" if args.save_dir else ""), flush=True)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
