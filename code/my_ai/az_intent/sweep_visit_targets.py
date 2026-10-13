@@ -244,11 +244,24 @@ def main() -> int:
         new_mean, new_arg = cls_map_argmax(pm, va)
         global_dlogit = float((new_mean - inc_mean).abs().mean().item())
         argmax_changed = float((new_arg != inc_arg).float().mean().item())
-        dnorm = float(np.sqrt(sum(float(((best[2][k].cpu() - base_sd[k].cpu()) ** 2).sum()) for k in base_sd)))
+        # ⚠️ 2026-10-12 **修正**：原来的 `dnorm` 把**整数/缓冲区**也算进去了 ✗ ——
+        #   尤其 `num_batches_tracked`（整数计数器，从 0 涨到几千）⇒ Δ² 达 1e7 量级
+        #   ⇒ 得到 2,600–9,800 这种"吓人但无意义"的数（主要是计数器，不是权重 ✗）。
+        #   现在只统计**浮点权重/偏置**（排除 `running_*` 与整数张量 ✓），并给出**相对于 incumbent 典型 |w| 的比例** ✓。
+        _fw = [k for k in base_sd
+               if base_sd[k].dtype.is_floating_point and "running_" not in k]
+        _num = int(sum(base_sd[k].numel() for k in _fw))
+        _l2 = float(np.sqrt(sum(float(((best[2][k].cpu() - base_sd[k].cpu()) ** 2).sum())
+                               for k in _fw)))
+        _rms = _l2 / max(_num, 1) ** 0.5
+        _wmean = float(torch.cat([base_sd[k].abs().flatten() for k in _fw]).mean())
+        dnorm = _l2
         nchg = sum(1 for k in base_sd if not torch.equal(best[2][k], base_sd[k]))
         r = dict(variant=name, n_train=n_train, val_ce0=round(ce0, 4), val_hit0=round(hit0 * 100, 2),
                  val_ce=round(best[0], 4), val_hit=round(hit_v * 100, 2), best_epoch=int(best[1]),
                  dnorm=round(dnorm, 1), n_changed=f"{nchg}/{len(base_sd)}", ckpt=None,
+                 w_rms=round(_rms, 5), w_mean_abs=round(_wmean, 4),
+                 w_rms_ratio=round(_rms / max(_wmean, 1e-9), 4), n_w=int(_num),
                  global_dlogit=round(global_dlogit, 4), argmax_changed=round(argmax_changed, 3))
         if args.save_dir:
             out = dict(torch.load(args.ckpt, map_location="cpu", weights_only=False))
@@ -275,7 +288,7 @@ def main() -> int:
         rows.append(r)
         print(f"  [{name:17s}] 可训参数 {r['n_train']:>7d} | 训练前 val CE {r['val_ce0']:.4f} / 命中 {r['val_hit0']:5.2f}% "
               f"| **训练后 val CE {r['val_ce']:.4f} / 命中 {r['val_hit']:5.2f}%** | best ep {r['best_epoch']:2d} "
-              f"| 参数范数 {r['dnorm']:8.1f} | 变更 {r['n_changed']} "
+              f"| **权重 RMS 变化 {r['w_rms']:.5f}（= 典型 |w| 的 {r['w_rms_ratio'] * 100:.2f}%）** | 变更 {r['n_changed']} "
               f"| **全局扰动 |Δ| {r['global_dlogit']:.4f} / 类 argmax 变更 {r['argmax_changed'] * 100:.1f}%**"
               + (f" | 往返 {r.get('roundtrip')}" if args.save_dir else ""), flush=True)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
