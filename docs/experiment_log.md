@@ -10598,3 +10598,52 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   （图的标准差：incumbent 0.0254 / visithard 0.1953 / anchor10 0.1596 / rank1_rest 0.1453 ✓ —— 与"已知能跑"的那个同量级 ✓。）
 - 处置：把两个入围**拷贝进 `checkpoints/`**（符合项目约定 ✓）并用**正确路径**重起两条臂 ✓。
 - **纪律**：起臂前先 `Test-Path` 目标 ckpt ✓（这次是冒烟守卫替我兜住的第二步 ✓）。
+
+## 2026-10-13 12:56:04 — AB_VANCHOR10_vs_baseline_vs_baseline
+
+- **commit**: `9cad216` (dirty: 13 files)
+- **exit**: 0，用时 3898s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/visitsweep_hard_anchor10.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VANCHOR10_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261013_125604_AB_VANCHOR10_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-13 14:03:38 — AB_VRANK1REST_vs_baseline_vs_baseline
+
+- **commit**: `9cad216` (dirty: 14 files)
+- **exit**: 0，用时 4176s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/visitsweep_rank1_rest.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VRANK1REST_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261013_140338_AB_VRANK1REST_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-13 15:29:05 — AB_VHARD30K_vs_baseline_vs_baseline
+
+- **commit**: `9cad216` (dirty: 14 files)
+- **exit**: 0，用时 4343s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/visitsweep_hard.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_VHARD30K_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261013_152905_AB_VHARD30K_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ap. **判据落地：同目标 ×8.3 数据的 `VHARD30K` = `p̂ 0.3438`** ✗ ⇒ **"数据饥饿"假设被否** ⇒ 预注册 `<0.60` 分支成立 ⇒ **蒸馏方向收口**
+
+| 版本 | 训练行 | 离线 val 命中 | **`p̂`（固定段 7..70）** |
+|---|---|---|---|
+| `visithard`（42 局）| 3,211 | 38.05% | **0.5000** ✗（−18.0pp）|
+| **`visitsweep_hard`（388 个 dump）** | **26,718** | **42.15%** | **0.3438** ✗（**−33.6pp**）|
+
+⇒ **数据 ×8.3 反而再掉 15.6pp** ✗ ⇒ **86ai 预注册的 `≥0.68`（"之前 −18pp 主要是数据饥饿"）被明确否决** ✗
+⇒ **`<0.60`（结构性：图的独立先验被替换）成立** ✓ ⇒ **动作网蒸馏方向正式收口** ✓。
+（读数：128 局、128/128 engine、0% 无效 ✓。）
+- ⭐ **本会话可迁移性最强的一条结论**：**离线"贴合目标"与部署棋力呈负相关** ——
+  三个同时测过两者的点：**(命中 38.05% ⇒ 0.50)、(40.33% ⇒ 0.25)、(42.15% ⇒ 0.34)** ✓
+  ⇒ **学得越像，棋力越差** ✓（机制：这个目标本身价值为负 ⇒ 贴合越彻底 ⇒ 独立先验被替换得越彻底 ✗）。
+- **动作网轴最终账：11 条臂全负** ✓（新增 `VHARD30K −33.6`；另有 `anchor10 −27.4`、`rank1_rest −33.6`）
+  ⇒ 目标 `p̂ ≥ 0.78` 在"禁闪电 + 配置与 value 冻结 + 只改动作网参数"下**未达成** ✓（`MC1` = 0.6797 仍最强 ✓）。
