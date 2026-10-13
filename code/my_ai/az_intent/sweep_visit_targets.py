@@ -1,0 +1,226 @@
+"""扫描：**位置头重训的"训练方式"**（见 `docs/pos_target_training_sweep_plan.md`）。
+
+纪律（计划 §1）：**判据段（seed 7..70）禁止用来选配方** ✗ ⇒ 本脚本只用 **dump 数据的离线指标**（零对局 ✓）；
+只给最终 1–2 个入围配方各跑一次判据臂 ✓。
+
+数据：`--cache` 指向 `train_visit_marginal.py` 产出的 npz
+（`board/stats/cls/cell/prob/cnt` ✓；`prob` = 访问分布按 (类,格) **边缘化**后的目标 ✓；`cell` = 该行候选格 (x,y) ✓）。
+
+⚠️ 已延后：`hard_fulllegal`（目标在**该类全部合法格**上归一化）需要**数据格式改动** ✗
+（每行得带上该类的全部合法格；现有缓存只有候选格 ✓）⇒ 留到下一版数据构建时做 ✓。
+
+变体（定义见 `VARIANTS` ✓；全部 warm start 自 incumbent、冻结 `class_state`/`value_state` ✓）：
+  soft（对照）· hard（现状基线）· hard_smooth010 · rank1_rest（0.5/0.5 ✓）
+  · hard_dropclass16 · hard_headonly（只训 `action_map_conv` ✓）
+  · hard_lr3e4 / hard_lr3e3 · rank_hinge（pairwise margin ✓）
+
+离线指标（val split ✓）：CE、与目标 argmax 的一致率（= "图的 argmax 是否为目标的 rank-1 格" ✓，**部署真正读的东西** ✓）、
+以及 incumbent 的**同指标基线** ✓、参数变化范数、变更张量数（核对单变量 ✓）。
+
+用法：
+  python -u code/my_ai/az_intent/sweep_visit_targets.py --cache <npz> \
+    --variants soft,hard,rank1_rest,hard_headonly,rank_hinge --epochs 10 [--save-dir <dir>]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+
+_REPO = Path(__file__).resolve().parents[3]
+for _p in (_REPO / "Ant-Game", _REPO / "code"):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+VARIANTS: dict = {
+    "soft":             dict(target="soft",        lr=1e-3, head_only=False, drop16=False, loss="ce"),
+    "hard":             dict(target="hard",        lr=1e-3, head_only=False, drop16=False, loss="ce"),
+    "hard_smooth005":   dict(target="hard_smooth", lr=1e-3, eps=0.05),
+    "hard_smooth010":   dict(target="hard_smooth", lr=1e-3, eps=0.10),
+    "hard_smooth020":   dict(target="hard_smooth", lr=1e-3, eps=0.20),
+    "rank1_rest":       dict(target="rank1_rest",  lr=1e-3, head_only=False, drop16=False, loss="ce"),
+    "hard_dropclass16": dict(target="hard",        lr=1e-3, drop16=True),
+    "hard_headonly":    dict(target="hard",        lr=1e-3, head_only=True),
+    "hard_lr3e4":       dict(target="hard",        lr=3e-4),
+    "hard_lr3e3":       dict(target="hard",        lr=3e-3),
+    "rank_hinge":       dict(target="hard",        lr=1e-3, loss="hinge"),
+}
+for _k, _v in VARIANTS.items():
+    _v.setdefault("head_only", False)
+    _v.setdefault("drop16", False)
+    _v.setdefault("loss", "ce")
+    _v.setdefault("eps", 0.10)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cache", default="training_history/visitmarg/seedstate_rows.npz")
+    ap.add_argument("--ckpt", default="checkpoints/grafted_sdk_A.pt")
+    ap.add_argument("--variants", default="soft,hard")
+    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--batch-size", type=int, default=128)
+    ap.add_argument("--val-frac", type=float, default=0.15)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--margin", type=float, default=1.0)
+    ap.add_argument("--save-dir", default="")
+    ap.add_argument("--out", default="training_history/visitmarg/sweep.json")
+    args = ap.parse_args()
+
+    import torch
+    import torch.nn.functional as F
+
+    from my_ai.az_intent.az_selfplay import load_three_models
+
+    z = np.load(args.cache, allow_pickle=True)
+    board, stats, cls, cell, prob, cnt = (z["board"], z["stats"], z["cls"], z["cell"], z["prob"], z["cnt"])
+    N, C = int(board.shape[0]), int(cell.shape[1])
+    print(f"[sweep] 数据 {N} 行 × 最多 {C} 格（每行格数均值 {cnt.mean():.1f}）", flush=True)
+
+    B = torch.from_numpy(np.asarray(board, dtype=np.float32))
+    S = torch.from_numpy(np.asarray(stats, dtype=np.float32))
+    CL = torch.from_numpy(np.asarray(cls, dtype=np.int64))
+    CE_ = torch.from_numpy(np.asarray(cell, dtype=np.int64))
+    P = torch.from_numpy(np.asarray(prob, dtype=np.float32))
+    CN = torch.from_numpy(np.asarray(cnt, dtype=np.int64))
+
+    rng = np.random.default_rng(args.seed)
+    perm = rng.permutation(N)
+    n_val = max(1, int(N * args.val_frac))
+    va, tr = np.sort(perm[:n_val]), np.sort(perm[n_val:])
+    print(f"[sweep] train={len(tr)} val={len(va)}（随机切 ✓）；" + (f"存盘目录 {args.save_dir}" if args.save_dir else "不存盘"), flush=True)
+
+    dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(args.seed)
+
+    def target_of(cfg: dict, idx: torch.Tensor):
+        p = P[idx].clone()
+        m = torch.arange(C).unsqueeze(0) < CN[idx].unsqueeze(1)     # 有效格掩码
+        if cfg["target"] == "soft":
+            t = p
+        elif cfg["target"] == "hard_smooth":
+            arg = p.argmax(1, keepdim=True)
+            t = torch.full_like(p, cfg["eps"] / max(C - 1, 1)).scatter_(1, arg, 1.0 - cfg["eps"])
+        elif cfg["target"] == "rank1_rest":
+            arg = p.argmax(1, keepdim=True)
+            n_eff = CN[idx].clamp(min=2).float().unsqueeze(1)
+            t = ((1.0 - 0.5) / (n_eff - 1.0)).expand_as(p).clone()
+            t = t.scatter_(1, arg, 0.5)
+        else:  # hard
+            arg = p.argmax(1, keepdim=True)
+            t = torch.zeros_like(p).scatter_(1, arg, 1.0)
+        t = t * m.float()
+        return t, m
+
+    def build(seed: int):
+        _cm, pm, _vm = load_three_models(args.ckpt)
+        pm.to(dev)
+        return _cm, pm, _vm
+
+    def run_variant(name: str):
+        cfg = VARIANTS[name]
+        base_cm, pm, base_vm = build(args.seed)
+        # 梯度开关：默认整网；head_only ⇒ 只开 action_map_conv ✓
+        for n_, p_ in pm.named_parameters():
+            p_.requires_grad_(bool((not cfg["head_only"]) or n_.startswith("action_map_conv")))
+        n_train = int(sum(p_.numel() for p_ in pm.parameters() if p_.requires_grad))
+        params = [p_ for p_ in pm.parameters() if p_.requires_grad]
+        opt = torch.optim.Adam(params, lr=float(cfg["lr"]))
+        base_sd = {k: v.detach().clone() for k, v in pm.state_dict().items()}
+        tr_idx = tr if not cfg["drop16"] else tr[CL[tr].numpy() != 16]
+
+        def evaluate(idx_np):
+            pm.eval()
+            ce = hit = 0.0
+            n = 0
+            with torch.no_grad():
+                for i in range(0, len(idx_np), 256):
+                    b = torch.as_tensor(idx_np[i:i + 256])
+                    am = pm(B[b].to(dev), S[b].to(dev))["action_map"]
+                    rows = torch.arange(len(b), device=dev).unsqueeze(1)
+                    cc = CL[b].to(dev).unsqueeze(1)
+                    y = CE_[b][..., 0].to(dev).clamp(min=0)
+                    x = CE_[b][..., 1].to(dev).clamp(min=0)
+                    lg = am[rows, cc, x, y]
+                    t, m = target_of(cfg, b)
+                    t, m = t.to(dev), m.to(dev)
+                    lg = torch.where(m, lg, torch.full_like(lg, -1e9))
+                    tt = t / t.sum(1, keepdim=True).clamp(min=1e-9)
+                    ce += float(-(tt * F.log_softmax(lg, dim=1)).sum(1).sum())
+                    hit += float((lg.argmax(1) == tt.argmax(1)).sum())   # = 图 argmax 是否为目标 rank-1 格
+                    n += len(b)
+            return ce / max(n, 1), hit / max(n, 1)
+
+        ce0, hit0 = evaluate(va)
+        best = (1e9, -1, None)
+        for ep in range(1, args.epochs + 1):
+            pm.train()
+            order = rng.permutation(tr_idx)
+            for i in range(0, len(order), args.batch_size):
+                b = torch.as_tensor(order[i:i + args.batch_size])
+                am = pm(B[b].to(dev), S[b].to(dev))["action_map"]
+                rows = torch.arange(len(b), device=dev).unsqueeze(1)
+                cc = CL[b].to(dev).unsqueeze(1)
+                y = CE_[b][..., 0].to(dev).clamp(min=0)
+                x = CE_[b][..., 1].to(dev).clamp(min=0)
+                lg = am[rows, cc, x, y]
+                t, m = target_of(cfg, b)
+                t, m = t.to(dev), m.to(dev)
+                lg = torch.where(m, lg, torch.full_like(lg, -1e9))
+                if cfg["loss"] == "hinge":
+                    arg = t.argmax(1, keepdim=True)
+                    pos = lg.gather(1, arg)
+                    same = torch.arange(C, device=dev).unsqueeze(0) == arg
+                    diff = (pos - lg).masked_fill((~m) | same, 0.0)
+                    loss = F.relu(args.margin - diff).sum(1).mean()
+                else:
+                    tt = t / t.sum(1, keepdim=True).clamp(min=1e-9)
+                    loss = -(tt * F.log_softmax(lg, dim=1)).sum(1).mean()
+                opt.zero_grad(); loss.backward(); opt.step()
+            ce_v, hit_v = evaluate(va)
+            if ce_v <= best[0]:
+                best = (ce_v, ep, {k: v.detach().clone() for k, v in pm.state_dict().items()})
+        dnorm = float(np.sqrt(sum(float(((best[2][k].cpu() - base_sd[k].cpu()) ** 2).sum()) for k in base_sd)))
+        nchg = sum(1 for k in base_sd if not torch.equal(best[2][k], base_sd[k]))
+        r = dict(variant=name, n_train=n_train, val_ce0=round(ce0, 4), val_hit0=round(hit0 * 100, 2),
+                 val_ce=round(best[0], 4), val_hit=round(hit_v * 100, 2), best_epoch=int(best[1]),
+                 dnorm=round(dnorm, 1), n_changed=f"{nchg}/{len(base_sd)}", ckpt=None)
+        if args.save_dir:
+            out = dict(torch.load(args.ckpt, map_location="cpu", weights_only=False))
+            out["class_state"] = base_cm.state_dict()
+            out["pos_state"] = best[2]
+            out["value_state"] = base_vm.state_dict()
+            out["sweep_variant"] = name
+            fp = Path(args.save_dir) / f"visitsweep_{name}.pt"
+            Path(args.save_dir).mkdir(parents=True, exist_ok=True)
+            torch.save(out, fp)
+            r["ckpt"] = str(fp)
+            try:                                   # 自检（新纪律 ✓）
+                load_three_models(str(fp)); r["roundtrip"] = "ok"
+            except Exception as e:  # noqa: BLE001
+                r["roundtrip"] = f"FAIL {str(e)[:60]}"
+        return r
+
+    rows = []
+    for name in [x.strip() for x in args.variants.split(",") if x.strip()]:
+        if name not in VARIANTS:
+            print(f"  [skip] 未知变体 {name}（可选：{', '.join(VARIANTS)}）")
+            continue
+        r = run_variant(name)
+        rows.append(r)
+        print(f"  [{name:17s}] 可训参数 {r['n_train']:>7d} | 训练前 val CE {r['val_ce0']:.4f} / 命中 {r['val_hit0']:5.2f}% "
+              f"| **训练后 val CE {r['val_ce']:.4f} / 命中 {r['val_hit']:5.2f}%** | best ep {r['best_epoch']:2d} "
+              f"| 参数范数 {r['dnorm']:8.1f} | 变更 {r['n_changed']}"
+              + (f" | 往返 {r.get('roundtrip')}" if args.save_dir else ""), flush=True)
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"[sweep] 表写入 {args.out}")
+    print("[sweep] ⚠️ 选择只看这些**离线指标** ✓；判据段（7..70）留给入围者且只跑一次 ✓")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
