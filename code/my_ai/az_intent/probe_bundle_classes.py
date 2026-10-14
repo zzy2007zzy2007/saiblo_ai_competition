@@ -69,6 +69,7 @@ def main() -> int:
             pick = int(np.argmax(v))
             ops = [tuple(int(x) for x in op) for op in root.bundles[pick]]
             classes = [op[0] for op in ops if len(op) >= 3]
+            cells = [(op[1], op[2]) for op in ops if len(op) >= 3]
             n += 1
             sizes.append(len(ops))
             for c in classes:
@@ -77,7 +78,7 @@ def main() -> int:
                 has16 += 1
             if len(ops) >= 2:
                 multi += 1
-            chosen.setdefault((k, it), {})[i] = tuple(classes)
+            chosen.setdefault((k, it), {})[i] = (tuple(classes), tuple(cells))
             print(f"    [{k:>3d}/{it:>5d}] 状态 {i:>2d}: op={ops} ⇒ 类 {classes}（{len(ops)} 个 op）", flush=True)
         dt = time.time() - t0
         if n:
@@ -87,9 +88,20 @@ def main() -> int:
         a, b = chosen[cfgs[0]], chosen[cfgs[-1]]
         common = sorted(set(a) & set(b))
         if common:
-            agree = sum(1 for i in common if set(a[i]) == set(b[i])) / len(common) * 100
-            print(f"\n[cls] 基线与最宽配置**选中类集合一致率** = {agree:.1f}%（{len(common)} 个可比状态）"
-                  f" ⇒ 低 ⇒ 类仲裁被扰动（机制③ ✓）；高 ⇒ 伤害来自 bundle 内其他 op（机制② ✓）", flush=True)
+            agree = sum(1 for i in common if set(a[i][0]) == set(b[i][0])) / len(common) * 100
+            same_cells = 0
+            ious = []
+            for i in common:
+                sa, sb = set(a[i][1]), set(b[i][1])
+                if sa == sb:
+                    same_cells += 1
+                if sa or sb:
+                    ious.append(len(sa & sb) / max(len(sa | sb), 1))
+            print(f"\n[cls] 基线与最宽配置：**选中类集合一致率 = {agree:.1f}%**；"
+                  f"**格集合完全相同 {same_cells / len(common) * 100:.1f}%**；格集合 IoU 均值 {np.mean(ious) * 100:.1f}%"
+                  f"（{len(common)} 个可比状态）", flush=True)
+            print("       判读：类一致率高 + 格 IoU 低 ⇒ 伤害在『同类但不同格/不同小计划』（机制② ✓）；"
+                  "类一致率低 ⇒ MC 类仲裁被扰动（机制③ ✓）", flush=True)
     return 0
 
 
