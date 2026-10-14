@@ -7,6 +7,7 @@ param(
     [string]$Mode = 'pos-only',
     [string]$Pin = 'mc_quiet',
     [string]$Tclass = '0.5',
+    [string]$Tpos = '1.0',        # 位置采样温度（**除法**约定：exp(logits/t) ⇒ 越大越平；1000 ≈ 均匀 ⇒ '无先验'对照）
     [string]$Temp = '1e-6',          # 决策温度：1e-6 ⇒ 取 visits 的 argmax（现状）；1.0 ⇒ 按 visits 分布**采样**（= "教师作为分布" 的强度测量）
     [string]$Opp = 'example',            # 'example' 或 'baseline'
     [int]$Jobs = 8,
@@ -39,7 +40,7 @@ $env:PYTHONIOENCODING = 'utf-8'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 $env:AZAI_CKPT = $Ckpt
 $env:AZAI_ITERS=$Iters; $env:AZAI_DEPTH=$Depth; $env:AZAI_K=$K; $env:AZAI_SAMPLE_MULT=$SampleMult
-$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS='1.0'; $env:AZAI_TEMP=$Temp; $env:AZAI_VISIT_RANK=$VisitRank
+$env:AZAI_MODE=$Mode; $env:AZAI_SKIP1=$Skip1; $env:AZAI_TPOS=$Tpos; $env:AZAI_TEMP=$Temp; $env:AZAI_VISIT_RANK=$VisitRank
 $env:AZAI_CLASS_FEAS_MASK=$ClassFeasMask
 foreach ($k in $ExtraEnv.Keys) { Set-Item -Path ("Env:" + $k) -Value $ExtraEnv[$k]; Write-Host "[arm] ExtraEnv $k=$($ExtraEnv[$k])" }
 $env:AZAI_POSPRIOR='off'; $env:AZAI_VERIFY='1'; $env:AZAI_TRACE='1'; $env:AZAI_TIMING_EVERY='25'
