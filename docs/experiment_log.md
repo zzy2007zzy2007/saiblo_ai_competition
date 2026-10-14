@@ -10773,3 +10773,57 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   **预注册**：`≥0.68` ⇒ "更窄更好"成立 ✓（**一个便宜且正向的方向** ✓）；`0.60–0.68` ⇒ 现状已在高台 ✓；
   `<0.60` ⇒ 更窄也有害 ⇒ **现行 `K=24` 已近似最优** ✓。
 - 队列（串行 ✓，各 ~1.4 h ✓）：`MCTOPK5`（已批准 ✓）→ `MCCELLS1`（已批准 ✓）→ `MENU12`（本条 ✓）。
+
+## 2026-10-14 16:20:13 — AB_MCTOPK5_vs_baseline_vs_baseline
+
+- **commit**: `c2e1601` (dirty: 13 files)
+- **exit**: 0，用时 6470s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=5 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MCTOPK5_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261014_162013_AB_MCTOPK5_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-14 18:11:58 — AB_MCCELLS1_vs_baseline_vs_baseline
+
+- **commit**: `c2e1601` (dirty: 14 files)
+- **exit**: 0，用时 5920s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=1 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MCCELLS1_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261014_181158_AB_MCCELLS1_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-14 19:53:43 — AB_MENU12_vs_baseline_vs_baseline
+
+- **commit**: `c2e1601` (dirty: 14 files)
+- **exit**: 0，用时 3637s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=128 AZAI_K=12 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU12_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261014_195343_AB_MENU12_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86ax. **配置维三条臂出数：`MENU12` = `p̂ 0.7031` ✓（首次正向 ✓）；`MCTOPK5` = 0.6797（空操作 ✓）；`MCCELLS1` = 0.3750 ✗**
+
+| 臂 | 改动（单变量 ✓）| `p̂` | vs incumbent 0.6797 | 机制（建/降/升/有操作回合/回合）| min/局 |
+|---|---|---|---|---|---|
+| `MCTOPK5` | 经济类菜单 3→5 ✓ | **0.6797** | **完全相同** ✓ | 28.5/20.2/8.2/46.6/246 | 6.64 |
+| `MCCELLS1` | 菜单加"每类前 1 格" ✓ | **0.3750** ✗ | **−30.5pp** ✗ | 37.8/29.5/8.7/62.0/263 ✗ | 6.02 |
+| **`MENU12`** | **候选 24→12**（`ITERS` 256→128 ✓）| **0.7031** ✓ | **+2.3pp** ✓ | **27.6/18.5/7.4/43.6/241** ✓ | 3.72 |
+
+- ① `MCTOPK5` **空操作** ✓（`p̂` 与机制列几乎逐位相同 ✓）⇒ 多出的 2 个经济类**从未赢过仲裁** ✗ ⇒ 类维菜单宽度**已饱和** ✓（预注册：不可分辨 ✓）；
+- ② `MCCELLS1` **有害** ✗ ⇒ 把**格**塞进 MC 仲裁 ⇒ **噪声的格级 rollout 挤掉**了有价值的类级决策 ✗（churn 大增 ✓）；
+- ③ ⭐ **`MENU12` 命中预注册 `≥0.68`** ✓ ⇒ **"更窄更好"假设成立** ✓；机制方向一致 ✓（**降级更少、出手更少、churn 更小** ✓，速度更快 ✓）。
+- ⚠️ **不说过头** ✗：`+2.3pp` 在 64 对上**远未到可分辨** ✗（CI 约 ±11pp ✓）⇒ 预注册的"假设成立"没问题 ✓，
+  但"**真实增益**"仍只是提示 ✓ ⇒ 需要 **配对 McNemar**（vs 同段 incumbent ✓）+ **成分分解** ✓。
+- **成分分解（关键 ✗）**：`MENU12` 同时改了 K 与 ITERS ⇒ 必须拆开：
+  * `MENU12B`（`K=12`，**`ITERS=256`**）⇒ 若 ≥0.68 ⇒ **菜单宽度是有效成分** ✓；
+  * `ITERS128`（**`K=24`**，`ITERS=128`）⇒ 若 ≈0.68 ⇒ 迭代数不是原因 ✓；若 <0.60 ⇒ **"少搜索"才是机制** ✗；
+  * `MENU8`（`K=8`，`ITERS=86`，比例同 ✓）⇒ 找**拐点** ✓。
+  **预注册**：`MENU12B ≥0.68 且 ITERS128 ∈ 0.60–0.68` ⇒ 菜单宽度有效 ✓ ⇒ 续扫 K=8/6 ✓；
+  若 `MENU12B` 一般而 `ITERS128 ≥0.68` ⇒ **是"迭代更少"在起作用** ✗（机制完全不同，需转研究"少搜索更好"✓）；
+  若两条都 <0.60 ⇒ `MENU12` 的 +2.3pp 是噪声 ✓。
