@@ -10932,3 +10932,78 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   * `MENU8SM45`（K=8 / SAMPLE_MULT=45，采样预算 8×45=360 = incumbent 的 24×15 ✓）⇒ 分离"**候选上限**"与"**采样更粗**" ✓。
 - **预注册**：`ITERS512 ≈ 0.68` ⇒ 迭代轴无效应 ✓（K 与迭代都不是驱动量 ⇒ 该族到顶 ✓）；`≥0.72` ⇒ **比值/迭代有戏** ✗（用户直觉对 ✓，需重新设计 ✓）；
   `MENU8SM45 ≥ 0.72` ⇒ "候选上限"是主动量 ✓；`< 0.66` ⇒ 之前是"采样更粗"在起作用 ✗。
+
+## 2026-10-15 11:50:42 — AB_MC1X_vs_baseline_vs_baseline
+
+- **commit**: `a2c9279` (dirty: 13 files)
+- **exit**: 0，用时 6937s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MC1X_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r 71 71r 72 72r 73 73r 74 74r 75 75r 76 76r 77 77r 78 78r 79 79r 80 80r 81 81r 82 82r 83 83r 84 84r 85 85r 86 86r 87 87r 88 88r 89 89r 90 90r 91 91r 92 92r 93 93r 94 94r 95 95r 96 96r 97 97r 98 98r 99 99r 100 100r 101 101r 102 102r 103 103r 104 104r 105 105r 106 106r 107 107r 108 108r 109 109r 110 110r 111 111r 112 112r 113 113r 114 114r 115 115r 116 116r 117 117r 118 118r 119 119r 120 120r 121 121r 122 122r 123 123r 124 124r 125 125r 126 126r 127 127r 128 128r 129 129r 130 130r 131 131r 132 132r 133 133r 134 134r
+  ```
+- **output**: `training_history/runs/20261015_115042_AB_MC1X_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-15 13:51:23 — AB_ITERS512_vs_baseline_vs_baseline
+
+- **commit**: `a2c9279` (dirty: 14 files)
+- **exit**: 0，用时 5251s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=512 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_ITERS512_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261015_135123_AB_ITERS512_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-15 15:21:02 — AB_MENU6_vs_baseline_vs_baseline
+
+- **commit**: `a2c9279` (dirty: 14 files)
+- **exit**: 0，用时 2800s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=86 AZAI_K=6 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU6_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261015_152102_AB_MENU6_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-15 16:09:25 — AB_MENU4_vs_baseline_vs_baseline
+
+- **commit**: `a2c9279` (dirty: 14 files)
+- **exit**: 0，用时 2296s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=86 AZAI_K=4 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU4_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261015_160925_AB_MENU4_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-15 16:49:28 — AB_MENU8SM45_vs_baseline_vs_baseline
+
+- **commit**: `a2c9279` (dirty: 14 files)
+- **exit**: 0，用时 2321s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=86 AZAI_K=8 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=45 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU8SM45_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261015_164928_AB_MENU8SM45_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86bc. **五臂批次判定：比值假设两向否 ✓ / "候选上限"在高功效段归零 ✗ / 最强单点 `MENU8SM45 = 0.7578`** ✓（配对 CI 下界 −1.56pp，全场最接近显著 ✓）
+
+| 臂 | 配置 | 段 | 局 | `p̂` | 配对 vs 对照 |
+|---|---|---|---|---|---|
+| `MC1X`（incumbent ✓）| K=24 / ITERS=256 | 7..134 | 256 | **0.6992** | —（同段对照 ✓）|
+| `MENU8R` | K=8 / SM=15 | 7..134 | 256 | 0.7070 | **+0.78pp**，CI [−6.25, +8.20]pp ✗、p=0.92 ✗ |
+| `MENU12C` | K=12 / SM=15 | 7..134 | 256 | 0.7305 | **+3.12pp**，CI [−4.69, +10.94]pp ✗、p=0.48 ✗ |
+| **合并（窄族）** | K∈{8,12} | 7..134 | 512 观测 | — | b=95 / c=105 ⇒ **+1.95pp**，p≈0.52 ✗ |
+| `ITERS512` | K=24 / **ITERS=512** | 7..70 | 128 | **0.6719** | 比值**两向否** ✓（5.3 / 10.7 / 21.3 ⇒ 0.6797 / 0.6797 / 0.6719 ✓）|
+| `MENU6` | K=6 | 7..70 | 128 | 0.6875 | 无拐点 ✓ |
+| `MENU4` | K=4 | 7..70 | 128 | **0.6562** ✗ | 过窄有害 ✓ |
+| **⭐ `MENU8SM45`** | **K=8 / SAMPLE_MULT=45**（采样预算 360 = incumbent ✓）| 7..70 | 128 | **0.7578** ✓ | **+7.81pp**，CI **[−1.56, +17.97]pp** ✗、p=**0.1641** ✗（**全场最接近显著** ✓）|
+
+- ⇒ **结论 1**：**迭代数 / `ITERS/K` 比值不是驱动量** ✓（三个比值 5.3 / 10.7 / 21.3 ⇒ 0.6797 / 0.6797 / 0.6719 ✓）；
+- ⇒ **结论 2**：**"候选上限"在功效足够时归零** ✗（K=8 +0.78pp、K=12 +3.12pp、合并 +1.95pp ⇒ 全不可分辨 ✓）；
+- ⇒ **结论 3**：唯一还有戏的是 **`MENU8SM45`**（+7.81pp ✓，CI 下界 **−1.56pp** ✓）⇒ 按功效算，需约 **250–350 局/臂** 才能把它推到显著 ✓（可行 ✓）。
+- **决定（最后一条该族实验）**：`SM45X`（K=8/SM=45，seed **7..262** ⇒ **512 局 = 256 对** ⇒ CI ≈ ±4.9pp ✓）+ 同段 incumbent 对照 `MC1XX` ✓（各 ~2.5 h，串行 ✓）。
+  **预注册**：配对 CI **下界 > 0** ⇒ **本会话第一个可证的强度增益** ✓✓；仍含 0 ⇒ **该族正式收口** ✗（不再追 2–8pp 的搜索配置效应 ✓）。
+- 种子核查：抽查 135/160/200/230/262（正反）均无既有日志 ⇒ 属**未用种子** ✓。
