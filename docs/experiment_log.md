@@ -10896,3 +10896,39 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   （本会话第一个**可证**的强度提升 ✓）；否则只能记"**倾向性正向**" ✓。
 - 顺带同段跑 `MENU12C` ⇒ **K=24 / 12 / 8 的高功效曲线** ✓。
 - 期间**不运行任何其他命令** ✓（避免再次自干扰 ✗；上次 `MENU8` 的 8.5 h / 31.77 min-per-game 疑似外部负载 ✓）。
+
+## 2026-10-15 08:29:54 — AB_MENU8R_vs_baseline_vs_baseline
+
+- **commit**: `d7eb5ff` (dirty: 13 files)
+- **exit**: 0，用时 4563s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=86 AZAI_K=8 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU8R_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r 71 71r 72 72r 73 73r 74 74r 75 75r 76 76r 77 77r 78 78r 79 79r 80 80r 81 81r 82 82r 83 83r 84 84r 85 85r 86 86r 87 87r 88 88r 89 89r 90 90r 91 91r 92 92r 93 93r 94 94r 95 95r 96 96r 97 97r 98 98r 99 99r 100 100r 101 101r 102 102r 103 103r 104 104r 105 105r 106 106r 107 107r 108 108r 109 109r 110 110r 111 111r 112 112r 113 113r 114 114r 115 115r 116 116r 117 117r 118 118r 119 119r 120 120r 121 121r 122 122r 123 123r 124 124r 125 125r 126 126r 127 127r 128 128r 129 129r 130 130r 131 131r 132 132r 133 133r 134 134r
+  ```
+- **output**: `training_history/runs/20261015_082954_AB_MENU8R_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-15 09:48:22 — AB_MENU12C_vs_baseline_vs_baseline
+
+- **commit**: `d7eb5ff` (dirty: 14 files)
+- **exit**: 0，用时 7073s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=128 AZAI_K=12 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_MENU12C_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r 71 71r 72 72r 73 73r 74 74r 75 75r 76 76r 77 77r 78 78r 79 79r 80 80r 81 81r 82 82r 83 83r 84 84r 85 85r 86 86r 87 87r 88 88r 89 89r 90 90r 91 91r 92 92r 93 93r 94 94r 95 95r 96 96r 97 97r 98 98r 99 99r 100 100r 101 101r 102 102r 103 103r 104 104r 105 105r 106 106r 107 107r 108 108r 109 109r 110 110r 111 111r 112 112r 113 113r 114 114r 115 115r 116 116r 117 117r 118 118r 119 119r 120 120r 121 121r 122 122r 123 123r 124 124r 125 125r 126 126r 127 127r 128 128r 129 129r 130 130r 131 131r 132 132r 133 133r 134 134r
+  ```
+- **output**: `training_history/runs/20261015_094822_AB_MENU12C_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86bb. `MENU12C`（K=12，7..134，256 局）= **0.7305** ✓ ⇒ **K 曲线不单调** ✗（两段排序相反）⇒ 修正"更窄更好"的强表述
+
+- `MENU12C`：**`p̂ = 0.7305`**（256 局、**0% 无效 ✓**、7,073 s ≈ 2 h ✓、3.66 min/局 ✓）；机制 27.8/19.1/7.8/44.6/242 ✓。
+- 与 `MENU8R`（K=8，**同段**）= 0.7070 比较 ⇒ **同段内 K=12 反而更好** ✗；
+  而 7..70 子段里是 **K=8 (0.7422) > K=12 (0.7031)** ✓ ⇒ **两段排序相反** ✗✗。
+- ⇒ **K 的效应量级 ≈ 噪声** ✓（K=8/12 都 ≈0.71–0.74 ✓，都**不显著优于** incumbent ✗）
+  ⇒ **撤回"更窄更好"的强表述** ✗，降级为："**K 在 8–24 之间基本无差别，且都不伤强度**" ✓。
+- ⇒ **必须先拿 incumbent 同段（7..134）读数** ✗ ⇒ `MC1X` 提到队列最前 ✓。
+- 新增两格（回答用户"是否 ITERS/K 比值"✓）：
+  * `ITERS512`（K=24 / ITERS=512，比值 21.3 ✓）⇒ 答"提高迭代能否救 K=24" ✓；
+  * `MENU8SM45`（K=8 / SAMPLE_MULT=45，采样预算 8×45=360 = incumbent 的 24×15 ✓）⇒ 分离"**候选上限**"与"**采样更粗**" ✓。
+- **预注册**：`ITERS512 ≈ 0.68` ⇒ 迭代轴无效应 ✓（K 与迭代都不是驱动量 ⇒ 该族到顶 ✓）；`≥0.72` ⇒ **比值/迭代有戏** ✗（用户直觉对 ✓，需重新设计 ✓）；
+  `MENU8SM45 ≥ 0.72` ⇒ "候选上限"是主动量 ✓；`< 0.66` ⇒ 之前是"采样更粗"在起作用 ✗。
