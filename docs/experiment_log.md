@@ -11048,3 +11048,61 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   类菜单加宽**空操作** ✓；格进仲裁 −30.5pp ✗）⇒ **incumbent `MC1` 仍最稳健最优** ✓。
 - ⇒ 仅剩两条**量级足够大**的路 ✓：**类维**（+64.9pp ✓，但其旋钮已证惰性/有害 ⇒ 需动**类头质量**或**换标签源** ✓）
   与**引入新信息** ✓（更强规则评分器 ✓ / 结局驱动 RL ✓）。
+
+## 2026-10-16 12:49:17 — AB_UNBANCHK_MC1_vs_baseline
+
+- **commit**: `7f8a885` (dirty: 14 files)
+- **exit**: 0，用时 2425s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_UNBANCHK_MC1_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 6 6r 5 5r 4 4r 3 3r 2 2r 1 1r 0 0r
+  ```
+- **output**: `training_history/runs/20261016_124917_AB_UNBANCHK_MC1_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-16 13:37:16 — AB_UNBANCHK_R1_vs_baseline
+
+- **commit**: `7f8a885` (dirty: 15 files)
+- **exit**: 0，用时 3712s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=training_history/vprior/posnet_r1.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_UNBANCHK_R1_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 6 6r 5 5r 4 4r 3 3r 2 2r 1 1r 0 0r
+  ```
+- **output**: `training_history/runs/20261016_133716_AB_UNBANCHK_R1_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-16 14:51:36 — AB_UNBANCHK_A_vs_baseline
+
+- **commit**: `7f8a885` (dirty: 15 files)
+- **exit**: 0，用时 4436s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_UNBANCHK_A_vs_baseline --jobs=2 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 6 6r 5 5r 4 4r 3 3r 2 2r 1 1r 0 0r
+  ```
+- **output**: `training_history/runs/20261016_145136_AB_UNBANCHK_A_vs_baseline/output.log`
+- **result**: _待填_
+
+### 86be. **允许闪电下的三网迷你对比（各 16 局）**：老网 `posnet_A_k5_m32` 明显更好 ✓（但样本太小 ✗）⇒ 起 128 局正式臂
+
+**迷你臂**（`-SeedSpec '7'` 被解析成 **7..0 = 8 种子 = 16 局** ✗ —— 意外收获，比 2 局好 ✓；jobs=2 ✓，各 40–90 min ✓）：
+
+| ckpt | 允许闪电 `p̂`（16 局 ⇒ 8 对 ⚠️）| 机制（建/降/升/**闪**/出手）| 回合 |
+|---|---|---|---|
+| `checkpoints/grafted_sdk_A.pt`（现任 ✓）| **0.6250** | 48.3/40.1/4.9/**5.5** | 328 |
+| `vprior/posnet_r1.pt` | 0.5625 | 57.2/48.1/2.6/**6.0** | 335 |
+| **`vprior/posnet_A_k5_m32.pt`** | **0.8125** | 58.1/50.1/3.3/**7.2** | 355 |
+
+- ✅ **三个 ckpt 均可被当前 bridge 正常加载出招** ✓（三网格式 ✓，`three_net`/`vprior_*` 元数据齐全 ✓）；
+- ⚠️ **更正我上一轮的推断** ✗：我猜"现任图闪电通道未被训练 ⇒ 次数 ≈ 0" —— **错** ✓：实测 **5.5 次/局** ✓。
+  正确解释：SDK 评分对**每个访问状态的所有类**都给监督 ✓ ⇒ 禁闪电只影响**采集时的可选项** ✗，不影响该通道有标签 ✓
+  ⇒ **该通道不是死的** ✓（我撤回"从未见过闪电"的说法 ✗）；
+- ⭐ **`posnet_A_k5_m32` 在允许闪电下 0.8125 vs 现任 0.6250（+18.8pp）** ✓，且**放闪电更积极（7.2 vs 5.5）** ✓
+  ⇒ 用户"**老网里闪电先验更好**"的方向得到初步支持 ✓ —— 但 **8 对样本**⇒ 误差 ±25pp ✗ ⇒ **不可下结论** ✗。
+- **正式臂（本次起 ✓，各 128 局、段 7..70、jobs 8、~4.5 h）**：
+  * `UNBAN_MC1`：现任图 + **允许**闪电 ✓（现任在无禁制下的基线 ✓）；
+  * `UNBAN_A`：`posnet_A_k5_m32` + **允许**闪电 ✓（主检验 ✓）；
+  * `BAN_A`：`posnet_A_k5_m32` + **禁**闪电 ✓（**关键对照** ✓）。
+- **预注册**：`UNBAN_A − UNBAN_MC1 ≥ 10pp` 且配对 CI 下界 > 0 ⇒ **老图闪电更好** ✓ ⇒ 走嫁接（先"推理期按类融合" ✓，验非 17 类输出逐位一致 ✓）；
+  **`BAN_A ≈ 0.68`（≈现任）而 `UNBAN_A` 明显更高** ⇒ **差异专门来自闪电轴** ✓✓；
+  若 `BAN_A` **也**远好 ⇒ 结论变成"**老图整体更强**" ✓（也有用 ✓，但不是闪电的故事 ✓）。
+- **教训**：`-SeedSpec '7'` 会被解析成"7 到 0" ✗（不是"只跑种子 7" ✓）⇒ 以后要"只跑一个种子"应写 `-SeedSpec '7-7'` ✓。

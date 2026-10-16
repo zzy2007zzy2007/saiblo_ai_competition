@@ -12,6 +12,7 @@ param(
     [string]$Opp = 'example',            # 'example' 或 'baseline'
     [int]$Jobs = 8,
     [string]$K = '24',            # 搜索候选数（搜索超参扫描用）
+    [string]$BanLightning = '1',   # 1 = 禁闪电(旧行为逐位不变); 0 = 允许闪电(用于与见过闪电的老先验网对比)
     [string]$Skip1 = '1',         # 1 = 单候选短路（旧行为）；0 = **不短路**（路 C 的 C1 需要）
     [string]$ClassFeasMask = '0', # 1 = 启用 C1.1 类采样前的可行性掩蔽（默认关，旧行为逐位不变）
     [string]$VisitRank = '1',     # 名次实验（用户 2026-10-12 设计）：取 visit 排序第 r 名（1 = argmax = 旧行为 ✓）
@@ -52,7 +53,8 @@ $env:AZAI_MC_M4='0'; $env:AZAI_MC_NODOWN='0'; $env:AZAI_MC_UPG='1'; $env:AZAI_MC
 $env:AZAI_LIGHT_MIN_COINS='0'; $env:AZAI_BUILD_MIN_COINS='0'
 $env:AZAI_FORCE_UPG='0'; $env:AZAI_NO_DOWNGRADE='0'; $env:AZAI_PROBE_UPG='0'
 $env:AZAI_SLOW_DECISION_SEC='60'
-$env:AZAI_BAN_CLASSES='17'; $env:AZAI_BAN_OPS='21'; $env:AI_BAN_LIGHTNING='1'
+if ($BanLightning -eq '1') { $env:AZAI_BAN_CLASSES='17'; $env:AZAI_BAN_OPS='21'; $env:AI_BAN_LIGHTNING='1' }
+else { $env:AZAI_BAN_CLASSES=''; $env:AZAI_BAN_OPS=''; $env:AI_BAN_LIGHTNING='0'; Write-Host '[arm] 允许闪电(BanLightning=0)' }
 
 $oppPath = if ($Opp -eq 'example') { 'code/test_match/ex_pkg/main.py' } else { 'code/test_match/base_pkg/main.py' }
 $tag = "AB_${Name}_vs_$Opp"
