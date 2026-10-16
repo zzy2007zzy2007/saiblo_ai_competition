@@ -11106,3 +11106,77 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   **`BAN_A ≈ 0.68`（≈现任）而 `UNBAN_A` 明显更高** ⇒ **差异专门来自闪电轴** ✓✓；
   若 `BAN_A` **也**远好 ⇒ 结论变成"**老图整体更强**" ✓（也有用 ✓，但不是闪电的故事 ✓）。
 - **教训**：`-SeedSpec '7'` 会被解析成"7 到 0" ✗（不是"只跑种子 7" ✓）⇒ 以后要"只跑一个种子"应写 `-SeedSpec '7-7'` ✓。
+
+## 2026-10-16 16:50:11 — AB_UNBAN_MC1_vs_baseline_vs_baseline
+
+- **commit**: `5d63b7f` (dirty: 13 files)
+- **exit**: 0，用时 6651s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=checkpoints/grafted_sdk_A.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_UNBAN_MC1_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261016_165011_AB_UNBAN_MC1_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-16 21:25:39 — AB_UNBAN_A_vs_baseline_vs_baseline
+
+- **commit**: `5d63b7f` (dirty: 14 files)
+- **exit**: 0，用时 7752s
+- **cmd**:
+  ```bash
+  env AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_UNBAN_A_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261016_212539_AB_UNBAN_A_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-16 23:38:15 — AB_BAN_A_vs_baseline_vs_baseline
+
+- **commit**: `5d63b7f` (dirty: 14 files)
+- **exit**: 0，用时 4247s
+- **cmd**:
+  ```bash
+  env AZAI_BAN_CLASSES=17 AZAI_BAN_OPS=21 AZAI_BUILD_MIN_COINS=0 AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_CLASS_FEAS_MASK=0 AZAI_DEPTH=4 AZAI_FORCE_UPG=0 AZAI_ITERS=256 AZAI_K=24 AZAI_LIGHT_MIN_COINS=0 AZAI_MC_BIDIR=0 AZAI_MC_CELLS=0 AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_M4=0 AZAI_MC_MARGIN=0 AZAI_MC_NO_LIGHT=0 AZAI_MC_NODOWN=0 AZAI_MC_ROOTONLY=1 AZAI_MC_SELFSPEND=0 AZAI_MC_SELFSPEND_MIX=1.0 AZAI_MC_TOP2=0 AZAI_MC_TOPK=3 AZAI_MC_UPG=1 AZAI_MODE=pos-only AZAI_NO_DOWNGRADE=0 AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_PROBE_UPG=0 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_SLOW_DECISION_SEC=60 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TIMING_EVERY=25 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 AZAI_VISIT_RANK=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=AB_BAN_A_vs_baseline_vs_baseline --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/base_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261016_233815_AB_BAN_A_vs_baseline_vs_baseline/output.log`
+- **result**: _待填_
+
+## 2026-10-17 00:52:16 — REPRO_M6b
+
+- **commit**: `5d63b7f` (dirty: 14 files)
+- **exit**: 0，用时 3133s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_POSPRIOR=off AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=REPRO_M6b --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261017_005216_REPRO_M6b/output.log`
+- **result**: _待填_
+
+## 2026-10-17 01:46:41 — REPRO_E2
+
+- **commit**: `5d63b7f` (dirty: 14 files)
+- **exit**: 0，用时 1998s
+- **cmd**:
+  ```bash
+  env AZAI_CKPT=training_history/vprior/posnet_A_k5_m32.pt AZAI_DEPTH=4 AZAI_ITERS=256 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=reserve AZAI_POSPRIOR=off AZAI_RESERVE=180 AZAI_SAMPLE_MULT=15 AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TEMP=1e-6 AZAI_TPOS=1.0 AZAI_TRACE=1 AZAI_VERIFY=1 D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=REPRO_E2 --jobs=8 --ai0=code/test_match/az_bridge_ai.py --ai1=code/test_match/rv4_pkg/main.py 7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r 23 23r 24 24r 25 25r 26 26r 27 27r 28 28r 29 29r 30 30r 31 31r 32 32r 33 33r 34 34r 35 35r 36 36r 37 37r 38 38r 39 39r 40 40r 41 41r 42 42r 43 43r 44 44r 45 45r 46 46r 47 47r 48 48r 49 49r 50 50r 51 51r 52 52r 53 53r 54 54r 55 55r 56 56r 57 57r 58 58r 59 59r 60 60r 61 61r 62 62r 63 63r 64 64r 65 65r 66 66r 67 67r 68 68r 69 69r 70 70r
+  ```
+- **output**: `training_history/runs/20261017_014641_REPRO_E2/output.log`
+- **result**: _待填_
+
+### 86bg. ⭐⭐ **互补性被证实（配对显著 ✓）+ 当年配置逐位复现成功 ✓** ⇒ 嫁接方向确认（用户直觉链路全部走通 ✓）
+
+| 臂 | 网 | 闪电 | 对手 | `p̂` | 配对检验（同段 ✓）|
+|---|---|---|---|---|---|
+| `UNBAN_MC1` | 现任 `grafted_sdk_A` | 允许 | 冻结最好版 | 0.6875 | — |
+| **`UNBAN_A`** | **老网 `posnet_A_k5_m32`** | 允许 | 冻结最好版 | **0.8594** ✓ | vs `UNBAN_MC1`：**+17.19pp**、CI **[+7.03, +27.34]** ✓、McNemar **p = 0.0032** ✓✓ |
+| `BAN_A` | 老网 | **禁** | 冻结最好版 | **0.3359** ✗ | vs incumbent 禁闪电 0.6797：**−34.38pp**、CI **[−46.09, −21.88]** ✗、**p ≈ 0** ✓ |
+| `REPRO_M6b` | 老网 + 10-06 env | 允许 | `rule_v4` | **0.6484** | 机制 **闪电 10.7/局** ✓（建 25.1 / 降 10.7 / 升 0 / 405 回合 ✓）|
+| **`REPRO_E2`** | 老网 + E2 env | 允许 | `rule_v4` | **0.6641** ✓✓ | **与当年 `_analysis.txt` 逐位一致**（连 28/29/7 都一样 ✓）；机制 **闪电 11.2/局** ✓ |
+
+- ⇒ **互补性成立** ✓✓：**同一张老网**在允许闪电时 **+17.2pp（显著 ✓）**、在禁闪电时 **−34.4pp（显著 ✗）**
+  ⇒ **现任图 = 无闪电经济专家 ✓；老网 = 闪电专家 ✓** —— 正是用户的判断 ✓✓；
+- ⇒ **"~10+ 闪电/局"复现成功** ✓（10.7 / 11.2 ✓）；今天打**我们自己的强基线**只有 5.6–7.2 ⇒ 差异来自**对手强度/局长度/配置** ✓，
+  **不是代码退化**（`REPRO_E2` 逐位一致 ⇒ **跨时代可复现** ✓✓，这是项目级的好消息 ✓）；
+- ⇒ **下一步 = 嫁接**（只接**类 17 通道** ✓）：计划见 `docs/light_graft_plan.md` ✓
+  * **B（首选 ✓）**：推理期按类融合（各自用自己的骨干 ✓）⇒ **禁闪电时与现任逐位一致** ✓（自带完美对照 ✓）；
+  * **A**：权重移植（1×1 卷积输出通道独立 ✓ ⇒ 其余通道可 `torch.equal` 精确验证 ✓）—— 但有**骨干特征错配**风险 ✗；
+  * 验收预注册：禁闪电必须 ≈0.6797 且机制同 ✓；允许闪电期望 ≥ 现任 +10pp 且配对 CI 下界 > 0 ✓。
