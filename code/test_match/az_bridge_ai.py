@@ -214,6 +214,25 @@ def _record_az(res, facade=None, player=None) -> None:
                "chosen": _json_safe(getattr(res, "chosen_index", -1)),
                "intent": _json_safe(getattr(res, "intent_counts", None)),
                "root_value": _json_safe(getattr(res, "root_value", 0.0))}
+        # 2026-10（蒸馏用）：把**原始状态**也 dump 进同一条 JSONL（`AZAI_AZ_DUMP_RAW=1`）。
+        # 动机：编码后的 board/stats 缺 tower.hp / tower.type / ant.kind ⇒ 没法用亚军的
+        # `evaluate_terminal` 精确打分；这里把塔/蚁/金币/基地原样存下来，离线即可算精确标签。
+        # 与 .bin（`AZAI_DUMP_RAW_DIR`）按 n 一一对齐（两者都在 `_record_obs` 里同一拍写）。
+        if _env("AZAI_AZ_DUMP_RAW", "0") == "1" and facade is not None:
+            try:
+                rec["state"] = {
+                    "round": int(facade.round_index),
+                    "coins": [int(c) for c in facade.coins],
+                    "bases_hp": [int(facade.bases[p].hp) for p in (0, 1)],
+                    "towers": [[int(t.tower_id), int(t.player), int(t.x), int(t.y),
+                                int(t.tower_type), int(t.hp)] for t in facade.towers],
+                    "ants": [[int(a.ant_id), int(a.player), int(a.x), int(a.y), int(a.hp),
+                              int(a.max_hp), int(a.kind), int(a.age), int(a.behavior)]
+                             for a in facade.ants],
+                }
+            except Exception as _se:  # noqa: BLE001
+                rec["state"] = None
+                _log(f"raw state dump 失败: {type(_se).__name__}: {_se}")
         # 2026-10-09（用户建议）：**与 MC 裁判角色完全匹配的标签** —— 裁判用的就是这个函数，
         # 所以用它当训练目标，才是"接在截断 rollout 后面补尾 / 当裁判"的合适价值网；
         # 同时记录 rollout **实际用掉多少回合**（判断 MC_HORIZON 上限卡不卡）。默认关：AZAI_DUMP_QUIET=1。
