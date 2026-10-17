@@ -283,16 +283,13 @@ def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: di
     return proc, io
 
 
-def _dump_raw_state(fh, state, seed: int, round_idx: int) -> None:
+def _dump_raw_state(fh, state, seed: int, round_idx: int, ents_fh=None) -> None:
     """可选的 raw-state dump（`MVS_RAW_STATE_DIR` 非空才调用）。
 
-    每条记录（两个玩家各一条）：
-        board: 28*19*19 个 float16
-        stats: 42 个 float16
-        player: 1 个 uint8
-        round: 1 个 int16
-        value: 1 个 float32   # = 亚军 evaluate_terminal(state, player)
-    状态取桥接的权威 GameStateFacade；value 用亚军 Python 复刻（lure_value_eval.py）。
+    两条流（按 round 一一对齐）：
+      - `.bin`（`raw_seed*.bin`，两个玩家各一条）：board(28*19*19 f16)+stats(42 f16)+player(u8)+round(i16)+value(f32)
+      - `.jsonl`（`ents_seed*.jsonl`，每回合一条）：原始**实体特征**（塔/蚁/金币/基地），供实体 token 模
+        型吃——board 里没有塔 hp / 蚁 kind，所以必须单独存。
     默认关闭 ⇒ 不 import numpy/distill_top2、也不建文件 ⇒ 现有实验行为逐位不变。
     """
     try:
@@ -310,6 +307,27 @@ def _dump_raw_state(fh, state, seed: int, round_idx: int) -> None:
             fh.write(np.int16(int(round_idx)).tobytes())
             fh.write(np.float32(value).tobytes())
         fh.flush()
+        if ents_fh is not None:
+            import json as _json
+            ents_fh.write(_json.dumps({
+                "round": int(round_idx),
+                "towers": [[int(t.tower_id), int(t.player), int(t.x), int(t.y),
+                            int(t.tower_type), int(t.hp), float(t.cooldown_clock)]
+                           for t in state.towers],
+                "ants": [[int(a.ant_id), int(a.player), int(a.x), int(a.y), int(a.hp),
+                          int(a.max_hp), int(a.kind), int(a.age), int(a.level),
+                          int(a.behavior), int(a.status), int(bool(a.frozen))]
+                         for a in state.ants],
+                "coins": [int(c) for c in state.coins],
+                "bases": [[int(b.hp), int(b.generation_level), int(b.ant_level)]
+                          for b in state.bases],
+                "weapon_cooldowns": [[int(state.weapon_cooldowns[p, w]) for w in range(5)]
+                                     for p in (0, 1)],
+                "super_weapon_usage": [int(state.super_weapon_usage[p]) for p in (0, 1)],
+                "effects": [[int(e.weapon_type), int(e.player), int(e.x), int(e.y),
+                             int(e.remaining_turns)] for e in state.active_effects],
+            }, ensure_ascii=False) + "\n")
+            ents_fh.flush()
     except Exception as exc:  # noqa: BLE001
         print(f"  !! [raw-dump] round {round_idx} 失败: {type(exc).__name__}: {exc}", flush=True)
 
@@ -336,7 +354,9 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
         if is_magica:
             return {"ANTWAR_MAGICA_IO_TRACE": "1",
                     "ANTWAR_MAGICA_RUNTIME_ARTIFACT_DIR": r"e:\magica_runtime"}
-        return {"ANTGAME_CPP_BASELINE_DEBUG": "summary"}
+        # 亚军（非 magica）的 debug 级别：默认 summary；要采"候选+打分"（先验蒸馏用）就设
+        # MVS_RUNNERUP_DEBUG=plans（写进它的 stderr，由 _archive_stderr 归档）。
+        return {"ANTGAME_CPP_BASELINE_DEBUG": os.environ.get("MVS_RUNNERUP_DEBUG", "summary")}
 
     # AI 的 argv/env/cwd 跟着 **AI 的身份**（ai0/ai1）走，不跟着"谁执先手"走
     s0 = AI_SPEC[0] if not runnerup_first else AI_SPEC[1]
@@ -352,13 +372,15 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     # raw-state dump（可选，默认关）：每回合两个玩家各写一条（见 _dump_raw_state）
     raw_dir = os.environ.get("MVS_RAW_STATE_DIR", "")
     raw_fh = None
+    ents_fh = None
     if raw_dir:
         _rd = Path(raw_dir)
         if not _rd.is_absolute():
             _rd = REPO_ROOT / _rd
         _rd.mkdir(parents=True, exist_ok=True)
         raw_fh = open(_rd / f"raw_seed{seed:05d}.bin", "wb")
-        print(f"  [raw-dump] -> {raw_fh.name}", flush=True)
+        ents_fh = open(_rd / f"ents_seed{seed:05d}.jsonl", "w", encoding="utf-8")
+        print(f"  [raw-dump] -> {raw_fh.name} + {ents_fh.name}", flush=True)
     result: dict = {"seed": seed, "champion_first": p0_magica,
                     "p0_label": p0_label, "p1_label": p1_label}
     _OPS_HISTORY: list[list[list[int]]] = []
@@ -368,7 +390,7 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     try:
         while not state.terminal and rounds < max_rounds:
             if raw_fh is not None:
-                _dump_raw_state(raw_fh, state, seed, rounds)
+                _dump_raw_state(raw_fh, state, seed, rounds, ents_fh)
             # ===== 回合开始：player0（先手）先操作 =====
             payload0 = io0.read_packet()
             text0 = payload0.decode("utf-8", errors="replace")
@@ -452,6 +474,12 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
         print(f"  proc0({p0_label}).poll={proc0.poll()}  proc1({p1_label}).poll={proc1.poll()}", flush=True)
         return result
     finally:
+        if ents_fh is not None:
+            try:
+                ents_fh.flush()
+                ents_fh.close()
+            except Exception:  # noqa: BLE001
+                pass
         if raw_fh is not None:
             try:
                 raw_fh.flush()
