@@ -295,20 +295,23 @@ def _dump_raw_state(fh, state, seed: int, round_idx: int) -> None:
     状态取桥接的权威 GameStateFacade；value 用亚军 Python 复刻（lure_value_eval.py）。
     默认关闭 ⇒ 不 import numpy/distill_top2、也不建文件 ⇒ 现有实验行为逐位不变。
     """
-    import numpy as np
-    from SDK.utils.features import FeatureExtractor
-    from my_ai.distill_top2.lure_value_eval import evaluate_terminal
+    try:
+        import numpy as np
+        from SDK.utils.features import FeatureExtractor
+        from my_ai.distill_top2.lure_value_eval import evaluate_terminal
 
-    fe = FeatureExtractor()
-    for p in (0, 1):
-        obs = fe.encode_observation(state, p, np.zeros(MAX_ACTIONS, dtype=np.int8))
-        value = float(evaluate_terminal(state, p))
-        fh.write(np.asarray(obs["board"], dtype=np.float16).tobytes())
-        fh.write(np.asarray(obs["stats"], dtype=np.float16).tobytes())
-        fh.write(bytes([int(p)]))
-        fh.write(np.int16(int(round_idx)).tobytes())
-        fh.write(np.float32(value).tobytes())
-    fh.flush()
+        fe = FeatureExtractor()
+        for p in (0, 1):
+            obs = fe.encode_observation(state, p, np.zeros(MAX_ACTIONS, dtype=np.int8))
+            value = float(evaluate_terminal(state, p))
+            fh.write(np.asarray(obs["board"], dtype=np.float16).tobytes())
+            fh.write(np.asarray(obs["stats"], dtype=np.float16).tobytes())
+            fh.write(bytes([int(p)]))
+            fh.write(np.int16(int(round_idx)).tobytes())
+            fh.write(np.float32(value).tobytes())
+        fh.flush()
+    except Exception as exc:  # noqa: BLE001
+        print(f"  !! [raw-dump] round {round_idx} 失败: {type(exc).__name__}: {exc}", flush=True)
 
 
 def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
