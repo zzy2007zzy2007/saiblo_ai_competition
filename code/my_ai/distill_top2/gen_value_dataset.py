@@ -53,11 +53,26 @@ def parse_seeds(spec: str) -> list[int]:
     return out
 
 
-def simple_policy(state, player: int, rng: np.random.Generator):
-    """简单策略：空的核心槽位上建塔，偶尔升级；非法/买不起的函数会自己拒绝。"""
+MODES = [
+    ("aggressive", 0.95, 0.45),
+    ("moderate", 0.70, 0.30),
+    ("passive", 0.35, 0.15),
+]
+
+
+def _mode_params(rng: np.random.Generator) -> tuple[float, float]:
+    """随机抽一个策略档位 (build_rate, upgrade_rate) —— 制造局面多样性。"""
+    mode = MODES[int(rng.integers(len(MODES)))]
+    return (mode[1], mode[2])
+
+
+def simple_policy(state, player: int, rng: np.random.Generator,
+                  build_rate: float = 0.85, upgrade_rate: float = 0.35):
+    """简单策略：空的核心槽位上建塔，偶尔升级；非法/买不起的函数会自己拒绝。
+    build_rate/upgrade_rate 由调用方按"策略档位"传入（造多样性）。"""
     ops = []
     try:
-        if rng.random() < 0.85:
+        if rng.random() < build_rate:
             for (x, y) in state.strategic_slots(player):
                 if state.tower_at(x, y) is not None:
                     continue
@@ -65,7 +80,7 @@ def simple_policy(state, player: int, rng: np.random.Generator):
                 if state.can_apply_operation(player, op, ops):
                     ops.append(op)
                     break
-        if rng.random() < 0.35 and len(ops) < 2:
+        if rng.random() < upgrade_rate and len(ops) < 2:
             # 随机选一个合法升级目标（覆盖 level-2 / level-3，让回收价值项有多样性）
             candidates = [t for t in state.towers_of(player)
                           if len(TOWER_UPGRADE_TREE.get(TowerType(int(t.tower_type)), ())) > 0]
@@ -97,7 +112,8 @@ def _tower_maps(state):
 
 
 def run_game(seed: int, fe: FeatureExtractor, rng: np.random.Generator,
-             max_rounds: int, stride: int) -> list[dict]:
+             max_rounds: int, stride: int,
+             policies: list[tuple[float, float]]) -> list[dict]:
     state = GameStateFacade.initial(seed=seed)
     zero_mask = np.zeros(MAX_ACTIONS, dtype=np.int8)
     rows: list[dict] = []
@@ -117,7 +133,7 @@ def run_game(seed: int, fe: FeatureExtractor, rng: np.random.Generator,
                     "value": float(evaluate_terminal(state, p)),
                 })
         for p in (0, 1):
-            ops = simple_policy(state, p, rng)
+            ops = simple_policy(state, p, rng, policies[p][0], policies[p][1])
             if ops:
                 state.apply_operation_list(p, ops)
         state.advance_round()
@@ -147,7 +163,10 @@ def main() -> int:
     rng = np.random.default_rng(12345)
     all_rows: list[dict] = []
     for i, seed in enumerate(seeds):
-        rows = run_game(seed, fe, rng, args.max_rounds, args.stride)
+        policies = [_mode_params(rng) for _ in range(2)]
+        rows = run_game(seed, fe, rng, args.max_rounds, args.stride, policies)
+        max_tw = int(max(((r["tower_hp"] > 0).sum()) for r in rows)) if rows else 0
+        print(f"[policy] seed={seed} policies={policies} max_towers={max_tw}", flush=True)
         vals = np.array([r["value"] for r in rows], dtype=np.float32) if rows else np.array([], dtype=np.float32)
         print(f"[gen] seed={seed} ({i+1}/{len(seeds)}) samples={len(rows)} "
               f"value min/med/max={vals.min() if len(vals) else float('nan'):.1f}/"
@@ -174,6 +193,11 @@ def main() -> int:
                         seed=seed_arr, round=round_arr, player=player_arr)
     print(f"[gen] saved {len(value)} samples -> {out} (board {board.shape}, stats {stats.shape})",
           flush=True)
+    n_tw = (tower_hp > 0).sum(axis=(1, 2, 3))
+    print(f"[coverage] towers/sample mean={n_tw.mean():.1f} p50={np.median(n_tw):.0f} "
+          f"p95={np.percentile(n_tw, 95):.0f} max={int(n_tw.max())}", flush=True)
+    print(f"[coverage] round mean={float(round_arr.mean()):.0f} max={int(round_arr.max())} "
+          f"games={len(set(seed_arr.tolist()))}", flush=True)
 
     if args.smoke:
         resid = value - value.mean()
