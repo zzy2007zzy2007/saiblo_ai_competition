@@ -164,9 +164,29 @@ total_score = base_hp * base_hp_weight                       (200)
 
 ---
 
-## 8. 待办
+## 8. 第一轮执行结果（已完成）
 
-- [ ] 确认亚军 `evaluate_terminal` 能否独立编译/调用来产标签（还是需要整体跑它的 simulator）
-- [ ] 确认 `MAP_SIZE` 与我们的 board 尺寸，以及塔 HP 能否从 SDK state 直接取（补特征用）
-- [ ] 写数据生成脚本（dump state + 亚军 score 标签）
-- [ ] 先做 §4 的亚军价值函数蒸馏 + 判读
+- [x] **`evaluate_terminal` 能否独立调用**：不能直接调（C++ header，依赖 `rs::DefenseSimulator`），
+  但它是**纯 state→标量函数**，已用 Python 逐条复刻在 `code/my_ai/distill_top2/lure_value_eval.py`
+  （价值公式/权重/threat/回收价值/槽位码，全部带 `文件:行号` 对照）。
+- [x] **`MAP_SIZE` / 塔 HP**：`MAP_SIZE=19`（`EDGE=10`）；塔 HP 在 SDK 里有（`model.py:250`），
+  但**不在 board 编码里**（`features.py` 只编码塔位置/等级/射程/冷却/伤害）⇒ 已把 `tower_hp` / `tower_type`
+  两张辅助图一并 dump，方便离线测"补塔HP"变体。
+- [x] **数据生成脚本**：`code/my_ai/distill_top2/gen_value_dataset.py`。
+  状态来源 = **C++ 引擎 `GameStateFacade`**（权威；不用官方 Python 引擎，见下"引擎坑"）。
+  已生成 `training_history/distill_top2/value_ds_12g.npz`：**5942 样本 / 12 局**，
+  value −168 ~ 11018（std 2801），塔类型覆盖 `[0,1,2,3,4,12,22]`（含三级塔）。
+- [ ] **下一步**：§4 的亚军价值函数蒸馏（只动 `value_state`，回归 `value`）+ 判读。
+
+### 8.1 ⚠️ 引擎坑（用户 2026-10 提醒，已按此调整）
+
+**官方 `Ant-Game` 的 Python 引擎与 C++ 引擎对不上；C++ 引擎才符合规则；README 规则也有错。**
+⇒ 本方案**状态一律取自 C++ 引擎**（`GameStateFacade`，`code/my_ai/az_intent/game_state_facade.py`，
+底层是 `code/cpp_engine` 的 native binding）；官方 Python 引擎**只用于 SDK 常量/几何/特征编码**（这些是固定的）。
+
+### 8.2 运行前提：`native_game.pyd` 是构建产物
+
+`GameStateFacade` 依赖 `code/cpp_engine/native_game.pyd`（`build.sh` 产出，**gitignore、不跟仓库**）。
+本工作区已从主工作区拷入 `native_game.pyd` + 3 个 MinGW DLL；用**训练环境 python**（`pytorch-gpu`，3.11）导入。
+若要重建：改 `build.sh` 里的 `REPO` 指向本工作区再跑（或直接从主工作区拷）。
+
