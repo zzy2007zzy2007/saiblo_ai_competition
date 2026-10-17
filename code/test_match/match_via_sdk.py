@@ -24,6 +24,7 @@ os.add_dll_directory(r"C:/mingw64/bin")
 
 from my_ai.az_intent.game_state_facade import GameStateFacade as GameState  # noqa: E402
 from SDK.utils.constants import (  # noqa: E402
+    MAX_ACTIONS,
     MAX_ROUND,
     OperationType,
     PLAYER_BASES,
@@ -282,6 +283,34 @@ def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: di
     return proc, io
 
 
+def _dump_raw_state(fh, state, seed: int, round_idx: int) -> None:
+    """可选的 raw-state dump（`MVS_RAW_STATE_DIR` 非空才调用）。
+
+    每条记录（两个玩家各一条）：
+        board: 28*19*19 个 float16
+        stats: 42 个 float16
+        player: 1 个 uint8
+        round: 1 个 int16
+        value: 1 个 float32   # = 亚军 evaluate_terminal(state, player)
+    状态取桥接的权威 GameStateFacade；value 用亚军 Python 复刻（lure_value_eval.py）。
+    默认关闭 ⇒ 不 import numpy/distill_top2、也不建文件 ⇒ 现有实验行为逐位不变。
+    """
+    import numpy as np
+    from SDK.utils.features import FeatureExtractor
+    from my_ai.distill_top2.lure_value_eval import evaluate_terminal
+
+    fe = FeatureExtractor()
+    for p in (0, 1):
+        obs = fe.encode_observation(state, p, np.zeros(MAX_ACTIONS, dtype=np.int8))
+        value = float(evaluate_terminal(state, p))
+        fh.write(np.asarray(obs["board"], dtype=np.float16).tobytes())
+        fh.write(np.asarray(obs["stats"], dtype=np.float16).tobytes())
+        fh.write(bytes([int(p)]))
+        fh.write(np.int16(int(round_idx)).tobytes())
+        fh.write(np.float32(value).tobytes())
+    fh.flush()
+
+
 def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
               runnerup_first: bool = False) -> dict:
     """跑一局。runnerup_first=True（命令行 token 后缀 r）= 第二个 AI(AI1) 执先手(player0)。
@@ -317,6 +346,16 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
                           strip_cr=not p1_magica, argv=s1["args"], cwd=s1["cwd"])
 
     state = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
+    # raw-state dump（可选，默认关）：每回合两个玩家各写一条（见 _dump_raw_state）
+    raw_dir = os.environ.get("MVS_RAW_STATE_DIR", "")
+    raw_fh = None
+    if raw_dir:
+        _rd = Path(raw_dir)
+        if not _rd.is_absolute():
+            _rd = REPO_ROOT / _rd
+        _rd.mkdir(parents=True, exist_ok=True)
+        raw_fh = open(_rd / f"raw_seed{seed:05d}.bin", "wb")
+        print(f"  [raw-dump] -> {raw_fh.name}", flush=True)
     result: dict = {"seed": seed, "champion_first": p0_magica,
                     "p0_label": p0_label, "p1_label": p1_label}
     _OPS_HISTORY: list[list[list[int]]] = []
@@ -325,6 +364,8 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     rounds = 0
     try:
         while not state.terminal and rounds < max_rounds:
+            if raw_fh is not None:
+                _dump_raw_state(raw_fh, state, seed, rounds)
             # ===== 回合开始：player0（先手）先操作 =====
             payload0 = io0.read_packet()
             text0 = payload0.decode("utf-8", errors="replace")
@@ -408,6 +449,12 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
         print(f"  proc0({p0_label}).poll={proc0.poll()}  proc1({p1_label}).poll={proc1.poll()}", flush=True)
         return result
     finally:
+        if raw_fh is not None:
+            try:
+                raw_fh.flush()
+                raw_fh.close()
+            except Exception:  # noqa: BLE001
+                pass
         for proc in (proc0, proc1):
             if proc.poll() is None:
                 proc.terminate()
