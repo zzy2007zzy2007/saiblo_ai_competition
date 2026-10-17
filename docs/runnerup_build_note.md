@@ -51,10 +51,13 @@ g++ -std=c++17 -O3 -DNDEBUG -w -pipe `
 
 - **离线消融**（`analyze_value_ablation.py`，用 seed900 的 plans 日志）：把价值项去掉后，
   **41.8% 的决策 argmax 会变** ⇒ 价值**不是**可有可无的弱 tie-breaker，之前的"先验更重要、value 可收尾"**结论过强**。
-- **直接对战消融（32 局，seed 700–731，jobs=8，带 `MVS_RAW_STATE_DIR`）**：
-  - **zero 版（价值=0）vs 原版：原版 27 胜 5 负（84.4%）**。
+- **直接对战消融（各 32 局，seed 700–731，jobs=8，带 `MVS_RAW_STATE_DIR`）**：
+  - **zero 版（价值=0）**：原版 **27 胜 5 负**（变体胜率 15.6%，−3.9σ，**极显著更弱**）。
     zero 版经常被直接推平（base_hp=0，回合数 306/315/324…）。⇒ **价值是亚军的命脉，去掉就崩**。
-  - linear 版（`base_hp*200 + 等价金币*10`，去掉 threat/stepped decay/c1/future）：结果见 `docs/experiment_log.md`。
+  - **linear 版**（`base_hp*200 + 等价金币*10`，去掉 threat/stepped decay/c1/future）：
+    原版 **19 胜 13 负**（变体胜率 40.6%，−1.07σ，**与 50% 无显著差异**）。
+    ⇒ **线性经济部分就够撑住**，亚军的 threat/stepped decay 精细项**不带来显著优势**。
+    这与"价值近似线性于 stats"（线性 R²=0.97）自洽。
 - 消融局本身也是**有效对局数据**（价值标签由 `evaluate_terminal` 从状态算出，与谁执子无关），
   已开 dump（`abl_zero_raw` / `abl_linear_raw`），可并入价值训练集。
 - **注意**：单局不能下结论（亚军自对弈本来就近 50% 波动），至少 32 局才统计可用。
