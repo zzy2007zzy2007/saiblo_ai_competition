@@ -17,7 +17,8 @@
 # 会直接改变结果（2026-09-09 的 34.4% 复现失败就是被这个变量卡住）。
 set -u
 
-REPO="D:/2026智能体大赛_新2"
+# repo 根 = 本脚本所在目录的上一级（不要硬编码成某个 worktree，否则在副本里跑会跑错代码/写错日志）
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 1
 
 # stdout 被重定向进 output.log 时，Windows 下 Python 会用 cp936 ⇒ 中文全乱码；更要命的是
