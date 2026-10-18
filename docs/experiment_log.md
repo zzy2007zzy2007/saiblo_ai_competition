@@ -11180,3 +11180,40 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   * **B（首选 ✓）**：推理期按类融合（各自用自己的骨干 ✓）⇒ **禁闪电时与现任逐位一致** ✓（自带完美对照 ✓）；
   * **A**：权重移植（1×1 卷积输出通道独立 ✓ ⇒ 其余通道可 `torch.equal` 精确验证 ✓）—— 但有**骨干特征错配**风险 ✗；
   * 验收预注册：禁闪电必须 ≈0.6797 且机制同 ✓；允许闪电期望 ≥ 现任 +10pp 且配对 CI 下界 > 0 ✓。
+
+## 2026-10-18 — 实体 Transformer 价值 + 亚军价值消融（补记：当时未走 run_logged.sh）
+
+> ⚠️ 本 worktree 的 `code/run_logged.sh` 里 `REPO` 硬编码成主工作区 `D:/2026智能体大赛_新2`，
+> 从这里调用会跑错代码/写错日志；以下为事后补记（命令 + 结果来自 job 输出，非 run_logged 产出）。
+
+- **128 局亚军自对弈采集**（桥接 raw dump，board+stats+实体+value）
+  ```bash
+  env MVS_RAW_STATE_DIR=training_history/distill_top2/ru_ent64_raw python -u _tmp_ladder.py --tag=RU_ENT128 --jobs=8 --ai0=<亚军exe> --ai1=<亚军exe> 920..1047
+  ```
+  - 结果：128 局、127,578 条、每局 512 回合终局；`training_history/distill_top2/ru_ent64_raw`
+
+- **实体 Transformer 价值拟合（128 局）**
+  ```bash
+  python code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12
+  ```
+  - 结果：**val R² = 0.9969，MAE = 65**（best_ep 33）；线性基线 0.9459 / 348
+  - 早前 8 局（6k 样本）只有 0.902 ⇒ **之前"网络打不过线性"是数据饥饿**
+
+- **完整版（+格 token）**
+  - 结果：val R² = 0.9958，MAE 75 ⇒ **格 token 无增益**
+
+- **rollout dump（亚军 `-DLURE_DUMP_VALUE`）**
+  ```bash
+  env MVS_RUNNERUP_VALUE_DUMP=... MVS_RUNNERUP_VALUE_STRIDE=200 python -u _tmp_ladder.py --tag=VD_TEST2 --jobs=2 --ai0=<dump版亚军> --ai1=<dump版亚军> 1100 1101
+  ```
+  - 结果：~9 万条/局；但**单边 + 缺 42 stats** ⇒ 跨局 val R² 只有 **0.624**，不能替代采集
+
+- **亚军价值消融（重建亚军 + 32 局，seed 700–731）**
+  ```bash
+  env MVS_RAW_STATE_DIR=... python -u _tmp_ladder.py --tag=ABL5_ZERO --jobs=8 --ai0=<原版亚军> --ai1=<价值=0 亚军> 700..731
+  env MVS_RAW_STATE_DIR=... python -u _tmp_ladder.py --tag=ABL5_LINEAR --jobs=8 --ai0=<原版亚军> --ai1=<线性价值亚军> 700..731
+  ```
+  - **zero：5/32 = 15.6%**（−3.9σ，极显著更弱）⇒ 价值是命脉
+  - **linear：13/32 = 40.6%**（−1.07σ，p≈0.28，32 局不足以定论）
+  - 离线消融（seed900 plans 日志）：去掉价值项后 **41.8%** 决策 argmax 改变
+  - 详见 `docs/runnerup_build_note.md`（含 Windows `_setmode(_O_BINARY)` 这个编译坑）
