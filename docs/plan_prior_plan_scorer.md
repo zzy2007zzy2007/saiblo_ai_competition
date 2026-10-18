@@ -36,11 +36,16 @@ score_before_heuristic / score / mean_terminal_score` 等。
 
 | 目标 | 含义 | 用途 |
 |---|---|---|
-| `heuristic_net = score - mean_terminal_score` | 纯手写分（去价值） | **主目标**：验证"先验"能否被表达 |
-| `score` | 价值 + heuristic 的完整选择准则 | 备选（但会混入价值） |
+| **`heuristic` 字段** = `base+lure+lightning − operation_penalty − followup_penalty` | **纯手写先验**（含惩罚） | **主目标**：验证"先验"能否被表达 |
+| `score` = `score_before_heuristic + heuristic` | 价值 + heuristic 的完整选择准则 | 备选（会混入价值） |
 | `rank` / 访问次数（bandit 最终选择）| 亚军实际选谁 | 下游"选对率"评估 |
 
-> 主目标用 `heuristic_net`，因为它才是"先验"本身；价值我们已经能单独拟合。
+> ⚠️ 精确关系（亚军源码 `root_plans.hpp:223`、`evaluation.hpp:475`）：
+> `heuristic = base_heuristic + lure_heuristic + lightning_heuristic − operation_penalty − followup_penalty`；
+> `score = score_before_heuristic + heuristic`。
+> 所以**主目标直接用日志的 `heuristic` 字段**（也等于 `score − score_before_heuristic`）；
+> **不要**用 `score − mean_terminal_score`（后者是"终局分"而非"rollout 分"，有中局/终局混合误差）。
+
 
 ## 4. 模型（复用实体 Transformer 的 state 编码）
 
