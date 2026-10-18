@@ -11228,3 +11228,60 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261018_115520_entity_value_128_reduced/output.log`
 - **result**: best_ep=33，**val R² = 0.9969，val MAE = 64.9**（线性基线 0.9459 / 348）；ckpt → `checkpoints/entity_value_128_reduced.pt`（1.87 MB）；用时 660s
+
+## 2026-10-18 15:16:48 — entity_pos_learned
+
+- **commit**: `978c8db` (dirty: 4 files)
+- **exit**: 0，用时 1301s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode learned --out training_history/distill_top2/entity_pos_learned.pt
+  ```
+- **output**: `training_history/runs/20261018_151647_entity_pos_learned/output.log`
+- **result**: _待填_
+
+## 2026-10-18 15:38:29 — entity_pos_xy
+
+- **commit**: `0ec7d90` (dirty: 3 files)
+- **exit**: 0，用时 1325s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode xy --out training_history/distill_top2/entity_pos_xy.pt
+  ```
+- **output**: `training_history/runs/20261018_153829_entity_pos_xy/output.log`
+- **result**: _待填_
+
+## 2026-10-18 16:00:36 — entity_pos_rope
+
+- **commit**: `0ec7d90` (dirty: 3 files)
+- **exit**: 0，用时 1421s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode rope --out training_history/distill_top2/entity_pos_rope.pt
+  ```
+- **output**: `training_history/runs/20261018_160036_entity_pos_rope/output.log`
+- **result**: _待填_
+
+## 2026-10-18 16:24:19 — entity_pos_none
+
+- **commit**: `0ec7d90` (dirty: 3 files)
+- **exit**: 0，用时 1090s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode none --out training_history/distill_top2/entity_pos_none.pt
+  ```
+- **output**: `training_history/runs/20261018_162419_entity_pos_none/output.log`
+- **result**: _待填_
+
+## 2026-10-18 — linear 价值消融补到 96 局（补记，未走 run_logged）
+
+- **cmd**（本轮 64 局，seed 732–795，jobs=8，同时开 raw dump + plans）
+  ```bash
+  env MVS_RAW_STATE_DIR=training_history/distill_top2/abl_linear2_raw MVS_RUNNERUP_DEBUG=plans \
+    python -u _tmp_ladder.py --tag=ABL6_LINEAR --jobs=8 --ai0=<原版亚军> --ai1=<线性价值亚军> 732..795
+  ```
+- **result**: 原版 38 : 26 linear（linear 胜率 40.6%）
+  - 合并之前 32 局（13:19）⇒ **96 局 39:57（40.6%）**，z≈−1.84，**双侧 p≈0.066**（边缘显著）
+  - 结论：linear 略差 ~9pp；价值里的 threat/stepped-decay 是**真实但不大**的贡献
+  - 对照：zero（价值=0）5/32 = 15.6%（p<0.001，崩盘）⇒ 价值本身是命脉
+- **数据**：状态 `training_history/distill_top2/abl_linear2_raw`（~1.2 GB）+ plans stderr ~5 GB（可用于 plan scorer）
