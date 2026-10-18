@@ -11238,7 +11238,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode learned --out training_history/distill_top2/entity_pos_learned.pt
   ```
 - **output**: `training_history/runs/20261018_151647_entity_pos_learned/output.log`
-- **result**: _待填_
+- **result**: best_ep=33，**val R² 0.9969 / MAE 64.9**（每格可学习位置向量）
 
 ## 2026-10-18 15:38:29 — entity_pos_xy
 
@@ -11249,7 +11249,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode xy --out training_history/distill_top2/entity_pos_xy.pt
   ```
 - **output**: `training_history/runs/20261018_153829_entity_pos_xy/output.log`
-- **result**: _待填_
+- **result**: best_ep=31，**val R² 0.9966 / MAE 65.0**（Emb_x+Emb_y 分解）
 
 ## 2026-10-18 16:00:36 — entity_pos_rope
 
@@ -11260,7 +11260,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode rope --out training_history/distill_top2/entity_pos_rope.pt
   ```
 - **output**: `training_history/runs/20261018_160036_entity_pos_rope/output.log`
-- **result**: _待填_
+- **result**: best_ep=31，**val R² 0.9972 / MAE 62.4**（2D 旋转）
 
 ## 2026-10-18 16:24:19 — entity_pos_none
 
@@ -11271,7 +11271,9 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --pos-mode none --out training_history/distill_top2/entity_pos_none.pt
   ```
 - **output**: `training_history/runs/20261018_162419_entity_pos_none/output.log`
-- **result**: _待填_
+- **result**: best_ep=40，**val R² 0.9979 / MAE 52.0**（无位置编码——反而最好）
+- **小结**：4 种位置编码全部 ≈0.997（rope 0.9972 / learned 0.9969 / xy 0.9966 / none 0.9979），
+  差异 0.0013 在噪声内 ⇒ **位置编码对价值不是瓶颈**（42 维 stats 已含距离/前线摘要；位置结构要到 plan scorer 才真正需要）
 
 ## 2026-10-18 — linear 价值消融补到 96 局（补记，未走 run_logged）
 
