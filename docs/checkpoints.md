@@ -243,3 +243,9 @@ python -u code/tools/extract_model_from_ckpt.py \
 | **`…/visitsweep_rank1_rest.pt`** | **入围 B**：目标 = rank-1 0.5 + 其余均分 0.5 ⇒ val 命中 44.17%、扰动 0.2525 ✓ |
 | `training_history/visitmarg/rows30k.npz` | 训练集：**26,718 行**（388 dump ⇒ 有效行 14.7% ✓）|
 | `training_history/visitmarg/sweep_30k.json` | 16 变体完整指标表（含"全局扰动"两列 ✓）|
+
+## 实体 Transformer 价值网（2026-10-18，详见 `docs/entity_transformer_value_results.md`）
+
+| 文件 | 大小 | sha256 | 是什么 |
+|---|---|---|---|
+| `entity_value_128_reduced.pt` | 1.87 MB | `704e9b4a1c66628d7726874bcc7e49989c4bf24c157b7d0d8d38b879157dd44a` | **实体 token Transformer 价值网**（塔/蚁 token + 42 stats + CLS；`d_model=128 / n_layers=3 / n_heads=4 / use_cells=False`）。训练数据 = 128 局亚军自对弈（`training_history/distill_top2/entity_ds_128.npz`，127,578 条，train 96 局 / val 32 局按 seed 切）。**val R²=0.9969、MAE=64.9**（线性基线 0.9459/348）。归一化：`value = out*1750.318 + 10481.754`。训练日志 `training_history/runs/20261018_115520_entity_value_128_reduced/`。⚠️ 训练**未过 tanh**，若并入 `AntWarNetwork` 体系部署须设 `AZAI_VALUE_TANH=0` |

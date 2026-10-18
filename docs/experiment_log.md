@@ -11217,3 +11217,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   - **linear：13/32 = 40.6%**（−1.07σ，p≈0.28，32 局不足以定论）
   - 离线消融（seed900 plans 日志）：去掉价值项后 **41.8%** 决策 argmax 改变
   - 详见 `docs/runnerup_build_note.md`（含 Windows `_setmode(_O_BINARY)` 这个编译坑）
+
+## 2026-10-18 11:55:20 — entity_value_128_reduced
+
+- **commit**: `aa11a04` (dirty: 3 files)
+- **exit**: 0，用时 660s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/entity_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --out checkpoints/entity_value_128_reduced.pt
+  ```
+- **output**: `training_history/runs/20261018_115520_entity_value_128_reduced/output.log`
+- **result**: best_ep=33，**val R² = 0.9969，val MAE = 64.9**（线性基线 0.9459 / 348）；ckpt → `checkpoints/entity_value_128_reduced.pt`（1.87 MB）；用时 660s

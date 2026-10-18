@@ -71,6 +71,7 @@ def main() -> int:
     ap.add_argument("--patience", type=int, default=10)
     ap.add_argument("--with-board", action="store_true", help="加载 board 并做格 token（完整版）")
     ap.add_argument("--use-cells", action="store_true", help="模型加格 token")
+    ap.add_argument("--out", default="", help="保存 best checkpoint 的路径（.pt）")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
 
@@ -171,6 +172,20 @@ def main() -> int:
         model.load_state_dict(best_sd)
     r, mae = evaluate()
     print(f"\n[result] best_ep={best_ep} val_R2={r:.4f} val_MAE={mae:.1f}", flush=True)
+
+    if a.out:
+        outp = Path(a.out)
+        if not outp.is_absolute():
+            outp = _REPO / outp
+        outp.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({
+            "state_dict": model.state_dict(),
+            "config": {"d_model": a.d_model, "n_layers": a.n_layers,
+                       "n_heads": a.n_heads, "use_cells": a.use_cells},
+            "val_r2": r, "val_mae": mae, "best_ep": best_ep,
+            "value_mean": y_mean, "value_std": y_std, "data": a.data,
+        }, outp)
+        print(f"[ckpt] -> {outp}", flush=True)
 
     # 线性基线（42 stats）
     stats = d["stats"].astype(np.float64)
