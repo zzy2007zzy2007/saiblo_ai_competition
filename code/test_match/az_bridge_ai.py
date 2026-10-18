@@ -389,6 +389,11 @@ def build_engine(seed: int, player: int):
         ckpt, feat,
         value_tanh=bool(int(_env("AZAI_VALUE_TANH", "1"))),
         value_rel_to_abs=float(_env("AZAI_REL2ABS", "0")),
+        # 价值来源：net=自身 value 网（默认）；handcrafted=亚军的 evaluate_terminal
+        # （用 AZAI_VALUE_OFFSET/AZAI_VALUE_SCALE 线性归一到搜索尺度）
+        value_src=_env("AZAI_VALUE_SRC", "net"),
+        value_offset=float(_env("AZAI_VALUE_OFFSET", "10000")),
+        value_scale=float(_env("AZAI_VALUE_SCALE", "2000")),
         # 可选：类条件价值头（方法侧 M2，`AZAI_Q_CKPT` 指向 QHead.save 的文件）
         q_ckpt=_env("AZAI_Q_CKPT", ""),
     )

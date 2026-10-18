@@ -148,11 +148,17 @@ class ThreeNetPolicy:
 
 def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
                       max_actions: int = 96, value_tanh: bool = True,
-                      value_rel_to_abs: float = 0.0, q_model=None):
+                      value_rel_to_abs: float = 0.0, q_model=None,
+                      value_src: str = "net", value_offset: float = 0.0,
+                      value_scale: float = 1.0):
     """net_fn over three independent networks — same interface as make_split_net_fn.
 
     ``action_map`` comes from the POS net, ``head_logits`` from the CLASS net,
     ``value`` from the VALUE net (3 forwards instead of 2).
+
+    ``value_src="handcrafted"``：不用 value 网，改调**亚军的手写价值**
+    `lure_value_eval.evaluate_terminal(state, player)`，并做 `(v - offset) / scale`
+    线性归一到搜索的尺度（亚军价值 ~10000 量级，搜索期望 ~[-1,1]）。
     """
     from my_ai.az_intent.mcts import HP_SCALE
 
@@ -166,10 +172,14 @@ def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
             v_out = value_model(board, stats)
         heads = [c_out[f"head{i + 1}_logits"].squeeze(0).numpy()
                  for i in range(class_model.num_heads)]
-        v_t = v_out["value"].squeeze(0)
-        value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
-        if value_rel_to_abs > 0.0:
-            value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
+        if value_src == "handcrafted":
+            from my_ai.distill_top2.lure_value_eval import evaluate_terminal
+            value = (float(evaluate_terminal(state, player)) - value_offset) / value_scale
+        else:
+            v_t = v_out["value"].squeeze(0)
+            value = float(torch.tanh(v_t).item()) if value_tanh else float(v_t.item())
+            if value_rel_to_abs > 0.0:
+                value = value / value_rel_to_abs + float(obs["stats"][1]) / HP_SCALE
         out = {
             "action_map": p_out["action_map"].squeeze(0).numpy(),
             "head_logits": heads,
@@ -190,7 +200,9 @@ def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
 
 
 def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = True,
-                          value_rel_to_abs: float = 0.0, q_ckpt: str = ""):
+                          value_rel_to_abs: float = 0.0, q_ckpt: str = "",
+                          value_src: str = "net", value_offset: float = 0.0,
+                          value_scale: float = 1.0):
     """Build (anchor_model, net_fn) for a checkpoint — single or split.
 
     ``anchor_model`` is the policy network (used to record the anchor outputs
@@ -208,7 +220,9 @@ def make_net_fn_from_ckpt(ckpt_path: str, feature_extractor, value_tanh: bool = 
         return (ThreeNetPolicy(class_model, pos_model),
                 make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
                                   value_tanh=value_tanh,
-                                  value_rel_to_abs=value_rel_to_abs, q_model=_q))
+                                  value_rel_to_abs=value_rel_to_abs, q_model=_q,
+                                  value_src=value_src, value_offset=value_offset,
+                                  value_scale=value_scale))
     if "value_state" in ckpt:
         from my_ai.az_intent.train import make_split_net_fn
         policy_model, value_model = load_split_models(ckpt_path)
