@@ -49,6 +49,7 @@ def main() -> int:
     ap.add_argument("--out", default="training_history/distill_top2/entity_ds.npz")
     ap.add_argument("--max-towers", type=int, default=200)
     ap.add_argument("--max-ants", type=int, default=120)
+    ap.add_argument("--with-board", action="store_true", help="额外存 board(28,19,19)（供格 token 用）")
     a = ap.parse_args()
 
     raw = Path(a.raw_dir)
@@ -65,6 +66,7 @@ def main() -> int:
     TC, TT, TP, TM = [], [], [], []
     AC, AK, AB, AP, AM = [], [], [], [], []
     ST, VAL, SEED, RND, PL = [], [], [], [], []
+    BOARDS: list = []
     n_ant_max = n_tw_max = 0
 
     for bi, bf in enumerate(bins):
@@ -136,6 +138,8 @@ def main() -> int:
             AC.append(ac); AK.append(ak); AB.append(ab); AP.append(ap); AM.append(amask)
             ST.append(stats[i].astype(np.float32)); VAL.append(float(val[i]))
             SEED.append(seed); RND.append(r); PL.append(p)
+            if a.with_board:
+                BOARDS.append(buf[i, :BOARD_BYTES].copy().view(np.float16).reshape(28, 19, 19))
 
         print(f"  [{bi+1}/{len(bins)}] seed={seed} recs={len(TC)}", flush=True)
 
@@ -155,6 +159,10 @@ def main() -> int:
     print(f"[build] saved {len(v)} -> {out}", flush=True)
     print(f"[build] value mean/std/min/max = {v.mean():.1f}/{v.std():.1f}/{v.min():.1f}/{v.max():.1f}", flush=True)
     print(f"[build] 实测 max towers={n_tw_max} ants={n_ant_max} (pad {Tn}/{An})", flush=True)
+    if a.with_board and BOARDS:
+        bp = out.with_suffix(".board.npy")
+        np.save(bp, np.stack(BOARDS))
+        print(f"[build] board -> {bp} {len(BOARDS)}x28x19x19", flush=True)
     return 0
 
 

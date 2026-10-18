@@ -350,19 +350,30 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     stderr0 = keep_dir / f"ai0_{p0_label}_seed{seed}.stderr.log"
     stderr1 = keep_dir / f"ai1_{p1_label}_seed{seed}.stderr.log"
 
-    def ai_env(is_magica: bool) -> dict:
+    def ai_env(is_magica: bool, seed: int | None = None) -> dict:
         if is_magica:
             return {"ANTWAR_MAGICA_IO_TRACE": "1",
                     "ANTWAR_MAGICA_RUNTIME_ARTIFACT_DIR": r"e:\magica_runtime"}
         # 亚军（非 magica）的 debug 级别：默认 summary；要采"候选+打分"（先验蒸馏用）就设
         # MVS_RUNNERUP_DEBUG=plans（写进它的 stderr，由 _archive_stderr 归档）。
-        return {"ANTGAME_CPP_BASELINE_DEBUG": os.environ.get("MVS_RUNNERUP_DEBUG", "summary")}
+        env = {"ANTGAME_CPP_BASELINE_DEBUG": os.environ.get("MVS_RUNNERUP_DEBUG", "summary")}
+        # 采集"rollout 终局态 + 价值"（数据放大；需用 -DLURE_DUMP_VALUE 编译的亚军 exe）。
+        # MVS_RUNNERUP_VALUE_DUMP=<目录>，MVS_RUNNERUP_VALUE_STRIDE=<抽样步长，默认500>。
+        dump_dir = os.environ.get("MVS_RUNNERUP_VALUE_DUMP", "")
+        if dump_dir and seed is not None:
+            # ⚠️ 必须绝对路径：AI 的 cwd 是 exe 所在目录，相对路径会解析到别处 ⇒ 文件打不开
+            dump_path = (REPO_ROOT / Path(dump_dir) if not Path(dump_dir).is_absolute()
+                         else Path(dump_dir))
+            dump_path.mkdir(parents=True, exist_ok=True)
+            env["LURE_VALUE_DUMP"] = str(dump_path / f"value_seed{seed:05d}.jsonl")
+            env["LURE_VALUE_DUMP_STRIDE"] = os.environ.get("MVS_RUNNERUP_VALUE_STRIDE", "500")
+        return env
 
     # AI 的 argv/env/cwd 跟着 **AI 的身份**（ai0/ai1）走，不跟着"谁执先手"走
     s0 = AI_SPEC[0] if not runnerup_first else AI_SPEC[1]
     s1 = AI_SPEC[1] if not runnerup_first else AI_SPEC[0]
-    env0 = {**ai_env(p0_magica), **s0["env"]}
-    env1 = {**ai_env(p1_magica), **s1["env"]}
+    env0 = {**ai_env(p0_magica, seed), **s0["env"]}
+    env1 = {**ai_env(p1_magica, seed), **s1["env"]}
     proc0, io0 = start_ai(p0_exe, 0, seed, stderr0, extra_env=env0,
                           strip_cr=not p0_magica, argv=s0["args"], cwd=s0["cwd"])
     proc1, io1 = start_ai(p1_exe, 1, seed, stderr1, extra_env=env1,

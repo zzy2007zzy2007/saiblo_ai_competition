@@ -31,18 +31,23 @@ PAD_CELL = 361        # position embedding 的 pad 下标（19*19=361 个格）
 
 class EntityTransformerValue(nn.Module):
     def __init__(self, d_model: int = 128, n_layers: int = 3, n_heads: int = 4,
-                 ffn: int = 256, dropout: float = 0.1):
+                 ffn: int = 256, dropout: float = 0.1, use_cells: bool = False):
         super().__init__()
         self.d_model = d_model
+        self.use_cells = use_cells
         self.tower_cont = nn.Linear(TOWER_CONT_DIM, d_model)
         self.tower_type = nn.Embedding(N_TOWER_TYPES, d_model)
         self.ant_cont = nn.Linear(ANT_CONT_DIM, d_model)
         self.ant_kind = nn.Embedding(N_ANT_KINDS, d_model)
         self.ant_behavior = nn.Embedding(N_ANT_BEHAVIORS, d_model)
         self.pos = nn.Embedding(19 * 19 + 1, d_model)   # +1 pad
-        self.type_emb = nn.Embedding(4, d_model)        # 0=CLS 1=STATS 2=TOWER 3=ANT
+        self.type_emb = nn.Embedding(5, d_model)        # 0=CLS 1=STATS 2=TOWER 3=ANT 4=CELL
         self.stats_proj = nn.Linear(42, d_model)
         self.cls = nn.Parameter(torch.zeros(1, 1, d_model))
+        if use_cells:
+            # 每个(有效)格子一个 token：28 通道 embed 成一个向量（+ 位置 + 类型）
+            self.cell_proj = nn.Linear(28, d_model)
+            self.register_buffer("cell_ids", torch.arange(19 * 19), persistent=False)
 
         layer = nn.TransformerEncoderLayer(
             d_model=d_model, nhead=n_heads, dim_feedforward=ffn,
@@ -56,7 +61,7 @@ class EntityTransformerValue(nn.Module):
     def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         """batch keys: tower_cont(B,Tn,3), tower_type(B,Tn) long, tower_pos(B,Tn) long, tower_mask(B,Tn)
         ant_cont(B,An,4), ant_kind(B,An), ant_behavior(B,An), ant_pos(B,An), ant_mask(B,An)
-        stats(B,42).  返回 (B,1)。"""
+        stats(B,42).  use_cells 时还有 board(B,28,19,19)。返回 (B,1)。"""
         B = batch["stats"].shape[0]
         dev = batch["stats"].device
         toks, masks = [], []
@@ -81,13 +86,20 @@ class EntityTransformerValue(nn.Module):
               + self.type_emb.weight[3])
         toks.append(an); masks.append(batch["ant_mask"])
 
+        # cells（可选）：board 28ch → 每格一个 token
+        if self.use_cells:
+            cells = batch["board"].permute(0, 2, 3, 1).reshape(B, 19 * 19, 28)
+            ct = (self.cell_proj(cells)
+                  + self.pos(self.cell_ids).unsqueeze(0)
+                  + self.type_emb.weight[4])
+            toks.append(ct)
+            masks.append(torch.ones(B, 19 * 19, dtype=torch.bool, device=dev))
+
         x = torch.cat(toks, dim=1)                  # (B, N, d)
         keep = torch.cat(masks, dim=1)              # (B, N) bool
-        # transformer 的 key_padding_mask: True = 忽略
         out = self.encoder(x, src_key_padding_mask=~keep)
         out = self.norm(out)
-        cls_out = out[:, 0]
-        return self.head(cls_out)
+        return self.head(out[:, 0])
 
 
 def count_params(m: nn.Module) -> int:

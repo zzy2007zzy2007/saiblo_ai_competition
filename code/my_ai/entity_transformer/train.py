@@ -69,6 +69,8 @@ def main() -> int:
     ap.add_argument("--n-layers", type=int, default=3)
     ap.add_argument("--n-heads", type=int, default=4)
     ap.add_argument("--patience", type=int, default=10)
+    ap.add_argument("--with-board", action="store_true", help="加载 board 并做格 token（完整版）")
+    ap.add_argument("--use-cells", action="store_true", help="模型加格 token")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
 
@@ -87,24 +89,44 @@ def main() -> int:
     y_norm = ((value - y_mean) / y_std).astype(np.float32)
 
     dev = a.device
+    d_board = None
+    if a.with_board:
+        bp = Path(a.data).with_suffix(".board.npy")
+        if not bp.exists():
+            print(f"[data] 缺 board 文件 {bp}（构建时加 --with-board）", flush=True)
+            return 1
+        d_board = np.load(bp, mmap_mode="r")
+        print(f"[data] board {d_board.shape}", flush=True)
+
+    # ⚠️ 必须把数组从 NpzFile 里取出来：每次 `d["x"]` 都会重新解压整个数组，
+    # 在 to_t 里每批调用会慢几十倍（实测 95k 样本一个 epoch 要十几分钟）。
+    _TC = d["tower_cont"]; _TT = d["tower_type"]; _TP = d["tower_pos"]; _TM = d["tower_mask"]
+    _AC = d["ant_cont"]; _AK = d["ant_kind"]; _AB = d["ant_behavior"]; _AP = d["ant_pos"]; _AM = d["ant_mask"]
+    _ST = d["stats"]
+
     def to_t(idx):
-        return {
-            "tower_cont": torch.from_numpy(d["tower_cont"][idx]).float().to(dev),
-            "tower_type": torch.from_numpy(d["tower_type"][idx]).long().to(dev),
-            "tower_pos": torch.from_numpy(d["tower_pos"][idx]).long().to(dev),
-            "tower_mask": torch.from_numpy(d["tower_mask"][idx]).bool().to(dev),
-            "ant_cont": torch.from_numpy(d["ant_cont"][idx]).float().to(dev),
-            "ant_kind": torch.from_numpy(d["ant_kind"][idx]).long().to(dev),
-            "ant_behavior": torch.from_numpy(d["ant_behavior"][idx]).long().to(dev),
-            "ant_pos": torch.from_numpy(d["ant_pos"][idx]).long().to(dev),
-            "ant_mask": torch.from_numpy(d["ant_mask"][idx]).bool().to(dev),
-            "stats": torch.from_numpy(d["stats"][idx]).float().to(dev),
+        out = {
+            "tower_cont": torch.from_numpy(_TC[idx]).float().to(dev),
+            "tower_type": torch.from_numpy(_TT[idx]).long().to(dev),
+            "tower_pos": torch.from_numpy(_TP[idx]).long().to(dev),
+            "tower_mask": torch.from_numpy(_TM[idx]).bool().to(dev),
+            "ant_cont": torch.from_numpy(_AC[idx]).float().to(dev),
+            "ant_kind": torch.from_numpy(_AK[idx]).long().to(dev),
+            "ant_behavior": torch.from_numpy(_AB[idx]).long().to(dev),
+            "ant_pos": torch.from_numpy(_AP[idx]).long().to(dev),
+            "ant_mask": torch.from_numpy(_AM[idx]).bool().to(dev),
+            "stats": torch.from_numpy(_ST[idx]).float().to(dev),
         }
+        if d_board is not None:
+            out["board"] = torch.from_numpy(
+                np.asarray(d_board[idx], np.float32)).to(dev)
+        return out
     def to_t_batch(idx):
         b = to_t(idx)
         return b, torch.from_numpy(y_norm[idx]).unsqueeze(1).to(dev)
 
-    model = EntityTransformerValue(d_model=a.d_model, n_layers=a.n_layers, n_heads=a.n_heads).to(dev)
+    model = EntityTransformerValue(d_model=a.d_model, n_layers=a.n_layers,
+                                   n_heads=a.n_heads, use_cells=a.use_cells).to(dev)
     print(f"[model] params={count_params(model):,}", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.01)
     loss_fn = nn.MSELoss()
