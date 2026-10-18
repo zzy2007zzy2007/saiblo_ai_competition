@@ -72,6 +72,8 @@ def main() -> int:
     ap.add_argument("--with-board", action="store_true", help="加载 board 并做格 token（完整版）")
     ap.add_argument("--use-cells", action="store_true", help="模型加格 token")
     ap.add_argument("--out", default="", help="保存 best checkpoint 的路径（.pt）")
+    ap.add_argument("--pos-mode", default="learned",
+                    choices=["learned", "xy", "rope", "none"], help="位置编码方式")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
 
@@ -127,7 +129,8 @@ def main() -> int:
         return b, torch.from_numpy(y_norm[idx]).unsqueeze(1).to(dev)
 
     model = EntityTransformerValue(d_model=a.d_model, n_layers=a.n_layers,
-                                   n_heads=a.n_heads, use_cells=a.use_cells).to(dev)
+                                   n_heads=a.n_heads, use_cells=a.use_cells,
+                                   pos_mode=a.pos_mode).to(dev)
     print(f"[model] params={count_params(model):,}", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=0.01)
     loss_fn = nn.MSELoss()
@@ -181,7 +184,8 @@ def main() -> int:
         torch.save({
             "state_dict": model.state_dict(),
             "config": {"d_model": a.d_model, "n_layers": a.n_layers,
-                       "n_heads": a.n_heads, "use_cells": a.use_cells},
+                       "n_heads": a.n_heads, "use_cells": a.use_cells,
+                       "pos_mode": a.pos_mode},
             "val_r2": r, "val_mae": mae, "best_ep": best_ep,
             "value_mean": y_mean, "value_std": y_std, "data": a.data,
         }, outp)
