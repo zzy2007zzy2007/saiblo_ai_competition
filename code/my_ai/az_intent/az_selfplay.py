@@ -432,6 +432,22 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     "recorded_action_map": recorded_am,
                     "recorded_head_logits": recorded_hl,
                     "search_skipped": skip,
+                    # ── 完整局面字段（按决策快照，供"一一对应"重建 + 实体模型）──
+                    "towers": [[int(t.tower_id), int(t.player), int(t.x), int(t.y),
+                                int(t.tower_type), int(t.hp)] for t in state.towers],
+                    "ants": [[int(a.ant_id), int(a.player), int(a.x), int(a.y), int(a.hp),
+                              int(a.max_hp), int(a.kind), int(a.age), int(a.behavior)]
+                             for a in state.ants],
+                    "effects": [[int(e.weapon_type), int(e.player), int(e.x), int(e.y),
+                                 int(e.remaining_turns)] for e in state.active_effects],
+                    "weapon_cd": [[int(x) for x in row] for row in state.weapon_cooldowns],
+                    "weapon_usage": [int(x) for x in state.super_weapon_usage],
+                    "coins": [int(x) for x in state.coins],
+                    "hp_us": int(state.bases[player].hp),
+                    "hp_opp": int(state.bases[1 - player].hp),
+                    "die": [int(x) for x in getattr(state, "die_count", [0, 0])],
+                    "old": [int(x) for x in getattr(state, "old_count", [0, 0])],
+                    "round": int(state.round_index),
                 }
             )
             ops = [
@@ -523,6 +539,15 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                 player=_np.asarray([s["player"] for s in samples], dtype=_np.int8),
                 value_target=_np.asarray([s["value_target"] for s in samples], dtype=_np.float32),
             )
+            # 完整局面字段另存 JSONL（与 npz 逐条同序；含塔/蚁/效果/武器/金币/HP/死伤/回合）
+            import json as _json
+            ents_path = npz.with_suffix(".ents.jsonl")
+            _keys = ("round", "player", "towers", "ants", "effects", "weapon_cd",
+                     "weapon_usage", "coins", "hp_us", "hp_opp", "die", "old", "value_target")
+            with open(ents_path, "w", encoding="utf-8") as _fh:
+                for _s in samples:
+                    _fh.write(_json.dumps({_k: _s.get(_k) for _k in _keys},
+                                          ensure_ascii=False) + "\n")
         path = npz
     else:
         with open(path, "wb") as f:
