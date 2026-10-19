@@ -67,14 +67,22 @@ def main() -> int:
             edges = np.linspace(0, n, K + 1).astype(np.int64)
             idx = np.array([s0 + int(rng.integers(edges[k], edges[k + 1])) for k in range(K)])
         m = len(idx)
-        b_out[w:w + m] = np.asarray(board[idx])
-        s_out[w:w + m] = np.asarray(stats[idx])
+        li = idx - s0
+        # ⚠️ 所有字段都**先整窗口顺序读进内存**，再从内存里挑帧。
+        # 若直接 board[idx] / stats[idx] 散读，在机械盘上就是每局几十次寻道。
+        win_b = np.asarray(board[s0:e0])
+        win_s = np.asarray(stats[s0:e0])
+        b_out[w:w + m] = win_b[li]
+        s_out[w:w + m] = win_s[li]
         y_out[w:w + m] = vwin[idx]
         g_out[w:w + m] = g
         hu_out[w:w + m] = hp_us[idx]
         ho_out[w:w + m] = hp_opp[idx]
+        del win_b, win_s
         w += m
-        if (g + 1) % 1000 == 0:
+        if (g + 1) % 500 == 0:
+            with open(out / "progress.txt", "a", encoding="utf-8") as _pf:
+                _pf.write(f"games={g+1}/{n_games} written={w}\n")
             print(f"  [{g+1}/{n_games}] written={w}", flush=True)
 
     for arr in (b_out, s_out, y_out, g_out, hu_out, ho_out):

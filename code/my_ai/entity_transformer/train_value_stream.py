@@ -62,8 +62,18 @@ def main() -> int:
     stats = np.load(d / "stats.npy", mmap_mode="r")
     hp_us = np.load(d / "hp_us.npy")
     hp_opp = np.load(d / "hp_opp.npy")
-    vwin = np.load(d / "value_win.npy")
-    offs = np.load(d / "game_offsets.npy")
+    # 标签：合并数据叫 value_win.npy，抽帧紧凑集叫 label.npy（内容都是局末血量差/20）
+    _lab = d / "value_win.npy"
+    if not _lab.exists():
+        _lab = d / "label.npy"
+    vwin = np.load(_lab, mmap_mode="r")
+    # 局边界：合并数据有 game_offsets.npy；紧凑集只有 game_id.npy，用它推
+    _offs = d / "game_offsets.npy"
+    if _offs.exists():
+        offs = np.load(_offs)
+    else:
+        gid = np.load(d / "game_id.npy")
+        offs = np.searchsorted(gid, np.arange(int(gid[-1]) + 2))
     N = board.shape[0]
     n_games = len(offs) - 1
     print(f"[data] N={N} games={n_games} label={a.label}", flush=True)
@@ -141,8 +151,8 @@ def main() -> int:
                     bi = perm2[k:k + a.batch_size]
                     b = torch.from_numpy(b_mem[bi].astype(np.float32)).to(dev)
                     st = torch.from_numpy(s_mem[bi].astype(np.float32)).to(dev)
-                    t = torch.from_numpy(((y_mem[bi] - y_mean) / y_std).astype(np.float32)
-                                         ).unsqueeze(1).to(dev)
+                    # ⚠️ ValueNetwork.forward 返回 (B,)，所以标签也保持 (B,)
+                    t = torch.from_numpy(((y_mem[bi] - y_mean) / y_std).astype(np.float32)).to(dev)
                     pred = model(b, st)
                     loss = loss_fn(pred, t)
                     opt.zero_grad(); loss.backward(); opt.step()
@@ -157,7 +167,7 @@ def main() -> int:
                     chunk = va_idx[s:s+512]
                     vb = torch.from_numpy(np.asarray(board[chunk], np.float32)).to(dev)
                     vs = torch.from_numpy(np.asarray(stats[chunk], np.float32)).to(dev)
-                    outs.append(model(vb, vs).squeeze(1).cpu().numpy())
+                    outs.append(model(vb, vs).reshape(-1).cpu().numpy())
             pv = np.concatenate(outs) * y_std + y_mean
             r = r2(y_va, pv); mae = float(np.mean(np.abs(y_va - pv)))
             star = ""
