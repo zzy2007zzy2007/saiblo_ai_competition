@@ -11287,3 +11287,60 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   - 结论：linear 略差 ~9pp；价值里的 threat/stepped-decay 是**真实但不大**的贡献
   - 对照：zero（价值=0）5/32 = 15.6%（p<0.001，崩盘）⇒ 价值本身是命脉
 - **数据**：状态 `training_history/distill_top2/abl_linear2_raw`（~1.2 GB）+ plans stderr ~5 GB（可用于 plan scorer）
+
+## 2026-10-18 18:13:11 — entity_sim_value_xs
+
+- **commit**: `8fd3902` (dirty: 3 files)
+- **exit**: 0，用时 419s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data training_history/distill_top2/sim_value_ds_128.npz --val-seeds 1016-1047 --epochs 40 --patience 12 --d-model 32 --n-layers 1 --n-heads 4 --out training_history/distill_top2/entity_sim_value_xs.pt
+  ```
+- **output**: `training_history/runs/20261018_181311_entity_sim_value_xs/output.log`
+- **result**: _待填_
+
+## 2026-10-19 13:18:57 — lowq_value_f64_3seed
+
+- **commit**: `938bf0b` (dirty: 6 files)
+- **exit**: 0，用时 2781s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train_value_stream.py --data D:/2026智能体大赛_新2_distill/training_history/distill_top2/lowq_f64 --seeds 0 1 2 --epochs 10 --batch-size 512 --shard-games 50 --val-games 500 --out-dir D:/2026智能体大赛_新2_distill/checkpoints
+  ```
+- **output**: `training_history/runs/20261019_131857_lowq_value_f64_3seed/output.log`
+- **result**: _待填_
+
+## 2026-10-19 — 低质量大数据价值网：离线 R² 与 128 局实战
+
+**问题**（用户）：用大量低质量对局（M6c 裸策略 + ε=2% 随机动作自对弈）能否训出更好的价值网？
+
+**数据**：5000 局 / 4.28M 帧（C++ 引擎）。训练实际只用**每局 64 帧** = 32 万样本（标签是每局一个终局血量差，局内 std=0，所以 64 帧不丢标签信号）。`F:\...\training_history\lowq_e2*`（原始 50.5 GB + 合并 91.3 GB）。
+
+**离线结果（按局切，最后 500 局验证）**：
+| 模型 | val R² | MAE |
+|---|---|---|
+| 朴素基线：当前血量差 | 0.3932 | — |
+| M6c 原价值网 `posnet_A_k5_m32` | 0.4533 | — |
+| **新网（5000 局）seed0/1/2** | **0.4708 / 0.4701 / 0.4688** | 0.215 |
+
+**⇒ 种子间只差 0.002**（对比历史 336 局时代"同配置换种子胜率 25%→50%"）⇒ **5000 局量级下训练已稳定**，噪声地板问题基本解决。但 R² 只比原网高 **+0.018**。
+
+**实战（128 局配对 vs rule_v4，seed 7..70 双向，判据同 `M6cROOT_128`）**：
+- 2-0 / 1-1 / 0-2 = **39 / 21 / 4**
+- **配对胜率 = 0.7734**，SE 0.0523，95%CI [0.671, 0.876]
+- 基线 `M6c-ROOT` = **0.7344** ⇒ **+3.9pp，CI 覆盖基线 ⇒ 不显著**
+- 配置：`AZAI_CKPT=checkpoints/posnet_A_k5_m32_lowq.pt AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_K=24 AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet AZAI_MC_EVERY=5 AZAI_MC_HORIZON=256 AZAI_SAMPLE_PULT=15 AZAI_SKIP1=1 AZAI_VALUE_TANH=0`
+
+**结论**：**低质量数据即使量大 15 倍，也只带来可忽略的提升**（离线 +0.018 R²，实战 +3.9pp 不显著）。
+
+**关键旁证（标签方差分解，统一 P0 视角）**：
+| 标签 | total std | **局内 std** | 局间 std |
+|---|---|---|---|
+| terminal（终局血量差）| 0.384 | **0.0000** | 0.3665 |
+| geo_tau10 | 0.0356 | 0.0354 | 0.0048 |
+| geo_tau50 | 0.0760 | 0.0722 | 0.0198 |
+| kgeo_tau50 | 0.1143 | 0.1042 | 0.0383 |
+
+⇒ **terminal 标签每局一个值，64 帧/局足够；`rel`/`kgeo` 标签的方差几乎全在局内，必须用全量帧**（64 帧只用到 7.5% 的标签信号，因此 64 帧上的 rel 训练结果不可信，已停止）。
+
+**工程教训**：同一任务"散读帧"与"整窗口顺序读"在机械盘上实测差 **30 倍**（抽帧 50 分钟 → 3 分钟）。磁盘类型：D=SSD，E/F=HDD。
