@@ -78,14 +78,15 @@ def main() -> int:
     print(f"[data] train={len(tr_idx)} val={len(va_idx)} (val games {val_start_game}..{n_games-1})",
           flush=True)
 
-    if a.label == "hp":
-        y = np.clip((hp_us.astype(np.float32) - hp_opp.astype(np.float32)) / HP_SCALE, -1.0, 1.0)
-    else:
-        y = vwin.astype(np.float32)
+    # ⚠️ value_win.npy 就是**局末**血量差/20（az_selfplay 在局末算的，平局且分胜负给 ±0.1）。
+    # **不要**用 hp_us/hp_opp 现算——那是**逐回合**的当前血量差，不是标签。
+    y = np.asarray(vwin, np.float32)
+    print(f"[data] label=terminal hp-diff/20 (value_win.npy) range=[{y.min():.2f},{y.max():.2f}]",
+          flush=True)
     y_mean, y_std = float(y[tr_idx].mean()), float(y[tr_idx].std()) + 1e-8
     print(f"[data] label mean/std = {y_mean:.3f}/{y_std:.3f}", flush=True)
 
-    # ── 分片：把训练集按"每 shard_games 局"切成片 ──────────────────────────
+    # ── 分片：每 shard_games 局一片；片是 I/O 与打乱的基本单位 ──────────────
     # 片内样本在磁盘上连续（顺序 I/O），一个 epoch 内**打乱片序** + **片内打乱**，
     # 这样 batch 会混合多局（而不是同一局的相邻帧），同时避免 86 GB 上的随机散读。
     tr_games = np.arange(0, val_start_game)
@@ -108,8 +109,9 @@ def main() -> int:
         t = torch.from_numpy(((y[idx] - y_mean) / y_std).astype(np.float32)).unsqueeze(1).to(dev)
         return b, s, t
 
-    va_b = torch.from_numpy(np.asarray(board[va_idx], np.float32)).to(dev)
-    va_s = torch.from_numpy(np.asarray(stats[va_idx], np.float32)).to(dev)
+    # ⚠️ 不要预载验证集：500 局 ≈ 43 万样本，float32 的 board 要 ~17 GB。
+    # 改成每 512 条从 memmap 分块读（慢一点但内存安全）。
+    y_va = y[va_idx]
 
     outdir = Path(a.out_dir)
     if not outdir.is_absolute():
@@ -129,24 +131,35 @@ def main() -> int:
             order = np.random.permutation(len(shards))   # ① 打乱片序
             for si in order:
                 s0, e0, _ng = shards[int(si)]
-                idx = np.arange(s0, e0)
-                np.random.shuffle(idx)                   # ② 片内打乱（混合多局 + 顺序读入）
-                for s in range(0, len(idx), a.batch_size):
-                    bi = idx[s:s + a.batch_size]
-                    b, st, t = batch_tensor(bi)
+                # ① 整片顺序读入内存（保持 f16，省一半内存）——避免在 86 GB 文件上散读
+                b_mem = np.asarray(board[s0:e0])
+                s_mem = np.asarray(stats[s0:e0])
+                y_mem = y[s0:e0]
+                # ② 内存内打乱（片已含多局 ⇒ batch 会混合多局，而不是同局相邻帧）
+                perm2 = np.random.permutation(len(b_mem))
+                for k in range(0, len(perm2), a.batch_size):
+                    bi = perm2[k:k + a.batch_size]
+                    b = torch.from_numpy(b_mem[bi].astype(np.float32)).to(dev)
+                    st = torch.from_numpy(s_mem[bi].astype(np.float32)).to(dev)
+                    t = torch.from_numpy(((y_mem[bi] - y_mean) / y_std).astype(np.float32)
+                                         ).unsqueeze(1).to(dev)
                     pred = model(b, st)
                     loss = loss_fn(pred, t)
                     opt.zero_grad(); loss.backward(); opt.step()
                     tl += float(loss.item()) * len(bi)
                     nseen += len(bi)
+                del b_mem, s_mem, y_mem
             tl /= max(nseen, 1)
             model.eval()
             outs = []
             with torch.no_grad():
                 for s in range(0, len(va_idx), 512):
-                    outs.append(model(va_b[s:s+512], va_s[s:s+512]).squeeze(1).cpu().numpy())
+                    chunk = va_idx[s:s+512]
+                    vb = torch.from_numpy(np.asarray(board[chunk], np.float32)).to(dev)
+                    vs = torch.from_numpy(np.asarray(stats[chunk], np.float32)).to(dev)
+                    outs.append(model(vb, vs).squeeze(1).cpu().numpy())
             pv = np.concatenate(outs) * y_std + y_mean
-            r = r2(y[va_idx], pv); mae = float(np.mean(np.abs(y[va_idx] - pv)))
+            r = r2(y_va, pv); mae = float(np.mean(np.abs(y_va - pv)))
             star = ""
             if r > best:
                 best, best_ep, star = r, ep, "  *"
