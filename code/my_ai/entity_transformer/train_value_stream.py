@@ -49,6 +49,8 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--val-games", type=int, default=500)
+    ap.add_argument("--shard-games", type=int, default=5,
+                    help="每片包含多少局；片是 I/O 与打乱的基本单位")
     ap.add_argument("--out-dir", default="checkpoints")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
@@ -83,6 +85,21 @@ def main() -> int:
     y_mean, y_std = float(y[tr_idx].mean()), float(y[tr_idx].std()) + 1e-8
     print(f"[data] label mean/std = {y_mean:.3f}/{y_std:.3f}", flush=True)
 
+    # ── 分片：把训练集按"每 shard_games 局"切成片 ──────────────────────────
+    # 片内样本在磁盘上连续（顺序 I/O），一个 epoch 内**打乱片序** + **片内打乱**，
+    # 这样 batch 会混合多局（而不是同一局的相邻帧），同时避免 86 GB 上的随机散读。
+    tr_games = np.arange(0, val_start_game)
+    shard_lo = 0
+    shards = []
+    while shard_lo < len(tr_games):
+        shard_hi = min(shard_lo + a.shard_games, len(tr_games))
+        s = int(offs[tr_games[shard_lo]])
+        e = int(offs[tr_games[shard_hi - 1] + 1])
+        shards.append((s, e, shard_hi - shard_lo))
+        shard_lo = shard_hi
+    print(f"[data] {len(shards)} shards x ~{a.shard_games} games "
+          f"(~{len(tr_idx)//max(len(shards),1)} samples/shard)", flush=True)
+
     dev = a.device
 
     def batch_tensor(idx):
@@ -108,16 +125,21 @@ def main() -> int:
         t0 = time.time()
         for ep in range(1, a.epochs + 1):
             model.train()
-            perm = np.random.permutation(tr_idx)
-            tl = 0.0
-            for s in range(0, len(perm), a.batch_size):
-                idx = perm[s:s + a.batch_size]
-                b, st, t = batch_tensor(idx)
-                pred = model(b, st)
-                loss = loss_fn(pred, t)
-                opt.zero_grad(); loss.backward(); opt.step()
-                tl += float(loss.item()) * len(idx)
-            tl /= len(perm)
+            tl, nseen = 0.0, 0
+            order = np.random.permutation(len(shards))   # ① 打乱片序
+            for si in order:
+                s0, e0, _ng = shards[int(si)]
+                idx = np.arange(s0, e0)
+                np.random.shuffle(idx)                   # ② 片内打乱（混合多局 + 顺序读入）
+                for s in range(0, len(idx), a.batch_size):
+                    bi = idx[s:s + a.batch_size]
+                    b, st, t = batch_tensor(bi)
+                    pred = model(b, st)
+                    loss = loss_fn(pred, t)
+                    opt.zero_grad(); loss.backward(); opt.step()
+                    tl += float(loss.item()) * len(bi)
+                    nseen += len(bi)
+            tl /= max(nseen, 1)
             model.eval()
             outs = []
             with torch.no_grad():
