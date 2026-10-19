@@ -249,3 +249,25 @@ python -u code/tools/extract_model_from_ckpt.py \
 | 文件 | 大小 | sha256 | 是什么 |
 |---|---|---|---|
 | `entity_value_128_reduced.pt` | 1.87 MB | `704e9b4a1c66628d7726874bcc7e49989c4bf24c157b7d0d8d38b879157dd44a` | **实体 token Transformer 价值网**（塔/蚁 token + 42 stats + CLS；`d_model=128 / n_layers=3 / n_heads=4 / use_cells=False`）。训练数据 = 128 局亚军自对弈（`training_history/distill_top2/entity_ds_128.npz`，127,578 条，train 96 局 / val 32 局按 seed 切）。**val R²=0.9969、MAE=64.9**（线性基线 0.9459/348）。归一化：`value = out*1750.318 + 10481.754`。训练日志 `training_history/runs/20261018_115520_entity_value_128_reduced/`。⚠️ 训练**未过 tanh**，若并入 `AntWarNetwork` 体系部署须设 `AZAI_VALUE_TANH=0` |
+| `entity_sim_value_small.pt` | 538 KB | `ab2a2b02d6b38ee3322db04e88b9cc57ad26945195a34317d43346b5c8396110` | **可塞进亚军的单边价值网**：同一模型但只吃"**己方塔 + 敌方蚁 + base_hp + coins**"（把上面的数据投影成 sim 能提供的形态，见 `build_sim_value_dataset.py`）。`d_model=64 / n_layers=2 / n_heads=4 / pos_mode=learned`，**130,817 参数**。**val R²=0.9987、MAE=41.1**。归一化同 `value = out*1750.318 + 10481.754`。⚠️ 目标是"复刻亚军自己的手写价值"，**不是更强**；用途=验证"网络能替代亚军价值且不掉强度" |
+
+## 低质量大数据价值网 + M6c 嫁接版（2026-10-19，详见 `docs/prereg_20261019_low_quality_value.md`）
+
+| 文件 | 大小 | 是什么 |
+|---|---|---|
+| `checkpoints/lowq_value_seed{0,1,2}.pt` | 各 2.15 MB | `ValueNetwork`（与 `AntWarNetwork` value 通路**逐层同构**）：5000 局**低质量**自对弈（M6c 裸策略 + ε=2% 随机动作，C++ 引擎）训练。数据 4.28M 帧 → 抽帧 64/局 = 320k 样本（`training_history/distill_top2/lowq_f64/`）。标签 = **局末血量差/20**（含 ±0.1 平局破平）。**val R²=0.4708 / 0.4701 / 0.4688（3 种子，种子间差 0.002）**，MAE≈0.215。对比：原 M6c 价值网在同验证集 R²=**0.4533** |
+| `checkpoints/posnet_A_k5_m32_lowq.pt` | 6.5 MB | **嫁接版**：`posnet_A_k5_m32.pt` 的 `value_state` 换成 `lowq_value_seed0.pt`（84/84 张量同名拷贝，policy 头不动）。生成脚本 `code/my_ai/entity_transformer/graft_value_ckpt.py` |
+
+⚠️ 关键读数：**种子间只差 0.002**（对比历史 336 局时代"同配置换种子胜率 25%→50%"的抽彩票现象）⇒ **5000 局量级下训练已经稳定**，噪声地板问题基本解决。
+
+⚠️ R² 天花板 0.47 是**标签性质**决定的（从当前局面预测几十回合后的终局血量差），不是数据量或网络容量不足。
+
+## 低质量数据资产（2026-10-19）
+
+| 路径 | 大小 | 说明 |
+|---|---|---|
+| `F:\2026智能体大赛_新2\training_history\lowq_e2\` | 50.5 GB | 5000 局原始采集（每局一个 npz + `.ents.jsonl`：塔/蚁/效果/武器/金币/HP/回合 全字段） |
+| `F:\2026智能体大赛_新2\training_history\lowq_e2_merged\` | 91.3 GB | 合并大数组（列式 memmap + `game_offsets.npy` 每局边界） |
+| `D:\...\distill_top2\lowq_f64\` | 6.5 GB | **每局均匀抽 64 帧**的紧凑集（32 万样本，可全量进内存） |
+
+⚙️ 磁盘：**D 是 SSD（954 GB）、E/F 都是 HDD（3726 GB）**。数据放 HDD 时顺序读 ~130 MB/s，随机读会退化成寻道风暴——同一任务"散读帧"与"整窗口顺序读"实测差 30 倍以上。
