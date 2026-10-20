@@ -366,6 +366,42 @@ json handle_rollout(const json &req,
         row["max"] = *std::max_element(scores.begin(), scores.end());
         row["values"] = scores;
 
+        // horizons：逐个前瞻深度各自算一份均值（用来画"深度 → 决策质量"曲线）。
+        // 种子用官方 plan_rollout_seed（horizon 参与混合），即"如果亚军改用这个深度会怎么评估"。
+        if (req.contains("horizons") && req.at("horizons").is_array()) {
+            json horizon_rows = json::array();
+            for (const auto &item : req.at("horizons")) {
+                const int horizon = std::max(1, item.get<int>());
+                ls::CombinedPlan variant = plan;
+                variant.horizon = horizon;
+                std::vector<double> values;
+                values.reserve(static_cast<std::size_t>(rollouts));
+                for (int rollout = 0; rollout < rollouts; ++rollout) {
+                    const std::uint64_t rollout_seed =
+                        ls::plan_rollout_seed(seed, serial, index, rollout, horizon);
+                    const ls::RolloutEvaluation evaluation =
+                        ls::rollout_plan_score(root, player, variant, rollout_seed);
+                    values.push_back(evaluation.total_score);
+                }
+                double value_sum = 0.0;
+                for (double value : values) {
+                    value_sum += value;
+                }
+                const double value_mean = value_sum / static_cast<double>(values.size());
+                double value_var = 0.0;
+                for (double value : values) {
+                    value_var += (value - value_mean) * (value - value_mean);
+                }
+                value_var /= static_cast<double>(std::max<std::size_t>(1, values.size() - 1));
+                json entry;
+                entry["h"] = horizon;
+                entry["mean"] = value_mean;
+                entry["std"] = std::sqrt(value_var);
+                horizon_rows.push_back(std::move(entry));
+            }
+            row["horizons"] = std::move(horizon_rows);
+        }
+
         // "1 步评估"：计划只往前看 1 回合就 evaluate_terminal。
         // 实现方式是把 plan.horizon 改成 1 再走同一个 rollout 函数
         // （mid_eval_horizon = min(horizon, 4)，horizon=1 时 mid_weight=0 ⇒ 取的就是 1 回合后的终止评估）。

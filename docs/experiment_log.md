@@ -11438,3 +11438,36 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261020_213442_prior_1step_vs_search/output.log`
 - **result**: Spearman(1step, full) 中位 **+0.737**（p10 +0.018）；决策一致率（含 +80 先验）**51/80 = 63.8%**，与「永远 hold」基线 63.8% **完全相同**；纯评估 argmax 一致率仅 **12.5%**；top5 重叠 0.13。分解：full 动手的 29 个状态里 1 步评估只有 3 个也动手（漏掉 26 个），且从不误动 ⇒ **1 步终止评估在决策上零增量信息**，信息全在 8 步前瞻里。单次 rollout σ：full 104 / 1step 5
+
+## 2026-10-20 21:37:53 — prior_horizon_sweep
+
+- **commit**: `fde3747` (dirty: 3 files)
+- **exit**: 0，用时 130s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/horizon_sweep.py --seeds 732 733 734 735 --rounds 100,180,260,340,420 --players 0,1 --rollouts 24 --horizons 1,2,3,4,6,8,12,16 --out training_history/distill_top2/prior_labels/horizon_sweep.jsonl
+  ```
+- **output**: `training_history/runs/20261020_213753_prior_horizon_sweep/output.log`
+- **result**: h=1 rho 0.716 / 该动时动了 **8.3%**；h=4 rho 0.929 / 25%；h=6 rho 0.948 / **75%**；h=8 基准 1.000 / 100%；h=12 rho 0.883 但该 hold 时只 hold 67.9%；h=16 rho 0.806 / 该 hold 只 39.3%。单次 σ 从 h=1 的 5 涨到 h=16 的 257。⇒ **8 回合是甜点，前瞻不足 6 回合时几乎永远不会正确动手**
+
+## 2026-10-20 21:41:42 — q8_dataset
+
+- **commit**: `fde3747` (dirty: 4 files)
+- **exit**: 0，用时 111s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/build_q8_dataset.py --seeds 732 733 734 735 --rounds 40,80,120,160,200,240,280,320,360,400,440 --players 0,1 --rollouts 64 --out training_history/distill_top2/q8/q8_dataset.jsonl
+  ```
+- **output**: `training_history/runs/20261020_214142_q8_dataset/output.log`
+- **result**: 首版 15,422 行 / 88 状态；GBM 按 seed 切分 test R² **−0.24**（这个切法测的是跨对局迁移，不是状态内判别，**实验设计不当**，已由 v2 取代）
+
+## 2026-10-20 21:44:22 — q8_dataset_v2
+
+- **commit**: `fde3747` (dirty: 4 files)
+- **exit**: 0，用时 376s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/build_q8_dataset.py --seeds 732 733 734 735 736 737 738 739 --rounds 48,72,96,120,144,168,192,216,240,264,288,312,336,360,384,408,432,456,480 --players 0,1 --rollouts 64 --out training_history/distill_top2/q8/q8_dataset_v2.jsonl
+  ```
+- **output**: `training_history/runs/20261020_214422_q8_dataset_v2/output.log`
+- **result**: 50,296 行 / 304 状态；**按状态随机切分**后 GBM：绝对 R² test 0.296（被状态间差异灌水），**状态内残差 R² −5.54**、状态内 Spearman 中位 **+0.616**（确实有结构）、**top-1 一致率 36.8%（28/76）低于「永远 hold」基线 76%**、前 12 名内部成对排序正确率 45.6%。⇒ 手工聚合特征 + GBDT **无法替代 8 步搜索**；要验证"学习值能否替代搜索"必须上带棋盘的实体网络，且**必须把「永远 hold」当成基线**
