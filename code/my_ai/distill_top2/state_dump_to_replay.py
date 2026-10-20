@@ -28,16 +28,34 @@ import json
 from pathlib import Path
 
 
+def _op_obj(t, a0, a1=None):
+    """把 `Operation.to_protocol_tokens()` 的 [type, arg0, (arg1)] 转成
+    亚军 `parse_replay_operation`（sdk_lure_inspector.cpp:1019）要的**对象**格式：
+
+        {"type": t, "id": a0, "args": a1, "pos": {"x": a0, "y": a1}}
+
+    ⚠️ `to_protocol_tokens()` 的元素个数**不固定**（如降级只有 [type, id]），
+    所以 a1 可省略。该函数按类型取不同字段：
+      BuildTower / UseLightningStorm / UseEmpBlaster / UseDeflector /
+      UseEmergencyEvasion                      -> 用 pos.x / pos.y = (a0, a1)
+      UpgradeTower                             -> 用 id=a0 / args=a1
+      DowngradeTower                           -> 用 id=a0
+    所以**同时带上 id/args/pos** 对所有类型都安全（各类型只读自己那份）。
+    """
+    v = int(a0)
+    w = int(a1) if a1 is not None else v
+    return {"type": int(t), "id": v, "args": w, "pos": {"x": v, "y": w}}
+
+
 def _split_history(entry):
-    """ops_history 的一条 = [op0..., None, op1...] -> (op0, op1)。"""
+    """ops_history 的一条 = [op0..., None, op1...] -> (op0, op1)（已转成对象格式）。"""
     if not isinstance(entry, (list, tuple)):
         raise ValueError(f"ops_history 条目不是 list: {type(entry)}")
     if None not in entry:
-        # 有的版本不带 None 分隔：整条当作 op0，op1 为空
-        return [list(map(int, t)) for t in entry], []
+        return [_op_obj(*t) for t in entry], []
     sep = entry.index(None)
-    op0 = [list(map(int, t)) for t in entry[:sep]]
-    op1 = [list(map(int, t)) for t in entry[sep + 1:]]
+    op0 = [_op_obj(*t) for t in entry[:sep]]
+    op1 = [_op_obj(*t) for t in entry[sep + 1:]]
     return op0, op1
 
 
