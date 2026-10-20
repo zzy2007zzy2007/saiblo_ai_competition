@@ -75,6 +75,27 @@
 //   ⚠️ 已知坑（见 docs/runnerup_build_note.md）：MinGW ld 处理不了中文路径 ⇒
 //      库和 -o 输出都放 ASCII 目录（如 D:\dsh_build_tmp），TMP/TEMP 也必须是 ASCII。
 
+// ── replay 格式（已查证 2026-10-20）──────────────────────────────────
+// `load_replay_round_start`（sdk_lure_inspector.cpp:1205）要求：
+//   文件是 **JSON 数组**，每元素是一回合记录，字段至少含
+//     { "seed": <int>, "round_state": {...},
+//       "op0": [[op_type,arg0,arg1], ...], "op1": [...] }
+//   它**从第 0 回合开始重放 op0/op1**，逐步推进 NativeSimulator 到目标 round。
+//   ⇒ **必须有每回合的操作序列**，光有状态不够。
+//
+// `Ant-Game/tools/run_local_match.py` 已能产出该文件：
+//     --keep-dir <目录>  ⇒ 生成 <目录>/replay.json（line 140）
+//   但它走 `--game-bin <判题器>`，`--ai0/--ai1` 只支持内置 random/mcts/greedy
+//   ⇒ 要接亚军 exe，得用我们自己的 bridge 驱动判题器，或给 run_local_match
+//   加一个"外部 AI 可执行"分支。
+//
+// ── 主线下一步（明确）────────────────────────────────────────────────
+//   ① 用 Ant-Game 判题器 + 亚军 exe 跑 20–50 局**并录 replay.json**；
+//   ② 编译 sdk_lure_inspector（MinGW + libantgame_cpp_sdk.a + ASCII 路径）；
+//   ③ plan_rollouts 导出候选+分数，用 alignment_check 与 seeds 732–900 日志对拍；
+//   ④ 对拍通过后跑 5000 局状态——注意我们的 .ents.jsonl **只有状态、没有操作序列**，
+//      所以要么改 bridge 同时记 ops，要么另写一个"直接吃 PublicState"的入口。
+
 #include <cstdio>
 int main(int argc, char** argv) {
     std::fprintf(stderr,
