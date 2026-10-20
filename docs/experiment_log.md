@@ -11471,3 +11471,58 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261020_214422_q8_dataset_v2/output.log`
 - **result**: 50,296 行 / 304 状态；**按状态随机切分**后 GBM：绝对 R² test 0.296（被状态间差异灌水），**状态内残差 R² −5.54**、状态内 Spearman 中位 **+0.616**（确实有结构）、**top-1 一致率 36.8%（28/76）低于「永远 hold」基线 76%**、前 12 名内部成对排序正确率 45.6%。⇒ 手工聚合特征 + GBDT **无法替代 8 步搜索**；要验证"学习值能否替代搜索"必须上带棋盘的实体网络，且**必须把「永远 hold」当成基线**
+
+## 2026-10-20 21:54:30 — q8_value_resid_z
+
+- **commit**: `5e0f3f9` (dirty: 2 files)
+- **exit**: 0，用时 386s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_q8_value.py --target resid_z --epochs 30 --batch 512 --out checkpoints/q8_value_resid_z.pt --log training_history/distill_top2/q8/train_resid_z.log
+  ```
+- **output**: `training_history/runs/20261020_215430_q8_value_resid_z/output.log`
+- **result**: 小数据版（50,296 行 / 按状态切分）：rho +0.71、top-1 76.3% = 「永远 hold」基线、该动时动了 0%。⚠️ 此版**有标度 bug**：`resid_z` 的预测是状态内 z 值，却直接和原始尺度的 +80 先验比较，必然全选 hold（已由 `_fix` 修正）
+
+## 2026-10-20 22:01:15 — q8_value_resid_z_fix
+
+- **commit**: `5e0f3f9` (dirty: 3 files)
+- **exit**: 0，用时 385s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_q8_value.py --target resid_z --epochs 30 --batch 512 --out checkpoints/q8_value_resid_z.pt --log training_history/distill_top2/q8/train_resid_z.log
+  ```
+- **output**: `training_history/runs/20261020_220115_q8_value_resid_z_fix/output.log`
+- **result**: 修掉标度 bug（按状态标准差把 z 值换回原尺度）后仍无实质变化：rho +0.71、top-1 = hold 基线 76.3%、该动时动了 0~5.6%、前 12 名成对排序 ≈49% ⇒ 小数据下学不动细排序
+
+## 2026-10-20 22:08:05 — q8_dataset_big
+
+- **commit**: `5e0f3f9` (dirty: 4 files)
+- **exit**: 2，用时 0s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/build_q8_dataset.py --seeds 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 750 751 752 753 754 755 756 757 758 759 760 761 762 763 764 765 766 767 768 769 770 771 --rounds 42,63,84,105,126,147,168,189,210,231,252,273,294,315,336,357,378,399,420,441,462,483 --players 0,1 --rollouts 64 --jobs 8 --out training_history/distill_top2/q8/q8_dataset_big.jsonl
+  ```
+- **output**: `training_history/runs/20261020_220805_q8_dataset_big/output.log`
+- **result**: 第一次调用因 PowerShell 把 `732..771` 拼成一个字符串传给 `--seeds` 而参数错误（exit=2），**无效运行**；同时 `--jobs` 并行版已改造完成
+
+## 2026-10-20 22:08:32 — q8_dataset_big
+
+- **commit**: `5e0f3f9` (dirty: 4 files)
+- **exit**: 0，用时 332s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/build_q8_dataset.py --seeds 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 750 751 752 753 754 755 756 757 758 759 760 761 762 763 764 765 766 767 768 769 770 771 --rounds 42,63,84,105,126,147,168,189,210,231,252,273,294,315,336,357,378,399,420,441,462,483 --players 0,1 --rollouts 64 --jobs 8 --out training_history/distill_top2/q8/q8_dataset_big.jsonl
+  ```
+- **output**: `training_history/runs/20261020_220832_q8_dataset_big/output.log`
+- **result**: 8 进程并行造出 **286,434 行 / 1,750 状态**（40 局 × 22 回合 × 双方，64 次 rollout 均值），332s。GBM 按整局切分（30/10 局，438 测试状态）：状态内 Spearman +0.656、top-1 42.7%（**低于「永远 hold」基线 76.9%**）、该动时动了 29.7%、前 12 名成对排序 43.7%
+
+## 2026-10-20 22:16:55 — q8_value_ent_big
+
+- **commit**: `5e0f3f9` (dirty: 5 files)
+- **exit**: 0，用时 1293s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_q8_value.py --data training_history/distill_top2/q8/q8_ent_big.npz --target resid_z --split-by seed --epochs 18 --batch 1024 --out checkpoints/q8_ent_big.pt --log training_history/distill_top2/q8/train_ent_big.log
+  ```
+- **output**: `training_history/runs/20261020_221655_q8_value_ent_big/output.log`
+- **result**: 实体 Transformer（带 plan token，0.52M 参数）在 286k 行 / 按整局切分下：状态内 Spearman **+0.822**（明显强于 GBM 的 0.656），但 top-1 **77.2%** 仅比「永远 hold」基线 76.9% 高 0.3pp，该动时动了 **5.9%**，前 12 名成对排序 **49.5%（≈随机）** ⇒ **学出来的 8 步期望值替代不了搜索**。checkpoint `checkpoints/q8_ent_big.pt`

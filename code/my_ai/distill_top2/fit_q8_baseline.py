@@ -66,6 +66,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", default="training_history/distill_top2/q8/q8_dataset_v2.jsonl")
     parser.add_argument("--test-frac", type=float, default=0.25)
+    parser.add_argument("--split-by", choices=["state", "seed"], default="state",
+                        help="state=按状态随机切；seed=按整局切（严格泛化）")
     parser.add_argument("--max-iter", type=int, default=600)
     parser.add_argument("--lr", type=float, default=0.05)
     parser.add_argument("--leaves", type=int, default=63)
@@ -76,14 +78,17 @@ def main() -> int:
     unique_states = np.unique(state_ids)
     print(f"[数据] {matrix.shape[0]} 行 × {matrix.shape[1]} 特征, {len(unique_states)} 个状态")
 
+    # 切分单元：state = 单个状态；seed = 整局
+    units = state_ids // 1_000_000 if args.split_by == "seed" else state_ids
+    unique_units = np.unique(units)
     rng = np.random.default_rng(args.seed)
-    shuffled = rng.permutation(unique_states)
-    n_test = max(1, int(len(unique_states) * args.test_frac))
-    test_states = set(shuffled[:n_test].tolist())
-    test_mask = np.array([int(s) in test_states for s in state_ids])
+    shuffled = rng.permutation(unique_units)
+    n_test = max(1, int(len(unique_units) * args.test_frac))
+    test_units = set(shuffled[:n_test].tolist())
+    test_mask = np.array([int(unit) in test_units for unit in units])
     train_mask = ~test_mask
-    print(f"[切分] 按状态随机：train {train_mask.sum()} 行 / test {test_mask.sum()} 行 "
-          f"({len(unique_states) - n_test} / {n_test} 个状态)")
+    print(f"[切分] 按 {args.split_by}: train {train_mask.sum()} 行 / test {test_mask.sum()} 行 "
+          f"({len(unique_units) - n_test} / {n_test} 个单元)")
 
     model = HistGradientBoostingRegressor(
         max_iter=args.max_iter, learning_rate=args.lr, max_leaf_nodes=args.leaves,
@@ -107,7 +112,9 @@ def main() -> int:
     hold_total = hold_ok = 0
     always_hold_agree = 0
 
-    for state in test_states:
+    # 按状态切分时"测试单元"就是状态；按局切分时要展开成该局所有状态
+    test_state_ids = np.unique(state_ids[test_mask])
+    for state in test_state_ids:
         mask = state_ids == state
         truth = ys[mask]
         guess = pred[mask]
@@ -163,7 +170,7 @@ def main() -> int:
           + (f" = {100.0 * hold_ok / hold_total:.1f}%" if hold_total else ""))
     print(f"\n前 12 名内部成对排序正确率 = {100.0 * pair_correct / max(pair_total, 1):.1f}%"
           f"（按分差加权 {100.0 * pair_weighted_correct / max(pair_weighted_total, 1e-9):.1f}%）")
-    spread = [float(ys[state_ids == s].max() - ys[state_ids == s].min()) for s in test_states]
+    spread = [float(ys[state_ids == s].max() - ys[state_ids == s].min()) for s in test_state_ids]
     print(f"状态内真实分数离散度（max-min）均值 = {statistics.mean(spread):.0f}")
     print(f"\n（参照：亚军的决策分差中位 ~71；单次 rollout σ 中位 111，SE(125) 中位 9.9）")
     return 0

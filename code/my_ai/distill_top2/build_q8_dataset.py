@@ -23,6 +23,7 @@ import json
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 EXE = Path(r"D:\dsh_build_tmp\dump_plan_prior.exe")
@@ -182,6 +183,7 @@ def main() -> int:
     parser.add_argument("--rounds", default="40,80,120,160,200,240,280,320,360,400,440")
     parser.add_argument("--players", default="0,1")
     parser.add_argument("--rollouts", type=int, default=64)
+    parser.add_argument("--jobs", type=int, default=1, help="并行 exe 进程数")
     parser.add_argument("--out", default="training_history/distill_top2/q8/q8_dataset.jsonl")
     args = parser.parse_args()
 
@@ -191,50 +193,61 @@ def main() -> int:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # 先把所有 (state, player) 任务列出来，再按批并行跑
+    tasks: list[tuple] = []
+    for seed in args.seeds:
+        paths = sorted(glob.glob(str(Path(args.data_dir) / f"ents_*{seed}.jsonl")))
+        if not paths:
+            print(f"[skip] seed={seed}")
+            continue
+        with open(paths[0], encoding="utf-8") as handle:
+            all_states = [json.loads(line) for line in handle if line.strip()]
+        for round_index in rounds:
+            if round_index >= len(all_states):
+                continue
+            for player in players:
+                tasks.append((seed, round_index, player, all_states[round_index]))
+    print(f"[任务] {len(tasks)} 个 (状态, 玩家) combo，jobs={args.jobs}")
+
+    def run_task(task):
+        seed, round_index, player, raw_state = task
+        state = dict(raw_state)
+        state.update(seed=seed, player=player, mode="rollout",
+                     rollouts=args.rollouts, max_plans=0)
+        proc = subprocess.run([str(EXE)], input=(json.dumps(state) + "\n").encode(),
+                              capture_output=True, env=env)
+        return seed, round_index, player, raw_state, proc
+
     t_start = time.time()
     total_rows = 0
-    with out_path.open("w", encoding="utf-8") as sink:
-        for seed in args.seeds:
-            paths = sorted(glob.glob(str(Path(args.data_dir) / f"ents_*{seed}.jsonl")))
-            if not paths:
-                print(f"[skip] seed={seed}")
+    with out_path.open("w", encoding="utf-8") as sink, \
+            ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+        for seed, round_index, player, raw_state, proc in pool.map(run_task, tasks):
+            if proc.returncode != 0:
+                print(f"[fail] seed={seed} r={round_index} p{player}")
                 continue
-            with open(paths[0], encoding="utf-8") as handle:
-                all_states = [json.loads(line) for line in handle if line.strip()]
-            for round_index in rounds:
-                if round_index >= len(all_states):
-                    continue
-                for player in players:
-                    state = dict(all_states[round_index])
-                    state.update(seed=seed, player=player, mode="rollout",
-                                 rollouts=args.rollouts, max_plans=0)
-                    t0 = time.time()
-                    proc = subprocess.run([str(EXE)], input=(json.dumps(state) + "\n").encode(),
-                                          capture_output=True, env=env)
-                    elapsed = time.time() - t0
-                    if proc.returncode != 0:
-                        print(f"[fail] seed={seed} r={round_index} p{player}")
-                        continue
-                    result = json.loads(proc.stdout.decode("utf-8", "replace").splitlines()[0])
-                    if result.get("ok") != 1:
-                        print(f"[warn] {result.get('error')}")
-                        continue
-                    shared = state_features(state)
-                    for plan in result["plans"]:
-                        ops, followup_len = parse_plan_key(plan["key"])
-                        row = {
-                            "seed": seed, "round": round_index, "player": player,
-                            "key": plan["key"], "heuristic": plan["heuristic"],
-                            "ops": ops, "horizon": plan["horizon"],
-                            "followup_len": followup_len, "mean": plan["mean"],
-                            "std": plan["std"], "n": plan["n"],
-                        }
-                        row.update(shared)
-                        row.update(plan_features(plan, state, player))
-                        sink.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        total_rows += 1
-                    print(f"[ok] seed={seed} r={round_index:3d} p{player} "
-                          f"plans={len(result['plans']):3d} {elapsed:.2f}s")
+            result = json.loads(proc.stdout.decode("utf-8", "replace").splitlines()[0])
+            if result.get("ok") != 1:
+                print(f"[warn] {result.get('error')}")
+                continue
+            shared = state_features(raw_state)
+            for plan in result["plans"]:
+                ops, followup_len = parse_plan_key(plan["key"])
+                row = {
+                    "seed": seed, "round": round_index, "player": player,
+                    "key": plan["key"], "heuristic": plan["heuristic"],
+                    "ops": ops, "horizon": plan["horizon"],
+                    "followup_len": followup_len, "mean": plan["mean"],
+                    "std": plan["std"], "n": plan["n"],
+                }
+                row.update(shared)
+                row.update(plan_features(plan, raw_state, player))
+                sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+                total_rows += 1
+            if total_rows and (len(tasks) % 50 == 0):
+                pass
+            if total_rows and total_rows % 50000 < 200:
+                print(f"[进度] {total_rows} 行  {time.time() - t_start:.0f}s", flush=True)
     elapsed = time.time() - t_start
     print(f"\n[完成] {total_rows} 行 -> {out_path}  用时 {elapsed:.1f}s")
     return 0
