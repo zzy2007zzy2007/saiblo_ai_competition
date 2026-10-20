@@ -61,6 +61,19 @@ def main() -> int:
         else:
             target[k] = v.clone()
     ck["value_state"] = target
+    # ⚠️ 关键：ValueNetwork 是在**归一化标签** ((y-mean)/std) 上训练的，
+    # 而 make_three_net_fn **不做反归一化**。所以把 y_std/y_mean 折进 value_head 最后一层：
+    #   out_new = out_old * y_std + y_mean
+    # 否则 terminal 标签会放大 1/0.386≈2.6 倍，rel 标签会放大 1/0.076≈13 倍（后者致命）。
+    y_std = float(vk.get("y_std", 1.0))
+    y_mean = float(vk.get("y_mean", 0.0))
+    wkey, bkey = "value_head.2.weight", "value_head.2.bias"
+    if wkey in target and bkey in target:
+        target[wkey] = target[wkey] * y_std
+        target[bkey] = target[bkey] * y_std + y_mean
+        print(f"[graft] folded denorm into {wkey}: y_std={y_std:.5f} y_mean={y_mean:.5f}")
+    else:
+        print("[graft] WARNING: value_head.2 keys not found, denorm NOT folded")
     ck["value_graft"] = {"source": str(vp), "label": vk.get("label"),
                          "val_r2": vk.get("val_r2"), "seed": vk.get("seed"),
                          "y_mean": vk.get("y_mean"), "y_std": vk.get("y_std")}

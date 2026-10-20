@@ -75,7 +75,25 @@ def main() -> int:
     ap.add_argument("--pos-mode", default="learned",
                     choices=["learned", "xy", "rope", "none"], help="位置编码方式")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--log-file", default="",
+                    help="实时进度日志（每 --log-every 步一行，随时 tail 查看）")
+    ap.add_argument("--log-every", type=int, default=50)
     a = ap.parse_args()
+
+    # ── 实时进度日志（与 train_value_stream.py 同格式）────────────────────
+    _logfh = None
+    if a.log_file:
+        _lp = Path(a.log_file)
+        if not _lp.is_absolute():
+            _lp = Path(__file__).resolve().parents[3] / _lp
+        _lp.parent.mkdir(parents=True, exist_ok=True)
+        _logfh = _lp.open("a", encoding="utf-8")
+
+    def log(msg: str) -> None:
+        print(msg, flush=True)
+        if _logfh is not None:
+            _logfh.write(msg + "\n")
+            _logfh.flush()
 
     torch.manual_seed(0); np.random.seed(0)
     t0 = time.time()
@@ -153,6 +171,8 @@ def main() -> int:
         model.train()
         perm = np.random.permutation(n)
         tl = 0.0
+        ep_t0 = time.time()
+        nstep = 0
         for s in range(0, n, a.batch_size):
             idx = tr[perm[s:s + a.batch_size]]
             bb, yy = to_t_batch(idx)
@@ -160,6 +180,14 @@ def main() -> int:
             loss = loss_fn(pred, yy)
             opt.zero_grad(); loss.backward(); opt.step()
             tl += float(loss.item()) * len(idx) / n
+            nstep += 1
+            if a.log_every > 0 and nstep % a.log_every == 0:
+                el = time.time() - ep_t0
+                frac = (s + len(idx)) / n
+                eta = (el / max(frac, 1e-6)) * (1 - frac)
+                log(f"  [ep{ep} step{nstep}] train_mse={tl:.4f} "
+                    f"samples/s={int(n*frac/el) if el > 0 else 0} "
+                    f"elapsed={el/60:.1f}min epoch_frac={frac*100:.1f}% eta={eta/60:.1f}min")
         r, mae = evaluate()
         star = ""
         if r > best_r2:
@@ -167,9 +195,9 @@ def main() -> int:
             best_sd = {k: v.detach().clone() for k, v in model.state_dict().items()}
         else:
             no_imp += 1
-        print(f"[ep {ep:3d}] train_mse={tl:.4f} (train_R2={1-tl:.4f}) val_R2={r:.4f} val_MAE={mae:.1f}{star}", flush=True)
+        log(f"[ep {ep:3d}] train_mse={tl:.4f} (train_R2={1-tl:.4f}) val_R2={r:.4f} val_MAE={mae:.1f}{star}")
         if no_imp >= a.patience:
-            print(f"[stop] early stop @ep {ep}", flush=True); break
+            log(f"[stop] early stop @ep {ep}"); break
 
     if best_sd is not None:
         model.load_state_dict(best_sd)

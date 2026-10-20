@@ -11344,3 +11344,69 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 ⇒ **terminal 标签每局一个值，64 帧/局足够；`rel`/`kgeo` 标签的方差几乎全在局内，必须用全量帧**（64 帧只用到 7.5% 的标签信号，因此 64 帧上的 rel 训练结果不可信，已停止）。
 
 **工程教训**：同一任务"散读帧"与"整窗口顺序读"在机械盘上实测差 **30 倍**（抽帧 50 分钟 → 3 分钟）。磁盘类型：D=SSD，E/F=HDD。
+
+## 2026-10-19 20:26:10 — lowq_ent64_terminal
+
+- **commit**: `bf165f8` (dirty: 3 files)
+- **exit**: 0，用时 1570s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/my_ai/entity_transformer/train.py --data D:/2026智能体大赛_新2_distill/training_history/distill_top2/lowq_f64_ent.npz --val-seeds 4500-4999 --epochs 15 --batch-size 256 --d-model 128 --n-layers 3 --n-heads 4 --out D:/2026智能体大赛_新2_distill/checkpoints/lowq_ent64_terminal.pt
+  ```
+- **output**: `training_history/runs/20261019_202610_lowq_ent64_terminal/output.log`
+- **result**: _待填_
+
+## 2026-10-19（续）— 价值网四轴扫完：数据量 / 帧数 / 信息维度 / 标签语义
+
+数据：5000 局低质量自对弈（M6c 裸策略 + ε=2%，C++ 引擎）。验证集统一为**最后 500 局**。
+
+### 离线（同一验证集可比）
+
+| 模型 | 帧数/局 | 训练样本 | val R² |
+|---|---|---|---|
+| 朴素基线（当前血量差）| — | — | 0.3932 |
+| M6c 原价值网 `posnet_A_k5_m32` | — | — | 0.4533 |
+| CNN (ValueNetwork) + terminal | **64** | 32 万 | **0.4701**（3 种子 0.4708/0.4701/0.4688，种子间差 **0.002**）|
+| CNN + terminal | 856（全量）| 428 万 | 0.4672 |
+| **实体 Transformer（双边塔/蚁）+ terminal** | 64 | 32 万 | **0.4717** |
+| CNN + rel geo_tau50 | 256 | 128 万 | 0.6020（对 rel 标签）|
+| CNN + rel kgeo_tau50 | 256 | 128 万 | 0.4926（对 kgeo 标签）|
+
+**⇒ 数据量（336→5000 局）、帧数（64→856）、信息维度（board→实体特征）三条路全部撞在 R²≈0.47**；
+**0.47 是这个标签（"从当前局面预测终局血量差"）的可预测上限，不是模型/数据/信息不足。**
+
+### 实战（128 局配对 vs rule_v4，seed 7..70 双向，统一统计口径）
+
+| 价值网 | 配对胜率 | 95% CI |
+|---|---|---|
+| M6c-ROOT 基线 | 0.7344 | — |
+| CNN + terminal（64 帧）| **0.7734** | [0.671, 0.876] |
+| CNN + terminal（全量帧）| 0.7422 | [0.635, 0.849] |
+| **CNN + rel geo_tau50（256 帧）** | **0.6016** | [0.482, 0.722] |
+| 亚军手写价值（`AZAI_VALUE_SRC=handcrafted`）| 0.3906 | [0.271, 0.510] |
+
+**⇒ terminal 三臂统计上无法区分（差值远小于 2SE）；`rel` 反而显著更差（−13pp，CI 与基线不重叠）。**
+**⇒ 与历史"rel 128 局 −7.0pp"方向一致，且这次在 5000 局 + 正确反归一化条件下复现。**
+
+### 关键工程 bug（本轮发现并修复）
+
+1. **`ValueNetwork` 归一化未反卷积**：模型在 `(y-mean)/std` 上训练，但 `make_three_net_fn` 不做反归一化
+   ⇒ 输出被放大 `1/y_std` 倍（terminal 2.6×，rel **13×**，后者直接让搜索失效）。
+   修法：`graft_value_ckpt.py` 把 `y_std/y_mean` 折进 `value_head` 最后一层。
+2. **`np.asarray(memmap)` 是惰性视图**：真实读取退化为逐页缺页 ~56 MB/s；改 `np.array` 强制批量读 **1.5–2.5 GB/s**。
+3. **大文件拷贝中断**：robocopy 被杀后留下"大小正确、内容零填充"的 board.npy，导致一整轮训练作废。
+   修法：`copy_large.py`（分块 + 进度日志 + 抽样 sha256 校验）。**结论：大文件只核对大小不够。**
+
+### 数据资产
+
+| 路径 | 大小 | 说明 |
+|---|---|---|
+| `.../lowq_f64/` | 6.5 GB | 64 帧/局（32 万样本），terminal + frame_idx |
+| `.../lowq_f64_ent.npz` | 23 MB | 同 64 帧的双边实体特征（塔+蚁）|
+| `.../lowq_f256/` | 26 GB | 256 帧/局（128 万样本），含 7 个 rel/kgeo 标签 |
+| `.../lowq_full/` | 91 GB | 全量帧（428 万），含 10 个 rel/kgeo 标签 |
+
+### 结论
+
+**价值网不是当前系统的瓶颈。** 四个可动轴（数据量/帧数/信息/标签）中三个已排除，
+`rel` 标签反而有害；剩下唯一未验证的是**把实体 Transformer 真的装进搜索**（离线 R² 最高 0.4717，但未做实战）。
