@@ -163,13 +163,19 @@ def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
     from my_ai.az_intent.mcts import HP_SCALE
 
     def net_fn(state, player):
-        obs = feature_extractor.encode_observation(state, player, np.zeros(max_actions))
-        board = torch.from_numpy(obs["board"]).unsqueeze(0).float()
-        stats = torch.from_numpy(obs["stats"]).unsqueeze(0).float()
-        with torch.no_grad():
-            c_out = class_model(board, stats)
-            p_out = pos_model(board, stats)
-            v_out = value_model(board, stats)
+        from my_ai.az_intent.timing import T
+        with T("search.net"):
+            with T("net.encode"):
+                obs = feature_extractor.encode_observation(state, player, np.zeros(max_actions))
+                board = torch.from_numpy(obs["board"]).unsqueeze(0).float()
+                stats = torch.from_numpy(obs["stats"]).unsqueeze(0).float()
+            with torch.no_grad():
+                with T("net.class"):
+                    c_out = class_model(board, stats)
+                with T("net.pos"):
+                    p_out = pos_model(board, stats)
+                with T("net.value"):
+                    v_out = value_model(board, stats)
         heads = [c_out[f"head{i + 1}_logits"].squeeze(0).numpy()
                  for i in range(class_model.num_heads)]
         if value_src == "handcrafted":

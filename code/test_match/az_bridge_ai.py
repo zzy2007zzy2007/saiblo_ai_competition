@@ -627,7 +627,9 @@ def main() -> int:
                     return _ops
             except Exception as _exc:  # noqa: BLE001
                 _log(f"🧪 强制升级异常: {type(_exc).__name__}: {_exc}")
-        res = mcts.search(facade, player, temperature=temperature)
+        from my_ai.az_intent.timing import T as _T
+        with _T("search"):
+            res = mcts.search(facade, player, temperature=temperature)
         # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
         _expl = getattr(mcts, 'mc_last_explicit', None)
         if _expl is not None:
@@ -686,7 +688,9 @@ def main() -> int:
 
     def _apply(pl: int, ops: list) -> None:
         """把操作打进影子状态，并统计非法数（影子与裁判的分歧会在这里先露头）。"""
-        bad = facade.apply_operation_list(pl, ops)
+        from my_ai.az_intent.timing import T as _T
+        with _T("apply"):
+            bad = facade.apply_operation_list(pl, ops)
         n = len(bad) if bad else 0
         if n:
             STATS["illegal"] += n
@@ -695,10 +699,19 @@ def main() -> int:
     try:
         def _decide_timed():
             """计时包装（p0/p1 两条决策路径共用）。⚠️ 计时必须覆盖**两处**决策点：
-            我第一版只写在 `player == 0` 分支里，导致**镜像局（我方执后手）完全没有耗时数据**（2026-10-06）。"""
-            _t = time.monotonic()
-            _ops = decide()
-            _dt = time.monotonic() - _t
+            我第一版只写在 `player == 0` 分支里，导致**镜像局（我方执后手）完全没有耗时数据**（2026-10-06）。
+
+            2026-10-20 起增加**分阶段分解**（`AZAI_TIMING=1`）：用 `az_intent.timing.T` 的
+            嵌套计时器，inclusive/exclusive 自动区分，并在每条决策上做一致性自检
+            （root exclusive 之和 ≈ total，偏差 >2% 记为 check_ok=false）。
+            """
+            from my_ai.az_intent.timing import T
+            T.start(round=int(STATS.get("rounds", 0)), dec_n=int(STATS.get("dec_n", 0)))
+            with T("decision"):
+                _t = time.monotonic()
+                _ops = decide()
+                _dt = time.monotonic() - _t
+            T.finish()
             STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
             if _dt > float(STATS.get("dec_max_s", 0.0)):
                 STATS["dec_max_s"] = round(_dt, 2)
