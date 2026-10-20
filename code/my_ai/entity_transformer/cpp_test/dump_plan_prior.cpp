@@ -16,7 +16,28 @@
 //                    lightning_name, heuristic, base_heuristic, lure_heuristic,
 //                    lightning_heuristic, operation_penalty, followup_penalty}
 //
-// ── 关键 API 链（已查证）───────────────────────────────────────────────
+// ── ⭐ 2026-10-20 重大发现：SDK 里已有现成工具，不必自己写 ──────────────
+//   `其他版本ai/saiblo-30th-AI/Game1/antgame_cpp_sdk/examples/sdk_lure_inspector.cpp`
+//   （119.7 KB，2746 行）是一个**完整的检查器**，已包含：
+//     line 1262:  rs::DefenseSimulator defense_root = rs::make_defense_simulator(state, native, player);
+//     line 1268:  const ls::RootPlanSet root_plans = ls::generate_root_plans(state, &defense_root, player);
+//   以及 `int main()`（line 2711）：**从 stdin 读一个 JSON request**，按 `mode` 分派：
+//     round_summary / alignment_check / rollout_alignment_batch /
+//     rollout_entity_alignment / **plan_rollouts** / **plan_trace** / move_debug
+//   ⇒ `plan_trace` / `plan_rollouts` 正是"从状态导出候选计划 + 分数"。
+//
+//   还差的两步：
+//     (a) **编译**：没有 CMake 目标、也没有预编译 exe。要按 `docs/runnerup_build_note.md`
+//         的方式编（MinGW + libantgame_cpp_sdk.a + ASCII 路径）；
+//     (b) **搞清 request 格式**：读 `inspect_plan_trace_request` / `inspect_plan_rollouts_request`
+//         两个函数，看它们从 request 里取哪些字段（是 replay 记录？还是可直接给 PublicState？）。
+//   若它能直接吃 `PublicState`（或 replay），我们就能：
+//     ① 把 5000 局的状态转成它的输入 → 得到亚军真实候选与 heuristic；
+//     ② 用它自带的 alignment_check 与 seeds 732–900 的日志对拍，验证等价性。
+//
+// ── 下面保留我最初手写工具的骨架（如果 inspector 不可用，可回退到这条路）──────
+
+
 //   antgame::sdk::PublicState           在 antgame_cpp_sdk/include/antgame_sdk/sdk.hpp:504
 //     字段与我们的 raw dump 一一对应：round_index / coins / die_count / old_count /
 //     super_weapon_usage / weapon_cooldowns / bases / towers / ants / active_effects
