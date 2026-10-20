@@ -100,6 +100,15 @@ for _arg in sys.argv:
             DUMP_PATH = _arg.split(":", 1)[1] if ":" in _arg else "state_dump.json"
         except (ValueError, IndexError):
             pass
+# 也支持环境变量（`_tmp_ladder.py` 没法给 AI 传额外命令行参数）
+if DUMP_ROUND is None:
+    _de = os.environ.get("AZAI_DUMP_ROUND", "")
+    if _de:
+        try:
+            DUMP_ROUND = int(_de.split(":", 1)[0])
+            DUMP_PATH = _de.split(":", 1)[1] if ":" in _de else "state_dump.json"
+        except (ValueError, IndexError):
+            DUMP_ROUND = None
 
 
 def normalize_lines(text: str) -> str:
