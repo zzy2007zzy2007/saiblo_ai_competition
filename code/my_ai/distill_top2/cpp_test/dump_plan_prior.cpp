@@ -11,6 +11,7 @@
 // 编译见 code/my_ai/distill_top2/cpp_test/build_dump_plan_prior.ps1
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <string>
@@ -256,6 +257,148 @@ bool build_state(const json &req, PublicRoundState &round_state, PublicState &st
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// rollout 噪声模式
+//
+// 动机：亚军的决策是 argmax(mean_terminal_score + heuristic)，其中
+// mean_terminal_score 是 N 次随机 rollout 的均值。要知道"我们的网络能不能替代它的
+// 搜索"，必须先知道这份搜索本身的**噪声下限**：
+//   σ   = 同状态同计划、不同 rollout 的 total_score 标准差
+//   SE  = σ / sqrt(N)
+// 如果 SE 已经和 top1-top2 的分差（中位 ~71）同一量级，那么"复现它的决策"本身就是
+// 一个概率问题，任何模型（包括亚军自己换一批随机种子）都无法稳定一致。
+//
+// 单个 rollout 用的是亚军自己的 rollout_plan_score（lure_strategy_v4_rollout_score.hpp:86），
+// 种子用 plan_rollout_seed（core_format.hpp:52），与 evaluation.hpp:214 的用法一致。
+// ---------------------------------------------------------------------------
+json handle_rollout(const json &req,
+                    const PublicState &state,
+                    std::uint64_t seed,
+                    const ls::RootPlanSet &root_plans,
+                    int player) {
+    const int rollouts = std::max(1, req.value("rollouts", 32));
+    const int max_plans = req.value("max_plans", 6);  // <=0 表示全部候选
+    const bool compare = req.value("compare", false);  // 同时算"1 步评估"
+    const std::uint64_t serial = req.value("serial", static_cast<std::uint64_t>(state.round_index + 1));
+
+    NativeSimulator native(seed);
+    PublicRoundState round_state;
+    round_state.round_index = state.round_index;
+    round_state.coins = state.coins;
+    round_state.camps_hp = {state.bases[0].hp, state.bases[1].hp};
+    round_state.speed_lv = {state.bases[0].generation_level, state.bases[1].generation_level};
+    round_state.anthp_lv = {state.bases[0].ant_level, state.bases[1].ant_level};
+    round_state.towers = state.towers;
+    round_state.ants = state.ants;
+    round_state.weapon_cooldowns = state.weapon_cooldowns;
+    round_state.active_effects = state.active_effects;
+    native.sync_public_round_state(round_state);
+
+    rs::DefenseSimulator root = rs::make_defense_simulator(state, &native, player);
+    root.ignore_enemy_spawns = true;
+
+    // 选哪些计划：max_plans<=0 时全取；否则 hold + 在下标上均匀撒点
+    // （heuristic 几乎全是 0，按 heuristic 排没意义）
+    std::vector<std::size_t> chosen;
+    const std::size_t total = root_plans.plans.size();
+    if (max_plans <= 0) {
+        for (std::size_t index = 0; index < total; ++index) {
+            chosen.push_back(index);
+        }
+    } else {
+        for (std::size_t index = 0; index < total; ++index) {
+            if (root_plans.plans[index].key == "hold") {
+                chosen.push_back(index);
+                break;
+            }
+        }
+        if (total > 0) {
+            for (int slot = 1; slot < max_plans; ++slot) {
+                const std::size_t index =
+                    (total * static_cast<std::size_t>(slot)) / static_cast<std::size_t>(max_plans);
+                if (std::find(chosen.begin(), chosen.end(), index) == chosen.end()) {
+                    chosen.push_back(index);
+                }
+            }
+        }
+    }
+
+    json out;
+    out["ok"] = 1;
+    out["mode"] = "rollout";
+    out["round_index"] = state.round_index;
+    out["player"] = player;
+    out["seed"] = seed;
+    out["serial"] = serial;
+    out["rollouts"] = rollouts;
+    out["n_plans_total"] = static_cast<int>(total);
+    out["compare"] = compare;
+    json rows = json::array();
+    for (std::size_t index : chosen) {
+        const ls::CombinedPlan &plan = root_plans.plans[index];
+        std::vector<double> scores;
+        scores.reserve(static_cast<std::size_t>(rollouts));
+        for (int rollout = 0; rollout < rollouts; ++rollout) {
+            const std::uint64_t rollout_seed =
+                ls::plan_rollout_seed(seed, serial, index, rollout, plan.horizon);
+            const ls::RolloutEvaluation evaluation = ls::rollout_plan_score(root, player, plan, rollout_seed);
+            scores.push_back(evaluation.total_score);
+        }
+        double sum = 0.0;
+        for (double value : scores) {
+            sum += value;
+        }
+        const double mean = sum / static_cast<double>(scores.size());
+        double variance = 0.0;
+        for (double value : scores) {
+            variance += (value - mean) * (value - mean);
+        }
+        variance /= static_cast<double>(std::max<std::size_t>(1, scores.size() - 1));
+        json row;
+        row["root_index"] = index;
+        row["key"] = plan.key;
+        row["horizon"] = plan.horizon;
+        row["heuristic"] = plan.heuristic;
+        row["n"] = static_cast<int>(scores.size());
+        row["mean"] = mean;
+        row["std"] = std::sqrt(variance);
+        row["min"] = *std::min_element(scores.begin(), scores.end());
+        row["max"] = *std::max_element(scores.begin(), scores.end());
+        row["values"] = scores;
+
+        // "1 步评估"：计划只往前看 1 回合就 evaluate_terminal。
+        // 实现方式是把 plan.horizon 改成 1 再走同一个 rollout 函数
+        // （mid_eval_horizon = min(horizon, 4)，horizon=1 时 mid_weight=0 ⇒ 取的就是 1 回合后的终止评估）。
+        // 这正是"我们的价值网 + 一步前瞻"能做到的形态，用来和 8 回合 rollout 的搜索比。
+        if (compare) {
+            ls::CombinedPlan shallow = plan;
+            shallow.horizon = 1;
+            std::vector<double> shallow_scores;
+            shallow_scores.reserve(static_cast<std::size_t>(rollouts));
+            for (int rollout = 0; rollout < rollouts; ++rollout) {
+                const std::uint64_t rollout_seed = ls::plan_rollout_seed(seed, serial, index, rollout, 1);
+                const ls::RolloutEvaluation evaluation = ls::rollout_plan_score(root, player, shallow, rollout_seed);
+                shallow_scores.push_back(evaluation.total_score);
+            }
+            double shallow_sum = 0.0;
+            for (double value : shallow_scores) {
+                shallow_sum += value;
+            }
+            const double shallow_mean = shallow_sum / static_cast<double>(shallow_scores.size());
+            double shallow_var = 0.0;
+            for (double value : shallow_scores) {
+                shallow_var += (value - shallow_mean) * (value - shallow_mean);
+            }
+            shallow_var /= static_cast<double>(std::max<std::size_t>(1, shallow_scores.size() - 1));
+            row["one_step_mean"] = shallow_mean;
+            row["one_step_std"] = std::sqrt(shallow_var);
+        }
+        rows.push_back(std::move(row));
+    }
+    out["plans"] = std::move(rows);
+    return out;
+}
+
 json handle_one(const json &req) {
     json out;
     PublicRoundState round_state;
@@ -281,6 +424,10 @@ json handle_one(const json &req) {
     rs::DefenseSimulator defense_root = rs::make_defense_simulator(state, &native, player);
     defense_root.ignore_enemy_spawns = true;
     const ls::RootPlanSet root_plans = ls::generate_root_plans(state, &defense_root, player);
+
+    if (req.value("mode", std::string("prior")) == "rollout") {
+        return handle_rollout(req, state, seed, root_plans, player);
+    }
 
     out["ok"] = 1;
     out["round_index"] = round_state.round_index;

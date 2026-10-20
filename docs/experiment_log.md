@@ -1033,7 +1033,9 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   bash _tmp_policy_value_2x2.sh
   ```
 - **output**: `training_history/runs/20260913_100834_pv_2x2/output.log`
-- **result**: _待填_
+- **result**: *: σ(单次 rollout 分数标准差) 均值 123.6 / 中位 110.9 / p90 245.9；SE(N=125) 中位 9.9；
+  同一状态内 top1-top2 真实均值差 中位 33.4（信号/SE 中位 3.37）；**12.5% 的决策比自身噪声还小**
+  ⇒ 亚军自己的决策一致率上限约 87.5%。数据 `training_history/distill_top2/prior_labels/rollout_noise.jsonl`（1408 条）
 
 ## 2026-09-13 10:29:11 — continue_serial
 
@@ -1044,7 +1046,11 @@ network.py 对比验证 max|diff| = 0）：`gapmask / gapmax / region / grid / a
   bash _tmp_continue_serial.sh
   ```
 - **output**: `training_history/runs/20260913_102911_continue_serial/output.log`
-- **result**: _待填_
+- **result**: *: Spearman(1step, full) 中位 **+0.737**（p10 +0.018）；
+  决策一致率（含 +80 先验）**51/80 = 63.8%**，与「永远 hold」基线 63.8% **完全相同**；
+  纯评估 argmax 一致率仅 **12.5%**；top5 重叠 0.13。
+  分解：full 动手的 29 个状态里，1 步评估**只有 3 个也动手**（26 个漏掉），从不误动。
+  ⇒ **1 步终止评估在决策上零增量信息**，信息全在 8 步前瞻里。
 
 ## 2026-09-13 14:03:45 — v50pool_npz
 
@@ -11410,3 +11416,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
 
 **价值网不是当前系统的瓶颈。** 四个可动轴（数据量/帧数/信息/标签）中三个已排除，
 `rel` 标签反而有害；剩下唯一未验证的是**把实体 Transformer 真的装进搜索**（离线 R² 最高 0.4717，但未做实战）。
+
+## 2026-10-20 21:32:40 — prior_rollout_noise
+
+- **commit**: `80ea100` (dirty: 3 files)
+- **exit**: 0，用时 15s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/measure_rollout_noise.py --seeds 732 733 734 735 --rounds 40,60,80,100,120,140,160,180,200,220,240,260,280,300,320,340,360,380,400,420,440,460 --players 0,1 --rollouts 64 --max-plans 8 --out training_history/distill_top2/prior_labels/rollout_noise.jsonl
+  ```
+- **output**: `training_history/runs/20261020_213240_prior_rollout_noise/output.log`
+- **result**: σ(单次 rollout 分数标准差) 均值 123.6 / 中位 110.9 / p90 245.9；SE(N=125) 中位 9.9；同一状态内 top1-top2 的真实均值差 中位 33.4（信号/SE 中位 3.37）；**12.5% 的决策比亚军自己的噪声还小** ⇒ 它自己重复同一操作的一致率上限约 87.5%。数据 `training_history/distill_top2/prior_labels/rollout_noise.jsonl`（1408 条 计划×状态）
+
+## 2026-10-20 21:34:42 — prior_1step_vs_search
+
+- **commit**: `80ea100` (dirty: 4 files)
+- **exit**: 0，用时 62s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/distill_top2/compare_one_step_vs_search.py --seeds 732 733 734 735 --rounds 80,120,160,200,240,280,320,360,400,440 --players 0,1 --rollouts 32 --out training_history/distill_top2/prior_labels/one_step_vs_search.jsonl
+  ```
+- **output**: `training_history/runs/20261020_213442_prior_1step_vs_search/output.log`
+- **result**: Spearman(1step, full) 中位 **+0.737**（p10 +0.018）；决策一致率（含 +80 先验）**51/80 = 63.8%**，与「永远 hold」基线 63.8% **完全相同**；纯评估 argmax 一致率仅 **12.5%**；top5 重叠 0.13。分解：full 动手的 29 个状态里 1 步评估只有 3 个也动手（漏掉 26 个），且从不误动 ⇒ **1 步终止评估在决策上零增量信息**，信息全在 8 步前瞻里。单次 rollout σ：full 104 / 1step 5
