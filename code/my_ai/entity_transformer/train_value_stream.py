@@ -30,6 +30,14 @@ for _p in (_REPO / "Ant-Game", _REPO / "code"):
 import torch  # noqa: E402
 import torch.nn as nn  # noqa: E402
 
+# TF32 + cudnn benchmark：笔记本 5060 上能显著提速卷积（精度影响对价值回归可忽略）
+try:
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
+except Exception:  # noqa: BLE001
+    pass
+
 from my_ai.value_network import ValueNetwork  # noqa: E402
 
 HP_SCALE = 20.0
@@ -44,6 +52,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
     ap.add_argument("--label", default="hp", choices=["hp", "win"])
+    ap.add_argument("--label-file", default="",
+                    help="指定标签文件名（如 label_kgeo_tau50.npy）；空则由 value_win/label 自动推断")
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--epochs", type=int, default=10)
     ap.add_argument("--batch-size", type=int, default=256)
@@ -52,6 +62,9 @@ def main() -> int:
     ap.add_argument("--shard-games", type=int, default=5,
                     help="每片包含多少局；片是 I/O 与打乱的基本单位")
     ap.add_argument("--out-dir", default="checkpoints")
+    ap.add_argument("--log-file", default="",
+                    help="实时进度日志（每 --log-every 步一行，随时 tail 查看）")
+    ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     a = ap.parse_args()
 
@@ -63,9 +76,12 @@ def main() -> int:
     hp_us = np.load(d / "hp_us.npy")
     hp_opp = np.load(d / "hp_opp.npy")
     # 标签：合并数据叫 value_win.npy，抽帧紧凑集叫 label.npy（内容都是局末血量差/20）
-    _lab = d / "value_win.npy"
-    if not _lab.exists():
-        _lab = d / "label.npy"
+    if a.label_file:
+        _lab = d / a.label_file
+    else:
+        _lab = d / "value_win.npy"
+        if not _lab.exists():
+            _lab = d / "label.npy"
     vwin = np.load(_lab, mmap_mode="r")
     # 局边界：合并数据有 game_offsets.npy；紧凑集只有 game_id.npy，用它推
     _offs = d / "game_offsets.npy"
@@ -128,6 +144,21 @@ def main() -> int:
         outdir = _REPO / outdir
     outdir.mkdir(parents=True, exist_ok=True)
 
+    # ── 实时进度日志 ──────────────────────────────────────────────────────
+    _logfh = None
+    if a.log_file:
+        _lp = Path(a.log_file)
+        if not _lp.is_absolute():
+            _lp = _REPO / _lp
+        _lp.parent.mkdir(parents=True, exist_ok=True)
+        _logfh = _lp.open("a", encoding="utf-8")
+
+    def log(msg: str) -> None:
+        print(msg, flush=True)
+        if _logfh is not None:
+            _logfh.write(msg + "\n")
+            _logfh.flush()
+
     for seed in a.seeds:
         torch.manual_seed(seed); np.random.seed(seed)
         model = ValueNetwork().to(dev)
@@ -137,36 +168,47 @@ def main() -> int:
         t0 = time.time()
         for ep in range(1, a.epochs + 1):
             model.train()
-            tl, nseen = 0.0, 0
+            tl, nseen, nstep = 0.0, 0, 0
+            ep_t0 = time.time()
             order = np.random.permutation(len(shards))   # ① 打乱片序
-            for si in order:
+            for shard_i, si in enumerate(order):
                 s0, e0, _ng = shards[int(si)]
-                # ① 整片顺序读入内存（保持 f16，省一半内存）——避免在 86 GB 文件上散读
-                b_mem = np.asarray(board[s0:e0])
-                s_mem = np.asarray(stats[s0:e0])
-                y_mem = y[s0:e0]
-                # ② 内存内打乱（片已含多局 ⇒ batch 会混合多局，而不是同局相邻帧）
-                perm2 = np.random.permutation(len(b_mem))
+                # ① 整片一次性搬上 GPU（保持 f16，H2D 只传一半字节）
+                # ⚠️ 必须用 np.array（强制拷贝，走 OS 批量预读 ~1.5-2.5 GB/s）；
+                # 用 np.asarray 只会拿到 memmap 的**惰性视图**，数据在训练中途
+                # 逐 4KB 缺页读进来，实测只有 ~56 MB/s（慢 30 倍）。
+                b_gpu = torch.from_numpy(np.array(board[s0:e0])).to(dev)
+                s_gpu = torch.from_numpy(np.array(stats[s0:e0])).to(dev)
+                y_gpu = torch.from_numpy(np.array(y[s0:e0], np.float32)).to(dev)
+                # ② 索引与 f16→f32 转换都在 GPU 上（CPU 完全不参与）
+                perm2 = torch.randperm(b_gpu.shape[0], device=dev)
                 for k in range(0, len(perm2), a.batch_size):
                     bi = perm2[k:k + a.batch_size]
-                    b = torch.from_numpy(b_mem[bi].astype(np.float32)).to(dev)
-                    st = torch.from_numpy(s_mem[bi].astype(np.float32)).to(dev)
-                    # ⚠️ ValueNetwork.forward 返回 (B,)，所以标签也保持 (B,)
-                    t = torch.from_numpy(((y_mem[bi] - y_mean) / y_std).astype(np.float32)).to(dev)
+                    b = b_gpu[bi].float()
+                    st = s_gpu[bi].float()
+                    t = (y_gpu[bi] - y_mean) / y_std
                     pred = model(b, st)
                     loss = loss_fn(pred, t)
                     opt.zero_grad(); loss.backward(); opt.step()
                     tl += float(loss.item()) * len(bi)
                     nseen += len(bi)
-                del b_mem, s_mem, y_mem
+                    nstep += 1
+                    if nstep % a.log_every == 0:
+                        el = time.time() - ep_t0
+                        frac = (shard_i + k / max(len(perm2), 1)) / max(len(order), 1)
+                        eta = (el / max(frac, 1e-6)) * (1 - frac) if frac > 0 else 0
+                        log(f"  [s{seed} ep{ep} step{nstep}] loss={tl/nseen:.4f} "
+                            f"samples/s={nseen/el:.0f} elapsed={el/60:.1f}min "
+                            f"epoch_frac={frac*100:.1f}% eta={eta/60:.1f}min")
+                del b_gpu, s_gpu, y_gpu
             tl /= max(nseen, 1)
             model.eval()
             outs = []
             with torch.no_grad():
                 for s in range(0, len(va_idx), 512):
                     chunk = va_idx[s:s+512]
-                    vb = torch.from_numpy(np.asarray(board[chunk], np.float32)).to(dev)
-                    vs = torch.from_numpy(np.asarray(stats[chunk], np.float32)).to(dev)
+                    vb = torch.from_numpy(np.array(board[chunk], np.float32)).to(dev)
+                    vs = torch.from_numpy(np.array(stats[chunk], np.float32)).to(dev)
                     outs.append(model(vb, vs).reshape(-1).cpu().numpy())
             pv = np.concatenate(outs) * y_std + y_mean
             r = r2(y_va, pv); mae = float(np.mean(np.abs(y_va - pv)))
@@ -174,14 +216,21 @@ def main() -> int:
             if r > best:
                 best, best_ep, star = r, ep, "  *"
                 best_sd = {k: v.detach().clone() for k, v in model.state_dict().items()}
-            print(f"  [seed {seed} ep {ep:2d}] train_mse={tl:.4f} val_R2={r:.4f} "
-                  f"val_MAE={mae:.4f}{star} ({time.time()-t0:.0f}s)", flush=True)
+                # 每次创新高就立刻落盘，方便随时拿去做对战测试（不用等全部 epoch）
+                _snap = outdir / f"lowq_seed{seed}_ep{ep}_r{r:.4f}.pt"
+                torch.save({"state_dict": best_sd, "config": {"latent_dim": 64, "num_resblocks": 6},
+                            "label": a.label, "label_file": a.label_file,
+                            "y_mean": y_mean, "y_std": y_std, "val_r2": r,
+                            "ep": ep, "seed": seed, "data": str(d)}, _snap)
+                log(f"    [snapshot] {_snap.name}")
+            log(f"  [seed {seed} ep {ep:2d}] train_mse={tl:.4f} val_R2={r:.4f} "
+                f"val_MAE={mae:.4f}{star} ({time.time()-t0:.0f}s)")
         p = outdir / f"lowq_value_seed{seed}.pt"
         torch.save({"state_dict": best_sd, "config": {"latent_dim": 64, "num_resblocks": 6},
                     "label": a.label, "y_mean": y_mean, "y_std": y_std,
                     "val_r2": best, "best_ep": best_ep, "seed": seed,
                     "data": str(d)}, p)
-        print(f"[seed {seed}] best val_R2={best:.4f} (ep {best_ep}) -> {p}", flush=True)
+        log(f"[seed {seed}] best val_R2={best:.4f} (ep {best_ep}) -> {p}")
     return 0
 
 
