@@ -1,9 +1,14 @@
 """构建「状态实体张量 + 计划特征 → 8 回合期望值」数据集。
 
 和 `build_lowq_entity_dataset.py` 的区别：
-1. ⚠️ 那个脚本把 `ant[:9]` 的第 9 项当 behavior，但我们的 ants 是 12 项
-   `[id, player, x, y, hp, max_hp, kind, age, level, behavior, status, frozen]`
-   ⇒ 它实际把 **level 喂成了 behavior**、behavior 和 status 全丢。这里按下标取对。
+1. ⚠️ **两套 ants schema 并存**，按错的会被静默读错：
+   - `F:\...\lowq_e2\*.ents.jsonl`（5000 局老数据）：**9 项**
+     `[id, player, x, y, hp, max_hp, kind, age, behavior]` ⇒ `build_lowq_entity_dataset.py`
+     用 `ant[:9]`、index 8 取 behavior，**对它是对的**。
+   - `training_history/distill_top2/abl_linear2_raw/ents_*.jsonl`（`cpp_probe_match.dump_state` 产的）：**12 项**
+     `[id, player, x, y, hp, max_hp, kind, age, level, behavior, status, frozen]`
+     ⇒ 若拿旧脚本读这版，会把 **level 当 behavior**、behavior/status 全丢。
+   本脚本按 **12 项** 写（index 6=kind,7=age,8=level,9=behavior），只适用于新 dump。
 2. 输入除状态外还有**候选计划特征**（本条数据要预测的是"这个计划执行后 8 回合的期望分数"）。
 3. 标签是 q8 数据集里的 `mean`（N 次 rollout 的均值），不是叶子评估。
 

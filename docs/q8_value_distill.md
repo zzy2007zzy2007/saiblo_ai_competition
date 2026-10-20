@@ -29,3 +29,15 @@
 | `checkpoints/q8_ent_big.pt` | 实体网络，286k 行 / 按局切分，状态内 ρ 0.822、top-1 77.2% |
 | `checkpoints/q8_value_resid_z.pt` | 早期小数据（50k 行 / 按状态切分）版本，ρ 0.71 |
 | `checkpoints/q8_value.pt` | 首版（abs 目标）冒烟产物，无参考价值 |
+
+## ⚠️ 坑：两套 ants schema 并存
+
+| 数据 | ants 字段 | 布局 |
+|---|---|---|
+| `F:\...\lowq_e2\*.ents.jsonl`（5000 局老数据） | **9 项** | `[id, player, x, y, hp, max_hp, kind, age, behavior]` |
+| `distill_top2/abl_linear2_raw/ents_*.jsonl`（`cpp_probe_match.dump_state` 产的） | **12 项** | `[..., kind, age, **level**, behavior, status, frozen]` |
+
+`build_lowq_entity_dataset.py` 用 `ant[:9]` + index 8 当 behavior —— **对 9 项那版是对的**；
+若拿它去读 12 项那版，就会把 **level 当 behavior**、behavior/status 全丢。
+`build_q8_entity_dataset.py` 是按 **12 项** 写的，只用于新 dump。
+
