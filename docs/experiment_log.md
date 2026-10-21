@@ -11657,7 +11657,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_ab_2x2.sh
   ```
 - **output**: `training_history/runs/20261021_135353_ab_2x2_mc_coverage/output.log`
-- **result**: _待填_
+- **result**: 四臂 `{mcts,flat} × {MC_EVERY=5,1}`，各 64 局 vs rule_v4：**A1 mcts/e5 = 42-22 = 0.656**（血量差 +1.56）；**A2 mcts/e1 = 43-21 = 0.672**（+3.28）；**A3 flat/e5 = 57-7 = 0.891**（+12.02）；**A4 flat/e1 = 63-1-0 = 1.000**（+16.23）。⇒ 搜索方式效应（flat 比 mcts **+23.5pp**）远大于 MC 覆盖度；且 **A4 的 1.000 是 rule_v4 天花板假象**（后续 T1 内部对打只有 53.1%）。终局血量差分布显示 A4 **下界为 0**（64 局从未落后），而 A1/A2 的 p5 分别是 −27/−18（输的局崩盘式）。详见 `docs/findings_flat_rollout_vs_tree.md` §5b。
 
 ## 2026-10-21 15:19:26 — ab_mc_horizon
 
@@ -11668,4 +11668,4 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_ab_horizon.sh
   ```
 - **output**: `training_history/runs/20261021_151926_ab_mc_horizon/output.log`
-- **result**: _待填_
+- **result**: MC 仲裁 rollout 水平扫描（flat + MC_EVERY=5，各 64 局 vs rule_v4）：**H=256 → 57-7 = 0.891**（= A3 基线）；**H=128 → 63-1 = 0.984**；**H=64 → 53-3 = 0.946**（56 局）；**H=32 → 61-3 = 0.953**。⇒ **H=256 是唯一离群点**，砍到 ≤128 即稳定在 0.95–0.98。推测：安静 rollout 的方差随 h 增长，而仲裁每类只采样一次 ⇒ 长 h 把噪声直接喂进类选择（方差正则化）。⚠️ 与 T1 的教训一致：这些 vs rule_v4 的高读数需打折，判别要靠内部对打。
