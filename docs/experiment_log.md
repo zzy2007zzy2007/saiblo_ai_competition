@@ -11526,3 +11526,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261020_221655_q8_value_ent_big/output.log`
 - **result**: 实体 Transformer（带 plan token，0.52M 参数）在 286k 行 / 按整局切分下：状态内 Spearman **+0.822**（明显强于 GBM 的 0.656），但 top-1 **77.2%** 仅比「永远 hold」基线 76.9% 高 0.3pp，该动时动了 **5.9%**，前 12 名成对排序 **49.5%（≈随机）** ⇒ **学出来的 8 步期望值替代不了搜索**。checkpoint `checkpoints/q8_ent_big.pt`
+
+## 2026-10-21 08:07:27 — gen_bundles_3head
+
+- **commit**: `2296cc1` (dirty: 2 files)
+- **exit**: 0，用时 298s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_gen_bundles.py --epochs 12 --top-m 4 --top-head 10 --eval-samples 3000 --out checkpoints/gen_bundles_3head.pt --log training_history/distill_top2/q8/train_gen_bundles.log
+  ```
+- **output**: `training_history/runs/20261021_080727_gen_bundles_3head/output.log`
+- **result**: _待填_
