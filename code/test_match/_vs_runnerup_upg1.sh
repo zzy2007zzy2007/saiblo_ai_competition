@@ -14,10 +14,10 @@ PY=D:/anaconda3/envs/pytorch-gpu/python.exe
 RUNNERUP="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe"
 SEEDS="7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r"
 
-echo "等待 VS_RUNNERUP_cells4（0-17 那场）结束… ($(date +%H:%M:%S))"
+echo "等待统一搜索对照结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 500); do
-  marker=$(ls -d training_history/runs/*vs_runnerup_cells4_v2* 2>/dev/null | tail -1)
-  if [ -n "$marker" ] && grep -q "对亚军（cells4）测试结束" "$marker/output.log" 2>/dev/null; then
+  marker=$(ls -d training_history/runs/*ab_unified_vs_cells4* 2>/dev/null | tail -1)
+  if [ -n "$marker" ] && grep -q "统一搜索对照结束" "$marker/output.log" 2>/dev/null; then
     echo "上一场已结束 ($(date +%H:%M:%S))"
     break
   fi

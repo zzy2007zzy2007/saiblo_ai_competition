@@ -18,10 +18,10 @@ BASE="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_
 A_NET="${BASE};AZAI_MC_SCORE=net;AZAI_MC_NET_SAMPLES=8"
 B_QUIET="${BASE}"
 
-echo "等待 VS_RUNNERUP_cells4_upg1 结束… ($(date +%H:%M:%S))"
+echo "等待 VS_RUNNERUP_cells4（0-17 那场）结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 500); do
-  marker=$(ls -d training_history/runs/*vs_runnerup_upg1* 2>/dev/null | tail -1)
-  if [ -n "$marker" ] && grep -q "cells4+UPG1 测试结束" "$marker/output.log" 2>/dev/null; then
+  marker=$(ls -d training_history/runs/*vs_runnerup_cells4_v2* 2>/dev/null | tail -1)
+  if [ -n "$marker" ] && grep -q "对亚军（cells4）测试结束" "$marker/output.log" 2>/dev/null; then
     echo "上一场已结束 ($(date +%H:%M:%S))"
     break
   fi
