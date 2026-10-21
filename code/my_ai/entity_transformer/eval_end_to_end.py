@@ -60,7 +60,9 @@ def main() -> int:
     data = {key: raw[key] for key in raw.files}
     labels, games = data["labels"], data["game"]
     rounds, players = data["round"], data["player"]
-    ckpt = torch.load(_REPO / "checkpoints/gen_bundles_3head.pt", map_location="cpu", weights_only=False)
+    CKPT = sys.argv[4] if len(sys.argv) > 4 else "checkpoints/gen_bundles_3head.pt"
+    ckpt = torch.load(_REPO / CKPT, map_location="cpu", weights_only=False)
+    print(f"[ckpt] {CKPT}")
     model = ThreeHeadGenerator(state_dim=data["state_feats"].shape[1]).to(device)
     model.load_state_dict(ckpt["model"])
     model.eval()

@@ -11559,3 +11559,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_090125_gen_end_to_end_w8/output.log`
 - **result**: 把 head2 从 top-2 放宽到 top-8：候选涨到 **243 条/状态**，覆盖率升到 83.3%（有动作 **66.7%** ↑），但条件一致率掉到 66.0%（干扰项变多 + 32 次采样噪声），**端到端仍 55.0%（≈不变）** ⇒ 加宽只买到覆盖率、没买到端到端。说明瓶颈在两个地方同时存在：①覆盖 ②在集合内的排序
+
+## 2026-10-21 09:43:38 — gen_e2e_bigroll
+
+- **commit**: `9a5f65b` (dirty: 2 files)
+- **exit**: 0，用时 202s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/eval_end_to_end.py 100 384 2
+  ```
+- **output**: `training_history/runs/20261021_094338_gen_e2e_bigroll/output.log`
+- **result**: _待填_
