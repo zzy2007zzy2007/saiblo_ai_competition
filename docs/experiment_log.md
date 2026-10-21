@@ -11669,3 +11669,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_151926_ab_mc_horizon/output.log`
 - **result**: MC 仲裁 rollout 水平扫描（flat + MC_EVERY=5，各 64 局 vs rule_v4）：**H=256 → 57-7 = 0.891**（= A3 基线）；**H=128 → 63-1 = 0.984**；**H=64 → 53-3 = 0.946**（56 局）；**H=32 → 61-3 = 0.953**。⇒ **H=256 是唯一离群点**，砍到 ≤128 即稳定在 0.95–0.98。推测：安静 rollout 的方差随 h 增长，而仲裁每类只采样一次 ⇒ 长 h 把噪声直接喂进类选择（方差正则化）。⚠️ 与 T1 的教训一致：这些 vs rule_v4 的高读数需打折，判别要靠内部对打。
+
+## 2026-10-21 15:54:59 — ab_t1t2
+
+- **commit**: `ceeae5d` (dirty: 2 files)
+- **exit**: 0，用时 13942s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_t1t2.sh
+  ```
+- **output**: `training_history/runs/20261021_155459_ab_t1t2/output.log`
+- **result**: _待填_
