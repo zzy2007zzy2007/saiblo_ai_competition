@@ -11658,3 +11658,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_135353_ab_2x2_mc_coverage/output.log`
 - **result**: _待填_
+
+## 2026-10-21 15:19:26 — ab_mc_horizon
+
+- **commit**: `1704cdd` (dirty: 2 files)
+- **exit**: 0，用时 8057s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_horizon.sh
+  ```
+- **output**: `training_history/runs/20261021_151926_ab_mc_horizon/output.log`
+- **result**: _待填_
