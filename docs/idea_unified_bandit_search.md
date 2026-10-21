@@ -158,6 +158,23 @@
 复用现有零件：`net_fn` 一次前向拿 `action_map` + head logits；`my_ai.decoder` 的 masks 保合法；
 叶子评估复用 `FlatRolloutGreedy._leaf_values`（批量值网 / 手写价值）。
 
+## 6b. 实现状态（2026-10-21 已落地）
+
+`code/my_ai/az_intent/unified_action_search.py` → `UnifiedActionSearch`，已接入部署桥接
+（`AZAI_SEARCH=unified`，参数 `AZAI_UNI_*`）。
+
+**与设计的两处偏差（实测后必须改的）**：
+
+1. **按类别截断候选**。若把全部合法闪电中心都放进来（实测 235 个），会把建塔/升级挤出候选
+   ⇒ 增加 `max_lightning`（默认 32，按先验取前 N）。
+2. **叶子评估必须批量**。逐条评估时 `encode_observation`(414 µs) + 值网前向(264 µs) 是主要成本，
+   会把每回合从 63 µs 抬到 ~500 µs（实测 9,536 回合要 3.5 s）⇒ 改为"先跑 rollout 收集叶子、
+   每 64 个一批评估"。空闲机器估计 **≈0.8 s/决策**（298 rollout × (32×63 µs) + 298 叶 × 678 µs）。
+
+**已验证**：`AZAI_SEARCH=unified` 经桥接构造成功并跑出决策。
+**未验证**：升级动作的枚举/评估 —— 冒烟局面里我方 0 塔（脚本建的塔被拆了）⇒ 没有升级候选。
+需要拿**真实对局中局**（回放某局到第 200 回合）确认升级候选真的进候选集并被 rollout 评估。
+
 ## 7. 待验证的问题
 
 1. 统一搜索 vs 现有 flat（`flat/every1`）：同预算下谁强（64 局内部对打）。

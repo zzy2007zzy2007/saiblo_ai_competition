@@ -504,6 +504,33 @@ def build_engine(seed: int, player: int):
              f"horizon={_env('AZAI_FLAT_HORIZON','64')} "
              f"batch={_env('AZAI_FLAT_BATCH','32')} eval={_env('AZAI_FLAT_EVAL','net')} "
              f"rounds={_env('AZAI_FLAT_ROUNDS','39000')}")
+    elif _search_kind == "unified":
+        # **统一动作搜索**（2026-10-21）：不做类仲裁，直接枚举原子动作
+        # （建塔/升级/降级/闪电/HOLD）逐个 rollout 打分，剩余预算复评 top-k。
+        # 见 docs/idea_unified_bandit_search.md 与 code/my_ai/az_intent/unified_action_search.py
+        from my_ai.az_intent.az_selfplay import load_three_models
+        from my_ai.az_intent.unified_action_search import UnifiedActionSearch
+        _, _, _value_model = load_three_models(ckpt)
+        _value_model.eval()
+        mcts = UnifiedActionSearch(
+            net_fn,
+            horizon=int(_env("AZAI_UNI_HORIZON", "32")),
+            candidate_cap=int(_env("AZAI_UNI_CAP", "256")),
+            reeval_topk=int(_env("AZAI_UNI_TOPK", "8")),
+            total_rounds=int(_env("AZAI_UNI_ROUNDS", "39000")),
+            min_samples_per_candidate=int(_env("AZAI_UNI_MINSAMP", "30")),
+            max_lightning=int(_env("AZAI_UNI_MAXLIGHT", "32")),
+            value_model=_value_model,
+            feature_extractor=feat,
+            value_batch=int(_env("AZAI_FLAT_BATCH", "32")),
+            eval_mode=_env("AZAI_FLAT_EVAL", "net"),
+            verbose=bool(int(_env("AZAI_UNI_VERBOSE", "0"))),
+            **_kw,
+        )
+        _log(f"engine=unified horizon={_env('AZAI_UNI_HORIZON','32')} "
+             f"cap={_env('AZAI_UNI_CAP','256')} topk={_env('AZAI_UNI_TOPK','8')} "
+             f"rounds={_env('AZAI_UNI_ROUNDS','39000')} "
+             f"maxlight={_env('AZAI_UNI_MAXLIGHT','32')}")
     else:
         mcts = BundleMCTS(net_fn, **_kw)
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
