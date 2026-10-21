@@ -11570,3 +11570,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_094338_gen_e2e_bigroll/output.log`
 - **result**: _待填_
+
+## 2026-10-21 10:12:24 — gen_bundles_40ep
+
+- **commit**: `9a5f65b` (dirty: 3 files)
+- **exit**: 0，用时 787s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_gen_bundles.py --epochs 40 --top-m 4 --top-head 10 --eval-samples 2000 --out checkpoints/gen_bundles_3head_40ep.pt --log training_history/distill_top2/q8/train_gen_bundles_40ep.log
+  ```
+- **output**: `training_history/runs/20261021_101224_gen_bundles_40ep/output.log`
+- **result**: _待填_
