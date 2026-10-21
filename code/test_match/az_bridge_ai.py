@@ -480,6 +480,17 @@ def build_engine(seed: int, player: int):
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,
     )
+    # ── 控制实验（2026-10-21）：MC_SCORE=net 时给仲裁挂**批量值函数** ────────────────
+    #   不挂的话 mc_quiet_choose 会逐叶调用 net_fn（三网、未批量）⇒ 72 次 × 7.6 ms ≈ 0.55 s，
+    #   占仲裁成本 80%。挂上后是"一次前向给全部叶子打分"（实测同分、耗时 0.82→0.33 s）。
+    if _env("AZAI_MC_SCORE", "") == "net":
+        from my_ai.az_intent.az_selfplay import load_three_models as _l3
+        from my_ai.az_intent.value_batch import make_batched_value_fn as _mbvf
+        _, _, _mc_vm = _l3(ckpt)
+        _mc_vm.eval()
+        _kw["mc_value_fn"] = _mbvf(_mc_vm, feat,
+                                   batch_size=int(_env("AZAI_FLAT_BATCH", "32")))
+        _log("mc_score=net：已挂批量值函数（叶子批量评估）")
     # ── 搜索器选择（2026-10-21）：AZAI_SEARCH=flat ⇒ 扁平 rollout 评估器 ────────────
     #   flat：根节点一次动作网出候选 + 每候选跑 N 次 h 回合真实引擎 rollout + 叶值网。
     #   与默认 BundleMCTS（depth=4、iterations 次展开、每次展开一次 net_fn）共用

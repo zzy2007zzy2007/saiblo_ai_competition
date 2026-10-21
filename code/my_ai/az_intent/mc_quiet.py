@@ -156,7 +156,7 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0,
                     score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0,
                     selfspend_mix: float = 1.0, tail_fn=None, tail_mix: float = 0.0,
-                    net_samples: int = 4):
+                    net_samples: int = 4, value_fn=None):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
@@ -197,26 +197,29 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
             _q = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
             _v = float(net_fn(st, player)['value'])
             scores[_key] = _q + (_v - float(v_before))
-        elif score_mode == 'net' and net_fn is not None:
+        elif score_mode == 'net' and (net_fn is not None or value_fn is not None):
             # **控制实验（2026-10-21，用户提出）**：用「我们的 rollout + 值网」当**类仲裁器**。
             #
-            # 动机：统一动作搜索（`unified_action_search.py`）把"类仲裁"和"位置 rollout"合并成
-            # 同一套评估。若它效果不好，无法区分是"rollout 评估器本身不行"还是"合并的结构不行"。
-            # 这个 mode 保留**两阶段结构**（MC 选类 → 位置搜索），只把仲裁的评估器换成
-            # "打这一手 → N 次 h 回合 rollout → 叶值网均值" ⇒ 单独验证评估器能否胜任选类。
+            # 动机：统一动作搜索把"类仲裁"和"位置 rollout"合并成同一套评估。
+            # 若它效果不好，无法区分是"评估器本身不行"还是"合并结构不行"。
+            # 这个 mode 保留**两阶段结构**，只把仲裁评估器换成"打这一手 → N 次 h 回合 → 叶值均值"。
             #
-            # 与现有 mode 的区别：`value_only` 不做 rollout（只看打完之后的值）；
-            # `delta` 是安静 rollout + V 差分；这里是**真正的多次 rollout + 叶值均值**。
+            # 性能（2026-10-21 修正）：优先用**批量值函数** `value_fn(states, player)`，
+            # 一次前向给全部叶子打分；否则退化为逐叶 `net_fn`（三网、未批量，慢 ~8 倍）。
             _n = max(1, int(net_samples))
-            _total = 0.0
+            leaves = []
             for _ in range(_n):
                 _sim = st.clone()
                 for _ in range(int(max_rounds)):
                     if _sim.terminal:
                         break
                     _sim.advance_round()
-                _total += float(net_fn(_sim, player)['value'])
-            scores[_key] = _total / _n
+                leaves.append(_sim)
+            if value_fn is not None:
+                scores[_key] = float(np.mean(value_fn(leaves, player)))
+            else:
+                scores[_key] = float(np.mean(
+                    [float(net_fn(_s, player)['value']) for _s in leaves]))
         elif (int(selfspend_k) > 0 or int(bidir_k) > 0) and net_fn is not None:
             _s = (selfspend_value(st, player, net_fn, int(selfspend_k), max_rounds=max_rounds)
                   if int(selfspend_k) > 0 else

@@ -409,6 +409,7 @@ class BundleMCTS:
         mc_no_light: bool = False,
     mc_selfspend_mix: float = 1.0,   # 2026-10-18: score=(1-a)*quiet + a*selfspend/bidir
         mc_net_samples: int = 4,       # 2026-10-21: mc_score='net' 时每个候选的 rollout 次数
+        mc_value_fn=None,             # 2026-10-21: 批量值函数 fn(states, player)->ndarray，供 net 模式用
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -482,6 +483,7 @@ class BundleMCTS:
         self.mc_no_light = bool(mc_no_light)
         self.mc_selfspend_mix = float(mc_selfspend_mix)
         self.mc_net_samples = int(mc_net_samples)
+        self.mc_value_fn = mc_value_fn
         # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
         # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
         self.mc_last_explicit = None
@@ -813,7 +815,8 @@ class BundleMCTS:
                                                   v_before=float(_v_before),
                                                   selfspend_k=int(self.mc_selfspend),
                                                   selfspend_mix=float(self.mc_selfspend_mix),
-                     net_samples=int(self.mc_net_samples))
+                     net_samples=int(self.mc_net_samples),
+                     value_fn=self.mc_value_fn)
                         self.mc_last_scores = _sc
                         if _c is None:
                             # 分差不足 ⇒ **不接管**：由类头 argmax 决定（= 该配置下的默认 pin），只埋点
