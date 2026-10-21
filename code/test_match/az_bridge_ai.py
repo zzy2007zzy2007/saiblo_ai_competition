@@ -422,8 +422,7 @@ def build_engine(seed: int, player: int):
         _, _, _vm = load_three_models(ckpt)
         ppf = _make_value_pos_prior(feat, _vm, mode=_pp)
         _log(f"pos_prior={_pp}（根节点位置先验已启用）")
-    mcts = BundleMCTS(
-        net_fn,
+    _kw = dict(
         iterations=int(_env("AZAI_ITERS", "256")),
         max_depth_rounds=int(_env("AZAI_DEPTH", "4")),
         k=int(_env("AZAI_K", "1")),
@@ -479,6 +478,34 @@ def build_engine(seed: int, player: int):
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,
     )
+    # ── 搜索器选择（2026-10-21）：AZAI_SEARCH=flat ⇒ 扁平 rollout 评估器 ────────────
+    #   flat：根节点一次动作网出候选 + 每候选跑 N 次 h 回合真实引擎 rollout + 叶值网。
+    #   与默认 BundleMCTS（depth=4、iterations 次展开、每次展开一次 net_fn）共用
+    #   **同一份候选集 / 类判定 / 值网**，只有"评估器"不同 ⇒ 干净的树 vs 扁平等预算消融。
+    _search_kind = _env("AZAI_SEARCH", "mcts")
+    if _search_kind == "flat":
+        from my_ai.az_intent.az_selfplay import load_three_models
+        from my_ai.az_intent.flat_rollout_greedy import FlatRolloutGreedy
+        _, _, _value_model = load_three_models(ckpt)
+        _value_model.eval()
+        mcts = FlatRolloutGreedy(
+            net_fn,
+            rollouts_per_candidate=int(_env("AZAI_FLAT_ROLLOUTS", "16")),
+            horizon=int(_env("AZAI_FLAT_HORIZON", "64")),
+            value_model=_value_model,
+            feature_extractor=feat,
+            value_batch=int(_env("AZAI_FLAT_BATCH", "32")),
+            eval_mode=_env("AZAI_FLAT_EVAL", "net"),
+            max_total_rounds=int(_env("AZAI_FLAT_ROUNDS", "39000")),
+            verbose=bool(int(_env("AZAI_FLAT_VERBOSE", "0"))),
+            **_kw,
+        )
+        _log(f"engine=flat rollouts={_env('AZAI_FLAT_ROLLOUTS','16')} "
+             f"horizon={_env('AZAI_FLAT_HORIZON','64')} "
+             f"batch={_env('AZAI_FLAT_BATCH','32')} eval={_env('AZAI_FLAT_EVAL','net')} "
+             f"rounds={_env('AZAI_FLAT_ROUNDS','39000')}")
+    else:
+        mcts = BundleMCTS(net_fn, **_kw)
     _log(f"engine built: ckpt={ckpt} iters={_env('AZAI_ITERS','256')} "
          f"depth={_env('AZAI_DEPTH','4')} mode={_env('AZAI_MODE','joint')} "
          f"pospin={_env('AZAI_POSPIN','argmax')} t_class={_env('AZAI_TCLASS','0.5')} "

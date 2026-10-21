@@ -491,7 +491,7 @@ json handle_score_ops(const json &req,
 
         ls::CombinedPlan plan;
         plan.ops = ops;
-        plan.horizon = ::antgame::sdk::v4_lure_config().long_eval_horizon;
+        plan.horizon = req.value("horizon", ::antgame::sdk::v4_lure_config().long_eval_horizon);
         plan.has_lightning = false;
         for (const auto &operation : ops) {
             if (operation.op_type == ::antgame::sdk::OperationType::UseLightningStorm) {

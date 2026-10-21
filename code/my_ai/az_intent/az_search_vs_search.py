@@ -52,9 +52,11 @@ def _ban_classes(net_fn, banned):
 def _worker(args: tuple) -> dict:
     (a_path, b_path, seed, iterations, max_depth_rounds, t_class, t_pos,
      native_engine, flip, a_rel_abs, b_rel_abs, a_tanh, b_tanh,
-     search_mode, skip_single, k, ban, a_prior, b_prior) = args
+     search_mode, skip_single, k, ban, a_prior, b_prior,
+     a_flat, b_flat, flat_rollouts, flat_horizon, flat_batch, flat_threads) = args
+    import time as _time
     import torch
-    torch.set_num_threads(1)
+    torch.set_num_threads(int(flat_threads))
 
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
@@ -94,9 +96,30 @@ def _worker(args: tuple) -> dict:
 
     net_fn_a = _ban_classes(net_fn_a, ban)
     net_fn_b = _ban_classes(net_fn_b, ban)
-    mcts_a = BundleMCTS(net_fn_a, seed=seed, pos_prior_fn=_make_prior(a_prior, a_path, net_fn_a), **_m)
-    mcts_b = BundleMCTS(net_fn_b, seed=seed + 1,
-                        pos_prior_fn=_make_prior(b_prior, b_path, net_fn_b), **_m)
+
+    def _make_searcher(flat: bool, net_fn, ckpt_path, seed_value):
+        """按侧构造搜索器：flat=True → FlatRolloutGreedy（根一次动作网 + 每候选 N×h rollout）；
+        否则 → 原 M6c（BundleMCTS）。两侧共用同一套 `_m` 配置 ⇒ 只有"评估器"不同。"""
+        if not flat:
+            return BundleMCTS(net_fn, seed=seed_value, **_m)
+        from my_ai.az_intent.az_selfplay import load_three_models
+        from my_ai.az_intent.flat_rollout_greedy import FlatRolloutGreedy
+        _, _, value_model = load_three_models(ckpt_path)
+        value_model.eval()
+        return FlatRolloutGreedy(net_fn, seed=seed_value,
+                                 rollouts_per_candidate=flat_rollouts,
+                                 horizon=flat_horizon,
+                                 value_model=value_model,
+                                 feature_extractor=feat,
+                                 value_batch=flat_batch,
+                                 **_m)
+
+    mcts_a = _make_searcher(a_flat, net_fn_a, a_path, seed)
+    mcts_b = _make_searcher(b_flat, net_fn_b, b_path, seed + 1)
+    if not a_flat:
+        mcts_a.pos_prior_fn = _make_prior(a_prior, a_path, net_fn_a)
+    if not b_flat:
+        mcts_b.pos_prior_fn = _make_prior(b_prior, b_path, net_fn_b)
 
     # alternate which model is P0; --flip-sides inverts the assignment so the SAME
     # seed can be replayed with swapped sides -> pairs with the unflipped run
@@ -105,13 +128,19 @@ def _worker(args: tuple) -> dict:
     a_is_p0 = (seed % 2 == 0) != bool(flip)
     mcts = [mcts_a, mcts_b] if a_is_p0 else [mcts_b, mcts_a]
     state = make_initial_state(seed, native_engine)
+    side_time = {"A": 0.0, "B": 0.0}
+    side_decisions = {"A": 0, "B": 0}
     for _ in range(512):
         if state.terminal:
             break
         for player in (0, 1):
             if state.terminal:
                 break
+            _who = ("A" if a_is_p0 else "B") if player == 0 else ("B" if a_is_p0 else "A")
+            _t0 = _time.perf_counter()
             res = mcts[player].search(state, player, temperature=0.0)
+            side_time[_who] += _time.perf_counter() - _t0
+            side_decisions[_who] += 1
             ops = [
                 Operation(OperationType(int(k[0])), int(k[1]), int(k[2]))
                 for k in res.chosen_bundle
@@ -144,8 +173,11 @@ def _worker(args: tuple) -> dict:
     print(f"  seed={seed:3d} {tag} ({'A=P0' if a_is_p0 else 'A=P1'}) "
           f"hp={[b.hp for b in state.bases]} rounds={state.round_index} | "
           f"A[{_comp['A']}] B[{_comp['B']}]", flush=True)
+    _ps = {w: (side_time[w] / max(side_decisions[w], 1)) for w in ("A", "B")}
+    print(f"       每决策耗时 A={_ps['A']:.2f}s ({side_decisions['A']} 次)  "
+          f"B={_ps['B']:.2f}s ({side_decisions['B']} 次)", flush=True)
     return {"score": score, "rounds": int(state.round_index), "terminal": bool(state.terminal),
-            "cls": cls_cnt}
+            "cls": cls_cnt, "per_decision_s": _ps}
 
 
 def main() -> None:
@@ -187,6 +219,21 @@ def main() -> None:
     parser.add_argument("--pairs", type=int, default=0,
                         help=">0：**真镜像配对**——每个 seed 各打一次 A=P0 与 A=P1，"
                              "报配对胜率 + SE + t（与 --games 二选一）")
+    # ── 搜索器类型（2026-10-21）：把某一侧换成「扁平 rollout」评估器 ──────────────
+    #   flat = 根节点一次动作网出候选 + 每个候选跑 N 次 h 回合真实引擎 rollout + 叶值网
+    #   （vs 默认的 BundleMCTS：depth 4、iterations 次展开、每次展开一次 net_fn）
+    #   用途：等预算下"树 vs 扁平"的强度消融；候选集/类判定/值网完全共用。
+    parser.add_argument("--a-flat", action="store_true", help="A 侧用扁平 rollout 搜索")
+    parser.add_argument("--b-flat", action="store_true", help="B 侧用扁平 rollout 搜索")
+    parser.add_argument("--flat-rollouts", type=int, default=16,
+                        help="扁平侧每个候选的 rollout 次数 N（预算自调节会再压）")
+    parser.add_argument("--flat-horizon", type=int, default=64,
+                        help="扁平侧每次 rollout 推进的回合数 h")
+    parser.add_argument("--flat-batch", type=int, default=32,
+                        help="叶值网的批量（CPU 实测最优 ≈32：264 µs/条，再大反而退化）")
+    parser.add_argument("--flat-threads", type=int, default=1,
+                        help="torch 线程数。多进程评测请保持 1（每进程 1 线程），"
+                             "单进程想看真实速度可设 4-16")
     parser.add_argument("--flip-sides", action="store_true",
                         help="invert the seed%%2 side assignment. Running the SAME "
                              "seeds with this flag replays every game with swapped "
@@ -198,7 +245,9 @@ def main() -> None:
                args.native_engine, args.a_rel_to_abs, args.b_rel_to_abs,
                not args.a_no_tanh, not args.b_no_tanh,
                args.search_mode, args.skip_single_candidate, args.k, args.ban_class,
-               args.pos_prior_a, args.pos_prior_b)
+               args.pos_prior_a, args.pos_prior_b,
+               args.a_flat, args.b_flat, args.flat_rollouts, args.flat_horizon,
+               args.flat_batch, args.flat_threads)
     if args.pairs > 0:
         jobs = [(args.a, args.b, args.seed + s) + _common[:5] + (fl,) + _common[5:]
                 for s in range(args.pairs) for fl in (False, True)]
