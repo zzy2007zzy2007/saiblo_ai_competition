@@ -11680,3 +11680,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_155459_ab_t1t2/output.log`
 - **result**: _待填_
+
+## 2026-10-21 19:05:55 — vs_runnerup_cells4_v2
+
+- **commit**: `d0547e2` (dirty: 2 files)
+- **exit**: 0，用时 7616s
+- **cmd**:
+  ```bash
+  bash code/test_match/_vs_runnerup.sh
+  ```
+- **output**: `training_history/runs/20261021_190555_vs_runnerup_cells4_v2/output.log`
+- **result**: _待填_
+
+## 2026-10-21 20:52:50 — ab_arbiter_net_v3
+
+- **commit**: `3ef68f7` (dirty: 2 files)
+- **exit**: 0，用时 8534s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_arbiter_net.sh
+  ```
+- **output**: `training_history/runs/20261021_205250_ab_arbiter_net_v3/output.log`
+- **result**: _待填_
