@@ -56,6 +56,7 @@ class UnifiedActionSearch(FlatRolloutGreedy):
                  total_rounds: int = DEFAULT_TOTAL_ROUNDS,
                  min_samples_per_candidate: int = 30,
                  max_lightning: int = 32,
+                 max_other_weapon: int = 8,
                  verbose: bool = False,
                  **kwargs):
         # 复用 FlatRolloutGreedy 的叶子评估（_leaf_values / _terminal_value）
@@ -67,6 +68,7 @@ class UnifiedActionSearch(FlatRolloutGreedy):
         self.total_rounds = int(total_rounds)
         self.min_samples = int(min_samples_per_candidate)
         self.max_lightning = int(max_lightning)
+        self.max_other_weapon = int(max_other_weapon)
         self.verbose = bool(verbose)
         self.last_actions = []
         self.last_class_scores = {}
@@ -136,6 +138,28 @@ class UnifiedActionSearch(FlatRolloutGreedy):
                                       float(AM[17, y, x]), "lightning"))
         lightning.sort(key=lambda a: -a[1])
         actions.extend(lightning[: int(self.max_lightning)])
+
+        # ④b 其余超级武器：EMP(22) / Deflector(23) / Evasion(24)
+        #     ⚠️ 2026-10-21 补：之前只枚举了闪电，漏了这三种 ⇒ "列出所有动作"并不成立。
+        #     它们的位置同样几乎任意格合法 ⇒ 每种按先验取前 `max_other_weapon` 个。
+        for op_type_value, channel, tag in (
+                (22, 18, "emp"), (23, 19, "deflector"), (24, 20, "evasion")):
+            picked = []
+            for x in range(19):
+                for y in range(19):
+                    op = Operation(OperationType(int(op_type_value)), x, y)
+                    if legal(op):
+                        prior = float(AM[channel, y, x]) if AM.shape[0] > channel else -1e3
+                        picked.append(((int(op.op_type), int(x), int(y)), prior, tag))
+            picked.sort(key=lambda a: -a[1])
+            actions.extend(picked[: int(self.max_other_weapon)])
+
+        # ④c 基地升级：出蚁速度(31) / 出蚁等级(32) —— 无位置，各一个候选
+        for op_type_value, channel, tag in ((31, 21, "up_speed"), (32, 22, "up_ant")):
+            op = Operation(OperationType(int(op_type_value)))
+            if legal(op):
+                prior = float(np.max(AM[channel])) if AM.shape[0] > channel else -1e3
+                actions.append(((int(op.op_type), int(op.arg0), int(op.arg1)), prior, tag))
 
         # ⑤ HOLD
         actions.append(((-1, -1, -1), float(AM[23].max()) if AM.shape[0] > 23 else -1e3, "hold"))

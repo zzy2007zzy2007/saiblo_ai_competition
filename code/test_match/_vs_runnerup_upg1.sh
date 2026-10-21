@@ -16,7 +16,7 @@ SEEDS="7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18
 
 echo "等待统一搜索对照结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 500); do
-  marker=$(ls -d training_history/runs/*ab_unified_vs_cells4* 2>/dev/null | tail -1)
+  marker=$(ls -d training_history/runs/*ab_unified_v2* 2>/dev/null | tail -1)
   if [ -n "$marker" ] && grep -q "统一搜索对照结束" "$marker/output.log" 2>/dev/null; then
     echo "上一场已结束 ($(date +%H:%M:%S))"
     break
