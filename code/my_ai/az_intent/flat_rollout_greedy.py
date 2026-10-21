@@ -133,7 +133,12 @@ class FlatRolloutGreedy(BundleMCTS):
         _t_expand = _time.perf_counter()
         root = BundleNode(state=state.clone(), player=player)
         self.last_root = root
-        self._expand(root, self.k)                 # ← 每决策唯一一次 net_fn
+        # ⚠️ 必须和 BundleMCTS.search 一样挂上 `_mc_root`：
+        #    `_expand` 里的 MC 类仲裁用 `_is_root = (self._mc_root is not None and node is self._mc_root)`
+        #    做门控（`mc_root_only=1` 时只在根仲裁）。不设它 ⇒ 仲裁被静默跳过 ⇒
+        #    两侧就不是"只换 mcts"了（实测这是 0.7344 基线口径的核心一环）。
+        self._mc_root = root
+        self._expand(root, self.k)                 # ← 每决策唯一一次 net_fn（含根节点的 MC 类仲裁）
         bundles = list(root.bundles)
         if not bundles:
             self.last_scores = np.zeros(0)

@@ -11581,3 +11581,36 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_101224_gen_bundles_40ep/output.log`
 - **result**: _待填_
+
+## 2026-10-21 11:55:25 — ab_flat_vs_mcts_pilot
+
+- **commit**: `7518295` (dirty: 2 files)
+- **exit**: 0，用时 10s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 7 8 9 10 --jobs 4 --out-dir training_history/ab_flat_pilot
+  ```
+- **output**: `training_history/runs/20261021_115525_ab_flat_vs_mcts_pilot/output.log`
+- **result**: _待填_
+
+## 2026-10-21 11:57:35 — ab_flat_vs_mcts_pilot2
+
+- **commit**: `7518295` (dirty: 4 files)
+- **exit**: 1，用时 0s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 7 8 9 10 --jobs 4 --out-dir training_history/ab_flat_pilot2
+  ```
+- **output**: `training_history/runs/20261021_115735_ab_flat_vs_mcts_pilot2/output.log`
+- **result**: _待填_
+
+## 2026-10-21 11:59:17 — ab_flat_vs_mcts_pilot3
+
+- **commit**: `7518295` (dirty: 4 files)
+- **exit**: 0，用时 145s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 7 8 9 10 --jobs 4 --out-dir training_history/ab_flat_pilot3
+  ```
+- **output**: `training_history/runs/20261021_115917_ab_flat_vs_mcts_pilot3/output.log`
+- **result**: _待填_

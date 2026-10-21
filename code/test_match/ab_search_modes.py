@@ -31,9 +31,19 @@ sys.modules["_tmp_ladder"] = _ladder
 _spec.loader.exec_module(_ladder)
 
 BRIDGE = REPO / "code/test_match/az_bridge_ai.py"
-DEFAULT_FLAT_ENV = ("AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;AZAI_FLAT_HORIZON=64;"
-                    "AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000")
-DEFAULT_MCTS_ENV = "AZAI_SEARCH=mcts"
+# 部署口径：**逐字照抄 `M6cROOT_128`**（docs/experiment_log.md 行 6332；该臂 = 对 rule_v4 0.7344，
+# 并被 docs/experiment_log.md 行 11337 明确标为"M6c-ROOT 基线"）。
+#   ⚠️ 注意：不是 `grafted_sdk_A.pt` + MC_EVERY=1 + MC_TOPK=3 + MC_UPG=1 那套（那是后来的嫁接/加宽实验臂）。
+DEFAULT_CANON_ENV = (
+    "AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;"
+    "AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;"
+    "AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;"
+    "AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off"
+)
+# flat 侧：同一套配置 + 只把"评估器"换成扁平 rollout
+DEFAULT_FLAT_ENV = (DEFAULT_CANON_ENV + ";AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;"
+                    "AZAI_FLAT_HORIZON=64;AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000")
+DEFAULT_MCTS_ENV = (DEFAULT_CANON_ENV + ";AZAI_SEARCH=mcts")
 
 
 def main() -> int:
@@ -77,7 +87,7 @@ def main() -> int:
         parsed = _ladder.read_game(log_path, str(seed))
         flat_side = 0 if flat_is_p0 else 1
         winner_side = parsed.get("winner_side")
-        if winner_side is None:
+        if winner_side in (None, "None", ""):
             flat_score = 0.5
         else:
             flat_score = 1.0 if int(winner_side) == flat_side else 0.0
