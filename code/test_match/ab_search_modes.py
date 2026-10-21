@@ -87,7 +87,12 @@ def main() -> int:
         parsed = _ladder.read_game(log_path, str(seed))
         flat_side = 0 if flat_is_p0 else 1
         winner_side = parsed.get("winner_side")
-        if winner_side in (None, "None", ""):
+        # 新格式的 winner_side 是 'p0'/'p1' 字符串；旧格式是 None ⇒ 按平局记
+        if isinstance(winner_side, str) and winner_side.strip().lower() in ("p0", "p1"):
+            winner_side = int(winner_side.strip().lower()[1])
+        elif winner_side is not None:
+            winner_side = int(winner_side)
+        if winner_side is None:
             flat_score = 0.5
         else:
             flat_score = 1.0 if int(winner_side) == flat_side else 0.0
