@@ -435,6 +435,120 @@ json handle_rollout(const json &req,
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// 给**任意候选**打分（用亚军自己的评分器）
+//
+// 动机：验证"我们的确定性候选生成器能不能替代亚军的规则生成器"，必须用
+// **亚军自己的评分**（8 回合 rollout 均值 + 它那两张常数表）给**我们的候选**打分，
+// 看 argmax 是否仍是亚军真实选的那个。
+//
+// 复刻的评分口径（与 lure_strategy_v4_evaluation.hpp:191-232 + root_plans.hpp:221-224 一致）：
+//   heuristic = hold_bonus·[ops 为空] − downgrade_penalty_for_ops(state, player, ops)
+//   score     = mean_over_rollouts( total_score + c1_root_bonus ) + heuristic
+// c1_root_bonus 用 c1_root_bonus_for_plan（依赖"转型期" = 自家等效总金币 ≥ 250）。
+// ---------------------------------------------------------------------------
+json handle_score_ops(const json &req,
+                      const PublicState &state,
+                      std::uint64_t seed,
+                      const rs::DefenseSimulator &root,
+                      int player) {
+    const int rollouts = std::max(1, req.value("rollouts", 32));
+    const std::uint64_t serial = req.value("serial", static_cast<std::uint64_t>(state.round_index + 1));
+    const bool transition = ls::c1_transition_phase_from_action_start(root);
+    const auto &candidates = req.at("candidates");
+
+    json rows = json::array();
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        const auto &raw_ops = candidates.at(index);
+        std::vector<Operation> ops;
+        for (const auto &item : raw_ops) {
+            if (!item.is_array() || item.size() < 2) {
+                continue;
+            }
+            const int op_type = item.at(0).get<int>();
+            const int arg0 = item.size() > 1 ? item.at(1).get<int>() : -1;
+            const int arg1 = item.size() > 2 ? item.at(2).get<int>() : -1;
+            ops.emplace_back(static_cast<::antgame::sdk::OperationType>(op_type), arg0, arg1);
+        }
+        json row;
+        row["index"] = static_cast<int>(index);
+        row["n_ops"] = static_cast<int>(ops.size());
+
+        // 先验：那两张常数表
+        const double base_heuristic = ops.empty() ? ::antgame::sdk::v4_lure_config().hold_bonus : 0.0;
+        const double penalty = ops.empty() ? 0.0 : ls::downgrade_penalty_for_ops(state, player, ops);
+        const double heuristic = base_heuristic - penalty;
+
+        // 计划执行后的根节点 + C1 静态加成
+        rs::DefenseSimulator plan_root = root.clone();
+        bool valid = true;
+        if (!ops.empty() && !ls::apply_operations(plan_root, ops)) {
+            valid = false;
+        }
+        const double c1_bonus = valid
+            ? ls::c1_root_bonus_for_plan(plan_root, player, ls::FollowupAction{}, transition)
+            : 0.0;
+
+        ls::CombinedPlan plan;
+        plan.ops = ops;
+        plan.horizon = ::antgame::sdk::v4_lure_config().long_eval_horizon;
+        plan.has_lightning = false;
+        for (const auto &operation : ops) {
+            if (operation.op_type == ::antgame::sdk::OperationType::UseLightningStorm) {
+                plan.has_lightning = true;
+            }
+        }
+
+        double sum = 0.0;
+        double sum_sq = 0.0;
+        int counted = 0;
+        if (valid) {
+            for (int rollout = 0; rollout < rollouts; ++rollout) {
+                const std::uint64_t rollout_seed =
+                    ls::plan_rollout_seed(seed, serial, index, rollout, plan.horizon);
+                const ls::RolloutEvaluation evaluation =
+                    ls::rollout_plan_score(root, player, plan, rollout_seed);
+                if (!std::isfinite(evaluation.total_score)) {
+                    valid = false;
+                    break;
+                }
+                const double value = evaluation.total_score + c1_bonus;
+                sum += value;
+                sum_sq += value * value;
+                ++counted;
+            }
+        }
+        row["valid"] = valid;
+        row["heuristic"] = heuristic;
+        row["c1_bonus"] = c1_bonus;
+        if (valid && counted > 0) {
+            const double mean = sum / static_cast<double>(counted);
+            const double variance = std::max(0.0, sum_sq / static_cast<double>(counted) - mean * mean);
+            row["n"] = counted;
+            row["mean"] = mean;
+            row["std"] = std::sqrt(variance);
+            row["score"] = mean + heuristic;
+        } else {
+            row["n"] = 0;
+            row["mean"] = nullptr;
+            row["std"] = nullptr;
+            row["score"] = nullptr;
+        }
+        rows.push_back(std::move(row));
+    }
+
+    json out;
+    out["ok"] = 1;
+    out["mode"] = "score_ops";
+    out["round_index"] = state.round_index;
+    out["player"] = player;
+    out["seed"] = seed;
+    out["rollouts"] = rollouts;
+    out["c1_transition"] = transition;
+    out["candidates"] = std::move(rows);
+    return out;
+}
+
 json handle_one(const json &req) {
     json out;
     PublicRoundState round_state;
@@ -460,6 +574,10 @@ json handle_one(const json &req) {
     rs::DefenseSimulator defense_root = rs::make_defense_simulator(state, &native, player);
     defense_root.ignore_enemy_spawns = true;
     const ls::RootPlanSet root_plans = ls::generate_root_plans(state, &defense_root, player);
+
+    if (req.value("mode", std::string("prior")) == "score_ops") {
+        return handle_score_ops(req, state, seed, defense_root, player);
+    }
 
     if (req.value("mode", std::string("prior")) == "rollout") {
         return handle_rollout(req, state, seed, root_plans, player);

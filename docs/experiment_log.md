@@ -11537,3 +11537,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_080727_gen_bundles_3head/output.log`
 - **result**: 3 头动作组生成器（实体 Transformer，65,310 个真实决策 / 52 局训练 / 12 局测试）：类准确率整体 77.2% 但**有动作时只有 24.1%**；位置准确率（类猜对时）**塔 top-2 = 99.2%**、格子 top-16 = 81.6%。联合概率取 top-K 很差（有动作 K=192 仅 17.8%）⇒ 改为**类穷举 + 位置网排序**：首个 op recall 在 K=9/33/65/129 时分别 83.0%/90.8%/96.2%/99.4%（有动作），**完整动作组 K=129 时 99.8%**。另修正一个标签 bug（目标塔编码用"我方下标"而掩码用"全塔下标"，错位导致 CE 爆炸到 1e8）
+
+## 2026-10-21 09:00:14 — gen_end_to_end
+
+- **commit**: `fb7f71a` (dirty: 3 files)
+- **exit**: 0，用时 56s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/eval_end_to_end.py 240 48
+  ```
+- **output**: `training_history/runs/20261021_090014_gen_end_to_end/output.log`
+- **result**: 确定性候选（每头 hold + top-3 类 × 位置 top-16；物化含"单 op + 双 op"，head2 只留 top-2）：平均 **60 条/状态**（与亚军 ~152 同量级偏小）。用**亚军自己的评分器**（8 回合 rollout × 48）打分：覆盖率 74.6%（有动作 **49.2%**）、条件一致率 74.9%、**端到端决策一致率 55.8%**（240 个状态）
+
+## 2026-10-21 09:01:25 — gen_end_to_end_w8
+
+- **commit**: `fb7f71a` (dirty: 4 files)
+- **exit**: 0，用时 79s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/eval_end_to_end.py 120 32 8
+  ```
+- **output**: `training_history/runs/20261021_090125_gen_end_to_end_w8/output.log`
+- **result**: 把 head2 从 top-2 放宽到 top-8：候选涨到 **243 条/状态**，覆盖率升到 83.3%（有动作 **66.7%** ↑），但条件一致率掉到 66.0%（干扰项变多 + 32 次采样噪声），**端到端仍 55.0%（≈不变）** ⇒ 加宽只买到覆盖率、没买到端到端。说明瓶颈在两个地方同时存在：①覆盖 ②在集合内的排序
