@@ -2,8 +2,8 @@
 # **对照实验（用户 2026-10-21 提出，优先级高于统一搜索）**：
 #   我们的 rollout（打一手 → h 回合 → 叶值网）能不能胜任**类仲裁**？
 #
-#   A 侧 = cells4 + every1 + H128 + **MC_SCORE=net**（用我们的 rollout 当类仲裁器）
-#   B 侧 = cells4 + every1 + H128 + MC_SCORE='' （现有安静 rollout 仲裁）
+#   A 侧 = cells4 + every1 + H32 + **MC_SCORE=net**（我们的 rollout 当仲裁器, 8 次采样）
+#   B 侧 = cells4 + every1 + H32 + MC_SCORE='' （现有安静 rollout 仲裁, 1 次采样）
 #   两侧只差仲裁评估器 ⇒ 干净单变量。
 #
 # 为什么先做这个：统一搜索把"类仲裁"和"位置评估"合成同一套评估器，
@@ -14,8 +14,8 @@ cd "$(dirname "$0")/../.." || exit 1
 PY=D:/anaconda3/envs/pytorch-gpu/python.exe
 SEEDS=$(seq 235 298 | tr '\n' ' ')
 
-BASE="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_ROOTONLY=1;AZAI_MC_EVERY=1;AZAI_MC_CELLS=4;AZAI_MC_HORIZON=128;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;AZAI_FLAT_HORIZON=64;AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000"
-A_NET="${BASE};AZAI_MC_SCORE=net;AZAI_MC_NET_SAMPLES=3"
+BASE="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_ROOTONLY=1;AZAI_MC_EVERY=1;AZAI_MC_CELLS=4;AZAI_MC_HORIZON=32;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;AZAI_FLAT_HORIZON=64;AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000"
+A_NET="${BASE};AZAI_MC_SCORE=net;AZAI_MC_NET_SAMPLES=8"
 B_QUIET="${BASE}"
 
 echo "等待 VS_RUNNERUP_cells4（H256）结束… ($(date +%H:%M:%S))"
