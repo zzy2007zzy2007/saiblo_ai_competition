@@ -11636,3 +11636,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_122042_ab_flat_vs_m6croot_32/output.log`
 - **result**: _待填_
+
+## 2026-10-21 13:03:15 — ab_flat_vs_m6croot_64
+
+- **commit**: `299ff96` (dirty: 2 files)
+- **exit**: 0，用时 2833s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 --jobs 8 --out-dir training_history/ab_flat_m6croot_64
+  ```
+- **output**: `training_history/runs/20261021_130315_ab_flat_vs_m6croot_64/output.log`
+- **result**: _待填_
