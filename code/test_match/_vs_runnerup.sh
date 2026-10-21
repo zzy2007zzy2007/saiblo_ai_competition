@@ -14,11 +14,11 @@ RUNNERUP="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/a
 SEEDS="7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r"
 
 # ── 等 T1/T2 结束 ─────────────────────────────────────────────────────────
-echo "等待 T1/T2 结束… ($(date +%H:%M:%S))"
+echo "等待组合臂结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 400); do
-  marker=$(ls -d training_history/runs/*ab_t1t2* 2>/dev/null | tail -1)
-  if [ -n "$marker" ] && grep -q "T1/T2 全部结束" "$marker/output.log" 2>/dev/null; then
-    echo "T1/T2 已结束 ($(date +%H:%M:%S))"
+  marker=$(ls -d training_history/runs/*ab_combined* 2>/dev/null | tail -1)
+  if [ -n "$marker" ] && grep -q "组合臂结束" "$marker/output.log" 2>/dev/null; then
+    echo "组合臂已结束 ($(date +%H:%M:%S))"
     break
   fi
   sleep 30
