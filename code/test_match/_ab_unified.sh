@@ -17,10 +17,10 @@ SEEDS=$(seq 427 490 | tr '\n' ' ')
 A_UNIFIED="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_SEARCH=unified;AZAI_UNI_HORIZON=32;AZAI_UNI_CAP=256;AZAI_UNI_TOPK=8;AZAI_UNI_ROUNDS=39000;AZAI_UNI_MINSAMP=30;AZAI_UNI_MAXLIGHT=32;AZAI_FLAT_BATCH=32"
 B_FLAT="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_ROOTONLY=1;AZAI_MC_EVERY=1;AZAI_MC_CELLS=4;AZAI_MC_HORIZON=256;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;AZAI_FLAT_HORIZON=64;AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000"
 
-echo "等待仲裁评估器对照结束… ($(date +%H:%M:%S))"
+echo "等待 UPG1 vs 亚军结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 500); do
-  marker=$(ls -d training_history/runs/*ab_arbiter_net_v3* 2>/dev/null | tail -1)
-  if [ -n "$marker" ] && grep -q "仲裁评估器对照结束" "$marker/output.log" 2>/dev/null; then
+  marker=$(ls -d training_history/runs/*vs_runnerup_cells4_upg1_v2* 2>/dev/null | tail -1)
+  if [ -n "$marker" ] && grep -q "cells4+UPG1 测试结束" "$marker/output.log" 2>/dev/null; then
     echo "仲裁对照已结束 ($(date +%H:%M:%S))"
     break
   fi
