@@ -836,9 +836,13 @@ class BundleMCTS:
                             # ⇒ 记下来，由 az_bridge_ai.decide() 直接把这个 op 当作本回合动作发出去。
                             self.mc_last_explicit = (int(_c[1]), int(_c[2]), int(_c[3]))
                             _ccls = 12
-                            _ccls = 12
                         else:
                             self.mc_last_explicit = None
+                            # ⚠️ 2026-10-22 二次修：**这里必须给 _ccls 赋值**。
+                            #    上一版把它漏在 else 外面 ⇒ 非「升级」候选时 `pinned=[_ccls]*3`
+                            #    抛 NameError ⇒ 被宽 except 吞掉 ⇒ 仲裁整体失效，
+                            #    表现是"只会放闪电、建塔/降级全为 0"（实测 8 局 51 个 op 全是闪电）。
+                            _ccls = (int(_c[0]) if isinstance(_c, (tuple, list)) else int(_c))
                         pinned = [_ccls] * len(head_logits_list)
                         # 观测（可选，只读）：把这次 MC 的候选/分数/选择写成 JSONL
                         _dump = _os.environ.get("AZAI_MC_DUMP", "")
