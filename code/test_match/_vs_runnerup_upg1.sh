@@ -30,7 +30,7 @@ export AZAI_FLAT_ROLLOUTS=16 AZAI_FLAT_HORIZON=64 AZAI_FLAT_BATCH=32 AZAI_FLAT_R
 
 echo ""
 echo "############ cells4 + every1 + H256 + MC_UPG=1  vs 亚军 32 局  $(date +%H:%M:%S)"
-$PY -u _tmp_ladder.py --tag="VS_RUNNERUP_upg1fix" --jobs=8 \
+$PY -u _tmp_ladder.py --tag="VS_RUNNERUP_upg1fix3" --jobs=8 \
     --ai0=code/test_match/az_bridge_ai.py --ai1="$RUNNERUP" \
     $SEEDS
 echo ""
