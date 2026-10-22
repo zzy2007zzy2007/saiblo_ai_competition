@@ -727,12 +727,16 @@ class BundleMCTS:
                         # 后者会让解码器按格子状态给出升级/降级 ⇒ 首次让机制能「表达升级」。
                         _c0 = _economy if _economy is not None else 0
                         _pm0 = base_pos_mask[_c0]
-                        _ys, _xs = np.where(_pm0)
-                        if len(_ys):
-                            _vals = _AM[_c0][_ys, _xs]
+                        # ⚠️ 2026-10-22：np.where 返回 (axis0, axis1) = **(x_idx, y_idx)**，
+                        # action_map 的空间轴也是 [x][y] ⇒ 变量名改为 _xi/_yi，append 传 (x, y)。
+                        # （原 `_ys,_xs` 命名 + 传 (y,x) 与 _decode_class_op_at_cell 里的转置
+                        #   互相抵消，所以表面没坏；只修一边就会坏到另一个方向。）
+                        _xi, _yi = np.where(_pm0)
+                        if len(_xi):
+                            _vals = _AM[_c0][_xi, _yi]
                             _order = np.argsort(-_vals)
                             for _i in _order[: max(1, int(self.mc_cells))]:
-                                _cands.append((_c0, int(_xs[_i]), int(_ys[_i])))
+                                _cands.append((_c0, int(_xi[_i]), int(_yi[_i])))
                         try:
                             for _tw in node.state.towers_of(int(node.player)):
                                 _cands.append((_c0, int(_tw.x), int(_tw.y)))
@@ -869,17 +873,22 @@ class BundleMCTS:
                         #    少了这一条 ⇒ `UnboundLocalError: pinned`（2026-10-07 冒烟实测，该局 aborted）。
                         #    "不接管"的语义 = 让**类头 argmax** 决定（与该配置下的默认一致）。
                         self.mc_skipped += 1
+                        self.mc_last_explicit = None
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
                     except Exception as _exc:  # noqa: BLE001
                         # 2026-10-22：**必须把异常内容打出来**。
                         # 教训：`int('op')` 在这里被吞了整整一晚，导致"升级塔"这个动作类
                         # 从未被执行，而计数器 mc_fallback 只在计时日志里输出 ⇒ 完全看不见。
                         self.mc_fallback += 1
+                        self.mc_last_explicit = None
                         if self.mc_last_error is None:
                             self.mc_last_error = f"{type(_exc).__name__}: {_exc}"
                             print(f"[mc] ⚠️ 仲裁异常回退（首次）：{self.mc_last_error}", flush=True)
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
                 else:
+                    # 2026-10-22：mc 门控关闭（mc_every>1 的非仲裁回合）必须**清掉**上一回合的
+                    # 显式 op，否则桥接每回合先读 mc_last_explicit ⇒ 会继续重发同一手升级。
+                    self.mc_last_explicit = None
                     pinned = [int(np.argmax(hl)) for hl in head_logits_list]
             elif self.pos_pin == "mc_light":
                 # 方法侧 M6（见 code/my_ai/az_intent/mc_class.py + docs/prereg_20261006_mc_class.md）：

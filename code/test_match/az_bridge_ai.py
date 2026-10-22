@@ -269,6 +269,7 @@ def _log(msg: str) -> None:
 
 
 # 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
+_ENGINE = {}   # 2026-10-22：模块级持有 mcts/model，供 _report 读取
 STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
 
 
@@ -282,9 +283,10 @@ def _report(*_args) -> None:
     """
     _mc = ""
     try:
-        _mc_err = getattr(mcts, "mc_last_error", None)
-        _mt = int(getattr(mcts, "mc_taken", 0))
-        _mf = int(getattr(mcts, "mc_fallback", 0))
+        _m = _ENGINE.get("mcts")
+        _mc_err = getattr(_m, "mc_last_error", None) if _m is not None else None
+        _mt = int(getattr(_m, "mc_taken", 0)) if _m is not None else 0
+        _mf = int(getattr(_m, "mc_fallback", 0)) if _m is not None else 0
         if _mt or _mf:
             _mc = (f" mc_taken={_mt} mc_fallback={_mf}"
                    + (f" mc_err={_mc_err}" if _mc_err else ""))
@@ -580,6 +582,7 @@ def main() -> int:
     from SDK.utils.constants import OperationType
 
     mcts, model, feat = build_engine(seed, player)
+    _ENGINE["mcts"] = mcts   # 供 _report 读取（原来是 main 的局部变量 ⇒ _report 里 NameError 被吞）
 
     facade = GameState.initial(seed=seed, cold_handle_rule_illegal=True)
     # 裸观测 dump（可选）：**边打边追加**（见文件头注释：结束时写会赶不上 bridge 的硬杀）

@@ -145,9 +145,13 @@ def bidir_value(state, player, net_fn, k_rounds: int, max_rounds: int = 512) -> 
 def _decode_class_op_at_cell(head_logits, action_map, class_mask, position_mask,
                              state, player, cid, x, y):
     """把 `cid` 的 map 只留 (x,y) 一格再解码 ⇒ 强制落到那一格（用于「选类×选格」候选）。"""
+    # ⚠️ 2026-10-22 修：**action_map 的空间轴是 [x][y]**（decoder 里 x, y = unravel_index(...)，
+    # make_position_masks 也写 mask[ch, x, y]）。原来写成 [y, x] 是转置 ⇒ 调用方传真 (x,y) 时
+    # 解码会落到转置格：空格变成在那儿建塔、非法格退化成第一个合法格 ⇒
+    # **本该表达升级的塔格候选静默失效**（无任何日志）。
     am = np.array(action_map, copy=True)
     am[cid] = -1e9
-    am[cid, int(y), int(x)] = float(action_map[cid][int(y), int(x)])
+    am[cid, int(x), int(y)] = float(action_map[cid][int(x), int(y)])
     return _decode_class_op(head_logits, am, class_mask, position_mask, state, player, cid)
 
 
