@@ -11746,3 +11746,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261022_112332_ab_upg_alltgts/output.log`
 - **result**: _待填_
+
+## 2026-10-22 20:08:48 — ab_mc_net_vs_quiet_upg3
+
+- **commit**: `4879ae4` (dirty: 3 files)
+- **exit**: 0，用时 3591s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_mc_net_vs_quiet.sh
+  ```
+- **output**: `training_history/runs/20261022_200848_ab_mc_net_vs_quiet_upg3/output.log`
+- **result**: **net(值网) 71.9% 胜 quiet(HP差)**（32 局配对，23W-9L，二项 SE 8.8% ⇒ 95%CI[54.7,89.1]；血量差 +3.56，CI[-1.7,+8.8]）。机制：升级 15.1%→**13.4%**、建塔 1888→**2057** ⇒ 与「值网看得见金币成本」的预测一致（autograd 实测 ∂V/∂我方金币=+0.0274，16/16 局面为正）。⇒ 之前那次「仲裁器 net vs quiet 无显著差异(56.2%)」是因为**没开升级 + h=32 + 未配对**，噪声盖住了真实效应。
