@@ -493,6 +493,7 @@ class BundleMCTS:
         # 埋点（独立验证者 2026-10-06 限制④）：MC 真正生效 / 静默回落的次数
         self.mc_taken = 0
         self.mc_fallback = 0
+        self.mc_last_error = None
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -865,8 +866,14 @@ class BundleMCTS:
                         #    "不接管"的语义 = 让**类头 argmax** 决定（与该配置下的默认一致）。
                         self.mc_skipped += 1
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
-                    except Exception:  # noqa: BLE001
+                    except Exception as _exc:  # noqa: BLE001
+                        # 2026-10-22：**必须把异常内容打出来**。
+                        # 教训：`int('op')` 在这里被吞了整整一晚，导致"升级塔"这个动作类
+                        # 从未被执行，而计数器 mc_fallback 只在计时日志里输出 ⇒ 完全看不见。
                         self.mc_fallback += 1
+                        if self.mc_last_error is None:
+                            self.mc_last_error = f"{type(_exc).__name__}: {_exc}"
+                            print(f"[mc] ⚠️ 仲裁异常回退（首次）：{self.mc_last_error}", flush=True)
                         pinned = [int(np.argmax(hl)) for hl in head_logits_list]
                 else:
                     pinned = [int(np.argmax(hl)) for hl in head_logits_list]

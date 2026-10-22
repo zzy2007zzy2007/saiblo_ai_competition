@@ -274,13 +274,20 @@ STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow":
 
 def _report(*_args) -> None:
     """收尾报告。bridge 在 finally 里会 kill 我们，所以 atexit/SIGTERM 都要挂上，
-    否则"对拍次数"这个**状态同步的证据**会丢。"""
+    否则"对拍次数"这个**状态同步的证据**会丢。
+
+    2026-10-22：把 **mc_fallback / mc_last_error** 无条件带进收尾报告。
+    教训：`int('op')` 的异常被宽 except 吞掉后，只有计时日志才会输出 mc_fallback，
+    而计时日志默认不开 ⇒ "整类动作静默失效"完全看不见。
+    """
     _mc = ""
     try:
+        _mc_err = getattr(mcts, "mc_last_error", None)
         _mt = int(getattr(mcts, "mc_taken", 0))
         _mf = int(getattr(mcts, "mc_fallback", 0))
         if _mt or _mf:
-            _mc = f" mc_taken={_mt} mc_fallback={_mf}"
+            _mc = (f" mc_taken={_mt} mc_fallback={_mf}"
+                   + (f" mc_err={_mc_err}" if _mc_err else ""))
     except Exception:  # noqa: BLE001
         pass
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
