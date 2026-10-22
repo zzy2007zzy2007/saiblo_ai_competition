@@ -19,6 +19,9 @@ from SDK.utils.constants import OperationType
 
 from my_ai.az_intent.mcts import HP_SCALE
 
+# 2026-10-22：tail_fn 失败只提示一次（原来静默 ⇒ 补尾整段悄悄不生效）
+_TAIL_WARNED = False
+
 # 埋点（AI 侧周期打印）：双向 rollout 的调用次数 / 打到终局次数 / 累计推进回合
 BIDIR_STATS = {"n": 0, "terminal": 0, "steps": 0, "noop": 0}
 # 2026-10-18: rollout 内策略的"类预算"与埋点（R1 实测：4 个类的预算下约 55% 的调用解不出 op）
@@ -58,7 +61,12 @@ def quiet_value(state, player, max_rounds: int = 512, return_rounds: bool = Fals
     if (not st.terminal) and (tail_fn is not None) and float(tail_mix) > 0.0:
         try:
             _t = float(tail_fn(st, player))
-        except Exception:  # noqa: BLE001
+        except Exception as _exc:  # noqa: BLE001
+            # 2026-10-22（审计）：原来静默 ⇒ 补尾整段不生效、评分口径悄悄退回纯 HP 差。
+            global _TAIL_WARNED
+            if not _TAIL_WARNED:
+                _TAIL_WARNED = True
+                print(f"[tail] ⚠️ tail_fn 失败（首次）：{type(_exc).__name__}: {_exc}", flush=True)
             _t = None
         if _t is not None:
             _m = min(1.0, max(0.0, float(tail_mix)))

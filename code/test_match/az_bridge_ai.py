@@ -175,8 +175,14 @@ def _op_label(op_type: int, a0: int, a1: int, facade, player: int):
             return (23, -1, -1)
         if int(op_type) == int(_OT.USE_LIGHTNING_STORM):
             return (17, int(a0), int(a1))
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as _exc:  # noqa: BLE001
+        # 2026-10-22（审计）：这里静默返回 (23,-1,-1)=HOLD ⇒ 升级/降级 op 会被标成"空过"，
+        # **污染训练标签**。实测正常 op 不受影响（升级→(1,4,2)、降级→(16,4,2)），
+        # 但一旦发生必须看得见。
+        global _OP_LABEL_WARNED
+        if not _OP_LABEL_WARNED:
+            _OP_LABEL_WARNED = True
+            print(f"[label] ⚠️ _op_label 失败（首次）：{type(_exc).__name__}: {_exc}", flush=True)
     return (23, -1, -1)
 
 
@@ -270,6 +276,7 @@ def _log(msg: str) -> None:
 
 # 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
 _ENGINE = {}   # 2026-10-22：模块级持有 mcts/model，供 _report 读取
+_OP_LABEL_WARNED = False   # 2026-10-22：op 标签解析失败只提示一次
 STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
 
 
@@ -620,7 +627,9 @@ def main() -> int:
         chosen = [255, 255, 255]
         ic = getattr(res, "intent_counts", None) if res is not None else None
         if ic:
-            vis = getattr(res, "visit", None)
+            # 2026-10-22（审计）：BundleSearchResult 的真实字段是 **visit_policy**，
+            # 原来写 "visit" ⇒ 恒为 None ⇒ dump 里"选中类"永远取候选 0（而这份 dump 是值网训练数据）
+            vis = getattr(res, "visit_policy", None) or getattr(res, "visit", None)
             j = int(np.argmax(np.asarray(vis, dtype=float))) if vis is not None and len(vis) else 0
             for h in range(3):
                 d = ic[j][h] if j < len(ic) and h < len(ic[j]) else {}

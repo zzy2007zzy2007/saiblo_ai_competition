@@ -56,11 +56,18 @@ def build_rows(policy_dir: Path, obs_dir: Path, max_games: int, cache: Path):
         tok = Path(jf).name.split("seed")[1].split(".")[0]
         of = obs_dir / f"obs_seed{tok}.bin"
         recs = []
+        n_bad = 0
         for line in open(jf, encoding="utf-8", errors="replace"):
             try:
                 recs.append(json.loads(line))
             except Exception:
-                pass
+                # 2026-10-22（审计）：**必须占位**。原来直接 pass ⇒ recs 变短，
+                # 而下面按 min(len(recs), n_obs) 与 obs 流**按下标配对** ⇒
+                # 该坏行之后的所有样本**标签错位**（不是丢样本，是错配！）。
+                recs.append(None)
+                n_bad += 1
+        if n_bad:
+            print(f"[rows] ⚠️ {jf}: {n_bad} 行解析失败（已占位，避免下标错位）", flush=True)
         if not of.exists():
             continue
         raw = np.fromfile(of, dtype=np.uint8)
@@ -68,6 +75,9 @@ def build_rows(policy_dir: Path, obs_dir: Path, max_games: int, cache: Path):
         buf = raw[: n_obs * REC].reshape(n_obs, REC)
         for i in range(min(len(recs), n_obs)):
             d = recs[i]
+            if d is None:                # 2026-10-22：坏行占位 ⇒ 跳过但**保持下标对齐**
+                n_skip_novis += 1
+                continue
             vr, labels = d.get("visits_raw"), d.get("labels")
             if not (isinstance(vr, list) and vr and labels):
                 n_skip_novis += 1

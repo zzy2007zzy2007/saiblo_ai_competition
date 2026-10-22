@@ -166,13 +166,20 @@ def make_class_mask(
     #   ⇒ 回合会花到别的动作上（而不是"空过一回合"）。
     _ban = os.environ.get("AZAI_BAN_CLASSES", "").strip()
     if _ban:
+        _applied = 0
         for _c in _ban.split(","):
             try:
                 _i = int(_c)
             except ValueError:
+                # 2026-10-22（审计）：原来静默 continue ⇒ 写错格式（"17 "、全角逗号）时
+                # **该类根本没被禁**，而实验读数看起来完全正常（实验臂静默变 baseline）。
+                print(f"[ban] ⚠️ 忽略非法类号 {_c!r}（AZAI_BAN_CLASSES={_ban!r}）", flush=True)
                 continue
             if 0 <= _i < mask.shape[0]:
                 mask[_i] = False
+                _applied += 1
+        if _applied:
+            print(f"[ban] 已禁 {_applied} 个类：{_ban}", flush=True)
 
     return mask
 

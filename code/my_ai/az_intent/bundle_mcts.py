@@ -494,6 +494,8 @@ class BundleMCTS:
         self.mc_taken = 0
         self.mc_fallback = 0
         self.mc_last_error = None
+        self.mc_light_fallback = 0      # 2026-10-22：mc_light 分支的异常回退计数（原来不可见）
+        self.mc_upg_skipped = 0         # 2026-10-22：显式升级候选构造失败次数（原来只有 print）
         self.skip_single_candidate = skip_single_candidate
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
@@ -922,7 +924,14 @@ class BundleMCTS:
                                 max_rounds=int(self.mc_horizon))
                             pinned.append(int(_c))
                             self.mc_last_scores = _sc
-                        except Exception:  # noqa: BLE001
+                        except Exception as _exc:  # noqa: BLE001
+                            # 2026-10-22（审计）：mc_light 抛异常 ⇒ 静默等于基线，原来**零观测**。
+                            self.mc_light_fallback += 1
+                            if self.mc_light_fallback == 1:
+                                self.mc_last_error = (self.mc_last_error
+                                                      or f"mc_light {type(_exc).__name__}: {_exc}")
+                                print(f"[mc_light] ⚠️ 异常回退（首次）：{type(_exc).__name__}: {_exc}",
+                                      flush=True)
                             pinned.append(_top)
                     else:
                         pinned.append(_top)

@@ -198,8 +198,12 @@ def make_three_net_fn(class_model, pos_model, value_model, feature_extractor,
                 emb = c_out["state_emb"].squeeze(0).detach().cpu().numpy()
                 out["state_emb"] = emb
                 out["q_classes"] = q_model.score_np(emb)
-            except Exception:  # noqa: BLE001  主干没暴露 state_emb 时静默跳过
-                pass
+            except Exception as _exc:  # noqa: BLE001
+                # 2026-10-22（审计）：原来静默 ⇒ pos_pin="q" 会悄悄退化成 argmax，零观测。
+                if not out.get("_q_warned"):
+                    out["_q_warned"] = True
+                    print(f"[q_classes] ⚠️ 类条件 Q 值不可用（首次）：{type(_exc).__name__}: {_exc}",
+                          flush=True)
         return out
 
     return net_fn
