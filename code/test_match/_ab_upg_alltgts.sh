@@ -31,7 +31,7 @@ done
 
 echo ""
 echo "############ 升级全目标(A) vs 不升级(B) 32 局  $(date +%H:%M:%S)"
-$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 5 \
+$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 8 \
     --out-dir training_history/ab_upg_alltgts \
     --flat-env="$A_ALLTGT" --mcts-env="$B_NONE"
 echo ""

@@ -23,7 +23,7 @@ A_CHALLENGER="$COMMON;AZAI_MC_HORIZON=64;AZAI_MC_SCORE=net;AZAI_MC_NET_SAMPLES=4
 B_CHAMPION="$COMMON;AZAI_MC_HORIZON=256"
 
 echo "############ 新配置(net+升级) vs 现冠军(quiet+不升级)  32 局配对  $(date +%H:%M:%S)"
-$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 5 \
+$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 8 \
     --out-dir training_history/ab_challenger_vs_champion \
     --flat-env="$A_CHALLENGER" --mcts-env="$B_CHAMPION"
 echo ""

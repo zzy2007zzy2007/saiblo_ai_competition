@@ -29,7 +29,7 @@ done
 
 echo ""
 echo "############ 自对弈座位控制：16 图 × 2 座位 = 32 局  $(date +%H:%M:%S)"
-$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 5 \
+$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 8 \
     --out-dir training_history/ab_seat_control \
     --flat-env="$SAME" --mcts-env="$SAME"
 echo ""

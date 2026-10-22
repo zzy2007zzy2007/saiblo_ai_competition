@@ -20,7 +20,7 @@ A_NET="$BASE;AZAI_MC_SCORE=net;AZAI_MC_NET_SAMPLES=4"
 B_QUIET="$BASE"
 
 echo "############ 仲裁评分器 net(A) vs quiet(B)，升级都开，32 局配对  $(date +%H:%M:%S)"
-$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 5 \
+$PY -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 8 \
     --out-dir training_history/ab_mc_net_vs_quiet_upg \
     --flat-env="$A_NET" --mcts-env="$B_QUIET"
 echo ""
