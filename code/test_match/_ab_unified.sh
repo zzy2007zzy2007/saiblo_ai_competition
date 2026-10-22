@@ -12,7 +12,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 PY=D:/anaconda3/envs/pytorch-gpu/python.exe
-SEEDS=$(seq 363 426 | tr '\n' ' ')
+SEEDS=$(seq 427 490 | tr '\n' ' ')
 
 A_UNIFIED="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_SEARCH=unified;AZAI_UNI_HORIZON=32;AZAI_UNI_CAP=256;AZAI_UNI_TOPK=8;AZAI_UNI_ROUNDS=39000;AZAI_UNI_MINSAMP=30;AZAI_UNI_MAXLIGHT=32;AZAI_FLAT_BATCH=32"
 B_FLAT="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_ROOTONLY=1;AZAI_MC_EVERY=1;AZAI_MC_CELLS=4;AZAI_MC_HORIZON=256;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=16;AZAI_FLAT_HORIZON=64;AZAI_FLAT_BATCH=32;AZAI_FLAT_ROUNDS=39000"
@@ -30,7 +30,7 @@ done
 echo ""
 echo "############ 统一搜索 (A) vs flat+cells4 (B) 64 局  $(date +%H:%M:%S)"
 $PY -u code/test_match/ab_search_modes.py --seeds $SEEDS --jobs 8 \
-    --out-dir training_history/ab_unified_vs_cells4_v2 \
+    --out-dir training_history/ab_unified_vs_cells4_v3 \
     --flat-env="$A_UNIFIED" --mcts-env="$B_FLAT"
 echo ""
 echo "统一搜索对照结束 ($(date +%H:%M:%S))"

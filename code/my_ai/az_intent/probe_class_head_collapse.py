@@ -93,7 +93,7 @@ for r in range(400):
                 continue
             y, x = np.unravel_index(int(np.argmax(np.where(masks[cid], am[cid], -1e9))),
                                     am[cid].shape)
-            counter["argmax合法" if masks[cid][y, x] else "argmax非法"] += 1
+            counter["argmax合法" if masks[cid][x, y] else "argmax非法"] += 1
 
 print(f"[样本] {samples} 个局面")
 print(f"\n=== 类头（head0）argmax 分布（top 8）===")

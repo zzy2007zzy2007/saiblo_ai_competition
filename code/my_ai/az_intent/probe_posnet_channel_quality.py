@@ -131,7 +131,7 @@ for r in range(320):
                 sim.apply_operation_list(player, [Operation(op_type, x, y)])
                 leaves.append(sim)
             values = value_oracle(leaves, player)
-            prior_vals = [float(am[cid][y, x]) for (x, y) in trials]
+            prior_vals = [float(am[cid][x, y]) for (x, y) in trials]
             if values.size >= 3:
                 ra = np.argsort(np.argsort(prior_vals)).astype(float)
                 rb = np.argsort(np.argsort(values)).astype(float)
