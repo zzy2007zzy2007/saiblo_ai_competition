@@ -24,18 +24,23 @@
 - 收尾报告无条件带 `mc_taken / mc_fallback / mc_err`（不再依赖计时日志开关）；
 - `mc_last_explicit` 在**门控关闭 / skip / 异常回退**三条路径上复位（避免跨回合重发同一手升级）。
 
-## 三、仍未处理的高危项（按优先级）
+## 三、第二批修复（8 项，同日完成并验证）
 
-| 优先级 | 位置 | 风险 |
-|---|---|---|
-| **高** | `bundle_mcts.py` mc_light 分支的宽 except | `pos_pin="mc_light"` 抛异常 ⇒ 静默等于基线，**零观测** |
-| **高** | `az_selfplay.py:196-202` | `q_classes` 计算失败 ⇒ `pos_pin="q"` 静默退化成 argmax，零观测 |
-| **高** | `bundle_mcts.py` 显式升级候选构造（`mc_upg`） | SDK 常量缺失/`upgrade_tower_cost` 报错 ⇒ **本回合菜单里一个升级候选都没有**，静默 |
-| **中** | `decoder.py:169-173` `AZAI_BAN_CLASSES` 解析 | 写错格式 ⇒ 该类没被禁，实验臂静默变 baseline |
-| **中** | `mc_quiet.py` `tail_fn`（`MC_TAIL=value`） | 失败 ⇒ 补尾不生效，评分口径悄悄退回纯 HP 差 |
-| **中** | `az_bridge_ai._op_label()` | 任何异常 ⇒ 返回 `(23,-1,-1)`=HOLD ⇒ **升级/降级 op 被标成"空过"**，训练标签污染 |
-| **中** | `az_bridge_ai.py:620` `getattr(res,"visit",None)` | 属性名拼错（实际是 `visit_policy`）⇒ dump 里"选中类"恒取候选 0，而这份 dump 是值网训练数据来源 |
-| **低** | jsonl 逐行 `json.loads` 的三处（`azjsonl_to_value_npz` 等） | 坏行被 pass 掉但样本仍按下标配对 ⇒ **该行之后标签整体错位** |
+原则：**不改语义**，只把"静默失败"改成"可观测失败"（计数 + 首次打印）。
+因此这些改动**不影响**当时正在跑的对局，无需重启。
+
+| # | 位置 | 修复 | 验证结果 |
+|---|---|---|---|
+| 1 | `bundle_mcts` mc_light 宽 except | 加 `mc_light_fallback` 计数 + 首次打印 | 计数器已初始化，实例可读 |
+| 2 | `az_selfplay` `q_classes` | 首次异常打印（`pos_pin="q"` 静默退化的原因） | — |
+| 3 | `az_bridge_ai._op_label()` | 加 `_OP_LABEL_WARNED` + 首次打印；**返回值不变**（仍回 HOLD，避免破坏 dump schema） | 实测：升级 → `(1,4,2)`、降级 → `(16,4,2)`、建塔 → `(0,4,9)`，**全部正确** ⇒ **历史上没有发生标签污染** |
+| 4 | `decoder` `AZAI_BAN_CLASSES` 解析 | 非法类号打印 + 打印"实际禁了几个类" | 传 `17, bad_token, 999` ⇒ 打印警告，且**类 17 确实被禁** |
+| 5 | `mc_quiet` `tail_fn` | `_TAIL_WARNED` + 首次打印 | 模块常量存在（曾误插到 `from __future__` 之前，已修正） |
+| 6 | `az_bridge_ai` `getattr(res,"visit")` | 改读 `visit_policy`（保留 `visit` 兜底） | 与 `BundleSearchResult` 字段一致 ⇒ dump 的"选中类"不再恒为候选 0 |
+| 7 | `build_visit_rows_sharded.py` / `train_visit_marginal.py` | 坏行改为 **占位 `None`** + 跳过并计数 ⇒ 不再让 obs 流下标错位 | 语法 OK；循环已加 `if d is None: continue` |
+
+> 第 7 项是这批里唯一"会污染数据"的一条：原来坏行被 `pass` 掉后 `recs` 变短，
+> 但仍与观测流按下标配对 ⇒ **坏行之后的所有样本标签错位**（不是丢样本，是错配）。
 
 ## 四、教训（写给以后）
 
