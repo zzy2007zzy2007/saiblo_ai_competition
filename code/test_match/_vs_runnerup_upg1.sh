@@ -12,7 +12,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 PY=D:/anaconda3/envs/pytorch-gpu/python.exe
 RUNNERUP="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe"
-SEEDS="7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r 15 15r 16 16r 17 17r 18 18r 19 19r 20 20r 21 21r 22 22r"
+SEEDS="7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r"
 
 echo "等待统一搜索对照结束… ($(date +%H:%M:%S))"
 for _ in $(seq 1 500); do
@@ -29,6 +29,8 @@ export AZAI_ITERS=256 AZAI_DEPTH=4 AZAI_K=24 AZAI_SAMPLE_MULT=15
 export AZAI_MODE=pos-only AZAI_POSPIN=mc_quiet
 export AZAI_MC_EVERY=1 AZAI_MC_HORIZON=256 AZAI_MC_ROOTONLY=1
 export AZAI_MC_CELLS=4 AZAI_MC_UPG=1
+# 2026-10-22：仲裁改用 net 模式（打一手→32 回合→值网），消除 quiet 的 0.05 量化平局
+export AZAI_MC_SCORE=net AZAI_MC_NET_SAMPLES=4 AZAI_MC_HORIZON=32
 export AZAI_SKIP1=1 AZAI_TCLASS=0.5 AZAI_TPOS=1.0 AZAI_TEMP=1e-6
 export AZAI_POSPRIOR=off AZAI_TRACE=1 AZAI_VERIFY=1
 export AZAI_SEARCH=flat
@@ -36,7 +38,7 @@ export AZAI_FLAT_ROLLOUTS=16 AZAI_FLAT_HORIZON=64 AZAI_FLAT_BATCH=32 AZAI_FLAT_R
 
 echo ""
 echo "############ cells4 + every1 + H256 + MC_UPG=1  vs 亚军 32 局  $(date +%H:%M:%S)"
-$PY -u _tmp_ladder.py --tag="VS_RUNNERUP_cells4_upg1" --jobs=8 \
+$PY -u _tmp_ladder.py --tag="VS_RUNNERUP_upg_net" --jobs=8 \
     --ai0=code/test_match/az_bridge_ai.py --ai1="$RUNNERUP" \
     $SEEDS
 echo ""

@@ -240,6 +240,13 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
         _vals = sorted(scores.values(), reverse=True)
         if (_vals[0] - _vals[1]) < float(margin_gate):
             return None, scores
-    best = max(scores, key=lambda c: scores[c])
+    # 2026-10-22：**平局偏好显式 op（升级）**。
+    # 安静 rollout 的终局只有 HP 差 ⇒ 分数被量化成 0.05 的台阶，平局很多；
+    # 而 max() 取菜单里第一个，菜单顺序是 [闪电?, HOLD, cell..., op] ⇒ 升级永远垫底。
+    # 实测：真实对局 488 个 op 里升级 0 次，但探针里它确实能赢（r=200 得 0.40 最高）。
+    _mx = max(scores.values())
+    _ties = [c for c, v in scores.items() if abs(float(v) - float(_mx)) < 1e-9]
+    _ops = [c for c in _ties if isinstance(c, (tuple, list)) and len(c) >= 2 and c[0] == 'op']
+    best = _ops[0] if _ops else max(scores, key=lambda c: scores[c])
     # 返回「最优候选」本身（可能是 (类,x,y)）；调用方取 [0] 当钉住的类
     return best, scores
