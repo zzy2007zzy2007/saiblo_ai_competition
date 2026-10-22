@@ -411,6 +411,7 @@ class BundleMCTS:
         mc_net_samples: int = 4,       # 2026-10-21: mc_score='net' 时每个候选的 rollout 次数
         mc_value_fn=None,             # 2026-10-21: 批量值函数 fn(states, player)->ndarray，供 net 模式用
         mc_upgrade_bonus: float = 0.0,  # 2026-10-22: 显式升级奖励（照抄亚军 c1_root_bonus 思路）
+        mc_upg_targets: int = 1,      # 2026-10-22: 每座塔枚举几个**升级目标**（1=只取第一个=HEAVY）
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -486,6 +487,7 @@ class BundleMCTS:
         self.mc_net_samples = int(mc_net_samples)
         self.mc_value_fn = mc_value_fn
         self.mc_upgrade_bonus = float(mc_upgrade_bonus)
+        self.mc_upg_targets = max(1, int(mc_upg_targets))
         # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
         # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
         self.mc_last_explicit = None
@@ -782,22 +784,38 @@ class BundleMCTS:
                     if self.mc_upg > 0:
                         # ✅ 正确参数（2026-10-07 从 SDK 官方样例查明）：UPGRADE_TOWER(tower_id, target_type)
                         _n_up = 0
+                        _n_tw = 0
                         try:
                             from SDK.utils.constants import TOWER_UPGRADE_TREE as _TREE
                             _tw_list = sorted(node.state.towers_of(int(node.player)),
                                               key=lambda w: (-int(getattr(w, 'tower_type', 0)), int(w.x), int(w.y)))
                             for _tw in _tw_list:
-                                if _n_up >= int(self.mc_upg):
+                                if _n_tw >= int(self.mc_upg):
                                     break
                                 _tgts = _TREE.get(_tw.tower_type, ())
                                 if not _tgts:
                                     continue
-                                _tgt = int(_tgts[0])
-                                # 只加**买得起**的（买不起的 op 引擎会拒 ⇒ 等于空操作，白占候选位）
-                                if int(node.state.coins[node.player]) < int(node.state.upgrade_tower_cost(_tgts[0])):
-                                    continue
-                                _cands.append(('op', 12, int(_tw.tower_id), _tgt))
-                                _n_up += 1
+                                _n_tw += 1
+                                # 2026-10-22：**枚举前 N 个升级目标**（默认 1 = 旧行为「只取第一个=HEAVY」）。
+                                # 动机：旧行为下"有升级"显著差于"无升级"（34 局 26.5%、血量差 −9.6，
+                                # CI 全在 0 以下）。而亚军的奖励是 Quick +100 / Sniper +400、对 Heavy
+                                # **不给** ⇒ 我们的问题可能就是"统一升成最差的那个"。
+                                for _tgt_enum in list(_tgts)[: max(1, int(self.mc_upg_targets))]:
+                                    # ⚠️ `upgrade_tower_cost` 要的是 **TowerType 枚举**，不是 int。
+                                    #    2026-10-22 我第一版写成 int(_tgt) ⇒ AttributeError
+                                    #    ('int' object has no attribute 'value') ⇒ 被我自己的
+                                    #    `except: continue` 吞掉 ⇒ 升级候选直接归零。
+                                    #    ⇒ 这里用枚举查费用、用 int 存候选，且失败要**打印**。
+                                    try:
+                                        _cost = int(node.state.upgrade_tower_cost(_tgt_enum))
+                                    except Exception as _exc:
+                                        print(f'[mc_upg] 目标 {_tgt_enum} 费用查询失败: '
+                                              f'{type(_exc).__name__}: {_exc}', flush=True)
+                                        continue
+                                    if int(node.state.coins[node.player]) < _cost:
+                                        continue
+                                    _cands.append(('op', 12, int(_tw.tower_id), int(_tgt_enum)))
+                                    _n_up += 1
                         except Exception as _exc:
                             print(f'[mc_upg] 构造升级候选失败: {type(_exc).__name__}: {_exc}', flush=True)
                     try:
