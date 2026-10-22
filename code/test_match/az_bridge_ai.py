@@ -474,6 +474,8 @@ def build_engine(seed: int, player: int):
         mc_selfspend_mix=float(_env("AZAI_MC_SELFSPEND_MIX", "1.0")),
         # 控制实验（2026-10-21）：AZAI_MC_SCORE=net 时，用"rollout+值网"当类仲裁器
         mc_net_samples=int(_env("AZAI_MC_NET_SAMPLES", "4")),
+        # 2026-10-22：显式升级奖励（亚军 c1_root_bonus 的类比）
+        mc_upgrade_bonus=float(_env("AZAI_MC_UPG_BONUS", "0")),
         # Phase 0：1 ⇒ 闪电不进 MC 菜单（仍由默认行为放闪电）
         mc_no_light=_env("AZAI_MC_NO_LIGHT", "0") == "1",
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）

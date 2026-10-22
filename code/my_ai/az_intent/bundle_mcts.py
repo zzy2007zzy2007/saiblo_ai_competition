@@ -410,6 +410,7 @@ class BundleMCTS:
     mc_selfspend_mix: float = 1.0,   # 2026-10-18: score=(1-a)*quiet + a*selfspend/bidir
         mc_net_samples: int = 4,       # 2026-10-21: mc_score='net' 时每个候选的 rollout 次数
         mc_value_fn=None,             # 2026-10-21: 批量值函数 fn(states, player)->ndarray，供 net 模式用
+        mc_upgrade_bonus: float = 0.0,  # 2026-10-22: 显式升级奖励（照抄亚军 c1_root_bonus 思路）
         skip_single_candidate: bool = False,
         pos_prior_fn=None,
         candidate_fn=None,
@@ -484,6 +485,7 @@ class BundleMCTS:
         self.mc_selfspend_mix = float(mc_selfspend_mix)
         self.mc_net_samples = int(mc_net_samples)
         self.mc_value_fn = mc_value_fn
+        self.mc_upgrade_bonus = float(mc_upgrade_bonus)
         # 「显式 op」候选（如升级）：参数不是 (x,y) ⇒ class+position 通路表达不了，
         # 必须由 decide() 直接把它当本回合动作发出去（见 unify_upgrade 补丁注释）。
         self.mc_last_explicit = None
@@ -816,18 +818,23 @@ class BundleMCTS:
                                                   selfspend_k=int(self.mc_selfspend),
                                                   selfspend_mix=float(self.mc_selfspend_mix),
                      net_samples=int(self.mc_net_samples),
-                     value_fn=self.mc_value_fn)
+                     value_fn=self.mc_value_fn,
+                     upgrade_bonus=self.mc_upgrade_bonus)
                         self.mc_last_scores = _sc
                         if _c is None:
                             # 分差不足 ⇒ **不接管**：由类头 argmax 决定（= 该配置下的默认 pin），只埋点
                             raise _McSkip()
                         self.mc_taken += 1
-                        # 候选可能是 (类, x, y) ⇒ 钉住的类取它 [0]
-                        _ccls = (int(_c[0]) if isinstance(_c, (tuple, list)) else int(_c))
-                        if isinstance(_c, (tuple, list)) and _c[0] == 'op':
+                        # ⚠️ 2026-10-22 修：**必须先判 'op' 候选再取 int(_c[0])**。
+                        #    原来 `_ccls = int(_c[0])` 写在前 ⇒ 当 _c = ('op', 12, tid, tgt) 时
+                        #    `int('op')` 抛 ValueError ⇒ 被下面的宽 except 吞掉 ⇒ 走 fallback ⇒
+                        #    **mc_last_explicit 永远为 None ⇒ 升级动作从落地以来一次都没被执行过**
+                        #    （实测：30 个真实中局里升级候选 27 次进菜单、中位排名 2.0、被选中 0 次）。
+                        if isinstance(_c, (tuple, list)) and len(_c) >= 2 and _c[0] == 'op':
                             # 显式 op 候选（升级）：**class 通路表达不了它**（实测类 0-15 只会给建塔）
                             # ⇒ 记下来，由 az_bridge_ai.decide() 直接把这个 op 当作本回合动作发出去。
                             self.mc_last_explicit = (int(_c[1]), int(_c[2]), int(_c[3]))
+                            _ccls = 12
                             _ccls = 12
                         else:
                             self.mc_last_explicit = None

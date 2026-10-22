@@ -156,7 +156,8 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                     bidir_k: int = 0, net_fn=None, margin_gate: float = 0.0,
                     score_mode: str = '', v_before: float = 0.0, selfspend_k: int = 0,
                     selfspend_mix: float = 1.0, tail_fn=None, tail_mix: float = 0.0,
-                    net_samples: int = 4, value_fn=None):
+                    net_samples: int = 4, value_fn=None,
+                    upgrade_bonus: float = 0.0):
     """候选类各自"打下去 + 安静推进到终局"，取终局 HP 差最大者。
 
     `bidir_k > 0` ⇒ 用 **K 步双向 rollout**（预注册 `prereg_20261006_rollout_ladder.md` 的 R1/R2）：
@@ -234,6 +235,15 @@ def mc_quiet_choose(state, player, cand_classes, head_logits, action_map,
                 scores[_key] = (1.0 - _mix) * float(_q) + _mix * float(_s)
         else:
             scores[_key] = quiet_value(st, player, max_rounds=max_rounds, tail_fn=tail_fn, tail_mix=tail_mix)
+    # 2026-10-22：**显式升级奖励**（照抄亚军 c1_root_bonus 的思路）。
+    # 依据：5000 局低质量数据里塔类型 0 占 99.7%（升级样本 0.3%）⇒ 值网/安静 rollout
+    # 都学不到升级有价值。实测 30 个真实中局里升级候选中位排名 2.0~3.0，从不夺冠。
+    # 这里直接给 ('op',12,...) 候选加一个常数，让它有资格竞争。
+    _ub = float(upgrade_bonus or 0.0)
+    if _ub > 0.0:
+        for _k in list(scores):
+            if isinstance(_k, (tuple, list)) and len(_k) >= 2 and _k[0] == 'op':
+                scores[_k] = float(scores[_k]) + _ub
     # 分差门控：最高分与次高分相差太小 ⇒ **不接管**（返回 None，由调用方保留原 pin）
     # 依据：dump 里 23.6% 的决策是完全平局、另有 17.8% 在 1 HP 内 ⇒ 这些"接管"没有依据。
     if margin_gate and float(margin_gate) > 0 and len(scores) >= 2:
