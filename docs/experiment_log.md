@@ -11713,3 +11713,36 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261021_235737_ab_unified_v2/output.log`
 - **result**: _待填_
+
+## 2026-10-22 10:04:36 — ab_upg1_vs_none
+
+- **commit**: `327823d` (dirty: 2 files)
+- **exit**: 0，用时 7415s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_upg1_vs_none.sh
+  ```
+- **output**: `training_history/runs/20261022_100436_ab_upg1_vs_none/output.log`
+- **result**: _待填_
+
+## 2026-10-22 10:51:53 — ab_seat_control
+
+- **commit**: `db58c8f` (dirty: 2 files)
+- **exit**: 0，用时 9400s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_seat_control.sh
+  ```
+- **output**: `training_history/runs/20261022_105153_ab_seat_control/output.log`
+- **result**: _待填_
+
+## 2026-10-22 11:23:32 — ab_upg_alltgts
+
+- **commit**: `e84179b` (dirty: 2 files)
+- **exit**: 0，用时 11708s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_upg_alltgts.sh
+  ```
+- **output**: `training_history/runs/20261022_112332_ab_upg_alltgts/output.log`
+- **result**: _待填_
