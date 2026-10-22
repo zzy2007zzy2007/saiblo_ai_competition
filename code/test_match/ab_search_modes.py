@@ -54,6 +54,10 @@ def main() -> int:
     ap.add_argument("--flat-env", default=DEFAULT_FLAT_ENV)
     ap.add_argument("--mcts-env", default=DEFAULT_MCTS_ENV)
     ap.add_argument("--timeout", type=float, default=4 * 3600.0)
+    # 2026-10-22：同图交换座位（配对）。实测 P1 系统性占优 +19~31pp，
+    # 旧逻辑是"不同地图各打一次" ⇒ 座位方差全进噪声。
+    ap.add_argument("--paired-sides", action="store_true",
+                    help="每个 seed 打两局，A 侧分别坐 P0/P1（同一张地图）")
     args = ap.parse_args()
 
     out_dir = REPO / args.out_dir
@@ -65,9 +69,9 @@ def main() -> int:
     results: dict[int, dict] = {}
     lock = threading.Lock()
 
-    def run(seed: int) -> None:
-        # seed 偶数 ⇒ flat 执 P0；奇数 ⇒ flat 执 P1
-        flat_is_p0 = (seed % 2 == 0)
+    def run(seed: int, flat_side_in: int | None = None) -> None:
+        # 默认沿用旧约定（seed 偶数 ⇒ flat 执 P0）；配对模式下由调用方显式指定
+        flat_is_p0 = (seed % 2 == 0) if flat_side_in is None else (flat_side_in == 0)
         env0 = args.flat_env if flat_is_p0 else args.mcts_env
         env1 = args.mcts_env if flat_is_p0 else args.flat_env
         cmd = [sys.executable, "-u", str(REPO / "code/test_match/match_via_sdk.py"),
@@ -77,7 +81,8 @@ def main() -> int:
                f"--ai0-env={env0}",
                f"--ai1-env={env1}",
                str(seed)]
-        log_path = out_dir / f"seed{seed}.log"
+        log_path = (out_dir / (f"seed{seed}.log" if flat_side_in is None
+                                  else f"seed{seed}_p{0 if flat_is_p0 else 1}.log"))
         t0 = time.time()
         with sem:
             with open(log_path, "wb") as handle:
@@ -97,7 +102,8 @@ def main() -> int:
         else:
             flat_score = 1.0 if int(winner_side) == flat_side else 0.0
         with lock:
-            results[seed] = {"flat_is_p0": flat_is_p0, "score": flat_score,
+            key = seed if flat_side_in is None else (seed, 0 if flat_is_p0 else 1)
+            results[key] = {"flat_is_p0": flat_is_p0, "score": flat_score,
                              "rc": proc.returncode, "minutes": elapsed / 60,
                              "rounds": parsed.get("rounds"), "hp": parsed.get("hp"),
                              "terminal": parsed.get("terminal")}
@@ -106,14 +112,18 @@ def main() -> int:
                   f"rounds={parsed.get('rounds')} hp={parsed.get('hp')} "
                   f"({elapsed/60:.1f} min)", flush=True)
 
-    threads = [threading.Thread(target=run, args=(s,)) for s in args.seeds]
+    if args.paired_sides:
+        tasks = [(s, side) for s in args.seeds for side in (0, 1)]
+    else:
+        tasks = [(s, None) for s in args.seeds]
+    threads = [threading.Thread(target=run, args=t) for t in tasks]
     t0 = time.time()
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
 
-    scores = [results[s]["score"] for s in args.seeds if s in results]
+    scores = [v["score"] for v in results.values()]
     if scores:
         wins = sum(1 for x in scores if x == 1.0)
         draws = sum(1 for x in scores if x == 0.5)
@@ -123,6 +133,13 @@ def main() -> int:
         print(f"\n=== flat vs mcts：{len(scores)} 局  "
               f"flat 胜率 {rate:.1%}  ({wins}W/{draws}D/{losses}L)  "
               f"±{2*se:.1%}(2SE)  wall={(time.time()-t0)/60:.1f} min ===", flush=True)
+        # 2026-10-22：先/后手拆分（座位诊断）。P1 系统性占优时，两条臂若不配对就会互相污染。
+        for _side, _name in ((0, "P0"), (1, "P1")):
+            _s = [v["score"] for v in results.values() if v["flat_is_p0"] == (_side == 0)]
+            if _s:
+                _w = sum(1 for x in _s if x == 1.0)
+                print(f"    A 在 {_name}: {_w}W-{len(_s)-_w}L = {sum(_s)/len(_s):.1%} (n={len(_s)})",
+                      flush=True)
     return 0
 
 
