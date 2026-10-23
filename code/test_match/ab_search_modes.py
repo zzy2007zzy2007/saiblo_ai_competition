@@ -68,6 +68,7 @@ def main() -> int:
     sem = threading.Semaphore(args.jobs)
     results: dict[int, dict] = {}
     lock = threading.Lock()
+    INVALID = {"n": 0}   # 2026-10-22：无结果/异常局计数（原来直接丢，不可见）
 
     def run(seed: int, flat_side_in: int | None = None) -> None:
         # 默认沿用旧约定（seed 偶数 ⇒ flat 执 P0）；配对模式下由调用方显式指定
@@ -92,9 +93,24 @@ def main() -> int:
         parsed = _ladder.read_game(log_path, str(seed))
         flat_side = 0 if flat_is_p0 else 1
         winner_side = parsed.get("winner_side")
-        # 新格式的 winner_side 是 'p0'/'p1' 字符串；旧格式是 None ⇒ 按平局记
-        if isinstance(winner_side, str) and winner_side.strip().lower() in ("p0", "p1"):
-            winner_side = int(winner_side.strip().lower()[1])
+        # 新格式的 winner_side 是 'p0'/'p1' 字符串；旧格式是 None/缺失 ⇒ 按平局记
+        # 2026-10-22 修：`_ladder.read_game` 在"没打完/无结果"时会返回**字符串 'None'**，
+        # 而这里原来直接 int() ⇒ ValueError ⇒ 该局线程崩掉、结果丢失（实测一次丢 6/32 局）。
+        if isinstance(winner_side, str):
+            _ws = winner_side.strip().lower()
+            if _ws in ("p0", "p1"):
+                winner_side = int(_ws[1])
+            elif _ws in ("none", "null", ""):
+                winner_side = None
+                with lock:
+                    INVALID["n"] += 1
+            else:
+                try:
+                    winner_side = int(_ws)
+                except ValueError:
+                    winner_side = None
+                    with lock:
+                        INVALID["n"] += 1
         elif winner_side is not None:
             winner_side = int(winner_side)
         if winner_side is None:
@@ -132,7 +148,8 @@ def main() -> int:
         se = (0.25 / len(scores)) ** 0.5
         print(f"\n=== flat vs mcts：{len(scores)} 局  "
               f"flat 胜率 {rate:.1%}  ({wins}W/{draws}D/{losses}L)  "
-              f"±{2*se:.1%}(2SE)  wall={(time.time()-t0)/60:.1f} min ===", flush=True)
+              f"±{2*se:.1%}(2SE)  wall={(time.time()-t0)/60:.1f} min  "
+              f"无效局={INVALID[chr(110)]} ===", flush=True)
         # 2026-10-22：先/后手拆分（座位诊断）。P1 系统性占优时，两条臂若不配对就会互相污染。
         for _side, _name in ((0, "P0"), (1, "P1")):
             _s = [v["score"] for v in results.values() if v["flat_is_p0"] == (_side == 0)]
