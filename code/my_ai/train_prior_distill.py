@@ -79,9 +79,10 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--out", default="checkpoints/prior_distill_full.pt")
     ap.add_argument("--holdout", type=int, default=1, help="留出最后 N 个 npz 做验证")
+    ap.add_argument("--pattern", default="g*.npz", help="数据文件通配（mcts 教师用 m*.npz）")
     args = ap.parse_args()
 
-    files = sorted(glob.glob(str(REPO / "training_history/prior_labels/g*.npz")))
+    files = sorted(glob.glob(str(REPO / "training_history/prior_labels" / args.pattern)))
     if not files:
         print("  ✗ 没有标签文件（先跑 collect_prior_labels.py）")
         return 1

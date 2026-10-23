@@ -51,7 +51,8 @@ def main() -> int:
     seed = int(sys.argv[1]) if len(sys.argv) > 1 else 9000
     out_dir = REPO / "training_history/prior_labels"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"g{seed}.npz"
+    _prefix = "m" if TEACHER == "mcts" else "g"
+    out_path = out_dir / f"{_prefix}{seed}.npz"
     if out_path.exists():
         print(f"  [skip] {out_path.name} 已存在", flush=True)
         return 0
