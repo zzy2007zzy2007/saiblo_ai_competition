@@ -530,6 +530,11 @@ def build_engine(seed: int, player: int):
             eval_mode=_env("AZAI_FLAT_EVAL", "net"),
             max_total_rounds=int(_env("AZAI_FLAT_ROUNDS", "39000")),
             verbose=bool(int(_env("AZAI_FLAT_VERBOSE", "0"))),
+            # 2026-10-23：rollout 里是否随机出招（idle=旧行为，双方不出招⇒确定性）
+            rollout_mode=_env("AZAI_FLAT_ROLLOUT_MODE", "idle"),
+            rollout_act_prob=float(_env("AZAI_FLAT_ACT_PROB", "0.5")),
+            rollout_build_ratio=float(_env("AZAI_FLAT_BUILD_RATIO", "0.7")),
+            rollout_seed=int(_env("AZAI_FLAT_SEED", "0")),
             **_kw,
         )
         _log(f"engine=flat rollouts={_env('AZAI_FLAT_ROLLOUTS','16')} "

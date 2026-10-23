@@ -57,6 +57,14 @@ class FlatRolloutGreedy(BundleMCTS):
                  value_batch: int = 256,
                  value_tanh: bool = True,
                  eval_mode: str = "net",
+                 # 2026-10-23（用户指出）：rollout 里双方**必须真的出招**，否则
+                 # `advance_round()` 是确定性的 ⇒ N 次采样得到同一个叶子，采样纯浪费
+                 # （实测 samples=1/16/64 的分数逐位相同，耗时 177/919/3548 ms）。
+                 # 亚军的 `simulate_round(rng)` 就是带随机性的；这里用"随机出招"近似。
+                 rollout_mode: str = "idle",        # idle=现状(双方不出招) / random=随机出招
+                 rollout_act_prob: float = 0.5,     # 每回合每方出招概率
+                 rollout_build_ratio: float = 0.7,  # 出招时选"建塔"的比例（否则降级）
+                 rollout_seed: int = 0,
                  max_total_rounds: int = DEFAULT_MAX_TOTAL_ROUNDS,
                  verbose: bool = False,
                  **kwargs):
@@ -69,6 +77,11 @@ class FlatRolloutGreedy(BundleMCTS):
         self.value_batch = int(value_batch)
         self.value_tanh = bool(value_tanh)
         self.eval_mode = eval_mode
+        assert rollout_mode in ("idle", "random"), rollout_mode
+        self.rollout_mode = rollout_mode
+        self.rollout_act_prob = float(rollout_act_prob)
+        self.rollout_build_ratio = float(rollout_build_ratio)
+        self.rollout_seed = int(rollout_seed)
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
         self.last_scores = None
@@ -79,6 +92,46 @@ class FlatRolloutGreedy(BundleMCTS):
             raise ValueError("eval_mode='net' 需要 value_model（load_three_models 的第三个返回值）")
         if eval_mode == "net" and feature_extractor is None:
             raise ValueError("eval_mode='net' 需要 feature_extractor（SDK.utils.features.FeatureExtractor）")
+
+    def _random_actions(self, sim, rng, ctx) -> None:
+        """给双方各做一次**随机**出招（2026-10-23）。
+
+        为什么：`advance_round()` 是确定性的（双方都不出招）⇒ N 次采样得到同一个叶子。
+        亚军的 `simulate_round(rng)` 带随机性；这里用"每方以 p 概率随机建塔/降级"近似。
+        成本控制：候选格列表在 search() 里算一次，这里只做廉价抽样 + apply。
+        """
+        from SDK.backend.model import Operation
+        from SDK.utils.constants import OperationType
+        for _pl in (0, 1):
+            if rng.random() >= self.rollout_act_prob:
+                continue
+            _did = False
+            if rng.random() < self.rollout_build_ratio:
+                try:
+                    _cost = int(sim.build_tower_cost(sim.tower_count(_pl)))
+                    _coins = int(sim.coins[_pl])
+                except Exception:
+                    _cost, _coins = -1, -1
+                if _cost >= 0 and _coins >= _cost:
+                    _occ = {(t.x, t.y) for t in sim.towers_of(_pl)}
+                    _cand = [c for c in ctx["cells"][_pl] if c not in _occ]
+                    if _cand:
+                        _x, _y = _cand[int(rng.integers(len(_cand)))]
+                        try:
+                            sim.apply_operation_list(
+                                _pl, [Operation(OperationType.BUILD_TOWER, int(_x), int(_y))])
+                            _did = True
+                        except Exception:
+                            pass
+            if not _did:
+                _tws = list(sim.towers_of(_pl))
+                if _tws:
+                    _tw = _tws[int(rng.integers(len(_tws)))]
+                    try:
+                        sim.apply_operation_list(
+                            _pl, [Operation(OperationType.DOWNGRADE_TOWER, int(_tw.tower_id), -1)])
+                    except Exception:
+                        pass
 
     # ── 叶子评估 ────────────────────────────────────────────────────────────
     def _leaf_values(self, states: list, root_player: int) -> np.ndarray:
@@ -151,6 +204,15 @@ class FlatRolloutGreedy(BundleMCTS):
         _t_after_expand = _time.perf_counter()
         priors = np.asarray([c.prior for c in root.children], dtype=np.float64)
 
+        # 2026-10-23：随机出招 rollout 的上下文（**只在这里算一次**，rollout 内复用）
+        _rctx = None
+        if self.rollout_mode == "random":
+            try:
+                from SDK.utils.constants import HIGHLAND_CELLS as _HC
+                _rctx = {"cells": {0: list(_HC[0]), 1: list(_HC[1])}}
+            except Exception:
+                _rctx = None
+
         # 候选的子节点（与 BundleMCTS._expand 的约定一致：P1 的父节点要推进一回合）
         children = []
         for key in bundles:
@@ -174,11 +236,16 @@ class FlatRolloutGreedy(BundleMCTS):
         total_rounds = 0
         for index, child in enumerate(children):
             leaves = []
-            for _ in range(n_rollouts):
+            for _k in range(n_rollouts):
                 sim = child.clone()
+                _rng = None
+                if _rctx is not None:
+                    _rng = np.random.default_rng(self.rollout_seed + index * 100003 + _k)
                 for _ in range(self.horizon):
                     if sim.terminal:
                         break
+                    if _rng is not None:
+                        self._random_actions(sim, _rng, _rctx)
                     sim.advance_round()
                     total_rounds += 1
                 leaves.append(sim)
