@@ -191,6 +191,10 @@ class FlatRolloutGreedy(BundleMCTS):
         #    做门控（`mc_root_only=1` 时只在根仲裁）。不设它 ⇒ 仲裁被静默跳过 ⇒
         #    两侧就不是"只换 mcts"了（实测这是 0.7344 基线口径的核心一环）。
         self._mc_root = root
+        # 2026-10-23（用户要求）：随机出招**必须可复现**。
+        #   种子只由 (rollout_seed, 决策序号, 候选序号, 采样序号) 决定，不依赖时间/哈希随机化：
+        #   同一局、同一配置重跑 ⇒ 完全相同的对局。
+        self._decision_idx = int(getattr(self, "_decision_idx", 0)) + 1
         self._expand(root, self.k)                 # ← 每决策唯一一次 net_fn（含根节点的 MC 类仲裁）
         bundles = list(root.bundles)
         if not bundles:
@@ -240,7 +244,10 @@ class FlatRolloutGreedy(BundleMCTS):
                 sim = child.clone()
                 _rng = None
                 if _rctx is not None:
-                    _rng = np.random.default_rng(self.rollout_seed + index * 100003 + _k)
+                    # 种子 = f(rollout_seed, 决策序号, 候选序号, 采样序号) ⇒ 完全可复现
+                    _rng = np.random.default_rng(
+                        (int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
+                        + int(index) * 101 + int(_k))
                 for _ in range(self.horizon):
                     if sim.terminal:
                         break
