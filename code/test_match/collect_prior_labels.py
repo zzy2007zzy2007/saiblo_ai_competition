@@ -37,7 +37,10 @@ H = 16
 TEACHER_EVERY = 3          # 每 3 回合做 1 次教师评估
 TEACHER_K = 300
 CHEAP_K = 24
-MAX_ROUNDS = 400
+MAX_ROUNDS = int(__import__("os").environ.get("PRIOR_MAX_ROUNDS", "400"))
+TEACHER = __import__("os").environ.get("PRIOR_TEACHER", "rollout")   # rollout | mcts
+MCTS_ITERS = int(__import__("os").environ.get("PRIOR_MCTS_ITERS", "256"))
+MCTS_K = int(__import__("os").environ.get("PRIOR_MCTS_K", "24"))
 
 
 def ops_from_bundle(bundle):
@@ -59,6 +62,12 @@ def main() -> int:
     vm.eval()
 
     def make_search(k):
+        if TEACHER == "mcts":
+            from my_ai.az_intent.bundle_mcts import BundleMCTS
+            return BundleMCTS(net_fn, iterations=MCTS_ITERS, k=MCTS_K, sample_mult=15,
+                              search_mode="pos-only", pos_pin="mc_quiet", mc_every=1,
+                              mc_horizon=16, mc_root_only=1, mc_cells=4, mc_score="net",
+                              mc_net_samples=4)
         return FlatRolloutGreedy(net_fn, k=k, rollouts_per_candidate=1, horizon=H,
                                  max_total_rounds=10 ** 9, value_model=vm,
                                  feature_extractor=feat, rollout_mode="idle")
@@ -77,8 +86,8 @@ def main() -> int:
             if st.terminal:
                 break
             try:
-                search.search(st.clone(), player)
-                bundles = list(search.last_root.bundles)
+                _res = search.search(st.clone(), player)
+                bundles = list(getattr(_res, 'bundles', None) or search.last_root.bundles)
             except Exception as exc:
                 print(f"  ⚠️ round={rnd} player={player} 搜索失败 {type(exc).__name__}: {exc}", flush=True)
                 bundles = []
@@ -92,7 +101,13 @@ def main() -> int:
                     stats_v = np.asarray(feat.encode_stats(st, player), dtype=np.float16)
                     feats.append(board)
                     stats_list.append(stats_v)
-                    vals = np.asarray(search.last_scores, dtype=np.float32)
+                    if TEACHER == "mcts":
+                        vp = getattr(_res, "visit_policy", None)
+                        if vp is None:
+                            raise RuntimeError("mcts 结果缺少 visit_policy")
+                        vals = np.asarray(vp, dtype=np.float32)
+                    else:
+                        vals = np.asarray(search.last_scores, dtype=np.float32)
                     for b, v in zip(bundles, vals):
                         if not b or len(b[0]) < 3:
                             continue          # HOLD（空 bundle）不参与位置先验训练
@@ -126,7 +141,7 @@ def main() -> int:
         rounds=np.asarray(rounds, dtype=np.int32),
     )
     dt = time.time() - t0
-    print(f"  [done] g{seed}: 教师样本 {n_teacher} 候选 {len(ccls)} 用时 {dt / 60:.1f} min -> {out_path.name}",
+    print(f"  [done] teacher={TEACHER} g{seed}: 教师样本 {n_teacher} 候选 {len(ccls)} 用时 {dt / 60:.1f} min -> {out_path.name}",
           flush=True)
     return 0
 
