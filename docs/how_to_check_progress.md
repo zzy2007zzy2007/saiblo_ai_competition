@@ -12,6 +12,8 @@
 | **每条实验的实时输出** | `training_history/runs/<时间戳>_<名字>/output.log` | **最直接**：里面有每局完成时的 `[seed N] flat=P0 score=1.0 rc=0 rounds=482 hp=(0,15) (60.5 min)` |
 | **对亚军的对局明细** | `match_results/ladder_logs/<TAG>/<seed>.log` | 逐回合：双方原文 + 解析出的 op + RESULT |
 | **A/B 内部对局明细** | `training_history/<AB目录>/seed<N>.log` | 同上；头部有两侧完整 env（可复现）|
+| **逐回合进度（实时）** | `training_history/progress/<tag>/az_progress_seed<N>[_p0\|_p1].txt` | 每回合一行：`round=… HP0=… HP1=… G0=… G1=… P0=[BUILD(4,16)] … P1=[…]`，末尾 `terminal winner=… hp=… rounds=…` |
+| **整批进度** | `training_history/progress/<tag>/status.txt` | 已完成/总数、胜负、在飞回合数、ETA（每完成一局覆盖）|
 | **我方决策过程（stderr）** | `match_results/ai{0,1}_az_bridge_ai_seed<N>.stderr.log` | 每回合 `coins/towers/hp/mismatch/illegal`；升级会打 `⬆️ 显式 op`；收尾有 `mc_taken/mc_fallback/mc_err` |
 | **检查点说明** | `docs/checkpoints.md` | 每个 ckpt 的来源与读数 |
 | **当前有哪些实验在跑** | `Get-ChildItem training_history/runs -Directory \| Sort-Object LastWriteTime -Descending \| Select -First 5` | 按时间排 |
