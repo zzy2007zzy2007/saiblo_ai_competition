@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # **只换位置图（保留类头）vs 现冠军，k=24**（2026-10-23 第 2 轮）
 #
 # 第 1 轮：把 `action_map_conv` + `policy_heads` 都换成蒸馏网 ⇒ k=24 只有 **12.5%**（-11.62hp）。
