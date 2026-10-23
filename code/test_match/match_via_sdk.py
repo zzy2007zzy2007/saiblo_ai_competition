@@ -89,6 +89,8 @@ TIMEOUT_SECONDS = float(os.environ.get("MVS_TIMEOUT_SECONDS", "300"))
 #  "timed out reading ai_cpp_lure_v4 (need 50B, have 12B)"，整局作废）。
 # 它只是"卡死检测"的门限，不影响正常对局的结果。
 TRACE_OPS = "--trace-ops" in sys.argv
+# 2026-10-23：逐回合进度 trace（code/test_match/progress.py）
+_TRACE = None
 
 DUMP_ROUND = None
 DUMP_PATH = ""
@@ -356,6 +358,15 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     p0_label, p0_magica = _label_of(p0_exe)
     p1_label, p1_magica = _label_of(p1_exe)
 
+    # 2026-10-23（用户要求）：逐回合进度文件，实时可看。tag 由 ladder 用 DSH_PROGRESS_TAG 传入。
+    global _TRACE
+    try:
+        import os as _os
+        from progress import GameTrace as _GT
+        _TRACE = _GT(_os.environ.get("DSH_PROGRESS_TAG", "match"), seed)
+    except Exception:
+        _TRACE = None
+
     stderr0 = keep_dir / f"ai0_{p0_label}_seed{seed}.stderr.log"
     stderr1 = keep_dir / f"ai1_{p1_label}_seed{seed}.stderr.log"
 
@@ -434,6 +445,19 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
                 print(f"  [round {rounds}] p0({p0_label}) 原文={text0.strip()!r} -> {ops0}", flush=True)
                 print(f"  [round {rounds}] p1({p1_label}) 原文={text1.strip()!r} -> {ops1}", flush=True)
 
+            # 2026-10-23（用户要求）：**逐回合**写进度文件，便于实时观察
+            #   格式与 az_progress_seed*.txt 一致：round=N P0=[(t,x,y)] P1=[...]
+            if _TRACE is not None:
+                try:
+                    # 决策时刻的双方金币/血量（本回合操作**执行前**）
+                    _coins = [int(c) for c in state.coins]
+                    _hp = [int(b.hp) for b in state.bases]
+                    _TRACE.round(rounds,
+                                 [(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops0],
+                                 [(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops1],
+                                 coins=_coins, hp=_hp)
+                except Exception:
+                    pass
             il0 = state.apply_operation_list(0, ops0)
             il1 = state.apply_operation_list(1, ops1)
             _OPS_HISTORY.append([op.to_protocol_tokens() for op in ops0] + [None] + [op.to_protocol_tokens() for op in ops1])
@@ -478,6 +502,13 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
         result["rounds"] = rounds
         result["terminal"] = bool(state.terminal)
         result["winner"] = state.winner
+        # 2026-10-23：进度 trace 收尾行（格式与 az_progress_seed*.txt 一致）
+        try:
+            if _TRACE is not None:
+                _TRACE.terminal(state.winner, [int(b.hp) for b in state.bases], rounds,
+                                coins=[int(c) for c in state.coins])
+        except Exception:
+            pass
         result["base_hp"] = [int(b.hp) for b in state.bases]
         result["coins"] = [int(c) for c in state.coins]
         return result

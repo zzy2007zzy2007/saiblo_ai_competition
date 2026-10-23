@@ -100,6 +100,9 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
             results: dict, lock: threading.Lock, labels: tuple[str, ...] = ()) -> None:
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
+    # 2026-10-23（用户要求）：把 tag 传下去，match_via_sdk 用它写逐回合进度文件
+    #   文件：training_history/progress/<tag>_seed<seed>.txt
+    env["DSH_PROGRESS_TAG"] = str(cfg.get("tag", "ladder"))
     cmd = [sys.executable, "-u", "code/test_match/match_via_sdk.py", "--trace-ops", *fwd, token]
     with sem:
         t0 = time.time()
