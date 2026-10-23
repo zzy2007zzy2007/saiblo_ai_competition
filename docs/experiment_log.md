@@ -11844,4 +11844,15 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_ab_wide_k160_vs_old.sh
   ```
 - **output**: `training_history/runs/20261023_144634_ab_wide_k160_vs_old/output.log`
+- **result**: **广度大胜**：k=160/采样1 = **65.6%**（21W-11L），血量差 +5.19（95%CI [+1.3,+9.0]）vs 部署口径 k=24/采样16；每局 16 分钟、成本相当（因为部署口径的 16 次采样里 15 次是重复计算）。⇒ 「rollout 确定性」的发现直接兑现为 **+15.6pp 内部强度**，且**候选束广度仍未饱和**（不同于 cells4→cells8 的类内加宽，后者已饱和）。
+
+## 2026-10-23 15:08:33 — ab_rollout_decay_vs_idle
+
+- **commit**: `660c3e4` (dirty: 2 files)
+- **exit**: 2，用时 602s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rollout_decay_vs_idle.sh
+  ```
+- **output**: `training_history/runs/20261023_150833_ab_rollout_decay_vs_idle/output.log`
 - **result**: _待填_
