@@ -363,7 +363,8 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     try:
         import os as _os
         from progress import GameTrace as _GT
-        _TRACE = _GT(_os.environ.get("DSH_PROGRESS_TAG", "match"), seed)
+        _TRACE = _GT(_os.environ.get("DSH_PROGRESS_TAG", "match"), seed,
+                      _os.environ.get("DSH_PROGRESS_SUFFIX", ""))
     except Exception:
         _TRACE = None
 

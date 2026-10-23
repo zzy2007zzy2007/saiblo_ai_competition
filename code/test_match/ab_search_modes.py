@@ -64,6 +64,15 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     env_base = os.environ.copy()
     env_base["PYTHONIOENCODING"] = "utf-8"
+    # 2026-10-23（用户要求）：逐回合进度文件用这个 tag（match_via_sdk 会写
+    #   training_history/progress/<tag>_seed<seed>.txt）
+    TAG = out_dir.name
+    env_base["DSH_PROGRESS_TAG"] = TAG
+    try:
+        import progress as _progress
+    except Exception:            # 进度输出绝不影响对局
+        _progress = None
+    T_START = time.time()
 
     sem = threading.Semaphore(args.jobs)
     results: dict[int, dict] = {}
@@ -84,11 +93,14 @@ def main() -> int:
                str(seed)]
         log_path = (out_dir / (f"seed{seed}.log" if flat_side_in is None
                                   else f"seed{seed}_p{0 if flat_is_p0 else 1}.log"))
+        # 2026-10-23：配对模式同一 seed 打两局 ⇒ 进度文件必须带座位后缀，否则互相覆盖
+        env_game = dict(env_base)
+        env_game["DSH_PROGRESS_SUFFIX"] = "" if flat_side_in is None else f"_p{0 if flat_is_p0 else 1}"
         t0 = time.time()
         with sem:
             with open(log_path, "wb") as handle:
                 proc = subprocess.run(cmd, stdout=handle, stderr=subprocess.STDOUT,
-                                      env=env_base, cwd=str(REPO), timeout=args.timeout)
+                                      env=env_game, cwd=str(REPO), timeout=args.timeout)
         elapsed = time.time() - t0
         parsed = _ladder.read_game(log_path, str(seed))
         flat_side = 0 if flat_is_p0 else 1
@@ -127,6 +139,31 @@ def main() -> int:
                   f"score={flat_score} rc={proc.returncode} "
                   f"rounds={parsed.get('rounds')} hp={parsed.get('hp')} "
                   f"({elapsed/60:.1f} min)", flush=True)
+            # 2026-10-23：整批进度文件（每完成一局覆盖重写，用户可随时打开看）
+            if _progress is not None:
+                try:
+                    _n = len(results)
+                    _w = sum(1 for v in results.values() if v["score"] >= 1.0)
+                    _l = sum(1 for v in results.values() if v["score"] == 0.0)
+                    _recent = [
+                        f"seed{k} {'P0' if v['flat_is_p0'] else 'P1'} "
+                        f"{'胜' if v['score'] >= 1.0 else ('负' if v['score'] == 0.0 else '平')} "
+                        f"hp={v.get('hp')} ({v.get('rounds')} 回合)"
+                        for k, v in list(results.items())[-6:]]
+                    _inflight = []
+                    for f in (REPO / "training_history/progress").glob(f"{TAG}_seed*.txt"):
+                        try:
+                            last = f.read_text(encoding="utf-8").strip().splitlines()[-1]
+                            if last.startswith("round="):
+                                _inflight.append(int(last.split("=")[1].split()[0]))
+                        except Exception:
+                            pass
+                    _progress.write_status(
+                        TAG, total=len(tasks), done=_n, wins=_w, losses=_l,
+                        invalid=INVALID["n"], started=T_START,
+                        inflight_rounds=_inflight, recent=_recent)
+                except Exception:
+                    pass
 
     if args.paired_sides:
         tasks = [(s, side) for s in args.seeds for side in (0, 1)]

@@ -83,8 +83,9 @@ def _fmt_pair(v) -> str:
 class GameTrace:
     """逐回合 trace 写入器（追加 + 每行 flush，便于 `Get-Content -Tail` / `tail -f`）。"""
 
-    def __init__(self, tag: str, seed):
-        self.path = _ensure_dir() / f"{tag}_seed{seed}.txt"
+    def __init__(self, tag: str, seed, suffix: str = ""):
+        # suffix：配对模式下同一 seed 有两局（A 坐 P0 / P1），必须区分，否则互相覆盖
+        self.path = _ensure_dir() / f"{tag}_seed{seed}{suffix}.txt"
         try:
             self._fh = self.path.open("w", encoding="utf-8")
         except Exception:
