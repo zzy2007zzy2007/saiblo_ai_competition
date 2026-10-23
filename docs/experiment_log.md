@@ -11867,3 +11867,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261023_152048_ab_rollout_decay_vs_idle_v2/output.log`
 - **result**: _待填_
+
+## 2026-10-23 15:50:04 — ab_k320_vs_k160
+
+- **commit**: `d7a33e9` (dirty: 2 files)
+- **exit**: 0，用时 1690s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_k320_vs_k160.sh
+  ```
+- **output**: `training_history/runs/20261023_155004_ab_k320_vs_k160/output.log`
+- **result**: **广度 160→320 基本饱和**：17W-15L = **53.1%**，血量差 +1.00（95%CI [-3.3,+5.3]，跨 0）。结合 k=24→160 的 65.6%（CI 不含 0）⇒ **广度的边际收益在 160 附近收敛**；再往上（320）没有再买到可测的强度，瓶颈应从『候选数量』转向『候选排序质量（位置网先验）』。
