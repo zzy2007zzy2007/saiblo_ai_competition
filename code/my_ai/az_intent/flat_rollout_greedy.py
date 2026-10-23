@@ -62,6 +62,11 @@ class FlatRolloutGreedy(BundleMCTS):
                  # （实测 samples=1/16/64 的分数逐位相同，耗时 177/919/3548 ms）。
                  # 亚军的 `simulate_round(rng)` 就是带随机性的；这里用"随机出招"近似。
                  rollout_mode: str = "idle",        # idle=现状(双方不出招) / random=随机出招
+                 rollout_random_side: str = "opponent",  # opponent=只随机对手(推荐) / both=双方
+                 # 2026-10-23：随机概率随回合衰减（避免整段 churn 污染叶子状态）
+                 rollout_prob_mode: str = "const",   # const | decay | first
+                 rollout_decay_c: float = 0.6,        # 衰减模式的首回合概率 C
+                 rollout_decay_k: float = 3.0,        # 衰减常数 k：p(r)=C*exp(-r/k)
                  rollout_act_prob: float = 0.5,     # 每回合每方出招概率
                  rollout_build_ratio: float = 0.7,  # 出招时选"建塔"的比例（否则降级）
                  rollout_seed: int = 0,
@@ -82,6 +87,12 @@ class FlatRolloutGreedy(BundleMCTS):
         self.rollout_act_prob = float(rollout_act_prob)
         self.rollout_build_ratio = float(rollout_build_ratio)
         self.rollout_seed = int(rollout_seed)
+        assert rollout_random_side in ("both", "opponent"), rollout_random_side
+        self.rollout_random_side = rollout_random_side
+        assert rollout_prob_mode in ("const", "decay", "first"), rollout_prob_mode
+        self.rollout_prob_mode = rollout_prob_mode
+        self.rollout_decay_c = float(rollout_decay_c)
+        self.rollout_decay_k = max(1e-6, float(rollout_decay_k))
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
         self.last_scores = None
@@ -93,7 +104,17 @@ class FlatRolloutGreedy(BundleMCTS):
         if eval_mode == "net" and feature_extractor is None:
             raise ValueError("eval_mode='net' 需要 feature_extractor（SDK.utils.features.FeatureExtractor）")
 
-    def _random_actions(self, sim, rng, ctx) -> None:
+    def _random_actions(self, sim, rng, ctx, root_player=None, round_idx: int = 0) -> None:
+        # 按模式算本回合的出招概率（2026-10-23 用户提议：衰减/仅首回合）
+        if self.rollout_prob_mode == "first":
+            _p = self.rollout_decay_c if round_idx == 0 else 0.0
+        elif self.rollout_prob_mode == "decay":
+            import math as _math
+            _p = self.rollout_decay_c * _math.exp(-round_idx / self.rollout_decay_k)
+        else:
+            _p = self.rollout_act_prob
+        if _p <= 0.0:
+            return
         """给双方各做一次**随机**出招（2026-10-23）。
 
         为什么：`advance_round()` 是确定性的（双方都不出招）⇒ N 次采样得到同一个叶子。
@@ -102,8 +123,11 @@ class FlatRolloutGreedy(BundleMCTS):
         """
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType
-        for _pl in (0, 1):
-            if rng.random() >= self.rollout_act_prob:
+        _sides = (0, 1)
+        if self.rollout_random_side == "opponent" and root_player is not None:
+            _sides = (1 - int(root_player),)   # 只让对手出招；我方打完候选 op 后不再动
+        for _pl in _sides:
+            if rng.random() >= _p:
                 continue
             _did = False
             if rng.random() < self.rollout_build_ratio:
@@ -248,12 +272,14 @@ class FlatRolloutGreedy(BundleMCTS):
                     _rng = np.random.default_rng(
                         (int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
                         + int(index) * 101 + int(_k))
+                _round_idx = 0
                 for _ in range(self.horizon):
                     if sim.terminal:
                         break
                     if _rng is not None:
-                        self._random_actions(sim, _rng, _rctx)
+                        self._random_actions(sim, _rng, _rctx, player, _round_idx)
                     sim.advance_round()
+                    _round_idx += 1
                     total_rounds += 1
                 leaves.append(sim)
             scores[index] = float(self._leaf_values(leaves, player).mean())

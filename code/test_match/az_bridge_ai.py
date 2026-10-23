@@ -535,6 +535,10 @@ def build_engine(seed: int, player: int):
             rollout_act_prob=float(_env("AZAI_FLAT_ACT_PROB", "0.5")),
             rollout_build_ratio=float(_env("AZAI_FLAT_BUILD_RATIO", "0.7")),
             rollout_seed=int(_env("AZAI_FLAT_SEED", "0")),
+            rollout_random_side=_env("AZAI_FLAT_RANDOM_SIDE", "opponent"),
+            rollout_prob_mode=_env("AZAI_FLAT_PROB_MODE", "const"),
+            rollout_decay_c=float(_env("AZAI_FLAT_DECAY_C", "0.6")),
+            rollout_decay_k=float(_env("AZAI_FLAT_DECAY_K", "3.0")),
             **_kw,
         )
         _log(f"engine=flat rollouts={_env('AZAI_FLAT_ROLLOUTS','16')} "

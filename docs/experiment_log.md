@@ -11823,3 +11823,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261023_103246_ab_h16_vs_h64/output.log`
 - **result**: **h16 与 h64 打平**：15W-17L = **46.9%**，血量差 -0.94（95%CI [-5.6,+3.7]）⇒ 有值网在叶节点时，**64 回合的搜索深度是冗余的**（可砍到 16，省 4x 预算）。结合 cells4→cells8 = 56.2%（CI 跨 0，基本饱和）⇒ 宽度轴吃完，预算应优先买采样。
+
+## 2026-10-23 14:29:57 — ab_rollout_random_vs_idle
+
+- **commit**: `6cb8061` (dirty: 2 files)
+- **exit**: 0，用时 1204s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rollout_random_vs_idle.sh
+  ```
+- **output**: `training_history/runs/20261023_142957_ab_rollout_random_vs_idle/output.log`
+- **result**: _待填_
