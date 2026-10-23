@@ -91,6 +91,7 @@ TIMEOUT_SECONDS = float(os.environ.get("MVS_TIMEOUT_SECONDS", "300"))
 TRACE_OPS = "--trace-ops" in sys.argv
 # 2026-10-23：逐回合进度 trace（code/test_match/progress.py）
 _TRACE = None
+_SEED_TOKEN = None   # 2026-10-23：原始 seed token（如 "7r"），进度文件名用它
 
 DUMP_ROUND = None
 DUMP_PATH = ""
@@ -363,7 +364,8 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     try:
         import os as _os
         from progress import GameTrace as _GT
-        _TRACE = _GT(_os.environ.get("DSH_PROGRESS_TAG", "match"), seed,
+        _TRACE = _GT(_os.environ.get("DSH_PROGRESS_TAG", "match"),
+                      globals().get("_SEED_TOKEN") or seed,
                       _os.environ.get("DSH_PROGRESS_SUFFIX", ""))
     except Exception:
         _TRACE = None
@@ -608,11 +610,13 @@ def main() -> int:
         elif arg.startswith("--ai1-cwd="):
             AI_SPEC[1]["cwd"] = Path(arg.split("=", 1)[1]).resolve()
         elif arg.isdigit():
-            seeds.append((int(arg), False))
+            # 2026-10-23：带上**原始 token** —— 进度文件名必须用它。
+            #   否则 7 与 7r 都解析成 seed=7 ⇒ 两局写同一个进度文件（实测行被切断）。
+            seeds.append((int(arg), False, arg))
         elif arg.endswith("r") and arg[:-1].isdigit():
-            seeds.append((int(arg[:-1]), True))
+            seeds.append((int(arg[:-1]), True, arg))
     if not seeds:
-        seeds = [(7, False)]
+        seeds = [(7, False, "7")]
     keep_dir = REPO_ROOT / "match_results"
     keep_dir.mkdir(parents=True, exist_ok=True)
 
@@ -629,7 +633,10 @@ def main() -> int:
     print(f"[bridge] max_rounds={max_rounds}  seeds={seeds}", flush=True)
 
     wins: dict[str, int] = {}
-    for seed, runnerup_first in seeds:
+    for _seed_tuple in seeds:
+        seed, runnerup_first = _seed_tuple[0], _seed_tuple[1]
+        _seed_token = _seed_tuple[2] if len(_seed_tuple) > 2 else str(seed)
+        globals()["_SEED_TOKEN"] = _seed_token
         p0_name = _label_of(a1 if runnerup_first else a0)[0]
         print(f"\n{'='*70}\n 对战 seed={seed}  {p0_name} 先手  "
               f"AI0={_label_of(a0)[0]} vs AI1={_label_of(a1)[0]}\n{'='*70}", flush=True)
