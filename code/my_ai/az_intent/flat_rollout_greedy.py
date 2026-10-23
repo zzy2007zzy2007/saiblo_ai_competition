@@ -67,6 +67,9 @@ class FlatRolloutGreedy(BundleMCTS):
                  rollout_prob_mode: str = "const",   # const | decay | first
                  rollout_decay_c: float = 0.6,        # 衰减模式的首回合概率 C
                  rollout_decay_k: float = 3.0,        # 衰减常数 k：p(r)=C*exp(-r/k)
+                 # 2026-10-23（用户论点）：随机 rollout 要大 N 才管用 ⇒ 必须做**前缀树记忆化**。
+                 #   实测共享率 const 27% / decay(.6,3) 43% / decay(.3,1) 85% / first 94%。
+                 rollout_share_prefix: bool = False,
                  rollout_act_prob: float = 0.5,     # 每回合每方出招概率
                  rollout_build_ratio: float = 0.7,  # 出招时选"建塔"的比例（否则降级）
                  rollout_seed: int = 0,
@@ -93,6 +96,7 @@ class FlatRolloutGreedy(BundleMCTS):
         self.rollout_prob_mode = rollout_prob_mode
         self.rollout_decay_c = float(rollout_decay_c)
         self.rollout_decay_k = max(1e-6, float(rollout_decay_k))
+        self.rollout_share_prefix = bool(rollout_share_prefix)
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
         self.last_scores = None
@@ -104,8 +108,12 @@ class FlatRolloutGreedy(BundleMCTS):
         if eval_mode == "net" and feature_extractor is None:
             raise ValueError("eval_mode='net' 需要 feature_extractor（SDK.utils.features.FeatureExtractor）")
 
-    def _random_actions(self, sim, rng, ctx, root_player=None, round_idx: int = 0) -> None:
-        # 按模式算本回合的出招概率（2026-10-23 用户提议：衰减/仅首回合）
+    def _decide_actions(self, sim, rng, ctx, root_player=None, round_idx: int = 0) -> list:
+        """只**决定**本回合双方各做什么（不落子），返回 [(player, t, a0, a1), ...]。
+
+        2026-10-23：从 `_random_actions` 拆出来，供前缀树实现复用（先决策、查缓存、再决定是否真模拟）。
+        概率按 `rollout_prob_mode`（const / decay / first）逐回合计算。
+        """
         if self.rollout_prob_mode == "first":
             _p = self.rollout_decay_c if round_idx == 0 else 0.0
         elif self.rollout_prob_mode == "decay":
@@ -114,18 +122,14 @@ class FlatRolloutGreedy(BundleMCTS):
         else:
             _p = self.rollout_act_prob
         if _p <= 0.0:
-            return
-        """给双方各做一次**随机**出招（2026-10-23）。
+            return []
 
-        为什么：`advance_round()` 是确定性的（双方都不出招）⇒ N 次采样得到同一个叶子。
-        亚军的 `simulate_round(rng)` 带随机性；这里用"每方以 p 概率随机建塔/降级"近似。
-        成本控制：候选格列表在 search() 里算一次，这里只做廉价抽样 + apply。
-        """
-        from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType
+
         _sides = (0, 1)
         if self.rollout_random_side == "opponent" and root_player is not None:
-            _sides = (1 - int(root_player),)   # 只让对手出招；我方打完候选 op 后不再动
+            _sides = (1 - int(root_player),)
+        out = []
         for _pl in _sides:
             if rng.random() >= _p:
                 continue
@@ -141,21 +145,70 @@ class FlatRolloutGreedy(BundleMCTS):
                     _cand = [c for c in ctx["cells"][_pl] if c not in _occ]
                     if _cand:
                         _x, _y = _cand[int(rng.integers(len(_cand)))]
-                        try:
-                            sim.apply_operation_list(
-                                _pl, [Operation(OperationType.BUILD_TOWER, int(_x), int(_y))])
-                            _did = True
-                        except Exception:
-                            pass
+                        out.append((_pl, int(OperationType.BUILD_TOWER), int(_x), int(_y)))
+                        _did = True
             if not _did:
                 _tws = list(sim.towers_of(_pl))
                 if _tws:
                     _tw = _tws[int(rng.integers(len(_tws)))]
-                    try:
-                        sim.apply_operation_list(
-                            _pl, [Operation(OperationType.DOWNGRADE_TOWER, int(_tw.tower_id), -1)])
-                    except Exception:
-                        pass
+                    out.append((_pl, int(OperationType.DOWNGRADE_TOWER), int(_tw.tower_id), -1))
+        return out
+
+    def _random_actions(self, sim, rng, ctx, root_player=None, round_idx: int = 0) -> list:
+        """决策 + 立刻落子（旧的单轨迹路径用）。返回 applied ops 列表。"""
+        from SDK.backend.model import Operation
+        from SDK.utils.constants import OperationType
+        ops = self._decide_actions(sim, rng, ctx, root_player, round_idx)
+        for (_pl, _t, _a0, _a1) in ops:
+            try:
+                sim.apply_operation_list(int(_pl),
+                                         [Operation(OperationType(int(_t)), int(_a0), int(_a1))])
+            except Exception:
+                pass
+        return ops
+
+    def _tree_rollout_value(self, child, player: int, rngs) -> float:
+        """前缀树版 rollout：按 (父节点, 本回合 ops) 复用子状态，省掉重复的 clone/apply/advance。"""
+        from SDK.backend.model import Operation
+        from SDK.utils.constants import OperationType, HIGHLAND_CELLS
+
+        ctx = {"cells": {0: list(HIGHLAND_CELLS[0]), 1: list(HIGHLAND_CELLS[1])}}
+        # node_id -> state（state 已推进到该节点回合结束）
+        states = {0: child.clone()}
+        edges = {}          # (parent_id, token) -> child_id
+        next_id = 1
+        leaf_states = []
+
+        for rng in rngs:
+            cur = 0
+            for _r in range(self.horizon):
+                st = states[cur]
+                if st.terminal:
+                    break
+                ops = self._decide_actions(st, rng, ctx, player, _r)
+                token = tuple(sorted(ops)) if ops else ()
+                key = (cur, token)
+                nxt = edges.get(key)
+                if nxt is None:
+                    sim = states[cur].clone()
+                    for (_pl, _t, _a0, _a1) in ops:
+                        try:
+                            sim.apply_operation_list(int(_pl),
+                                                     [Operation(OperationType(int(_t)), int(_a0), int(_a1))])
+                        except Exception:
+                            pass
+                    sim.advance_round()
+                    nxt = next_id
+                    next_id += 1
+                    states[nxt] = sim
+                    edges[key] = nxt
+                cur = nxt
+            leaf_states.append(states[cur])
+        self.last_tree_nodes = getattr(self, "last_tree_nodes", 0) + next_id
+        if not leaf_states:
+            return 0.0
+        _lv = self._leaf_values(leaf_states, player)     # ← 批量评估（与朴素路径一致）
+        return float(np.mean(_lv))
 
     # ── 叶子评估 ────────────────────────────────────────────────────────────
     def _leaf_values(self, states: list, root_player: int) -> np.ndarray:
@@ -263,6 +316,17 @@ class FlatRolloutGreedy(BundleMCTS):
         scores = np.zeros(n_cand, dtype=np.float64)
         total_rounds = 0
         for index, child in enumerate(children):
+            # 2026-10-23：前缀树记忆化（随机 rollout 专用）。
+            #   随机 rollout 要大 N 才抹得平噪声，而朴素实现成本 ∝ N×H；
+            #   树版按 (父节点, 本回合 ops) 复用状态：共享率 43%~94% ⇒ 省 21%~91%。
+            if _rctx is not None and self.rollout_share_prefix:
+                _rngs = [np.random.default_rng(
+                    (int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
+                    + int(index) * 101 + int(_k)) for _k in range(n_rollouts)]
+                _t0 = _time.perf_counter()
+                scores[index] = self._tree_rollout_value(child, player, _rngs)
+                total_rounds += self.horizon * n_rollouts
+                continue
             leaves = []
             for _k in range(n_rollouts):
                 sim = child.clone()
