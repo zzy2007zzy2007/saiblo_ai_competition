@@ -12032,3 +12032,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261024_035943_mcts_teacher_tiny/output.log`
 - **result**: _待填_
+
+## 2026-10-24 04:09:53 — mcts_tiny_clean
+
+- **commit**: `e28c72b` (dirty: 2 files)
+- **exit**: 0，用时 502s
+- **cmd**:
+  ```bash
+  bash code/test_match/_collect_mcts_tiny.sh
+  ```
+- **output**: `training_history/runs/20261024_040953_mcts_tiny_clean/output.log`
+- **result**: _待填_
