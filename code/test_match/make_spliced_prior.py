@@ -21,7 +21,7 @@ import torch
 REPO = Path(__file__).resolve().parents[2]
 OURS = REPO / "checkpoints/posnet_A_k5_m32.pt"
 DIST = REPO / "checkpoints/grafted_sdk_A.pt"
-OUT = REPO / "checkpoints/spliced_prior_A.pt"
+OUT = REPO / "checkpoints/spliced_posonly_A.pt"
 
 TOWER_CLASSES = list(range(0, 17)) + [21, 22]     # 用蒸馏
 SUPER_CLASSES = [17, 18, 19, 20]                  # 用我们（闪电 + 其他超武）
@@ -43,7 +43,7 @@ def main() -> int:
     new = dict(pa)
     n_replaced = 0
     for key in list(pa.keys()):
-        if "action_map_conv" in key or "policy_heads" in key:
+        if "action_map_conv" in key:
             if key not in pb:
                 print(f"  ⚠️ 蒸馏网缺少 {key}，跳过")
                 continue
