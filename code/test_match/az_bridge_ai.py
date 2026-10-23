@@ -540,6 +540,7 @@ def build_engine(seed: int, player: int):
             rollout_decay_c=float(_env("AZAI_FLAT_DECAY_C", "0.6")),
             rollout_decay_k=float(_env("AZAI_FLAT_DECAY_K", "3.0")),
             rollout_share_prefix=bool(int(_env("AZAI_FLAT_SHARE_PREFIX", "0"))),
+            rollout_dedupe_weight=bool(int(_env("AZAI_FLAT_DEDUPE", "0"))),
             **_kw,
         )
         _log(f"engine=flat rollouts={_env('AZAI_FLAT_ROLLOUTS','16')} "

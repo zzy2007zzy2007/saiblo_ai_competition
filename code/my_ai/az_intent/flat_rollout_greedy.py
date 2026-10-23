@@ -70,6 +70,8 @@ class FlatRolloutGreedy(BundleMCTS):
                  # 2026-10-23（用户论点）：随机 rollout 要大 N 才管用 ⇒ 必须做**前缀树记忆化**。
                  #   实测共享率 const 27% / decay(.6,3) 43% / decay(.3,1) 85% / first 94%。
                  rollout_share_prefix: bool = False,
+                 # 2026-10-23：按轨迹去重加权（每条不同轨迹只算一次），避免大 N 被重复的"静止"轨迹稀释
+                 rollout_dedupe_weight: bool = False,
                  rollout_act_prob: float = 0.5,     # 每回合每方出招概率
                  rollout_build_ratio: float = 0.7,  # 出招时选"建塔"的比例（否则降级）
                  rollout_seed: int = 0,
@@ -97,6 +99,8 @@ class FlatRolloutGreedy(BundleMCTS):
         self.rollout_decay_c = float(rollout_decay_c)
         self.rollout_decay_k = max(1e-6, float(rollout_decay_k))
         self.rollout_share_prefix = bool(rollout_share_prefix)
+        self.rollout_dedupe_weight = bool(rollout_dedupe_weight)
+        self.last_effective_samples = None
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
         self.last_scores = None
@@ -179,14 +183,17 @@ class FlatRolloutGreedy(BundleMCTS):
         next_id = 1
         leaf_states = []
 
+        leaf_tokens = []
         for rng in rngs:
             cur = 0
+            _seq = []
             for _r in range(self.horizon):
                 st = states[cur]
                 if st.terminal:
                     break
                 ops = self._decide_actions(st, rng, ctx, player, _r)
                 token = tuple(sorted(ops)) if ops else ()
+                _seq.append(token)
                 key = (cur, token)
                 nxt = edges.get(key)
                 if nxt is None:
@@ -204,11 +211,21 @@ class FlatRolloutGreedy(BundleMCTS):
                     edges[key] = nxt
                 cur = nxt
             leaf_states.append(states[cur])
+            leaf_tokens.append(tuple(_seq))
         self.last_tree_nodes = getattr(self, "last_tree_nodes", 0) + next_id
         if not leaf_states:
             return 0.0
         _lv = self._leaf_values(leaf_states, player)     # ← 批量评估（与朴素路径一致）
-        return float(np.mean(_lv))
+        if not self.rollout_dedupe_weight:
+            self.last_effective_samples = (self.last_effective_samples or 0) + len(_lv)
+            return float(np.mean(_lv))
+        # 去重加权：相同 token 序列的样本只算一次
+        groups: dict = {}
+        for _tok, _v in zip(leaf_tokens, _lv):
+            groups.setdefault(_tok, []).append(float(_v))
+        reps = [float(np.mean(v)) for v in groups.values()]
+        self.last_effective_samples = (self.last_effective_samples or 0) + len(reps)
+        return float(np.mean(reps))
 
     # ── 叶子评估 ────────────────────────────────────────────────────────────
     def _leaf_values(self, states: list, root_player: int) -> np.ndarray:
