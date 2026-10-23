@@ -62,8 +62,9 @@ def main() -> int:
     _, _, vm = load_three_models(CKPT)
     vm.eval()
 
-    def make_search(k):
-        if TEACHER == "mcts":
+    def make_search(k, teacher_round: bool = True):
+        # 2026-10-23：mcts 教师只在**教师回合**用（否则每回合双方 256 迭代太贵，实测 20+ 分钟不出第一局）
+        if TEACHER == "mcts" and teacher_round:
             from my_ai.az_intent.bundle_mcts import BundleMCTS
             return BundleMCTS(net_fn, iterations=MCTS_ITERS, k=MCTS_K, sample_mult=15,
                               search_mode="pos-only", pos_pin="mc_quiet", mc_every=1,
@@ -81,7 +82,7 @@ def main() -> int:
         if st.terminal:
             break
         use_teacher = (rnd % TEACHER_EVERY == 0)
-        search = make_search(TEACHER_K if use_teacher else CHEAP_K)
+        search = make_search(TEACHER_K if use_teacher else CHEAP_K, teacher_round=use_teacher)
         picked = []
         for player in (0, 1):
             if st.terminal:
