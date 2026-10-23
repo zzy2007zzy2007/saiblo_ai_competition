@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # **广度还能不能继续换强度：k=320 vs k=160**（2026-10-23）
 #
 # 已有读数：
@@ -16,14 +16,6 @@ BASE="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_
 A_K320="$BASE;AZAI_K=320"
 B_K160="$BASE;AZAI_K=160"
 
-echo "等待「双方随机衰减」结束… ($(date +%H:%M:%S))"
-for _ in $(seq 1 200); do
-  marker=$(ls -d training_history/runs/*ab_rollout_decay_both* 2>/dev/null | tail -1)
-  if [ -n "$marker" ] && grep -q "双方随机衰减对照结束" "$marker/output.log" 2>/dev/null; then
-    echo "上一场已结束 ($(date +%H:%M:%S))"; break
-  fi
-  sleep 30
-done
 
 echo ""
 echo "############ 广度加倍：k=320(A) vs k=160(B)  32 局配对  $(date +%H:%M:%S)"
