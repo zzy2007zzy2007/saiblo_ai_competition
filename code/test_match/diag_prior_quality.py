@@ -38,10 +38,12 @@ def spearman(a, b):
 
 
 def main() -> int:
+    import sys as _sys
+    ckpt = _sys.argv[1] if len(_sys.argv) > 1 else "checkpoints/posnet_A_k5_m32.pt"
+    print(f"  ckpt = {ckpt}")
     feat = FeatureExtractor(max_actions=96)
-    _, net_fn = make_net_fn_from_ckpt("checkpoints/posnet_A_k5_m32.pt", feat,
-                                     value_tanh=True, value_rel_to_abs=0.0)
-    _, _, vm = load_three_models("checkpoints/posnet_A_k5_m32.pt")
+    _, net_fn = make_net_fn_from_ckpt(ckpt, feat, value_tanh=True, value_rel_to_abs=0.0)
+    _, _, vm = load_three_models(ckpt)
     vm.eval()
 
     for seed, warm in ((1540, 60), (1540, 140), (1541, 200)):

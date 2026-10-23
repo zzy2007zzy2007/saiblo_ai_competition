@@ -11966,3 +11966,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261023_214123_ab_enum300_vs_160/output.log`
 - **result**: **全枚举 k=300 = 56.2%（18W-14L），血量差 +3.44（95%CI [-0.8,+7.7]）** vs k=160；每局 17 分钟（k=160 是 16.5）。正向但不显著。结合先验诊断（Spearman -0.015~-0.037、最优动作先验排名 152-293/300、recall@64 全灭）⇒ **绕过先验、枚举全部候选确实更好**，说明瓶颈在候选筛选（先验）而不是搜索量。见 docs/plan_prior_retrain.md。
+
+## 2026-10-23 21:43:51 — ab_dedupe_n256
+
+- **commit**: `acbaae3` (dirty: 2 files)
+- **exit**: 0，用时 7191s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_dedupe_n256.sh
+  ```
+- **output**: `training_history/runs/20261023_214351_ab_dedupe_n256/output.log`
+- **result**: _待填_
