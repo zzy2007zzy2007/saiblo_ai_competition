@@ -11856,3 +11856,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261023_150833_ab_rollout_decay_vs_idle/output.log`
 - **result**: _待填_
+
+## 2026-10-23 15:20:48 — ab_rollout_decay_vs_idle_v2
+
+- **commit**: `1fa19e2` (dirty: 2 files)
+- **exit**: 0，用时 1554s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rollout_decay_vs_idle_v2.sh
+  ```
+- **output**: `training_history/runs/20261023_152048_ab_rollout_decay_vs_idle_v2/output.log`
+- **result**: _待填_
