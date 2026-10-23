@@ -526,6 +526,14 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
         print(f"  proc0({p0_label}).poll={proc0.poll()}  proc1({p1_label}).poll={proc1.poll()}", flush=True)
         return result
     finally:
+        # 2026-10-23：进度 trace 的收尾行**放在 finally**里（幂等）。
+        # 之前只写在 try 的成功路径上 ⇒ 超时/异常局不会写 terminal 行，文件看起来"没结束"。
+        try:
+            if _TRACE is not None:
+                _TRACE.terminal(state.winner, [int(b.hp) for b in state.bases], rounds,
+                                coins=[int(c) for c in state.coins])
+        except Exception:
+            pass
         if ents_fh is not None:
             try:
                 ents_fh.flush()

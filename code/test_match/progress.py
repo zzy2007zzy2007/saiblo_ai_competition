@@ -41,7 +41,13 @@ _OP_NAME = {
 }
 
 
-def _ensure_dir() -> Path:
+def _ensure_dir(tag: str | None = None) -> Path:
+    """**每条实验一个子目录**（2026-10-23 用户要求）：
+    `training_history/progress/<tag>/`，避免所有实验的进度文件混在一个目录里。"""
+    if tag:
+        d = PROGRESS_DIR / str(tag)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
     PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
     return PROGRESS_DIR
 
@@ -85,7 +91,8 @@ class GameTrace:
 
     def __init__(self, tag: str, seed, suffix: str = ""):
         # suffix：配对模式下同一 seed 有两局（A 坐 P0 / P1），必须区分，否则互相覆盖
-        self.path = _ensure_dir() / f"{tag}_seed{seed}{suffix}.txt"
+        # 目录：每条实验一个子目录 training_history/progress/<tag>/
+        self.path = _ensure_dir(tag) / f"az_progress_seed{seed}{suffix}.txt"
         try:
             self._fh = self.path.open("w", encoding="utf-8")
         except Exception:
@@ -109,7 +116,11 @@ class GameTrace:
         except Exception:
             pass
 
-    def terminal(self, winner, hp, rounds) -> None:
+    def terminal(self, winner, hp, rounds, coins=None) -> None:
+        """收尾行（格式与参考文件一致：`terminal winner=1 hp=[0, 2] rounds=441`）。
+
+        `coins` 只为兼容调用方保留，不写进这一行（参考格式没有它）。**幂等**：第二次调用直接返回。
+        """
         if self._fh is None:
             return
         try:
@@ -134,7 +145,7 @@ def write_status(tag: str, *, total: int, done: int, wins: int, losses: int, inv
                  recent: list[str] | None = None) -> None:
     """原子重写整批进度文件。任何异常都吞掉。"""
     try:
-        d = _ensure_dir()
+        d = _ensure_dir(tag)
         now = time.time()
         head = f"tag={tag}  total={total}  done={done}  W={wins} L={losses}  无效={invalid}"
         stamp = f"now={time.strftime('%H:%M:%S', time.localtime(now))}"
@@ -149,8 +160,8 @@ def write_status(tag: str, *, total: int, done: int, wins: int, losses: int, inv
             lines.append(f"inflight: {len(rs)} 局（回合 " + ", ".join(str(r) for r in rs[:10]) + "）")
         for r in (recent or [])[:6]:
             lines.append(f"最近完成: {r}")
-        tmp = d / f"{tag}_status.txt.tmp"
+        tmp = d / "status.txt.tmp"
         tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        os.replace(tmp, d / f"{tag}_status.txt")
+        os.replace(tmp, d / "status.txt")
     except Exception:
         pass

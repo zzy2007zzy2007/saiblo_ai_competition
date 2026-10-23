@@ -96,6 +96,11 @@ def _archive_stderr(log_path: Path, token: str, labels: tuple[str, ...] = ()) ->
         print(f"[ladder] ⚠️ stderr 归档失败（不影响对局）: {type(exc).__name__}: {exc}", flush=True)
 
 
+import time as _time_mod
+_TOKENS: list = []      # 2026-10-23：进度 status 用
+_T0 = _time_mod.time()
+
+
 def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore,
             results: dict, lock: threading.Lock, labels: tuple[str, ...] = ()) -> None:
     env = os.environ.copy()
@@ -124,6 +129,54 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
         with lock:
             results[token] = (rc, dt)
             print(f"[{token}] rc={rc}  {dt / 60:.1f} min", flush=True)
+            # 2026-10-23（用户要求）：整批进度文件 training_history/progress/<tag>/status.txt
+            try:
+                import sys as _sys
+                _sys.path.insert(0, str(REPO / "code/test_match"))
+                import progress as _pg
+                _tag = str(cfg.get("tag", "ladder"))
+                _tok_list = _TOKENS[0] if _TOKENS else []
+                _total = len(_tok_list)
+                _d = REPO / "match_results/ladder_logs" / _tag
+                _w = _l = _inv = 0
+                _recent = []
+                for _tok in _tok_list:
+                    _lg = _d / f"{_tok}.log"
+                    if not _lg.exists():
+                        continue
+                    _g = read_game(_lg, _tok)
+                    _ws = _g.get("winner_side")
+                    if _ws is None:
+                        _inv += 1
+                        continue
+                    # read_game 的 winner_side 是 'p0'/'p1'（新格式）或按 HP 兜底推的
+                    _ws = str(_ws).lower()
+                    if _ws not in ("p0", "p1"):
+                        _inv += 1
+                        continue
+                    _ours_p0 = "az_bridge_ai" in str(_g.get("p0_label") or "")
+                    _won = (_ws == "p0") == _ours_p0
+                    if _won:
+                        _w += 1
+                    else:
+                        _l += 1
+                    if len(_recent) < 6:
+                        _recent.append(f"{_tok} {'胜' if _won else '负'} "
+                                       f"hp={_g.get('hp')} ({_g.get('rounds')} 回合)")
+                _done = _w + _l
+                _inflight = []
+                for _f in (REPO / "training_history/progress" / _tag).glob("az_progress_seed*.txt"):
+                    try:
+                        _last = _f.read_text(encoding="utf-8").strip().splitlines()[-1]
+                        if _last.startswith("round="):
+                            _inflight.append(int(_last.split("=")[1].split()[0]))
+                    except Exception:
+                        pass
+                _pg.write_status(_tag, total=_total, done=_done, wins=_w, losses=_l,
+                                 invalid=_inv, started=_T0, inflight_rounds=_inflight,
+                                 recent=_recent)
+            except Exception:
+                pass
 
 
 def read_game(log_path: Path, token: str) -> dict:
@@ -182,6 +235,9 @@ def main() -> int:
     print(f"[ladder] ai0={cfg['ai0']}", flush=True)
     print(f"[ladder] ai1={cfg['ai1']}", flush=True)
     print(f"[ladder] tokens={tokens}  logs={out_dir}", flush=True)
+    global _T0
+    _TOKENS.clear(); _TOKENS.append(list(tokens))
+    _T0 = time.time()
 
     results: dict[str, tuple[int, float]] = {}
     if cfg["reanalyze"]:

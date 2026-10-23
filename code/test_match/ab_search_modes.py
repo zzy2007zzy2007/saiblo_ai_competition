@@ -151,7 +151,7 @@ def main() -> int:
                         f"hp={v.get('hp')} ({v.get('rounds')} 回合)"
                         for k, v in list(results.items())[-6:]]
                     _inflight = []
-                    for f in (REPO / "training_history/progress").glob(f"{TAG}_seed*.txt"):
+                    for f in (REPO / "training_history/progress" / TAG).glob("az_progress_seed*.txt"):
                         try:
                             last = f.read_text(encoding="utf-8").strip().splitlines()[-1]
                             if last.startswith("round="):
