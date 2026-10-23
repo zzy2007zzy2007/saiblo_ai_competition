@@ -97,6 +97,7 @@ def _archive_stderr(log_path: Path, token: str, labels: tuple[str, ...] = ()) ->
 
 
 import time as _time_mod
+_TAG = "ladder"        # 2026-10-23：当前 tag（run_one 里写 status 用）
 _TOKENS: list = []      # 2026-10-23：进度 status 用
 _T0 = _time_mod.time()
 
@@ -107,7 +108,7 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
     env["PYTHONIOENCODING"] = "utf-8"
     # 2026-10-23（用户要求）：把 tag 传下去，match_via_sdk 用它写逐回合进度文件
     #   文件：training_history/progress/<tag>_seed<seed>.txt
-    env["DSH_PROGRESS_TAG"] = str(cfg.get("tag", "ladder"))
+    env["DSH_PROGRESS_TAG"] = str(_TAG)
     cmd = [sys.executable, "-u", "code/test_match/match_via_sdk.py", "--trace-ops", *fwd, token]
     with sem:
         t0 = time.time()
@@ -134,7 +135,7 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                 import sys as _sys
                 _sys.path.insert(0, str(REPO / "code/test_match"))
                 import progress as _pg
-                _tag = str(cfg.get("tag", "ladder"))
+                _tag = str(_TAG)
                 _tok_list = _TOKENS[0] if _TOKENS else []
                 _total = len(_tok_list)
                 _d = REPO / "match_results/ladder_logs" / _tag
@@ -235,7 +236,8 @@ def main() -> int:
     print(f"[ladder] ai0={cfg['ai0']}", flush=True)
     print(f"[ladder] ai1={cfg['ai1']}", flush=True)
     print(f"[ladder] tokens={tokens}  logs={out_dir}", flush=True)
-    global _T0
+    global _T0, _TAG
+    _TAG = str(cfg.get("tag", "ladder"))
     _TOKENS.clear(); _TOKENS.append(list(tokens))
     _T0 = time.time()
 
@@ -263,6 +265,9 @@ def main() -> int:
 
     games = []
     for t in tokens:
+        if not (out_dir / f"{t}.log").exists():
+            print(f"[ladder] ⚠️ 缺日志 {t}.log（该局未跑/被杀），跳过汇总", flush=True)
+            continue
         g = read_game(out_dir / f"{t}.log", t)
         g["rc"] = results.get(t, (None, 0))[0]
         games.append(g)
