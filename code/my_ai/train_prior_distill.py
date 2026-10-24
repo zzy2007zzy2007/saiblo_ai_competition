@@ -84,6 +84,8 @@ def main() -> int:
     ap.add_argument("--holdout", type=int, default=4, help="留出最后 N 个 npz 做验证")
     ap.add_argument("--pattern", default="g*.npz", help="数据文件通配（mcts 教师用 m*.npz）")
     ap.add_argument("--batch", type=int, default=16)
+    ap.add_argument("--unfreeze", default="head", choices=["head", "trunk"],
+                    help="head=只训 action_map_conv（默认）; trunk=连主干一起训（value_head 仍冻结）")
     ap.add_argument("--target", default="value", choices=["value", "visit"],
                     help="value=rollout分(旧), visit=MCTS访问概率(按格求和后做软标签)")
     args = ap.parse_args()
@@ -103,7 +105,10 @@ def main() -> int:
     _, pos_m, _ = load_three_models(str(CKPT))
     pos_m.eval()
     for name, p in pos_m.named_parameters():
-        p.requires_grad = "action_map_conv" in name
+        if args.unfreeze == "trunk":
+            p.requires_grad = "value_head" not in name
+        else:
+            p.requires_grad = "action_map_conv" in name
     n_train = sum(p.numel() for p in pos_m.parameters() if p.requires_grad)
     print(f"  可训练参数 {n_train:,}（只有 action_map_conv）", flush=True)
     opt = torch.optim.Adam([p for p in pos_m.parameters() if p.requires_grad], lr=args.lr)
