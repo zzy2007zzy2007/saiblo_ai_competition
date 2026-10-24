@@ -12175,3 +12175,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_004138_k24_prior_vs_random/output.log`
 - **result**: _待填_
+
+## 2026-10-25 01:07:03 — k24_rand32_repeat
+
+- **commit**: `7fa435b` (dirty: 2 files)
+- **exit**: 0，用时 1796s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_k24_rand32_repeat.sh
+  ```
+- **output**: `training_history/runs/20261025_010703_k24_rand32_repeat/output.log`
+- **result**: _待填_
