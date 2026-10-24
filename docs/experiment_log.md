@@ -12098,3 +12098,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261024_094531_prior_leverage_k48/output.log`
 - **result**: _待填_
+
+## 2026-10-24 11:50:26 — k48_vs_k160_control
+
+- **commit**: `06946b6` (dirty: 2 files)
+- **exit**: 0，用时 6546s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_k48_vs_k160_baseprior.sh
+  ```
+- **output**: `training_history/runs/20261024_115026_k48_vs_k160_control/output.log`
+- **result**: _待填_
+
+## 2026-10-24 13:07:52 — k48_prior_vs_random
+
+- **commit**: `a77f650` (dirty: 2 files)
+- **exit**: 0，用时 7881s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_k48_prior_vs_random.sh
+  ```
+- **output**: `training_history/runs/20261024_130752_k48_prior_vs_random/output.log`
+- **result**: _待填_
