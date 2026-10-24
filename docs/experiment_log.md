@@ -12219,3 +12219,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_031921_k48_n64_vs_champ_rep2/output.log`
 - **result**: _待填_
+
+## 2026-10-25 04:56:59 — mcts_prior_k160_repeat
+
+- **commit**: `4627e96` (dirty: 2 files)
+- **exit**: 0，用时 1783s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_mcts_prior_k160_repeat.sh
+  ```
+- **output**: `training_history/runs/20261025_045659_mcts_prior_k160_repeat/output.log`
+- **result**: _待填_
