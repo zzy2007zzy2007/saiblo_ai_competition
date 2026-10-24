@@ -83,6 +83,7 @@ def main() -> int:
     ap.add_argument("--out", default="checkpoints/prior_distill_full.pt")
     ap.add_argument("--holdout", type=int, default=4, help="留出最后 N 个 npz 做验证")
     ap.add_argument("--pattern", default="g*.npz", help="数据文件通配（mcts 教师用 m*.npz）")
+    ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--target", default="value", choices=["value", "visit"],
                     help="value=rollout分(旧), visit=MCTS访问概率(按格求和后做软标签)")
     args = ap.parse_args()
@@ -112,9 +113,22 @@ def main() -> int:
         groups += build_state_groups(np.load(f, allow_pickle=False), args.target)
     print(f"  训练样本 {len(groups)} 个局面", flush=True)
 
+    print("  训练前基线:", flush=True)
+    _base = []
+    for f in valid_files:
+        for g in build_state_groups(np.load(f, allow_pickle=False), args.target):
+            with torch.no_grad():
+                amap = pos_m(g["board"], g["stats"])["action_map"][0]
+            cells = list(g["cell"].keys())
+            preds = [float(amap[:16, x, y].mean()) for (x, y) in cells]
+            _base.append(spearman(preds, [g["cell"][c] for c in cells]))
+    _base = [r for r in _base if not np.isnan(r)]
+    print(f"    基线 Spearman = {np.mean(_base) if _base else float('nan'):+.3f}（n={len(_base)}）", flush=True)
+
     for ep in range(1, args.epochs + 1):
         tot, nb = 0.0, 0
         perm = np.random.permutation(len(groups))
+        _buf, _nb = [], 0
         for idx in perm:
             g = groups[idx]
             out = pos_m(g["board"], g["stats"])
@@ -128,8 +142,16 @@ def main() -> int:
                 w = torch.softmax(tv / T_TGT, dim=0)
             logp = torch.log_softmax(preds / T, dim=0)
             loss = -(w * logp).sum()
-            opt.zero_grad(); loss.backward(); opt.step()
-            tot += float(loss); nb += 1
+            _buf.append(loss); _nb += 1
+            if _nb >= args.batch:
+                _l = torch.stack(_buf).mean()
+                opt.zero_grad(); _l.backward(); opt.step()
+                tot += float(_l) * len(_buf); nb += len(_buf)
+                _buf, _nb = [], 0
+        if _buf:
+            _l = torch.stack(_buf).mean()
+            opt.zero_grad(); _l.backward(); opt.step()
+            tot += float(_l) * len(_buf); nb += len(_buf)
         print(f"  epoch {ep}/{args.epochs}  loss={tot / max(1, nb):.4f}", flush=True)
 
     # 验证：留出局上的 Spearman
