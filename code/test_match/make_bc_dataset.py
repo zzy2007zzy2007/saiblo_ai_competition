@@ -56,11 +56,23 @@ def chosen_ops(rec: dict) -> list:
 
 
 def pick(records: list, facade):
+    """挑与当前局面最匹配的记录。
+
+    优先级：① coins 完全相同；② bases_hp 相同（p1 的 round-0 记录是"p0 已出手后"的
+    快照，coins 已扣钱但基地血量一样）；③ 退化为该回合第一条（宁可冒一点风险也要保持
+    重放不中断——中断会让后续所有回合级联失配）。
+    """
+    if not records:
+        return None
     coins = [int(c) for c in facade.coins]
     for rec in records:
         if [int(c) for c in (rec.get("state") or {}).get("coins", [])] == coins:
             return rec
-    return None
+    hp = [int(b.hp) for b in facade.bases]
+    for rec in records:
+        if [int(h) for h in (rec.get("state") or {}).get("bases_hp", [])] == hp:
+            return rec
+    return records[0]
 
 
 def convert(seed: int, feat: FeatureExtractor):
