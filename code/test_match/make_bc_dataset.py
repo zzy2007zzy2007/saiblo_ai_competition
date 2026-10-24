@@ -98,6 +98,12 @@ def convert(seed: int, feat: FeatureExtractor):
             if not ops:
                 continue
             t, a0, a1 = ops[0]
+            # 2026-10-24：降级动作的 arg0 是**塔 id**（不是坐标）⇒ 用当前局面的塔表映射成格子
+            if t == int(OperationType.DOWNGRADE_TOWER):
+                _tw = {int(x.tower_id): (int(x.x), int(x.y)) for x in st.towers}
+                if int(a0) not in _tw:
+                    continue
+                a0, a1 = _tw[int(a0)]
             try:
                 cm = make_class_mask(st, side, intent_decoding=False)
                 pm = make_position_masks(st, side, intent_decoding=False)

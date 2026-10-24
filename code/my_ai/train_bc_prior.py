@@ -1,16 +1,12 @@
-"""以"搜索选中动作"为标签训练位置先验 + 离线 recall@k 评估（2026-10-24）。
+"""以"搜索选中动作"为标签训练位置先验 + 离线 recall@k（2026-10-24，v2 小批量）。
 
-数据：`training_history/bc_dataset/seed*.npz`
-  board(S,28,19,19) / stats(S,D) / label(S,3)=(op_type,x,y) / cmask(S,24) / pmask(S,19,19)
-  · label 的 op_type：11=建塔(位置=格)、13=降级(位置=塔格)、21=闪电(位置=格)
-  · 注意：dump 里 op_type=11 **不含塔型** ⇒ 不做类头训练，只训**位置**。
+v1 的问题：
+  · 训练循环按"整局"做梯度步 ⇒ 6 epoch 只有 168 步，几乎没训练；
+  · `nb += 0` 让 loss 显示失真。
+v2：把所有样本摊平成数组，按小批量（默认 64）训练，正确统计平均 loss。
 
-训练：冻结主干与 value_head，只训 `action_map_conv`（塔 0-15 / 降级 16 / 闪电 17 三组通道）。
-损失：每组各自的 **masked cross-entropy**（在合法格上做 softmax，标签 = 选中格）。
-
-评估（离线，不打对局）：
-  recall@k = 先验排序的前 k 个格里是否包含"搜索选中的格"（按 op_type 分组统计）。
-  同时输出原网（未训练）的同一指标作为基线。
+指标口径（重要）：recall 在**同类合法格**（19×19 内该类 mask）上计算，
+  对应"砍 k 时会不会丢掉最优格"，与早期"300 混合候选 vs 值网排序"不是同一个指标。
 """
 from __future__ import annotations
 
@@ -31,10 +27,10 @@ from my_ai.az_intent.az_selfplay import load_three_models
 
 CKPT = REPO / "checkpoints/posnet_A_k5_m32.pt"
 GROUP = {11: "build", 13: "downgrade", 21: "lightning"}
+KS = (1, 4, 24)
 
 
 def channel_scores(amap: torch.Tensor, op_type: int) -> torch.Tensor:
-    """取该 op 类型对应的 (19,19) 分数图。"""
     if op_type == 11:
         return amap[0:16].mean(0)
     if op_type == 13:
@@ -44,63 +40,57 @@ def channel_scores(amap: torch.Tensor, op_type: int) -> torch.Tensor:
     return amap[23]
 
 
-def recall_at(scored: np.ndarray, mask: np.ndarray, lab, ks=(1, 4, 24)):
-    """scored/mask: (19,19)；lab=(x,y)。返回各 k 是否命中。"""
-    s = np.where(mask, scored, -1e9).reshape(-1)
-    order = np.argsort(-s)
-    target = int(lab[0]) * s.shape[0] // 19 + int(lab[1])  # 扁平索引（19x19 行优先）
-    pos = int(np.where(order == target)[0][0]) + 1 if target in order else 10 ** 6
-    return {k: pos <= k for k in ks}, pos
-
-
-def flatten_index(x: int, y: int, w: int = 19) -> int:
-    return int(x) * w + int(y)
-
-
-def evaluate(model, files, tag: str):
-    agg = {k: [0, 0] for k in (1, 4, 24)}
-    per_group = {g: {k: [0, 0] for k in (1, 4, 24)} for g in GROUP.values()}
-    positions = []
+def load_split(files):
+    boards, stats, labels, pmasks = [], [], [], []
     for f in files:
         d = np.load(f)
-        boards = torch.from_numpy(d["board"].astype(np.float32))
-        stats = torch.from_numpy(d["stats"].astype(np.float32))
-        labels = d["label"]
-        pmask = d["pmask"]
-        with torch.no_grad():
-            out = model(boards, stats)["action_map"]
-        for i in range(len(labels)):
-            t, x, y = int(labels[i][0]), int(labels[i][1]), int(labels[i][2])
-            g = GROUP.get(t)
-            if g is None:
-                continue
-            m = pmask[i]
-            if not m[x, y]:
-                continue
-            sc = channel_scores(out[i], t).cpu().numpy()
-            s = np.where(m, sc, -1e9).reshape(-1)
-            target = flatten_index(x, y)
-            order = np.argsort(-s)
-            pos = int(np.where(order == target)[0][0]) + 1
-            positions.append(pos)
-            for k in (1, 4, 24):
-                agg[k][0] += int(pos <= k); agg[k][1] += 1
-                per_group[g][k][0] += int(pos <= k); per_group[g][k][1] += 1
-    print(f"  --- {tag}（{len(positions)} 个带位置标签的样本）")
-    for k in (1, 4, 24):
+        boards.append(d["board"]); stats.append(d["stats"])
+        labels.append(d["label"]); pmasks.append(d["pmask"])
+    return (np.concatenate(boards), np.concatenate(stats),
+            np.concatenate(labels), np.concatenate(pmasks))
+
+
+def evaluate(model, arrays, tag: str):
+    boards, stats, labels, pmasks = arrays
+    b = torch.from_numpy(boards.astype(np.float32))
+    s = torch.from_numpy(stats.astype(np.float32))
+    with torch.no_grad():
+        out = model(b, s)["action_map"]
+    agg = {k: [0, 0] for k in KS}
+    per = {g: {k: [0, 0] for k in KS} for g in GROUP.values()}
+    n_used = 0
+    for i in range(len(labels)):
+        t, x, y = int(labels[i][0]), int(labels[i][1]), int(labels[i][2])
+        g = GROUP.get(t)
+        if g is None:
+            continue
+        m = pmasks[i].astype(bool)
+        if not (0 <= x < 19 and 0 <= y < 19) or not m[x, y]:
+            continue
+        sc = channel_scores(out[i], t).cpu().numpy()
+        flat = np.where(m, sc, -1e9).reshape(-1)
+        target = x * 19 + y
+        pos = int(np.where(np.argsort(-flat) == target)[0][0]) + 1
+        n_used += 1
+        for k in KS:
+            agg[k][0] += int(pos <= k); agg[k][1] += 1
+            per[g][k][0] += int(pos <= k); per[g][k][1] += 1
+    print(f"  --- {tag}（{n_used} 个样本）")
+    for k in KS:
         hit, n = agg[k]
         print(f"    recall@{k:<3} = {hit}/{n} = {100*hit/max(1,n):5.1f}%")
-    for g, dd in per_group.items():
+    for g, dd in per.items():
         n = dd[1][1]
         if n:
-            print(f"    [{g:<10}] n={n:<5} recall@1={100*dd[1][0]/n:5.1f}%  "
+            print(f"    [{g:<10}] n={n:<5} @1={100*dd[1][0]/n:5.1f}%  "
                   f"@4={100*dd[4][0]/n:5.1f}%  @24={100*dd[24][0]/n:5.1f}%")
-    return positions
+    return per
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=3e-4)
     ap.add_argument("--holdout", type=int, default=4)
     ap.add_argument("--out", default="checkpoints/bc_prior.pt")
@@ -108,61 +98,62 @@ def main() -> int:
 
     files = sorted(glob.glob(str(REPO / "training_history/bc_dataset/seed*.npz")))
     if len(files) < 6:
-        print(f"  ✗ 数据不足（{len(files)} 局）")
-        return 1
-    hold = files[-args.holdout:]
-    train_files = files[:-args.holdout]
-    print(f"  训练局 {len(train_files)} / 留出局 {len(hold)}", flush=True)
+        print(f"  ✗ 数据不足（{len(files)} 局）"); return 1
+    train_arr = load_split(files[:-args.holdout])
+    hold_arr = load_split(files[-args.holdout:])
+    print(f"  训练局 {len(files)-args.holdout} / 留出局 {args.holdout} "
+          f"| 训练样本 {len(train_arr[2])}", flush=True)
 
     _, pos_m, _ = load_three_models(str(CKPT))
     pos_m.eval()
-    print("  基线（未训练）:", flush=True)
-    evaluate(pos_m, hold, "原网 posnet_A")
+    evaluate(pos_m, hold_arr, "原网 posnet_A（基线）")
 
     for name, p in pos_m.named_parameters():
         p.requires_grad = "action_map_conv" in name
+    n_par = sum(p.numel() for p in pos_m.parameters() if p.requires_grad)
     opt = torch.optim.Adam([p for p in pos_m.parameters() if p.requires_grad], lr=args.lr)
+    print(f"  可训练参数 {n_par:,}", flush=True)
 
-    data = []
-    for f in train_files:
-        d = np.load(f)
-        data.append((torch.from_numpy(d["board"].astype(np.float32)),
-                     torch.from_numpy(d["stats"].astype(np.float32)),
-                     d["label"], d["pmask"]))
-    n_total = sum(len(x[2]) for x in data)
-    print(f"  训练样本 {n_total}", flush=True)
+    boards, stats, labels, pmasks = train_arr
+    # 预筛可用样本（有位置标签且合法）
+    usable = []
+    for i in range(len(labels)):
+        t, x, y = int(labels[i][0]), int(labels[i][1]), int(labels[i][2])
+        if t not in GROUP:
+            continue
+        if not (0 <= x < 19 and 0 <= y < 19) or not pmasks[i][x, y]:
+            continue
+        usable.append(i)
+    usable = np.asarray(usable)
+    print(f"  可用训练样本 {len(usable)}", flush=True)
 
     for ep in range(1, args.epochs + 1):
+        perm = np.random.permutation(len(usable))
         tot, nb = 0.0, 0
-        idx = np.random.permutation(len(data))
-        for j in idx:
-            boards, stats, labels, pmask = data[j]
-            out = pos_m(boards, stats)["action_map"]
-            loss = torch.zeros(())
-            for i in range(len(labels)):
+        for start in range(0, len(perm), args.batch):
+            idx = usable[perm[start:start + args.batch]]
+            b = torch.from_numpy(boards[idx].astype(np.float32))
+            s = torch.from_numpy(stats[idx].astype(np.float32))
+            out = pos_m(b, s)["action_map"]
+            losses = []
+            for j, i in enumerate(idx):
                 t, x, y = int(labels[i][0]), int(labels[i][1]), int(labels[i][2])
-                if t not in GROUP:
-                    continue
-                m = torch.from_numpy(pmask[i].astype(bool))
-                if not bool(m[x, y]):
-                    continue
-                sc = channel_scores(out[i], t)
+                m = torch.from_numpy(pmasks[i].astype(bool))
+                sc = channel_scores(out[j], t)
                 logits = sc.masked_fill(~m, -1e9).reshape(-1)
-                loss = loss + F.cross_entropy(logits.unsqueeze(0),
-                                              torch.tensor([flatten_index(x, y)]))
-                nb += 1
-            if nb == 0:
-                continue
+                losses.append(F.cross_entropy(logits.unsqueeze(0),
+                                              torch.tensor([int(x) * 19 + int(y)])))
+            loss = torch.stack(losses).mean()
             opt.zero_grad(); loss.backward(); opt.step()
-            tot += float(loss); nb += 0
-        print(f"  epoch {ep}/{args.epochs}  loss={tot/max(1,ep*1):.4f}", flush=True)
+            tot += float(loss); nb += 1
+        print(f"  epoch {ep}/{args.epochs}  loss={tot/max(1,nb):.4f}", flush=True)
 
     print("\n  训练后:", flush=True)
-    evaluate(pos_m, hold, "BC 训练版")
+    evaluate(pos_m, hold_arr, "BC 训练版")
 
     ckpt = torch.load(CKPT, map_location="cpu")
     ckpt["pos_state"] = pos_m.state_dict()
-    ckpt["bc_note"] = f"action_map_conv 由'搜索选中动作'BC 训练，epochs={args.epochs}"
+    ckpt["bc_note"] = f"action_map_conv BC on search-chosen action, epochs={args.epochs}, batch={args.batch}"
     torch.save(ckpt, REPO / args.out)
     print(f"  已写出 {REPO/args.out}", flush=True)
     return 0
