@@ -12087,3 +12087,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261024_052006_mcts16_k160/output.log`
 - **result**: _待填_
+
+## 2026-10-24 09:45:31 — prior_leverage_k48
+
+- **commit**: `f55c2af` (dirty: 2 files)
+- **exit**: 0，用时 7484s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_prior_leverage_k48.sh
+  ```
+- **output**: `training_history/runs/20261024_094531_prior_leverage_k48/output.log`
+- **result**: _待填_
