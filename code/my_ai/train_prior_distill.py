@@ -44,7 +44,7 @@ def spearman(a, b):
     return float((ra * rb).sum() / den) if den else float("nan")
 
 
-def build_state_groups(d) -> list[dict]:
+def build_state_groups(d, target: str = "value") -> list[dict]:
     """把 npz 拆成"每个局面一个 dict"：{(x,y): 教师分} + 特征。"""
     offs = d["cand_off"]
     out = []
@@ -61,7 +61,10 @@ def build_state_groups(d) -> list[dict]:
             if not (0 <= int(c) <= 15):
                 continue
             key = (int(x), int(y))
-            cell[key] = max(cell.get(key, -1e9), float(v))
+            if target == "visit":
+                cell[key] = cell.get(key, 0.0) + max(0.0, float(v))
+            else:
+                cell[key] = max(cell.get(key, -1e9), float(v))
         if len(cell) < 4:
             continue
         out.append({
@@ -78,8 +81,10 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--out", default="checkpoints/prior_distill_full.pt")
-    ap.add_argument("--holdout", type=int, default=1, help="留出最后 N 个 npz 做验证")
+    ap.add_argument("--holdout", type=int, default=4, help="留出最后 N 个 npz 做验证")
     ap.add_argument("--pattern", default="g*.npz", help="数据文件通配（mcts 教师用 m*.npz）")
+    ap.add_argument("--target", default="value", choices=["value", "visit"],
+                    help="value=rollout分(旧), visit=MCTS访问概率(按格求和后做软标签)")
     args = ap.parse_args()
 
     files = sorted(glob.glob(str(REPO / "training_history/prior_labels" / args.pattern)))
@@ -104,7 +109,7 @@ def main() -> int:
 
     groups = []
     for f in train_files:
-        groups += build_state_groups(np.load(f, allow_pickle=False))
+        groups += build_state_groups(np.load(f, allow_pickle=False), args.target)
     print(f"  训练样本 {len(groups)} 个局面", flush=True)
 
     for ep in range(1, args.epochs + 1):
@@ -117,7 +122,10 @@ def main() -> int:
             cells = list(g["cell"].keys())
             preds = torch.stack([amap[:16, x, y].mean() for (x, y) in cells])
             tv = torch.tensor([g["cell"][c] for c in cells], dtype=torch.float32)
-            w = torch.softmax(tv / T_TGT, dim=0)
+            if args.target == "visit":
+                w = tv / torch.clamp(tv.sum(), min=1e-8)
+            else:
+                w = torch.softmax(tv / T_TGT, dim=0)
             logp = torch.log_softmax(preds / T, dim=0)
             loss = -(w * logp).sum()
             opt.zero_grad(); loss.backward(); opt.step()
@@ -127,7 +135,7 @@ def main() -> int:
     # 验证：留出局上的 Spearman
     rhos = []
     for f in valid_files:
-        for g in build_state_groups(np.load(f, allow_pickle=False)):
+        for g in build_state_groups(np.load(f, allow_pickle=False), args.target):
             with torch.no_grad():
                 amap = pos_m(g["board"], g["stats"])["action_map"][0]
             cells = list(g["cell"].keys())
