@@ -12373,3 +12373,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_170305_train_z_head/output.log`
 - **result**: _待填_
+
+## 2026-10-25 18:18:46 — ab_priorz_k24
+
+- **commit**: `674488f` (dirty: 2 files)
+- **exit**: 0，用时 43s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_priorz_k24.sh
+  ```
+- **output**: `training_history/runs/20261025_181845_ab_priorz_k24/output.log`
+- **result**: _待填_
+
+## 2026-10-25 17:53:49 — train_z_80g
+
+- **commit**: `06ae321` (dirty: 2 files)
+- **exit**: 0，用时 1737s
+- **cmd**:
+  ```bash
+  bash code/my_ai/_train_z_80g.sh
+  ```
+- **output**: `training_history/runs/20261025_175349_train_z_80g/output.log`
+- **result**: _待填_
