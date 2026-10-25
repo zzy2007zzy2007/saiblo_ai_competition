@@ -8,7 +8,7 @@ COMMON="AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_
 A="AZAI_CKPT=checkpoints/prior_z_hybrid_light.pt;$COMMON"
 B="AZAI_CKPT=checkpoints/prior_distill_f10.pt;$COMMON"
 echo "############ 复现 hybrid vs 纯f10（32 局配对, seeds 2800-2815）  $(date +%H:%M:%S)"
-"$PY" -u code/test_match/ab_search_modes.py --paired-sides --seeds $(seq 2800 2815 | tr '\n' ' ') --jobs 10 \
-  --out-dir training_history/ab_hybrid_vs_f10_rep \
+"$PY" -u code/test_match/ab_search_modes.py --paired-sides --seeds $(seq 2830 2845 | tr '\n' ' ') --jobs 10 \
+  --out-dir training_history/ab_hybrid_vs_f10_rep2 \
   --flat-env="$A" --mcts-env="$B"
 echo "结束 $(date +%H:%M:%S)"
