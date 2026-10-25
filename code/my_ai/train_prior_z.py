@@ -28,6 +28,8 @@ import torch
 
 from my_ai.az_intent.az_selfplay import load_three_models
 
+DEV = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 OP2CH = {11: list(range(16)), 13: [16], 21: [17], 22: [18], 23: [19], 24: [20], 31: [21], 32: [22]}
 NAME = {11: "build", 13: "downgrade", 21: "lightning", 22: "emp", 23: "deflector", 24: "evasion"}
 
@@ -67,11 +69,11 @@ def groups_loss(out_row: torch.Tensor, targets: dict, clip: float, min_cells: in
         keys = list(cells.keys())
         if len(keys) < min_cells:
             continue
-        v = torch.tensor([cells[k] for k in keys])
+        v = torch.tensor([cells[k] for k in keys], device=out_row.device)
         if float(v.std()) < 1e-9:
             continue
         sc = chan_pred(out_row, op)
-        xi = torch.tensor([k[0] for k in keys]); yi = torch.tensor([k[1] for k in keys])
+        xi = torch.tensor([k[0] for k in keys], device=sc.device); yi = torch.tensor([k[1] for k in keys], device=sc.device)
         pred = sc[xi, yi]
         zv = zscore(v).clamp(-clip, clip)
         losses.append(((zscore(pred) - zv) ** 2).mean())
@@ -82,13 +84,13 @@ def recall_eval(model, games, ks=(1, 4, 24)):
     agg = {k: [0, 0] for k in ks}; per = {}
     for feat, stt, targets in games:
         with torch.no_grad():
-            amap = model(torch.from_numpy(feat).unsqueeze(0),
-                         torch.from_numpy(stt).unsqueeze(0))["action_map"][0]
+            amap = model(torch.from_numpy(feat).unsqueeze(0).to(DEV),
+                         torch.from_numpy(stt).unsqueeze(0).to(DEV))["action_map"][0]
         for op, cells in targets.items():
             keys = list(cells.keys())
             if len(keys) < 3:
                 continue
-            sc = chan_pred(amap, op).numpy()
+            sc = chan_pred(amap, op).detach().cpu().numpy()
             v = np.array([cells[k] for k in keys])
             s = np.array([sc[x, y] for (x, y) in keys])
             pos = int(np.where(np.argsort(-s) == int(np.argmax(v)))[0][0]) + 1
@@ -125,7 +127,7 @@ def main() -> int:
         print(f"  ⚠️ 过拟合检验模式：只用 {len(train)} 个局面（训练=留出）", flush=True)
 
     _, m, _ = load_three_models(str(REPO / "checkpoints/posnet_A_k5_m32.pt"))
-    m.eval()
+    m.to(DEV); m.eval()
     a0, _ = recall_eval(m, hold)
     print("  训练前:" + "  ".join(f"@{k}={100*a0[k][0]/max(1,a0[k][1]):.1f}%" for k in (1, 4, 24)), flush=True)
     for name, p in m.named_parameters():
@@ -140,8 +142,8 @@ def main() -> int:
         tot, nb = 0.0, 0
         for s in range(0, len(idx), args.batch):
             chunk = [train[i] for i in idx[s:s + args.batch]]
-            out = m(torch.from_numpy(np.stack([c[0] for c in chunk])),
-                    torch.from_numpy(np.stack([c[1] for c in chunk])))["action_map"]
+            out = m(torch.from_numpy(np.stack([c[0] for c in chunk])).to(DEV),
+                    torch.from_numpy(np.stack([c[1] for c in chunk])).to(DEV))["action_map"]
             losses = []
             for j, (_, _, targets) in enumerate(chunk):
                 losses += groups_loss(out[j], targets, args.clip, args.min_cells)

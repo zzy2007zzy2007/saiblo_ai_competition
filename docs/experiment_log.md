@@ -12307,3 +12307,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_123908_rollout_40g_v6/output.log`
 - **result**: _待填_
+
+## 2026-10-25 14:21:59 — overfit_200x2000
+
+- **commit**: `548ee81` (dirty: 2 files)
+- **exit**: 0，用时 49s
+- **cmd**:
+  ```bash
+  bash code/my_ai/_overfit_200x2000.sh
+  ```
+- **output**: `training_history/runs/20261025_142159_overfit_200x2000/output.log`
+- **result**: _待填_
