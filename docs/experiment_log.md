@@ -12263,3 +12263,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_095036_k48_flat_sampling/output.log`
 - **result**: _待填_
+
+## 2026-10-25 12:02:43 — rollout_30g_v3
+
+- **commit**: `672a503` (dirty: 2 files)
+- **exit**: 0，用时 8s
+- **cmd**:
+  ```bash
+  bash code/test_match/_collect_rollout_30g_v3.sh
+  ```
+- **output**: `training_history/runs/20261025_120243_rollout_30g_v3/output.log`
+- **result**: _待填_
