@@ -34,7 +34,7 @@ from my_ai.decoder import make_position_masks
 
 CKPT = "checkpoints/posnet_A_k5_m32.pt"
 H = 16
-TEACHER_EVERY = 3          # 每 3 回合做 1 次教师评估
+TEACHER_EVERY = int(__import__("os").environ.get("PRIOR_TEACHER_EVERY", "3"))   # 每 N 回合做 1 次教师评估
 TEACHER_K = 300
 CHEAP_K = 24
 MAX_ROUNDS = int(__import__("os").environ.get("PRIOR_MAX_ROUNDS", "400"))
@@ -92,13 +92,17 @@ def main() -> int:
             break
         use_teacher = (rnd % TEACHER_EVERY == 0)
         search = make_search(TEACHER_K if use_teacher else CHEAP_K, teacher_round=use_teacher)
+        # 2026-10-25：教师回合**只有记录方(P0)需要 k=300**。原先对手也用同一个 search（k=300），
+        # 但它只用来决定对手下哪一步、不产生标签 ⇒ 纯浪费一半算力。对手改走 CHEAP_K。
+        opp_search = make_search(CHEAP_K, teacher_round=False) if use_teacher else search
         picked = []
         for player in (0, 1):
             if st.terminal:
                 break
+            _s = search if player == 0 else opp_search
             try:
-                _res = search.search(st.clone(), player)
-                bundles = list(getattr(_res, 'bundles', None) or search.last_root.bundles)
+                _res = _s.search(st.clone(), player)
+                bundles = list(getattr(_res, 'bundles', None) or _s.last_root.bundles)
             except Exception as exc:
                 print(f"  ⚠️ round={rnd} player={player} 搜索失败 {type(exc).__name__}: {exc}", flush=True)
                 bundles = []
