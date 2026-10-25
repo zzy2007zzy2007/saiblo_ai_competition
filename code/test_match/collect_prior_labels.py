@@ -38,6 +38,15 @@ TEACHER_EVERY = 3          # 每 3 回合做 1 次教师评估
 TEACHER_K = 300
 CHEAP_K = 24
 MAX_ROUNDS = int(__import__("os").environ.get("PRIOR_MAX_ROUNDS", "400"))
+_TH = int(__import__(os).environ.get(AZAI_TORCH_THREADS, 0))
+if _TH > 0:
+    import torch as _torch
+    _torch.set_num_threads(_TH)
+    try:
+        _torch.set_num_interop_threads(_TH)
+    except Exception:
+        pass
+
 TEACHER = __import__("os").environ.get("PRIOR_TEACHER", "rollout")   # rollout | mcts
 MCTS_ITERS = int(__import__("os").environ.get("PRIOR_MCTS_ITERS", "256"))
 MCTS_K = int(__import__("os").environ.get("PRIOR_MCTS_K", "24"))
