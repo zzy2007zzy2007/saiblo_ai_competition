@@ -12340,3 +12340,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_143448_train_z_60ep/output.log`
 - **result**: _待填_
+
+## 2026-10-25 15:24:17 — train_z_best
+
+- **commit**: `2101cbe` (dirty: 2 files)
+- **exit**: 0，用时 5912s
+- **cmd**:
+  ```bash
+  bash code/my_ai/_train_z_best.sh
+  ```
+- **output**: `training_history/runs/20261025_152417_train_z_best/output.log`
+- **result**: _待填_
