@@ -92,14 +92,12 @@ def main() -> int:
             break
         use_teacher = (rnd % TEACHER_EVERY == 0)
         search = make_search(TEACHER_K if use_teacher else CHEAP_K, teacher_round=use_teacher)
-        # 2026-10-25：教师回合**只有记录方(P0)需要 k=300**。原先对手也用同一个 search（k=300），
-        # 但它只用来决定对手下哪一步、不产生标签 ⇒ 纯浪费一半算力。对手改走 CHEAP_K。
-        opp_search = make_search(CHEAP_K, teacher_round=False) if use_teacher else search
+        # 2026-10-25：教师回合**双方都用 k=300**（因为双方都要记录标签，见下方记录块）。
         picked = []
         for player in (0, 1):
             if st.terminal:
                 break
-            _s = search if player == 0 else opp_search
+            _s = search
             try:
                 _res = _s.search(st.clone(), player)
                 bundles = list(getattr(_res, 'bundles', None) or _s.last_root.bundles)
@@ -109,8 +107,10 @@ def main() -> int:
             if not bundles:
                 picked.append([])
                 continue
-            # 教师样本：只记 player 0 的（先验只用于我方）
-            if use_teacher and player == 0:
+            # 2026-10-25：**双方都记**。比赛里 P0/P1 两个座位都用这张网，
+            # 特征又是按 player 相对编码的 ⇒ 对手视角同样是合法训练数据。
+            # （原先只记 player 0，等于白扔一半样本；而对手那次 k=300 搜索照样要跑。）
+            if use_teacher:
                 try:
                     board = np.asarray(feat.encode_board(st, player), dtype=np.float16)
                     stats_v = np.asarray(feat.encode_stats(st, player), dtype=np.float16)
