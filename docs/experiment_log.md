@@ -12351,3 +12351,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_152417_train_z_best/output.log`
 - **result**: _待填_
+
+## 2026-10-25 15:24:13 — rollout_40g_v7
+
+- **commit**: `d59fb54` (dirty: 2 files)
+- **exit**: 0，用时 8527s
+- **cmd**:
+  ```bash
+  bash code/test_match/_collect_rollout_40g_v7.sh
+  ```
+- **output**: `training_history/runs/20261025_152413_rollout_40g_v7/output.log`
+- **result**: _待填_
+
+## 2026-10-25 17:03:05 — train_z_head
+
+- **commit**: `b6f5b28` (dirty: 2 files)
+- **exit**: 0，用时 3016s
+- **cmd**:
+  ```bash
+  bash code/my_ai/_train_z_head.sh
+  ```
+- **output**: `training_history/runs/20261025_170305_train_z_head/output.log`
+- **result**: _待填_
