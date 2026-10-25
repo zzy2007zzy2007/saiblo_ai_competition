@@ -113,6 +113,8 @@ def main() -> int:
     ap.add_argument("--min-cells", type=int, default=3)
     ap.add_argument("--overfit-states", type=int, default=0, help=">0 时只取 N 个局面做过拟合检验")
     ap.add_argument("--steps", type=int, default=0, help="过拟合检验的总步数（覆盖 epochs）")
+    ap.add_argument("--eval-every", type=int, default=0, help=">0 时每 K 个 epoch 评估留出集并记录最优")
+    ap.add_argument("--save-best", action="store_true", help="按留出 @24 保存 <out>.best.pt")
     ap.add_argument("--out", default="checkpoints/prior_z.pt")
     args = ap.parse_args()
 
@@ -137,6 +139,7 @@ def main() -> int:
 
     n_ep = args.epochs
     step = 0
+    best = {}
     for ep in range(1, n_ep + 1):
         idx = np.random.permutation(len(train))
         tot, nb = 0.0, 0
@@ -159,6 +162,17 @@ def main() -> int:
             if args.steps and step >= args.steps:
                 break
         print(f"  epoch {ep}/{n_ep} loss={tot/max(1,nb):.4f}  grad_norm={gn:.3e}", flush=True)
+        if args.eval_every and (ep % args.eval_every == 0 or ep == n_ep) and not args.overfit_states:
+            ae, _pe = recall_eval(m, hold)
+            r1 = 100*ae[1][0]/max(1,ae[1][1]); r4 = 100*ae[4][0]/max(1,ae[4][1]); r24 = 100*ae[24][0]/max(1,ae[24][1])
+            print(f"    [留出] ep{ep}: @1={r1:.1f}% @4={r4:.1f}% @24={r24:.1f}%", flush=True)
+            if args.save_best and r24 >= best.get("r24", -1):
+                best.update({"r24": r24, "ep": ep})
+                ck = torch.load(REPO / "checkpoints/posnet_A_k5_m32.pt", map_location="cpu")
+                ck["pos_state"] = {k: v.cpu() for k, v in m.state_dict().items()}
+                ck["note"] = f"z-score 损失, 最优留出@24={r24:.1f}% (ep{ep})"
+                torch.save(ck, str(REPO / args.out).replace(".pt", ".best.pt"))
+                print(f"      ↳ 已存最优 {args.out}.best.pt (ep{ep}, @24={r24:.1f}%)", flush=True)
         if args.steps and step >= args.steps:
             break
 
