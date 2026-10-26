@@ -65,6 +65,7 @@ def main() -> int:
 
     ks = (1, 4, 24)
     agg = {k: [0, 0] for k in ks}
+    per_op = {}
     replay_ok = 0
     for lp in logs:
         seed, per, hp_ref, ru = parse_log(lp)
@@ -98,11 +99,12 @@ def main() -> int:
                         cx, cy = tw[op[1]]
                     else:
                         cx, cy = op[1], op[2]
+                    SUP = int(mask.sum())
                     if 0 <= cx < 19 and 0 <= cy < 19 and mask[cx, cy]:
                         v = np.where(mask, sc, -1e9).reshape(-1)
                         tgt = cx * 19 + cy
                         rank = int(np.where(np.argsort(-v) == tgt)[0][0]) + 1
-                        ranks.append((op[0], rank))
+                        ranks.append((op[0], rank, SUP))
                 except Exception as exc:      # 不吞错：打印一次类型
                     print(f"    ⚠️ round={rnd} 打分失败 {type(exc).__name__}: {exc}")
             for side in ("p0", "p1"):
@@ -114,10 +116,14 @@ def main() -> int:
         hp_now = (int(st.bases[0].hp), int(st.bases[1].hp))
         ok = hp_now == hp_ref
         replay_ok += int(ok)
-        for op_t, rank in ranks:
+        for op_t, rank, sup in ranks:
+            d = per_op.setdefault(op_t, {k: [0, 0] for k in ks})
+            d.setdefault("sup", []).append(sup)
             for k in ks:
                 agg[k][0] += int(rank <= k)
                 agg[k][1] += 1
+                d[k][0] += int(rank <= k)
+                d[k][1] += 1
         print(f"  {lp.name}: 重放 hp={hp_now} 记录={hp_ref} {'✅' if ok else '❌'}  亚军决策点 {len(ranks)}", flush=True)
 
     print(f"\n  重放忠实 {replay_ok}/{len(logs)} 局")
@@ -125,6 +131,21 @@ def main() -> int:
         print("  我们的先验对'亚军实际走法'的召回：")
         for k in ks:
             print(f"    recall@{k:<3} = {agg[k][0]}/{agg[k][1]} = {100*agg[k][0]/agg[k][1]:5.1f}%")
+        print("\n  按动作类型拆分：")
+        for op_t in sorted(per_op):
+            d = per_op[op_t]
+            n = d[24][1]
+            miss = n - d[24][0]
+            sup = d.get("sup") or [0]
+            sup_sorted = sorted(sup)
+            med = sup_sorted[len(sup_sorted)//2]
+            mean = sum(sup)/len(sup)
+            base1 = sum(1.0/max(1, s) for s in sup)/len(sup)
+            print(f"    op_type={op_t:<3} n={n:<5} 支撑集 均值{mean:5.1f}/中位{med:<4} "
+                  f"@1={100*d[1][0]/n:5.1f}%(随机基线{100*base1:5.1f}%)  "
+                  f"@4={100*d[4][0]/n:5.1f}%  @24={100*d[24][0]/n:5.1f}%")
+            print(f"                 支撑集 <4 的比例 {100*sum(1 for s in sup if s < 4)/len(sup):5.1f}%   "
+                  f"<24 的比例 {100*sum(1 for s in sup if s < 24)/len(sup):5.1f}%")
     return 0
 
 

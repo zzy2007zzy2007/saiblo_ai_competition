@@ -12472,3 +12472,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261026_163858_recall_ru_batch/output.log`
 - **result**: _待填_
+
+## 2026-10-26 16:46:34 — recall_ru_perop
+
+- **commit**: `136d783` (dirty: 3 files)
+- **exit**: 0，用时 19s
+- **cmd**:
+  ```bash
+  bash code/test_match/_recall_ru_batch.sh
+  ```
+- **output**: `training_history/runs/20261026_164634_recall_ru_perop/output.log`
+- **result**: _待填_
+
+## 2026-10-26 16:53:25 — recall_ru_support
+
+- **commit**: `136d783` (dirty: 4 files)
+- **exit**: 0，用时 18s
+- **cmd**:
+  ```bash
+  bash code/test_match/_recall_ru_batch.sh
+  ```
+- **output**: `training_history/runs/20261026_165325_recall_ru_support/output.log`
+- **result**: _待填_
