@@ -12461,3 +12461,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261026_155759_collect_ru_dump/output.log`
 - **result**: _待填_
+
+## 2026-10-26 16:38:58 — recall_ru_batch
+
+- **commit**: `ffb3b96` (dirty: 2 files)
+- **exit**: 0，用时 17s
+- **cmd**:
+  ```bash
+  bash code/test_match/_recall_ru_batch.sh
+  ```
+- **output**: `training_history/runs/20261026_163858_recall_ru_batch/output.log`
+- **result**: _待填_
