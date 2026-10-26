@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # 三方循环赛（每对 64 局）：f10 / prior_z_80g.best / hybrid
-#   关键：**三组用完全相同的地图种子与 FLAT_SEED**，唯一变量是 ckpt
-#   地图：2900-2931（--paired-sides ⇒ 每种子 2 局 = 64 局/对）
-#   FLAT_SEED=61（随机化 rollout 的随机流固定）
+#   关键：三组用完全相同的地图种子与 FLAT_SEED，唯一变量是 ckpt
+#   结束前 touch training_history/.rr64_done（供队列脚本判定）
 set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 PY=D:/anaconda3/envs/pytorch-gpu/python.exe
@@ -12,6 +11,7 @@ PZ="AZAI_CKPT=checkpoints/prior_z_80g.best.pt;$COMMON"
 HY="AZAI_CKPT=checkpoints/prior_z_hybrid_light.pt;$COMMON"
 SEEDS=$(seq 2900 2931 | tr '\n' ' ')
 
+rm -f training_history/.rr64_done
 echo "############ 循环赛 1/3: f10 vs hybrid  $(date +%H:%M:%S)"
 "$PY" -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 10 \
   --out-dir training_history/rr_f10_vs_hybrid --flat-env="$F10" --mcts-env="$HY"
@@ -24,4 +24,5 @@ echo "############ 循环赛 3/3: prior_z vs hybrid  $(date +%H:%M:%S)"
 "$PY" -u code/test_match/ab_search_modes.py --paired-sides --seeds $SEEDS --jobs 10 \
   --out-dir training_history/rr_pz_vs_hybrid --flat-env="$PZ" --mcts-env="$HY"
 
+touch training_history/.rr64_done
 echo "全部结束 $(date +%H:%M:%S)"
