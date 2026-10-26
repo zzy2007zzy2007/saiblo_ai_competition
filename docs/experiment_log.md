@@ -12439,3 +12439,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261025_225432_ab_hybrid_vs_champ/output.log`
 - **result**: _待填_
+
+## 2026-10-26 07:36:44 — ab_hybrid_vs_f10_rep2
+
+- **commit**: `657362b` (dirty: 2 files)
+- **exit**: 0，用时 8370s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_hybrid_vs_f10_rep.sh
+  ```
+- **output**: `training_history/runs/20261026_073644_ab_hybrid_vs_f10_rep2/output.log`
+- **result**: _待填_
