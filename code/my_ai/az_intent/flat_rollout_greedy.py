@@ -32,7 +32,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import os as _os
 import numpy as np
+
+_REC_SAMPLES = _os.environ.get("AZAI_ROLLOUT_SAMPLES", "0") == "1"
 
 _REPO = Path(__file__).resolve().parents[3] / "Ant-Game"
 _CODE = Path(__file__).resolve().parents[2]
@@ -104,6 +107,7 @@ class FlatRolloutGreedy(BundleMCTS):
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
         self.last_scores = None
+        self.last_samples = None   # list[list[float]]：每候选每分支的分数（开关打开时记录）
         self.last_timing = {}
         self.last_rollouts = 0
         self.last_rounds = 0
@@ -331,6 +335,7 @@ class FlatRolloutGreedy(BundleMCTS):
 
         _t_rollout = _time.perf_counter()
         scores = np.zeros(n_cand, dtype=np.float64)
+        _samples_buf = [None] * n_cand if _REC_SAMPLES else None
         total_rounds = 0
         for index, child in enumerate(children):
             # 2026-10-23：前缀树记忆化（随机 rollout 专用）。
@@ -363,12 +368,17 @@ class FlatRolloutGreedy(BundleMCTS):
                     _round_idx += 1
                     total_rounds += 1
                 leaves.append(sim)
-            scores[index] = float(self._leaf_values(leaves, player).mean())
+            _lv = self._leaf_values(leaves, player)
+            if _REC_SAMPLES:
+                _samples_buf[index] = [float(v) for v in _lv]
+            scores[index] = float(_lv.mean())
 
         _t_after_rollout = _time.perf_counter()
         self.last_timing = {"expand_s": _t_after_expand - _t_expand,
                             "rollout_s": _t_after_rollout - _t_rollout}
         self.last_scores = scores
+        if _REC_SAMPLES:
+            self.last_samples = _samples_buf
         self.last_rollouts = n_rollouts
         self.last_rounds = total_rounds
         if self.verbose:
