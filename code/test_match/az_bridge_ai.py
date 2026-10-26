@@ -277,7 +277,67 @@ def _log(msg: str) -> None:
 # 统计（模块级：收尾报告要在被 bridge kill 之前打出来）
 _ENGINE = {}   # 2026-10-22：模块级持有 mcts/model，供 _report 读取
 _OP_LABEL_WARNED = False   # 2026-10-22：op 标签解析失败只提示一次
-STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0}
+STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0,
+         "dec_times": []}   # 2026-10-26：每决策墙钟（算 p50/p95；只用于日志，不参与决策）
+
+# ── 亚军候选注入（2026-10-26；**开关式，默认关**；见 docs/oracle_inject_design.md）─────────
+# `AZAI_ORACLE_INJECT` 为空 ⇒ 每条分支第一行就返回：**不 import 查询器、不起子进程、
+# 不加任何耗时**（零影响由 `code/test_match/probe_oracle_inject_zero_impact.py` 的哈希比对验证）。
+# 启用 ⇒ 每局按 (seed, player) 建一个常驻亚军会话，**每回合**喂「当前局面 + 对手操作块」
+# （会话有状态：跳一回合 = 读端永久错位），把它的 ops 变成一个额外候选 bundle 注入搜索。
+_ORACLE: dict = {
+    "off": True,          # True = 不启用（默认）
+    "obj": None,          # RunnerUpOracle（作废后置 None）
+    "seed": 0, "player": 0, "exe": "", "timeout": 2.5,
+    "asks": 0,            # 实际 ask 的回合数
+    "ok": 0,              # 成功拿到回包
+    "inject": 0,          # 交给搜索的次数（含 HOLD / 去重后为空的）
+    "new": 0,             # 去重后**真正追加为候选**的次数
+    "dup": 0,             # 与已有候选重复而被去重掉的次数
+    "hit": 0,             # 注入的候选被搜索选中的次数
+    "illegal": 0,         # 因非法操作丢掉整条候选的次数
+    "timeouts": 0, "dead": 0,
+    "err": "",
+    "ms": [],             # 每次 ask 的墙钟（毫秒）
+    "pending_opp": None,  # P1 用：本回合的对手操作块原文
+    "last_bundle": None,  # 上一回合注入的 bundle（命中日志用）
+    "pending": False,     # 上一回合是否交过候选（用于统计 new/dup）
+}
+
+
+def _pct(vals: list, q: float) -> float:
+    """最近的百分位（样本少时退化到端点，够看）。"""
+    if not vals:
+        return 0.0
+    s = sorted(float(v) for v in vals)
+    k = int(round(q * (len(s) - 1)))
+    return float(s[max(0, min(len(s) - 1, k))])
+
+
+def _oracle_stats_text() -> str:
+    """注入统计的一行文本（本功能的**主读数**）。字段含义见 docs/oracle_inject_design.md §3.5。"""
+    st = _ORACLE
+    txt = (f"asks={st['asks']} ok={st['ok']} inject={st['inject']} new={st['new']} "
+           f"dup={st['dup']} hit={st['hit']} illegal={st['illegal']} "
+           f"timeout={st['timeouts']} dead={st['dead']}")
+    if st["ms"]:
+        txt += (f" avg_ms={sum(st['ms']) / len(st['ms']):.0f} p50_ms={_pct(st['ms'], 0.50):.0f} "
+                f"p95_ms={_pct(st['ms'], 0.95):.0f} max_ms={max(st['ms']):.0f}")
+    txt += f" hit_rate={(100.0 * st['hit'] / max(1, st['new'])):.1f}%"
+    if st["err"]:
+        txt += f" err={st['err']}"
+    return txt
+
+
+def _oracle_close_module() -> None:
+    """释放注入会话（模块级：供 atexit / SIGTERM 兜底；`main()` 正常收尾也会显式调）。"""
+    _ob = _ORACLE.get("obj")
+    if _ob is not None:
+        try:
+            _ob.close()
+        except Exception:  # noqa: BLE001
+            pass
+        _ORACLE["obj"] = None
 
 
 def _report(*_args) -> None:
@@ -302,6 +362,12 @@ def _report(*_args) -> None:
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
          f"illegal={STATS['illegal']}{_mc} dec_n={STATS.get('dec_n')} "
          f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
+    _dt = STATS.get("dec_times") or []
+    if _dt:
+        _log(f"决策耗时: n={len(_dt)} p50={_pct(_dt, 0.50):.2f}s p95={_pct(_dt, 0.95):.2f}s "
+             f"max={max(_dt):.2f}s")
+    if _ORACLE.get("asks"):
+        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
     sys.stderr.flush()
 
 
@@ -656,6 +722,162 @@ def main() -> int:
         _DUMP["fh"].write(bytes(int(x) & 0xFF for x in np.asarray(cm, dtype=np.uint8)))
         _DUMP["n"] += 1
 
+    # ── 亚军候选注入（2026-10-26；开关式；`AZAI_ORACLE_INJECT` 为空 ⇒ 下面全是 no-op）──────
+    #   设计/兜底/统计字段见 `docs/oracle_inject_design.md`；查询器本身在
+    #   `code/test_match/runnerup_oracle.py`（协议已 30/30、90/90 验证，本文件**不改它**）。
+    def _oracle_bundle(ops):
+        """`list[Operation]` → bundle 元组（`(op_type, arg0, arg1)` 的元组）；**有一条非法 ⇒ None**。
+
+        ⚠️ 合法性**必须**在这里逐条查：`facade.apply_operation_list` 走冷路径，
+        **非法操作被静默跳过**（`code/cpp_engine/binding.cpp:46-59` 的返回值被
+        `game_state_facade.py:167-170` 丢掉）⇒ 不查就会把一个"半条命"的候选塞进搜索。
+        `pending=` 把前序 op 的金币/塔位影响算进去 —— 与亚军自己 `cpp_lure_v4.cpp:122-128` 一致。
+        """
+        accepted: list = []
+        for op in ops:
+            try:
+                ok = bool(facade.can_apply_operation(int(player), op, pending=accepted))
+            except Exception as exc:  # noqa: BLE001
+                _log(f"[oracle] ⚠️ can_apply_operation 抛异常（按非法处理）: "
+                     f"{type(exc).__name__}: {exc}")
+                ok = False
+            if not ok:
+                _log(f"[oracle] ⚠️ 第 {facade.round_index} 回合亚军给的 op 非法 ⇒ **整条候选丢弃**："
+                     f"{(int(op.op_type), int(op.arg0), int(op.arg1))}（它这一手="
+                     f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}）")
+                return None
+            accepted.append(op)
+        return tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in accepted)
+
+    def _oracle_init() -> None:
+        """按环境变量决定要不要启用注入。**默认（空）= 不 import、不起子进程、零耗时。**"""
+        exe = _env("AZAI_ORACLE_INJECT", "").strip()
+        _ORACLE["seed"], _ORACLE["player"] = int(seed), int(player)
+        _ORACLE["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT", "2.5"))
+        _ORACLE["off"] = True
+        if not exe:
+            _log("[oracle] AZAI_ORACLE_INJECT 为空 ⇒ 不启用候选注入（零开销）")
+            return
+        if not hasattr(mcts, "set_extra_bundles"):
+            _log(f"[oracle] ⚠️ {type(mcts).__name__} 没有额外候选通道（只有 flat/unified 有）"
+                 f" ⇒ 不启用注入")
+            return
+        try:
+            _exe = Path(exe)
+            if not _exe.is_absolute():
+                _exe = (Path(MVS.REPO_ROOT) / _exe).resolve()
+            # ⚠️ 只有启用时才 import 查询器（它内部会 import match_via_sdk、起进程）
+            _spec = importlib.util.spec_from_file_location(
+                "runnerup_oracle_for_azai", _HERE / "runnerup_oracle.py")
+            _mod = importlib.util.module_from_spec(_spec)
+            assert _spec.loader is not None
+            _spec.loader.exec_module(_mod)
+            _ORACLE["obj"] = _mod.RunnerUpOracle(
+                seed=int(seed), player=int(player), exe=str(_exe),
+                timeout=float(_ORACLE["timeout"]),
+                verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+            _ORACLE["exe"] = str(_exe)
+            _ORACLE["off"] = False
+            _log(f"[oracle] 注入已启用: exe={_exe} seed={seed} player={player} "
+                 f"timeout={_ORACLE['timeout']:g}s（**每回合都要喂**，跳回合会永久错位）")
+        except Exception as exc:  # noqa: BLE001
+            _ORACLE["off"] = True
+            _ORACLE["obj"] = None
+            _ORACLE["err"] = f"{type(exc).__name__}: {exc}"
+            _log(f"[oracle] ⚠️ 启用失败 ⇒ 本局不注入（决策照常，绝不影响对局）: {_ORACLE['err']}")
+
+    def _oracle_set_opp(round_index: int, ops) -> None:
+        """登记「对手在第 round_index 回合的操作」（**P0 用**；P1 走 `ask(opponent_ops=)`）。
+
+        协议规定 P0 的读序是 `opp_ops(N-1) → state(N)`，所以 P0 登记的是**上一回合**的块；
+        P1 是 `state(N) → opp_ops(N)`，即本回合的块（见 runnerup_oracle_protocol.md §2.2）。
+        """
+        if _ORACLE["off"] or _ORACLE["obj"] is None:
+            return
+        try:
+            _ORACLE["obj"].set_opponent_ops(int(round_index), list(ops))
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[oracle] ⚠️ 登记对手操作块失败（忽略，按空过处理）: {type(exc).__name__}: {exc}")
+
+    def _oracle_step() -> None:
+        """每回合**必做一次** ask（保持会话同步），把它的 ops 变成一个额外候选交给搜索。
+
+        失败一律吞掉：本回合不注入、决策照常。"宁可少一个候选，也绝不能因为 oracle 让对局失败"。
+        """
+        st = _ORACLE
+        st["pending"] = False
+        if st["off"] or st["obj"] is None:
+            return
+        st["asks"] += 1
+        _opp = st["pending_opp"]
+        st["pending_opp"] = None       # 一回合一次，绝不复用上一回合的块
+        t0 = time.monotonic()
+        try:
+            if int(player) == 1:
+                ops = st["obj"].ask(facade, opponent_ops=_opp)
+            else:
+                ops = st["obj"].ask(facade)
+        except Exception as exc:  # noqa: BLE001
+            _dt = (time.monotonic() - t0) * 1000.0
+            st["ms"].append(_dt)
+            name = type(exc).__name__
+            if "Timeout" in name:
+                st["timeouts"] += 1
+            else:
+                st["dead"] += 1
+            st["err"] = f"{name}: {exc}"
+            # 读端已错位 ⇒ 本局**永久停用**（重建必须从 r0 重放，见设计文档 §3.4）
+            try:
+                st["obj"].close()
+            except Exception:  # noqa: BLE001
+                pass
+            st["obj"] = None
+            st["last_bundle"] = None
+            if hasattr(mcts, "set_extra_bundles"):
+                mcts.set_extra_bundles(None)
+            _log(f"[oracle] ⚠️ 第 {facade.round_index} 回合查询失败（{_dt:.0f}ms）"
+                 f"⇒ **本局停用注入**，决策照常: {name}: {exc}")
+            return
+        dt_ms = (time.monotonic() - t0) * 1000.0
+        st["ms"].append(dt_ms)
+        st["ok"] += 1
+        if int(_env("AZAI_ORACLE_VERBOSE", "0")):
+            _log(f"[oracle] r{facade.round_index} {dt_ms:.0f}ms -> "
+                 f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")
+        bundle = _oracle_bundle(ops)
+        if bundle is None:                       # 有非法 op ⇒ 整条丢弃
+            st["illegal"] += 1
+            st["last_bundle"] = None
+            mcts.set_extra_bundles(None)
+            return
+        st["inject"] += 1
+        st["pending"] = True
+        st["last_bundle"] = bundle
+        mcts.set_extra_bundles([bundle])         # ← 注入通道（HOLD = 空 bundle `()`）
+
+    def _oracle_after_search() -> None:
+        """搜索结束：统计「去重后真正加进去几个」+「是不是选中了它」。"""
+        st = _ORACLE
+        if st["off"] or not st["pending"]:
+            return
+        st["pending"] = False
+        added = int(getattr(mcts, "last_extra", 0) or 0)
+        if added:
+            st["new"] += 1
+        else:
+            st["dup"] += 1                       # 与网络候选重复（最常见：双方都 HOLD）
+        if added and bool(getattr(mcts, "last_chosen_is_extra", False)):
+            st["hit"] += 1
+            _ls = getattr(mcts, "last_scores", None)
+            _n = int(len(_ls)) if _ls is not None else 0   # ⚠️ 不能写 `_ls or []`（ndarray 真值歧义）
+            _log(f"[oracle] 🎯 注入命中: round={facade.round_index} 亚军候选 {st['last_bundle']} "
+                 f"被搜索选中（本决策共 {_n} 个候选，其中额外 1 个）")
+
+    def _oracle_close() -> None:
+        _oracle_close_module()
+
+    _oracle_init()
+
     def _probe_upgrade_once() -> None:
         """🔬 诊断（`AZAI_PROBE_UPG=1`）：**在真实对局的引擎环境里**问清"升级 op 到底能不能生效"。
 
@@ -702,6 +924,7 @@ def main() -> int:
             STATS["_upg_probe_done"] = True
 
     def decide() -> list:
+        _oracle_step()   # 每回合**必做**：喂 oracle（保持会话同步）+ 把它的 ops 当额外候选注入
         _probe_upgrade_once()
         # 🧪 强制升级实验（`AZAI_FORCE_UPG=1`）：只要有钱有塔，就**直接发 upgrade op**（不做搜索）
         #    目的：在**真实对局**里判定"我们发的升级 op 引擎到底认不认"（离线/克隆探针已证明不可靠）。
@@ -730,6 +953,7 @@ def main() -> int:
         from my_ai.az_intent.timing import T as _T
         with _T("search"):
             res = mcts.search(facade, player, temperature=temperature)
+        _oracle_after_search()   # 注入统计（去重后是否真的加进去 / 是否被选中）
         # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
         _expl = getattr(mcts, 'mc_last_explicit', None)
         if _expl is not None:
@@ -813,6 +1037,7 @@ def main() -> int:
                 _dt = time.monotonic() - _t
             T.finish()
             STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
+            STATS["dec_times"].append(round(_dt, 3))   # 2026-10-26：p50/p95 用（只进日志）
             if _dt > float(STATS.get("dec_max_s", 0.0)):
                 STATS["dec_max_s"] = round(_dt, 2)
             _thr = float(_env("AZAI_SLOW_DECISION_SEC", "20"))
@@ -843,6 +1068,12 @@ def main() -> int:
                     pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
                      f"dec_slow={STATS['dec_slow']}{_bi}")
+                # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
+                if _ORACLE["asks"]:
+                    _dt_all = STATS["dec_times"]
+                    _log(f"⏱️ 决策耗时 p50={_pct(_dt_all, 0.50):.2f}s "
+                         f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
+                    _log(f"[oracle] 注入累计: {_oracle_stats_text()}")
             return _ops
 
         while not facade.terminal:
@@ -854,11 +1085,16 @@ def main() -> int:
                 if opp is None:
                     break
                 _apply(1, opp)
+                # P0：对手操作块的语义是「上一回合」（它先出招、后收对手行）⇒ 现在登记 round_index
+                _oracle_set_opp(facade.round_index, opp)
             else:
                 opp = io.recv_ops()
                 if opp is None:
                     break
                 _apply(0, opp)
+                # P1：本回合的对手操作块，`_oracle_step` 里 ask(opponent_ops=) 会用掉它
+                if not _ORACLE["off"]:
+                    _ORACLE["pending_opp"] = ops_to_text(opp)
                 self_ops = _decide_timed()
                 io.send_ops(self_ops)
                 _apply(1, self_ops)
@@ -909,6 +1145,12 @@ def main() -> int:
     _log(f"结束: rounds={STATS['rounds']} terminal={facade.terminal} winner={facade.winner} "
          f"hp={[b.hp for b in facade.bases]} mismatch={STATS['mismatch']} "
          f"illegal={STATS['illegal']}")
+    if _ORACLE["asks"]:
+        _dt_all = STATS["dec_times"]
+        _log(f"决策耗时: n={len(_dt_all)} p50={_pct(_dt_all, 0.50):.2f}s "
+             f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
+        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
+    _oracle_close()
     # ⚠️ 显式在这里 dump：bridge 收尾时会**硬杀**子进程（Windows TerminateProcess ⇒ atexit/SIGTERM
     # 都不一定跑得到）⇒ 不能只靠 atexit（实测：只挂 atexit 时一个文件都没写出来）。
     _dump_value_data()

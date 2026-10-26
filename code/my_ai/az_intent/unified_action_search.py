@@ -43,7 +43,8 @@ from my_ai.az_intent.flat_rollout_greedy import FlatRolloutGreedy  # noqa: E402
 DEFAULT_TOTAL_ROUNDS = 39_000  # ≈2.45 s（完整引擎 62.7 µs/回合）
 
 CHANNEL_TAG = {16: "downgrade", 17: "lightning", 18: "emp", 19: "deflector",
-               20: "evasion", 21: "up_speed", 22: "up_ant", 23: "hold"}
+               20: "evasion", 21: "up_speed", 22: "up_ant", 23: "hold",
+               100: "oracle"}   # 100 = 额外注入候选（亚军出招，见 docs/oracle_inject_design.md）
 
 
 class UnifiedActionSearch(FlatRolloutGreedy):
@@ -191,7 +192,8 @@ class UnifiedActionSearch(FlatRolloutGreedy):
         return flat
 
     # ── ③ 搜索 ──────────────────────────────────────────────────────────────
-    def search(self, state, player: int, *, temperature: float = 0.0) -> BundleSearchResult:
+    def search(self, state, player: int, *, temperature: float = 0.0,
+               extra_bundles=None) -> BundleSearchResult:
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType
         from my_ai.decoder import make_class_mask, make_position_masks
@@ -203,6 +205,18 @@ class UnifiedActionSearch(FlatRolloutGreedy):
         cmask = make_class_mask(state, player, position_mask=masks, intent_decoding=False)
         groups = self.enumerate_by_channel(state, player, net_out["action_map"], cmask, masks)
         flat = self.allocate(groups, net_out["head_logits"])
+        # ── 额外候选注入（默认关；`None`/空 ⇒ 一个字节都不多看）─────────────────────
+        #   内部候选是**单原子动作**，而一个 bundle 可以含多个 op ⇒ 统一先用 `bundle_of`
+        #   表示（HOLD = `()`）。额外候选追加在末尾，既有候选的下标/预算都不变。
+        n_net = len(flat)
+        bundle_of = [((ops,) if int(ops[0]) >= 0 else ()) for _c, ops in flat]
+        _extras_in = self.extra_bundles if extra_bundles is None else extra_bundles
+        _extras = self._collect_extras(_extras_in, bundle_of)
+        for _b in _extras:
+            flat.append((100, _b[0] if _b else (-1, -1, -1)))
+            bundle_of.append(_b)
+        self.last_extra = len(_extras)
+        self.last_chosen_is_extra = False
         if not flat:
             return BundleSearchResult(bundles=[], visit_policy=np.array([], dtype=np.float32),
                                       chosen_index=0, chosen_bundle=(),
@@ -217,11 +231,11 @@ class UnifiedActionSearch(FlatRolloutGreedy):
         samples = [[] for _ in range(n)]
 
         def rollout_state(index: int):
-            ops = actions[index]
             sim = state.clone()
-            if ops[0] >= 0:
-                sim.apply_operation_list(player, [Operation(OperationType(int(ops[0])),
-                                                           int(ops[1]), int(ops[2]))])
+            if bundle_of[index]:
+                sim.apply_operation_list(
+                    player, [Operation(OperationType(int(t[0])), int(t[1]), int(t[2]))
+                             for t in bundle_of[index]])
             if player == 1:
                 sim.advance_round()
             for _ in range(self.horizon):
@@ -268,22 +282,25 @@ class UnifiedActionSearch(FlatRolloutGreedy):
         for i, c in enumerate(chans):
             by_chan.setdefault(c, []).append(means[i])
         self.last_class_scores = {int(c): float(np.mean(v)) for c, v in by_chan.items()}
-        self.last_actions = [(actions[i], CHANNEL_TAG.get(chans[i], f"ch{chans[i]}"),
+        # 额外候选（channel 100）在 `last_actions` 里放**整个 bundle**（它可能含多个 op，
+        # 只放第一个 op 会误导读数）；普通候选仍放单 op 三元组（既有消费者按 (ops, tag, mean, k) 读）。
+        self.last_actions = [(bundle_of[i] if i >= n_net else actions[i],
+                              CHANNEL_TAG.get(chans[i], f"ch{chans[i]}"),
                               float(means[i]), len(samples[i])) for i in range(n)]
         self.last_rounds = rounds_used
         self.last_timing = {"expand_s": 0.0, "rollout_s": self._t_rollout,
                             "value_s": self._t_value,
                             "total_s": time.perf_counter() - t_start}
 
-        chosen = actions[best]
-        bundle = () if chosen[0] < 0 else (chosen,)
+        chosen = bundle_of[best]
         policy = np.zeros(n, dtype=np.float32)
         policy[best] = 1.0
+        self.last_chosen_is_extra = bool(best >= n_net)
         if self.verbose:
             tag = self.last_actions[best][1]
             print(f"[unified] 候选 {n}（{len(groups)} 通道），复评 top{len(order)}×{per_cand}，"
-                  f"共 {rounds_used} 回合，选中 {tag} {bundle} "
+                  f"共 {rounds_used} 回合，选中 {tag} {chosen} "
                   f"（{means[best]:+.3f}，样本 {len(samples[best])}）", flush=True)
         return BundleSearchResult(
-            bundles=[bundle], visit_policy=policy, chosen_index=best,
-            chosen_bundle=bundle, root_value=float(means[best]), intent_counts=[])
+            bundles=[chosen], visit_policy=policy, chosen_index=best,
+            chosen_bundle=chosen, root_value=float(means[best]), intent_counts=[])

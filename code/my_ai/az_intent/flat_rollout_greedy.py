@@ -106,6 +106,15 @@ class FlatRolloutGreedy(BundleMCTS):
         self.last_effective_samples = None
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
+        # ── 额外候选注入（2026-10-26，开关式）：见 docs/oracle_inject_design.md ──────────
+        #   动机：把"亚军（cpp_lure_v4）在这个局面会怎么走"并进候选，由**我们自己的**
+        #   rollout+值网 给它打分（不信任它的分数）。
+        #   ⚠️ 默认 `None` ⇒ `search()` 一个字节都不多看 ⇒ 数值行为与改动前逐位一致
+        #   （已由 `code/test_match/probe_oracle_inject_zero_impact.py` 的哈希比对验证）。
+        self.extra_bundles = None      # list[tuple[(op_type, arg0, arg1), ...]]；HOLD = ()
+        self.extra_prior = 0.0         # 额外候选的 prior（只影响"全 NaN/全相等"的退化回退分支）
+        self.last_extra = 0            # 本次决策**真正追加**的额外候选数（去重后）
+        self.last_chosen_is_extra = False   # 选中的是不是额外候选（注入命中率靠它统计）
         self.last_scores = None
         self.last_samples = None   # list[list[float]]：每候选每分支的分数（开关打开时记录）
         self.last_timing = {}
@@ -275,8 +284,48 @@ class FlatRolloutGreedy(BundleMCTS):
                 values[pending_index[start + offset]] = float(value)
         return values
 
+    # ── 额外候选注入（默认关）─────────────────────────────────────────────────
+    def set_extra_bundles(self, bundles=None) -> None:
+        """设置**下一次**决策要注入的额外候选（`[( (op,arg0,arg1), ... ), ...]`；HOLD = `()`）。
+
+        `None` / 空 ⇒ 关闭（= 改动前的行为）。调用方负责每回合显式设置或清空。
+        """
+        if not bundles:
+            self.extra_bundles = None
+            return
+        out = []
+        for b in bundles:
+            out.append(tuple(tuple(int(x) for x in op) for op in (b or ())))
+        self.extra_bundles = out
+
+    def _collect_extras(self, extra_bundles, existing) -> list:
+        """把调用方给的额外候选规整成 bundle 元组列表：**去重**（与已有候选、与彼此）+ 丢畸形项。
+
+        去重的意义：重复候选会白烧一份 rollout 预算，而且 `argmax` 在多份相同分数上
+        是任意取的（`np.argmax` 取第一个，其实还好），但预算浪费是真的。
+        """
+        if not extra_bundles:
+            return []
+        seen = {tuple(tuple(int(x) for x in op) for op in (b or ())) for b in existing}
+        out = []
+        for b in extra_bundles:
+            # 容错：允许直接传一个 op 三元组（= 单 op 候选）
+            if isinstance(b, (list, tuple)) and len(b) == 3 and all(isinstance(x, (int, np.integer))
+                                                                  for x in b):
+                b = (b,)
+            try:
+                key = tuple(tuple(int(x) for x in op) for op in (b or ()))
+            except (TypeError, ValueError):
+                continue
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+        return out
+
     # ── 主搜索 ──────────────────────────────────────────────────────────────
-    def search(self, state, player: int, *, temperature: float = 0.0) -> BundleSearchResult:
+    def search(self, state, player: int, *, temperature: float = 0.0,
+               extra_bundles=None) -> BundleSearchResult:
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType
 
@@ -295,6 +344,14 @@ class FlatRolloutGreedy(BundleMCTS):
         self._decision_idx = int(getattr(self, "_decision_idx", 0)) + 1
         self._expand(root, self.k)                 # ← 每决策唯一一次 net_fn（含根节点的 MC 类仲裁）
         bundles = list(root.bundles)
+        n_net = len(bundles)                      # 网络候选数（注入前的边界；命中判定用它）
+        # ── 额外候选注入（默认关；`None`/空 ⇒ 下面一行也不执行）────────────────────
+        #   追加在**末尾**：既有候选的下标/展开顺序/`_leaf_values` 批组成都不变
+        #   ⇒ 不开注入时数值路径与改动前一致；开了也只有"末尾多几个候选"这一个变化。
+        _extras_in = self.extra_bundles if extra_bundles is None else extra_bundles
+        _extras = self._collect_extras(_extras_in, bundles)
+        bundles.extend(_extras)
+        self.last_extra = len(_extras)
         if not bundles:
             self.last_scores = np.zeros(0)
             self.last_rollouts = 0
@@ -304,7 +361,9 @@ class FlatRolloutGreedy(BundleMCTS):
                                       root_value=float(root.net_value), intent_counts=[])
 
         _t_after_expand = _time.perf_counter()
-        priors = np.asarray([c.prior for c in root.children], dtype=np.float64)
+        # priors 只用于「全 NaN / 全相等」的退化回退；额外候选没有网络先验 ⇒ 补 `extra_prior`。
+        priors = np.asarray([c.prior for c in root.children] + [self.extra_prior] * self.last_extra,
+                            dtype=np.float64)
 
         # 2026-10-23：随机出招 rollout 的上下文（**只在这里算一次**，rollout 内复用）
         _rctx = None
@@ -393,11 +452,16 @@ class FlatRolloutGreedy(BundleMCTS):
 
         policy = np.zeros(n_cand, dtype=np.float32)
         policy[best] = 1.0
+        self.last_chosen_is_extra = bool(best >= n_net)
+        _ic = list(root.intent_counts)
+        if self.last_extra:
+            # 长度必须与 `bundles` 对齐（额外候选没有网络 intent 计数 ⇒ 补空字典）
+            _ic = _ic + [[dict(), dict(), dict()] for _ in range(self.last_extra)]
         return BundleSearchResult(
             bundles=bundles,
             visit_policy=policy,
             chosen_index=best,
             chosen_bundle=bundles[best],
             root_value=float(scores[best]),
-            intent_counts=list(root.intent_counts),
+            intent_counts=_ic,
         )
