@@ -1,6 +1,9 @@
 *.pyd
 *.dll
+*.exe
 output/
 *.o
 *.d
 mini_replay.txt
+# 排查用的临时编译产物（官方判题器 main.exe 副本 + 拷进来的 MinGW DLL）
+build_probe/
