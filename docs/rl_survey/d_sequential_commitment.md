@@ -1,230 +1,389 @@
-﻿# D. 鍏堟墜鎵胯 / 鍚庢墜鍥炲簲锛氬簭鍒楀崥寮堟枃鐚皟鐮?
-> 鐩殑锛氫负 Ant-Game锛堝叚杈瑰舰缃戞牸濉旈槻瀵规姉锛夐噷"鍚屼竴濂?AI 鍧?P1 鑳滅巼 72%銆佸潗 P0 鑳滅巼 25%"杩欎竴鐜拌薄鎵?*姝ｇ‘鐨勫缓妯¤瑷€**涓?*鍙惤鍦扮殑鏀规硶**銆?> 绾︽潫锛氬彧鍋氳皟鐮旓紝涓嶅啓浜у搧浠ｇ爜锛涙墍鏈夌粨璁洪檮閾炬帴锛?*璇佹嵁鍒嗙骇**鏍囧湪姣忔潯鍚庨潰銆?> 璇佹嵁鍒嗙骇璇存槑锛?> - **銆愭鏂囥€?* = 鎴戣鍒颁簡璁烘枃/鏂囨。姝ｆ枃锛圚TML 鍏ㄦ枃鎴栨娊鍙栫殑椤甸潰鏂囨湰锛夛紱
-> - **銆愪粎鎽樿/鍏冩暟鎹€?* = 鍙鍒版爣棰樸€佹憳瑕佹垨 DOI/Crossref 鍏冩暟鎹紝姝ｆ枃鏈锛?> - **銆愪簩鎵嬨€?* = 鍙粠鍒殑鏉愭枡杞堪寰楃煡锛屾湭鐩存帴鏍稿埌鍘熸枃锛?> - **銆愰」鐩唴銆?* = 鏈粨搴撳巻鍙插疄楠屾暟鎹紙闄勬枃浠?琛岋級銆?
+# D. 先手承诺 / 后手回应：序列博弈文献调研
+
+> 目的：为 Ant-Game（六边形网格塔防对抗）里"同一套 AI 坐 P1 胜率 72%、坐 P0 胜率 25%"这一现象找**正确的建模语言**与**可落地的改法**。
+> 约束：只做调研，不写产品代码；所有结论附链接；**证据分级**标在每条后面。
+> 证据分级说明：
+> - **【正文】** = 我读到了论文/文档正文（PDF 抽文本、HTML 全文或页面抽取）；
+> - **【仅摘要/元数据】** = 只读到标题、摘要或 DOI/Crossref 元数据，正文未读；
+> - **【二手】** = 只从别的材料转述得知，未直接核到原文；
+> - **【项目内】** = 本仓库历史实验数据（附文件:行）。
+
 ---
 
-## 0. 鍏堟妸褰㈠紡鍖栧啓瀵癸紙闂 1 鐨勬牳蹇冿級
+## 0. 先把形式化写对（问题 1 的核心）
 
-### 0.1 杩欏眬鍒板簳鏄粈涔堝崥寮?
-涓€鍥炲悎鐨勫崗璁紙`Ant-Game/README.md:359-364`銆乣README.md:292-298` 鐨勮儨璐熷垽瀹氶摼锛夋槸锛?
-```
-鍥炲悎 t锛?  1) P0 鎻愪氦鎿嶄綔鍒楄〃 a0        锛圥0 涓嶇煡閬?P1 鏈洖鍚堜細鍋氫粈涔堬級
-  2) 骞冲彴楠岃瘉骞舵墽琛?a0锛屾妸 a0 杞彂缁?P1
-  3) P1 瑙傛祴鍒?(灞€闈?s_t, a0) 鍚庢彁浜?a1
-  4) 骞冲彴鎵ц a1锛屽弻鏂规搷浣滄寜搴忓簲鐢紝鐒跺悗鏁村洖鍚堢粨绠?鈫?s_{t+1}
-```
+### 0.1 这局到底是什么博弈
 
-鍐欐垚鎵╁睍寮忓崥寮堬細
+一回合的协议（`Ant-Game/README.md:359-364`、`Ant-Game/README.md:292-298` 的胜负判定链）是：
 
 ```
-G = 鉄∟={0,1}, H, Z, A, P, u鉄?- 鐘舵€?s_t 鈭?S锛屽鍙屾柟**瀹屽叏鍙**锛堟病鏈夐殣钘忎俊鎭?鏆楃墝锛?- P0 鐨勪俊鎭泦 I0(s) 鏄崟鐐癸紱P1 鐨勪俊鎭泦 I1(s, a0) 涔熸槸鍗曠偣
-- 纭畾鎬ц浆绉?s_{t+1} = f(s_t, a0, a1)锛堝紩鎿庣粨绠楋紝鍚殢鏈轰絾鐢?seed 鍐冲畾锛?- 缁堝眬 z锛歶_0(z) 鈭?{+1, 0, 鈭?}锛岀瓑琛€鏃舵寜瀛楀吀搴忚鍐?      琛€ 鈫?鍑绘潃鏁?鈫?瓒呯骇姝﹀櫒浣跨敤娆℃暟 鈫?AI 鐢ㄦ椂 鈫?鍏堟墜(P0)鑳?```
-
-**鍏抽敭鍒ゆ柇锛氭墍鏈変俊鎭泦閮芥槸鍗曠偣 鈬?杩欐槸涓€涓?瀹屽叏淇℃伅鎵╁睍寮忓崥寮?锛坧erfect-information extensive-form game锛夛紝涓嶆槸涓嶅畬鍏ㄤ俊鎭崥寮堛€?* 鎵€浠ワ細
-
-- 瑙ｆ蹇垫槸 **瀛愬崥寮堝畬缇庡潎琛★紙SPE锛?*锛屼笉鏄?CFR 鏀舵暃鍒扮殑 Nash"锛?- 绠楁硶鏄?*閫嗗悜褰掔撼 = min-max 鎼滅储**锛?- 姣忓洖鍚堢殑鍧囪　鏉′欢鏄?
-```
-V(s_t) = max_{a0 鈭?A0(s)} min_{a1 鈭?A1(s,a0)} V(s_{t+1})        锛圥0 瑙嗚锛汸1 鑺傜偣鍙?min锛?P0 鐨勫潎琛￠鐫€ a0* = argmax_{a0} min_{a1} V( f(s,a0,a1) )
+回合 t：
+  1) P0 提交操作列表 a0        （P0 不知道 P1 本回合会做什么）
+  2) 平台验证并执行 a0，把 a0 转发给 P1
+  3) P1 观测到 (局面 s_t, a0) 后提交 a1
+  4) 平台执行 a1，双方操作按序应用，然后整回合结算 → s_{t+1}
 ```
 
-杩欏氨鏄綘璇寸殑"**鎴戜滑涓€姝?+ 瀵规墜涓€姝?*"鐨勫弻灞傛悳绱⑩€斺€斿畠涓嶆槸鍚彂寮忥紝瀹冨氨鏄?SPE 鐨勪竴姝ラ€嗗悜褰掔撼銆?*鎴戜滑鐜板湪" rollout 閲屽鎵?idle 鎴栨寜鍥哄畾姒傜巼闅忔満鍔ㄤ綔"锛屾暟瀛︿笂绛変簬鎶?min 灞傛崲鎴愪簡涓€涓浐瀹氱瓥鐣ワ紝鍗宠В鐨勪笉鏄?SPE锛岃€屾槸"鍗曚汉瑙勫垝闂 + 涓€涓亣瀵规墜妯″瀷"銆?*
+写成扩展式博弈：
 
-鍙傝€冿紙瀹氫箟灞傞潰锛夛細
-- 瀛愬崥寮堝畬缇庡潎琛＄殑瀹氫箟涓?鍦ㄦ瘡涓瓙鍗氬紙閲岄兘鏄?NE銆佽姹傚簭璐悊鎬?锛氥€愭鏂囥€?https://plato.stanford.edu/entries/game-theory/>锛圫EP, *Game Theory*锛屄? 闄勮繎锛夛紱銆愭鏂囥€?https://en.wikipedia.org/wiki/Subgame_perfect_equilibrium>
-- 瀹屽叏淇℃伅鏈夐檺鍗氬紙蹇呮湁鍊笺€丼PE 瀛樺湪锛圸ermelo 1913 / Kuhn 1953 / Selten 1965 杩欐潯绾匡級锛氥€愭鏂囥€戝悓涓?SEP 鏉＄洰
+```
+G = ⟨N={0,1}, H, Z, A, P, u⟩
+- 状态 s_t ∈ S，对双方**完全可见**（没有隐藏信息/暗牌）
+- P0 的信息集 I0(s) 是单点；P1 的信息集 I1(s, a0) 也是单点
+- 确定性转移 s_{t+1} = f(s_t, a0, a1)（引擎结算；含随机但由 seed 决定）
+- 终局 z：u_0(z) ∈ {+1, 0, −1}，等血时按字典序裁决
+      血 → 击杀数 → 超级武器使用次数 → AI 用时 → 先手(P0)胜
+```
 
-### 0.2 閭?Stackelberg / 鎵胯鍗氬紙"杩欎竴濂楁€庝箞瀵瑰簲锛?
-**鍏堢粰鏍囧噯瀹氫箟锛堣鍒扮殑鍘熻瘽锛夈€?* arXiv:2111.02111 鎽樿 + 寮曡█锛?
+**关键判断：所有信息集都是单点 ⇒ 这是一个"完全信息扩展式博弈"（perfect-information extensive-form game），不是不完全信息博弈。** 所以：
+
+- 解概念是 **子博弈完美均衡（SPE）**，不是"CFR 收敛到的 Nash"；
+- 算法是**逆向归纳 = min-max 搜索**；
+- 每回合的均衡条件是
+
+```
+V(s_t) = max_{a0 ∈ A0(s)} min_{a1 ∈ A1(s,a0)} V(s_{t+1})        （P0 视角；P1 节点取 min）
+P0 的均衡首着 a0* = argmax_{a0} min_{a1} V( f(s,a0,a1) )
+```
+
+这就是你说的"**我们一步 + 对手一步**"的双层搜索——它不是启发式，它就是 SPE 的一步逆向归纳。**我们现在"rollout 里对手 idle 或按固定概率随机动作"，数学上等于把 min 层换成了一个固定策略，即解的不是 SPE，而是"单人规划问题 + 一个假对手模型"。**
+
+参考（定义层面）：
+- 子博弈完美均衡的定义与"在每个子博弈里都是 NE、要求序贯理性"：【正文】<https://plato.stanford.edu/entries/game-theory/>（SEP, *Game Theory*）；【正文】<https://en.wikipedia.org/wiki/Subgame_perfect_equilibrium>
+- 完全信息有限博弈必有值、SPE 存在（Zermelo 1913 / Kuhn 1953 / Selten 1965 这条线）：【正文】同上 SEP 条目
+
+### 0.2 那"Stackelberg / 承诺博弈"这一套怎么对应？
+
+**先给标准定义（读到的原话）。** arXiv:2111.02111 摘要 + 引言：
+
 > "Stackelberg equilibrium is a solution concept that describes optimal strategies to commit: Player 1 (the leader) first commits to a strategy that is publicly announced, then Player 2 (the follower) plays a best response to the leader's commitment."
 > "In this setting, the leader commits to a **randomized strategy in each possible decision point** that can arise in the game and the follower plays a best response to this commitment."
-> 鈥斺€?銆愭鏂囥€?https://arxiv.org/abs/2111.02111>锛?Computing Stackelberg Equilibrium with Memory in Sequential Games*锛?
-杩欐璇濋噷鏈変袱涓鏄撴紡鎺夈€佷絾瀵规垜浠嚦鍏抽噸瑕佺殑鐐癸細
+> —— 【正文】<https://arxiv.org/abs/2111.02111>（*Computing Stackelberg Equilibrium with Memory in Sequential Games*）
 
-**(a) 鏍囧噯 SE 閲?leader 鎵胯鐨勬槸"瀹屾暣銆佸叕寮€瀹ｅ竷鐨勭瓥鐣?锛屼笉鏄?涓€鎵?銆?* 涔熷氨鏄 leader 鎵胯鐨勬槸"鍦ㄦ瘡涓彲鑳藉埌杈剧殑鍐崇瓥鐐规垜浼氭€庝箞鍔?鐨勬暣寮犺〃锛堝彲闅忔満鍖栵級銆俧ollower 鏄**杩欏紶琛?*鍋氭渶浣冲洖搴斻€?鎴戜滑 P0 **娌℃湁鎵胯瑁呯疆**锛氬畠姣忓洖鍚堝彧瀹ｅ竷鏈洖鍚堢殑鎿嶄綔锛屼笅涓€鍥炲悎鍙互瀹屽叏鍙嶆倲銆傛墍浠ヤ弗鏍艰锛?
-> **鎴戜滑鐨勫崥寮堜笉鏄?Stackelberg 鍗氬紙锛岃€屾槸"瀹屽叏淇℃伅搴忓垪鍗氬紙 + 鏃犳壙璇鸿兘鍔?鐨勫崥寮堛€?* 瀹冪殑瑙ｆ槸 SPE锛堥€嗗悜褰掔撼锛夛紝涓嶆槸 SE銆?
-杩欎竴鐐瑰湪鏂囩尞閲屼篃鏈夊搴旇娉曪細SE 浼氭寚瀹?*涓嶅彲淇★紙off-equilibrium-path锛?*鐨勬壙璇猴紝鎵€浠ラ渶瑕侀澶栫殑 refinement锛坬uasi-perfect SE锛夆€斺€?> "Akin to usual extensive-form game refinements, Stackelberg equilibrium (SE) refinements should guarantee both the optimality of the commitment off the equilibrium path and some form of robustness against small trembles of the opponent."
-> 鈥斺€?銆愭鏂囥€?https://arxiv.org/abs/1811.03871>锛?Quasi-Perfect Stackelberg Equilibrium*锛?
-杩欏憡璇夋垜浠竴浠跺弽鐩磋鐨勪簨锛?*"P0 鍏堝嚭鎷?骞朵笉鑷姩绛変簬"P0 鏈夋壙璇轰紭鍔?**銆傛壙璇轰紭鍔挎潵鑷?鎴戣兘鎶婅嚜宸辩粦浣忋€佽€屼笖浣犵浉淇℃垜缁戜綇浜?銆傛垜浠棦娌℃湁缁戝畾瑁呯疆锛孭1 涔熺煡閬撴垜浠笅涓€鍥炲悎鑳藉弽鎮斺€斺€旀墍浠?P0 鍦ㄧ悊璁轰笂涓嶅悆鎵胯绾㈠埄锛屽彧鎵挎媴"鍏堟毚闇?鐨勬垚鏈€傦紙杩欎笌娓告垙閲?HOLD 鐨勫澧冧竴鑷达細HOLD 鏄敮涓€"涓嶆柊澧炰竴涓彲琚拡瀵规€у弽鍒剁殑鍏蜂綋鎵胯"鐨勫姩浣溿€傦級
+这段话里有两个容易漏掉、但对我们至关重要的点：
 
-**(b) 娣峰悎绛栫暐鐨勪环鍊硷紝鎭版伆渚濊禆"follower 鍥炲簲鐨勬槸鍒嗗竷"銆?* 鏍囧噯妯″瀷閲?follower 鏄 leader 瀹ｅ竷鐨?*闅忔満鍖栫瓥鐣?*鍋氭渶浣冲洖搴旓紱鑰屾垜浠殑 P1 鐪嬪埌鐨勬槸**瀹炵幇鍊?*锛圥0 杩欎竴鎵嬪疄闄呭嚭浜嗕粈涔堬級銆傝繖涓よ€呯殑宸埆鏄喅瀹氭€х殑锛?
+**(a) 标准 SE 里 leader 承诺的是"完整、公开宣布的策略"，不是"一手"。** 也就是说 leader 承诺的是"在每个可能到达的决策点我会怎么动"的整张表（可随机化）。follower 是对**这张表**做最佳回应。
+我们 P0 **没有承诺装置**：它每回合只宣布本回合的操作，下一回合可以完全反悔。所以严格讲：
+
+> **我们的博弈不是 Stackelberg 博弈，而是"完全信息序列博弈 + 无承诺能力"的博弈。** 它的解是 SPE（逆向归纳），不是 SE。
+
+这一点在文献里也有对应说法：SE 会指定**不可信（off-equilibrium-path）**的承诺，所以需要额外的 refinement（quasi-perfect SE）——
+
+> "Akin to usual extensive-form game refinements, Stackelberg equilibrium (SE) refinements should guarantee both the optimality of the commitment off the equilibrium path and some form of robustness against small trembles of the opponent."
+> —— 【正文】<https://arxiv.org/abs/1811.03871>（*Quasi-Perfect Stackelberg Equilibrium*）
+
+这告诉我们一件反直觉的事：**"P0 先出招"并不自动等于"P0 有承诺优势"**。承诺优势来自"我能把自己绑住、而且你相信我绑住了"。我们既没有绑定装置，P1 也知道我们下一回合能反悔——所以 P0 在理论上不吃承诺红利，只承担"先暴露"的成本。（这与游戏里 HOLD 的处境一致：HOLD 是唯一"不新增一个可被针对性反制的具体承诺"的动作。）
+
+**(b) 混合策略的价值，恰恰依赖"follower 回应的是分布"。** 标准模型里 follower 是对 leader 宣布的**随机化策略**做最佳回应；而我们的 P1 看到的是**实现值**（P0 这一手实际出了什么）。这两者的差别是决定性的：
+
 ```
-鑻?P1 鍥炲簲"鍒嗗竷 蟽"锛? leader 鏀剁泭 = max_蟽 min_{a1} E_{a0~蟽}[ V(a0,a1) ]     鈫?娣峰悎鍙兘 > 绾姩浣?鑻?P1 鍥炲簲"瀹炵幇鍊?a0"锛歭eader 鏀剁泭 = max_蟽 E_{a0~蟽}[ min_{a1} V(a0,a1) ]
-                                  鈮?max_{a0} min_{a1} V(a0,a1)            鈫?娣峰悎蹇呯劧 鈮?鏈€濂界殑绾姩浣?```
+若 P1 回应"分布 σ"：  leader 收益 = max_σ min_{a1} E_{a0~σ}[ V(a0,a1) ]     ← 混合可能 > 纯动作
+若 P1 回应"实现值 a0"：leader 收益 = max_σ E_{a0~σ}[ min_{a1} V(a0,a1) ]
+                                  ≤ max_{a0} min_{a1} V(a0,a1)            ← 混合必然 ≤ 最好的纯动作
+```
 
-绗簩琛屾槸涓嶇瓑寮忥紙涓嶆槸绛夊紡锛夛細瀵逛换鎰忔贩鍚?蟽锛岃姹傛湡鏈涚殑姣忎竴椤?`min_{a1} V(a0,a1)` 閮戒笉瓒呰繃 `max_{a0} min_{a1} V(a0,a1)`锛屾墍浠ユ湡鏈涗篃涓嶈秴杩囧畠銆?*缁撹锛氬湪鎴戜滑鐨勫崗璁笅锛孭0 鐨勯殢鏈哄寲鍦ㄧ悊璁轰笂寮卞姡鍔匡紙weakly dominated锛夛紱瀹冨彧鑳界敤鏉?鎵撲笉瀹岀編鐨勫鎵?锛堝埄鐢?P1 鎼滅储鐨勭洸鐐广€佹垨璁?P1 鐨勮法鍥炲悎妯″紡璇嗗埆澶辩伒锛夛紝涓嶈兘褰撴満鍒舵€цВ鑽€?* 杩欎竴鐐圭洿鎺ュ洖绛斾簡浣犵殑绗?3 涓€欓€夋柟妗堛€?
-### 0.2 琛ュ厖锛氭垜璇诲埌鐨勫師鏂囷紙PDF 鎶芥枃鏈紝**宸茶姝ｆ枃**锛?
-Conitzer & Sandholm, *Computing the Optimal Strategy to Commit To*锛圗C'06锛夛紝PDF锛?https://users.cs.duke.edu/~conitzer/commitEC06.pdf>銆愭鏂囥€戙€備簲娈靛師鏂囷紙寮曞彿鍐呬负璁烘枃鍘熻瘽锛孭DF 鎶芥枃鏈悗鍙兘鏈変釜鍒瓧绗﹁鏇挎崲锛夛細
+第二行是不等式（不是等式）：对任意混合 σ，被求期望的每一项 `min_{a1} V(a0,a1)` 都不超过 `max_{a0} min_{a1} V(a0,a1)`，所以期望也不超过它。**结论：在我们的协议下，P0 的随机化在理论上弱劣势（weakly dominated）；它只能用来"打不完美的对手"（利用 P1 搜索的盲点、或让 P1 的跨回合模式识别失灵），不能当机制性解药。** 这一点直接回答了你的第 3 个候选方案。
+
+### 0.2 补充：我读到的原文（PDF 抽文本，**已读正文**）
+
+Conitzer & Sandholm, *Computing the Optimal Strategy to Commit To*（EC'06），PDF：<https://users.cs.duke.edu/~conitzer/commitEC06.pdf>【正文】。五段原文（引号内为论文原话；PDF 抽文本后可能有个别字符被替换）：
 
 1. > "In many settings, one player is able to commit to a strategy before the other player makes a decision. Such models are synonymously referred to as **leadership, commitment, or Stackelberg models**..."
-   鈥斺€?涓変釜璇嶆槸鍚屼竴浠朵簨锛屽埆褰撴垚涓夌涓嶅悓妗嗘灦銆?
-2. > "In general, if commitment to mixed strategies is possible, then (under minor assumptions) **it never hurts, and often helps, to commit to a strategy**. **Being forced to commit to a pure strategy sometimes helps, and sometimes hurts**锛堜緥濡傚湪鐭冲ご鍓垁甯冮噷琚己鍒跺厛鎵胯涓€涓函鍔ㄤ綔锛?
-   鈥斺€?杩欏氨鏄?娣峰悎鎵胯鏈夌敤"鐨勫嚭澶勩€?*浣嗘敞鎰忓畠鐨勫墠鎻愭槸"鑳芥壙璇烘贩鍚?**锛屼笉鏄?鑳芥壙璇虹函鍔ㄤ綔鍗村伔鍋烽殢鏈?銆?
+   —— 三个词是同一件事，别当成三种不同框架。
+
+2. > "In general, if commitment to mixed strategies is possible, then (under minor assumptions) **it never hurts, and often helps, to commit to a strategy**. **Being forced to commit to a pure strategy sometimes helps, and sometimes hurts**（例如在石头剪刀布里被强制先承诺一个纯动作）"
+   —— 这就是"混合承诺有用"的出处。**但注意它的前提是"能承诺混合"**，不是"能承诺纯动作却偷偷随机"。
+
 3. > "Once the code for an agent ... is finalized and the agent is deployed, the agent is committed to playing the (**possibly randomized**) strategy that the code prescribes."
-   鈥斺€?璁烘枃鎶?鎵胯"鐞嗚В涓?*閮ㄧ讲涓€涓▼搴?*锛氬鎵嬮潰瀵圭殑鏄?*绋嬪簭锛堝垎甯冿級**锛岃€屼笉鏄煇涓€娆＄殑鎶界缁撴灉銆?*杩欐鏄垜浠拰鏍囧噯妯″瀷鐨勫垎姝х偣**锛氭垜浠殑 P1 鐪嬪埌鐨勬槸 P0 杩欎竴鎵?*瀹為檯鍑轰簡浠€涔?*锛堝疄鐜板€硷級锛屼笉鏄?P0 鐨勫垎甯冦€傛墍浠ョ 2 鏉￠偅鍗婂彞"never hurts"涓嶉€傜敤浜庢垜浠紙瑙?搂0.2(b) 鐨勪笉绛夊紡锛夈€?
+   —— 论文把"承诺"理解为**部署一个程序**：对手面对的是**程序（分布）**，而不是某一次的抽签结果。**这正是我们和标准模型的分歧点**：我们的 P1 看到的是 P0 这一手**实际出了什么**（实现值），不是 P0 的分布。所以第 2 条那半句"never hurts"不适用于我们（见 §0.2(b) 的不等式）。
+
 4. > "...the follower (**who breaks ties to maximize the leader's utility**)..."
-   鈥斺€?杩欐槸 **SSE锛圫trong Stackelberg Equilibrium锛?* 鐨勬爣鍑?tie-breaking 鍋囪锛歠ollower 鍦ㄥ悓浼樺洖搴旈噷鎸戝 leader 鏈€鏈夊埄鐨勩€傜幇瀹為噷鎴戜滑鐨?P1 浼氭寫瀵?P0 **鏈€涓嶅埄**鐨勶紙鍗?WSE 閭ｄ竴渚э級锛屾墍浠ユ垜浠仛椴佹鎵撳垎鏃跺簲璇ユ寜 **WSE** 鍋囪銆?
-5. > "锛團or generic two-player games, the leader's subgame-perfect equilibrium payoff is unique.锛?
-   鈥斺€?璁烘枃椤哄甫鎵胯浜嗘壙璇烘ā鍨嬩笌 **SPE** 鐨勫叧绯伙細leader 鐨?鎵胯鏀剁泭"鍜?SPE 鏀剁泭"鍦ㄤ竴鑸袱浜哄崥寮堥噷鏄寰椾笂鐨勶紙闄ら€€鍖栨儏褰級銆傝繖鍙ヨ瘽鏀寔鎴戜滑鐨勫垽鏂細**鍦ㄦ病鏈夐澶栨壙璇鸿缃椂锛孭0 鐨勫潎琛″氨鏄?SPE锛岃€屼笉鏄煇绉?鏇村己鐨?SE"銆?*
+   —— 这是 **SSE（Strong Stackelberg Equilibrium）** 的标准 tie-breaking 假设：follower 在同优回应里挑对 leader 最有利的。现实里我们的 P1 会挑对 P0 **最不利**的（即 WSE 那一侧），所以我们做鲁棒打分时应该按 **WSE** 假设。
 
-鍙傝€冿紙SE / SSE / 娣峰悎鎵胯 / 绾?vs 娣峰悎锛夛細
-- Conitzer & Sandholm, *Computing the optimal strategy to commit to*锛圗C'06锛夛細DOI <https://doi.org/10.1145/1134707.1134717>銆愭鏂囧凡璇伙紝鐢ㄤ綔鑰呬富椤?PDF锛?https://users.cs.duke.edu/~conitzer/commitEC06.pdf>锛汚CM 绔欑偣鏈韩 403銆?- Letchford & Conitzer, *Computing optimal strategies to commit to in extensive-form games*锛欴OI <https://doi.org/10.1145/1807342.1807354>銆愪粎鎽樿/鍏冩暟鎹€?- Letchford, Conitzer, Munagala, *Learning and approximating optimal strategies to commit to*锛堣绋嬮〉 PDF锛屽彲涓嬭浇锛夛細<https://courses.cs.duke.edu/fall18/cps296.2/commitment_full.pdf>銆愪粎纭鍙闂紝PDF 姝ｆ枃鏈娊銆?- von Stengel & Zamir, *Leadership games with convex strategy sets*锛圫SE/WSE 鐨勭粡鍏稿嚭澶勪箣涓€锛夛細DOI <https://doi.org/10.1016/j.geb.2009.11.008>銆愪粎鎽樿/鍏冩暟鎹€?- Sinha, Fang, An, Kiekintveld, Tambe, *Stackelberg Security Games: Looking Beyond a Decade of Success*锛圛JCAI'18 缁艰堪锛孲SE/WSE 涓?鎵胯娣峰悎绛栫暐"鐨勬爣鍑嗗啓娉曪級锛欴OI <https://doi.org/10.24963/ijcai.2018/775>銆愭鏂囪惤鍦伴〉鍙銆戯紝PDF锛?https://www3.ntu.edu.sg/home/boan/papers/IJCAI18_SG_review.pdf>銆愪粎纭 PDF 瀛樺湪锛屾湭鎶芥鏂囥€?- *Sequential commitment games*锛圙EB 2017锛夛細DOI <https://doi.org/10.1016/j.geb.2017.08.009>銆愪粎鍏冩暟鎹紝**鏈姝ｆ枃锛屼笉鏁㈠紩鐢ㄥ叾缁撹**銆?
-### 0.3 涓€鍙ヨ瘽鎬荤粨褰㈠紡鍖?
-| 闂 | 閿欒绛旀锛堝父瑙佺殑锛?| 姝ｇ‘绛旀锛堟湰灞€锛?|
+5. > "（For generic two-player games, the leader's subgame-perfect equilibrium payoff is unique.）"
+   —— 论文顺带承认了承诺模型与 **SPE** 的关系：leader 的"承诺收益"和"SPE 收益"在一般两人博弈里是对得上的（除退化情形）。这句话支持我们的判断：**在没有额外承诺装置时，P0 的均衡就是 SPE，而不是某种"更强的 SE"。**
+
+参考（SE / SSE / 混合承诺 / 纯 vs 混合）：
+- Conitzer & Sandholm, *Computing the optimal strategy to commit to*（EC'06）：DOI <https://doi.org/10.1145/1134707.1134717>【正文已读，用作者主页 PDF：<https://users.cs.duke.edu/~conitzer/commitEC06.pdf>；ACM 站点本身 403】
+- Letchford & Conitzer, *Computing optimal strategies to commit to in extensive-form games*：DOI <https://doi.org/10.1145/1807342.1807354>【仅摘要/元数据】
+- Letchford, Conitzer, Munagala, *Learning and approximating optimal strategies to commit to*（课程页 PDF，可下载）：<https://courses.cs.duke.edu/fall18/cps296.2/commitment_full.pdf>【仅确认可访问，PDF 正文未抽】
+- von Stengel & Zamir, *Leadership games with convex strategy sets*（SSE/WSE 的经典出处之一）：DOI <https://doi.org/10.1016/j.geb.2009.11.008>【仅摘要/元数据】
+- Sinha, Fang, An, Kiekintveld, Tambe, *Stackelberg Security Games: Looking Beyond a Decade of Success*（IJCAI'18 综述，SSE/WSE 与"承诺混合策略"的标准写法）：DOI <https://doi.org/10.24963/ijcai.2018/775>【落地页可读】，PDF：<https://www3.ntu.edu.sg/home/boan/papers/IJCAI18_SG_review.pdf>【仅确认 PDF 存在，未抽正文】
+- *Sequential commitment games*（GEB 2017）：DOI <https://doi.org/10.1016/j.geb.2017.08.009>【仅元数据，**未读正文，故全文未引用其任何结论**】
+
+### 0.3 一句话总结形式化
+
+| 问题 | 错误答案（常见的） | 正确答案（本局） |
 |---|---|---|
-| 鍗氬紙绫诲瀷 | 涓嶅畬鍏ㄤ俊鎭崥寮堬紙鎵€浠ヤ笂 CFR锛?| **瀹屽叏淇℃伅鎵╁睍寮忓崥寮?*锛堜俊鎭泦鍏ㄦ槸鍗曠偣锛?|
-| 瑙ｆ蹇?| Nash / CFR 鐨勫钩鍧囩瓥鐣?| **SPE锛? 閫嗗悜褰掔撼鐨勭粨鏋滐級** |
-| P0 鐨勮鑹?| Stackelberg leader锛堟湁鎵胯鍔涳級 | **鍏堟墜鏂癸紝浣嗘棤鎵胯瑁呯疆** 鈫?鍙槸"鍏堝姩鐨勪竴姝? |
-| 鍧囪　涓?P0 璇ュ仛浠€涔?| 娣峰悎绛栫暐 | **`argmax_{a0} min_{a1} V`锛堢函鍔ㄤ綔 + 鏈€鍧忓洖搴旓級**锛屾贩鍚堝彧浣?exploit 鐢?|
-| 鎴戜滑 rollout 閲岀殑瀵规墜 | "瀵规墜浼?idle / 闅忔満" | 杩欐槸**鍥哄畾瀵规墜妯″瀷**锛岃В鐨勪笉鏄?SPE |
+| 博弈类型 | 不完全信息博弈（所以上 CFR） | **完全信息扩展式博弈**（信息集全是单点） |
+| 解概念 | Nash / CFR 的平均策略 | **SPE（= 逆向归纳的结果）** |
+| P0 的角色 | Stackelberg leader（有承诺力） | **先手方，但无承诺装置** → 只是"先动的一步" |
+| 均衡下 P0 该做什么 | 混合策略 | **`argmax_{a0} min_{a1} V`（纯动作 + 最坏回应）**，混合只作 exploit 用 |
+| 我们 rollout 里的对手 | "对手会 idle / 随机" | 这是**固定对手模型**，解的不是 SPE |
 
 ---
 
-## 1. 缁撹鎽樿锛? 鏉★級
+## 1. 结论摘要（5 条）
 
-1. **寤烘ā锛氬埆鐢?CFR 鐨勮瑷€锛岀敤"瀹屽叏淇℃伅搴忓垪鍗氬紙 + SPE/閫嗗悜褰掔撼"鐨勮瑷€銆?* 灞€闈㈠叏鍙 鈬?淇℃伅闆嗗叏鏄崟鐐?鈬?鍧囪　鏄?SPE锛涙瘡鍥炲悎 P0 鐨勬渶浼橀鐫€灏辨槸 `argmax_{a0} min_{a1} V(s,a0,a1)`锛屼篃灏辨槸浣犱滑宸茬粡鍦ㄨ€冭檻鐨勫弻灞傛悳绱€備吉 Stackelberg 鐨勮娉曡灏忓績锛氭爣鍑?SE 瑕佹眰 leader 鍏紑鎵胯**涓€鏁村紶锛堝彲闅忔満鍖栫殑锛夌瓥鐣ヨ〃**锛堛€愭鏂囥€慳rXiv:2111.02111锛夛紝鎴戜滑 P0 鍙兘鎵胯"杩欎竴鎵?锛屾墍浠ヤ弗鏍艰鎴戜滑**娌℃湁鎵胯绾㈠埄锛屽彧鏈?鍏堟毚闇?鐨勬垚鏈?*銆?
-2. **P0 蹇呴』寤烘ā P1 鐨勫洖搴旓紝鑰屼笖杩欐槸鍞竴鏈夌悊璁轰繚璇佺殑鏀规硶銆?* 鐜板湪 rollout 閲?瀵规墜 idle / 鍥哄畾姒傜巼闅忔満"绛変簬鎶?min 灞傛崲鎴愬浐瀹氱瓥鐣ワ紝浼樺寲鐨勬槸涓€涓?*鍋囧鎵?*銆傛敼鎴?瀵规瘡涓€欓€?a0锛屽彇 P1 鐨勫墠 k 涓€欓€夊洖搴旓紝鐢ㄥ€肩綉/鐭?rollout 鎵撳垎锛屽啀鍙?min锛堟垨娓╁害鍖?softmin锛?鈥斺€旇繖灏辨槸 SPE 鐨勪竴姝ラ€嗗悜褰掔撼锛屼篃鏄渶鐪佺殑鍋氭硶锛堥绠楁牳绠楄 搂3.2锛?0 绉掑唴鍙锛夈€?
-3. **"P0 搴旇鐢ㄦ贩鍚堢瓥鐣?杩欐潯瑕佹挙鍥烇紝鑷冲皯涓嶈兘褰撴満鍒惰В鑽€?* 閭ｆ潯缁撹锛圕onitzer鈥揝andholm 涓€绯伙級鎴愮珛鐨勫墠鎻愭槸 **follower 鍙兘瀵瑰垎甯冨仛鏈€浣冲洖搴?*鈥斺€斿師鏂囪嚜宸辨妸"鎵胯"绫绘瘮鎴?**閮ㄧ讲涓€涓▼搴?*锛屽鎵嬮潰瀵圭殑鏄▼搴忥紙鍒嗗竷锛夎€屼笉鏄煇涓€娆＄殑鎶界缁撴灉"锛埪?.2 琛ュ厖绗?3 鏉★紝宸茶姝ｆ枃锛夈€傛垜浠?P1 鐪嬪埌鐨勬槸**瀹炵幇鍊?*锛屾鏃?`E[min] 鈮?max min`锛屾贩鍚堟亽寮卞姡鍔匡紙搂0.2(b)锛夈€傛贩鍚堝彧鍊煎緱褰?鎵撲笉瀹岀編瀵规墜"鐨?exploit 鎵嬫鍗曠嫭鍋氫竴涓?ablation锛?*涓嶈**鎶婂畠鍐欒繘涓绘柟妗堛€傝繖涓€鏉℃垜寤鸿鏄庣‘绾犳銆?
-4. **27pp 杩欎釜閲忕骇锛屾枃鐚笌椤圭洰鍙查兘涓嶆敮鎸?缁撴瀯鎬цВ閲?锛屾洿鍍?绛栫暐/搴﹂噺浼奖"銆?* 鍥涗釜鍙傜収锛?   - 椤圭洰鍐呭悓鍨嬬幇璞★細64 灞€娴嬪嚭"鎵у悗鎵?+28.1pp"锛?6.9% vs 75.0%锛夛紝**閰嶅琛ユ祴鍚庡畬鍏ㄦ秷澶?*锛?3.1% vs 53.1%锛宍docs/experiment_log.md:1015-1024`锛夈€愰」鐩唴銆戯紱
-   - 鍚屾壒 AntWar 鏁版嵁閲屽悗鎵嬩紭鍔垮彧鏈?**5.4%**锛坄docs/12娓告垙RL閫傞厤鎬ц瘎浼?md:130`锛夈€愰」鐩唴銆戯紱
-   - 妫嬬被閿氱偣锛氬浗闄呰薄妫嬬櫧鏂规€诲垎 **52.2%鈥?5.5%**锛堝惈寮曟搸璧?55.4%锛夛紝鍥存璐寸洰 **5鈥? 鐩?*锛堣 搂2.10锛夛紱
-   - 缁艰堪鐭枃鐨勫師璇濇槸"most popular strategy games give the first player a **modest** advantage"锛埪?.10锛屽凡璇绘鏂囷級鈥斺€?*modest 鏄?4-6pp 閲忕骇锛屼笉鏄?27pp**銆?   鈫?缁撹锛?*27pp 閲?缁撴瀯椤?澶ф鏄釜浣嶆暟 pp锛屽墿涓嬬殑涓昏鏉ヨ嚜"鎴戜滑鐨勬悳绱㈠彧鍦?P1 渚т骇鐢熷鐩?**锛堝巻鍙插疄娴嬶細鎼滅储鍚庢墜 83鈥?8% vs 鍏堟墜 50%锛宍docs/az_bundle_mcts_results.md:69-79`锛?56 杩唬鏃跺厛鎵嬪鐩婃墠鍑虹幇锛宍docs/az_training_validation_results.md:78-92`锛夈€愰」鐩唴銆戙€?
-5. **杩戝拰灞€瑕佺敤"瀛楀吀搴?+ W/D/L 澶?锛屽埆鐢ㄧ函 卤1銆?* 鎴戜滑鐨勭粓灞€鏄瓧鍏稿簭瑁佸喅锛堣 鈫?鍑绘潃 鈫?瓒呮娆℃暟 鈫?鐢ㄦ椂 鈫?鍏堟墜锛夛紝绾?卤1 浼氭妸"琛€宸?杩欎釜娆＄骇淇″彿鍏ㄩ儴鎶规帀锛岃€岃宸伆鎭版槸鎵撴弧 512 鍥炲悎鏃跺敮涓€杩樻湁姊害鐨勫湴鏂广€傚鐣屾爣鍑嗗仛娉曟槸 **W/D/L 涓夊ご**锛圠eela Chess Zero锛宍lczero.org/blog/2020/04/wdl-head/`锛? **骞虫粦 utility** + **瑙勫垯绾ц鍐?*锛?0 姝ヨ鍒欍€佽创鐩級銆傚彟澶栧埆蹇樹簡绗?4 鏉?tiebreak 鏄?**AI 鐢ㄦ椂灏戣€呰儨**"鈥斺€?*鎯冲緱涔呮湰韬氨鏄竴椤瑰姡鍔?*锛岃繖鍦ㄦ帴杩戝拰灞€鏃舵槸瀹炴墦瀹炵殑銆?
+1. **建模：别用 CFR 的语言，用"完全信息序列博弈 + SPE/逆向归纳"的语言。** 局面全可见 ⇒ 信息集全是单点 ⇒ 均衡是 SPE；每回合 P0 的最优首着就是 `argmax_{a0} min_{a1} V(s,a0,a1)`，也就是你们已经在考虑的双层搜索。伪 Stackelberg 的说法要小心：标准 SE 要求 leader 公开承诺**一整张（可随机化的）策略表**（【正文】arXiv:2111.02111），我们 P0 只能承诺"这一手"，所以严格讲我们**没有承诺红利，只有"先暴露"的成本**。
+
+2. **P0 必须建模 P1 的回应，而且这是唯一有理论保证的改法。** 现在 rollout 里"对手 idle / 固定概率随机"等于把 min 层换成固定策略，优化的是一个**假对手**。改成"对每个候选 a0，取 P1 的前 k 个候选回应，用值网/短 rollout 打分，再取 min（或温度化 softmin）"——这就是 SPE 的一步逆向归纳，也是最省的做法（预算核算见 §3.1，10 秒内可行）。
+
+3. **"P0 应该用混合策略"这条要撤回，至少不能当机制解药。** 那条结论（Conitzer–Sandholm 一系）成立的前提是 **follower 只能对分布做最佳回应**——原文自己把"承诺"类比成"**部署一个程序**，对手面对的是程序（分布）而不是某一次的抽签结果"（§0.2 补充第 3 条，已读正文）。我们 P1 看到的是**实现值**，此时 `E[min] ≤ max min`，混合恒弱劣势（§0.2(b)）。混合只值得当"打不完美对手"的 exploit 手段单独做一个 ablation，**不要**把它写进主方案。这一条我建议明确纠正。
+
+4. **27pp 这个量级，文献与项目史都不支持"结构性解释"，更像"策略/度量伪影"。** 四个参照：
+   - 项目内同型现象：64 局测出"执后手 +28.1pp"（46.9% vs 75.0%），**配对补测后完全消失**（53.1% vs 53.1%，`docs/experiment_log.md:1015-1024`）【项目内】；
+   - 同批 AntWar 数据里后手优势只有 **5.4%**（`docs/12游戏RL适配性评估.md:130`）【项目内】；
+   - 棋类锚点：国际象棋白方总分 **52.2%–55.5%**（含引擎赛 55.4%），围棋贴目 **5–7 目**（见 §2.10）；
+   - 综述短文的原话是"most popular strategy games give the first player a **modest** advantage"（§2.10，已读正文）——**modest 是 4–6pp 量级，不是 27pp**。
+   → 结论：**27pp 里"结构项"大概是个位数 pp，剩下的主要来自"我们的搜索只在 P1 侧产生增益"**（历史实测：搜索后手 83–88% vs 先手 50%，`docs/az_bundle_mcts_results.md:69-79`；256 迭代时先手增益才出现，`docs/az_training_validation_results.md:78-92`）【项目内】。
+
+5. **近和局要用"字典序 + W/D/L 头"，别用纯 ±1。** 我们的终局是字典序裁决（血 → 击杀 → 超武次数 → 用时 → 先手），纯 ±1 会把"血差"这个次级信号全部抹掉，而血差恰恰是打满 512 回合时唯一还有梯度的地方。学界标准做法是 **W/D/L 三头**（Leela Chess Zero，<https://lczero.org/blog/2020/04/wdl-head/>）+ **平滑 utility** + **规则级裁决**（50 步规则、贴目）。另外别忘了第 4 条 tiebreak 是"**AI 用时少者胜**"——**想得久本身就是一项劣势**，这在接近和局时是实打实的。
+
 ---
 
-## 2. 閫愭柟娉?
-> 姣忔潯缁欏嚭锛氬悕绉?+ 閾炬帴 + 鏍稿績鎬濇兂 + 鍏抽敭鍋囪 + 瀵规垜浠兘涓嶈兘钀藉湴銆?
-### 2.1 瀹屽叏淇℃伅搴忓垪鍗氬紙 / SPE / 閫嗗悜褰掔撼
+## 2. 逐方法
 
-- **閾炬帴**锛?https://plato.stanford.edu/entries/game-theory/>銆愭鏂囥€戯紱<https://en.wikipedia.org/wiki/Subgame_perfect_equilibrium>銆愭鏂囥€?- **鏍稿績鎬濇兂**锛氫粠鍙惰妭鐐瑰線鍥炴帹锛屾瘡涓妭鐐逛笂"杞埌璋侊紝璋佸氨鍙栧鑷繁鏈€浼樼殑鍔ㄤ綔"锛涜繖鏍峰緱鍒扮殑绛栫暐鍦ㄦ瘡涓瓙鍗氬紙閲岄兘鏄?NE锛屽洜鑰屾帓闄や簡"绌哄▉鑳?锛堜笉鍙俊鐨?off-path 琛屼负锛夈€?- **鍏抽敭鍋囪**锛氬崥寮堟湁闄愩€佸畬缇庡洖蹇嗐€佷俊鎭泦鏄崟鐐癸紙= 瀹屽叏淇℃伅锛夈€?*鏈眬鍏ㄩ儴婊¤冻**锛堝洖鍚堜笂闄?512锛宍README.md:13`锛涘眬闈㈠畬鍏ㄥ彲瑙侊級銆?- **钀藉湴**锛氣渽 鐩存帴鍙敤銆傝繖灏辨槸"鎴戜滑涓€姝?+ 瀵规墜涓€姝?銆?*娉ㄦ剰**锛氭垜浠殑 rollout 鐜扮姸锛堝鎵?idle/闅忔満锛夌牬鍧忎簡杩欎釜鍋囪锛岀瓑浜庤В浜嗕釜鍒殑闂銆?
-### 2.2 Stackelberg / commitment games锛圫E銆丼SE銆乄SE锛?
-- **閾炬帴**锛?https://arxiv.org/abs/2111.02111>銆愭鏂囥€戯紱<https://arxiv.org/abs/1811.03871>銆愭鏂囥€戯紱<https://doi.org/10.24963/ijcai.2018/775>銆愭鏂囪惤鍦伴〉銆戯紱<https://doi.org/10.1145/1134707.1134717>銆愪粎鍏冩暟鎹€?- **鏍稿績鎬濇兂**锛歭eader 鍏?*鍏紑鎵胯**涓€涓紙鍙殢鏈哄寲鐨勶級瀹屾暣绛栫暐锛宖ollower 瀵?*瀹?*鍋氭渶浣冲洖搴旓紱leader 鍦ㄨ繖涓€绾︽潫涓嬫渶澶у寲鑷繁鐨勬敹鐩娿€?- **鍏抽敭鍋囪**锛氣憼 leader 鏈?*涓嶅彲鍙嶆倲鐨勬壙璇鸿缃?*锛涒憽 鎵胯鏄?*鍏紑鍙娴?*鐨勶紱鈶?follower 鍥炲簲鐨勬槸**绛栫暐/鍒嗗竷**銆?- **瀵规垜浠殑鍒ゆ柇**锛氣殸锔?**涓夋潯閲屾垜浠彧婊¤冻绗?鈶?鏉?*銆侾1 纭疄瑙傛祴鍒版垜浠殑鍔ㄤ綔锛堚憽鉁擄級锛屼絾鎴戜滑娌℃湁鎵胯瑁呯疆锛堚憼鉁楋紝姣忓洖鍚堝彲鍙嶆倲锛夛紝P1 鍥炲簲鐨勬槸瀹炵幇鍊艰€屼笉鏄垎甯冿紙鈶⑩湕锛夈€?*鎵€浠?鎴戜滑鏄竴涓?Stackelberg 鍗氬紙"杩欎釜璇存硶鏄崐涓敊**鈥斺€旀纭殑璇存硶鏄?姣忓洖鍚堝唴鐨勫崟姝ュ瓙鍗氬紙闀垮緱鍍?Stackelberg锛屼絾鏁村眬鏄?SPE锛涜€屽崟姝ュ瓙鍗氬紙閲?P1 瑙傛祴瀹炵幇鍊艰繖涓€鏉★紝璁╂贩鍚堢瓥鐣ュけ鏁?銆?- **钀藉湴**锛氣渽 鍙敤瀹冪殑**鎵撳垎褰㈠紡**锛坄max_{a0} min_{a1}`锛屽嵆 WSE 寮忕殑"P1 鍦ㄥ悓浼樺洖搴旈噷鎸戞渶宸殑缁欐垜浠?锛夛紝涓嶈鐢ㄥ畠鐨?娣峰悎鎵胯"缁撹銆?
-### 2.3 瀹屽叏淇℃伅鍗氬紙閲?闅忔満鍖?鍒板簳杩樻湁娌℃湁鐢?
-- **閾炬帴**锛氬悓 2.2锛決RE锛?https://en.wikipedia.org/wiki/Quantal_response_equilibrium>銆愭鏂囥€?- **鏍稿績鎬濇兂**锛氭贩鍚堢瓥鐣ョ殑浠峰€?= 璁╁鎵?*鍦ㄤ笉鐭ラ亾瀹炵幇鍊?*鏃舵棤娉曢拡瀵规€у洖搴旓紙matching pennies 閫昏緫锛夈€備竴鏃﹀鎵嬬湅鍒板疄鐜板€硷紝娣峰悎鐨勬渶浼樺€奸€€鍖栧埌 `max_{a0} min_{a1}`銆?- **鍏抽敭鍋囪**锛氬鎵嬬殑淇℃伅 = 鍒嗗竷锛岃€屼笉鏄疄鐜般€?- **钀藉湴**锛氣殸锔?**鐞嗚涓婃槸寮卞姡鍔?*锛屼絾宸ョ▼涓婃湁涓や釜姝ｅ綋鐢ㄩ€旓細(i) 鍦?P1 鏄?*涓嶅畬缇庢悳绱㈣€?*鏃讹紝闅忔満鍖栬兘鎵撳埌瀹冪殑鐩茬偣锛堣繖鏄?exploit锛屼笉鏄潎琛★級锛?ii) 鍦ㄥ涓€欓€?*璇勪及鍊煎嚑涔庣浉鍚?*鏃堕殢鏈洪€夛紝鑳介伩鍏嶈瀵规墜璺ㄥ洖鍚堝缓妯★紙鍘荤浉鍏筹級銆傗啋 寤鸿鍋氭垚**鐙珛 ablation**锛坄TEMP` 宸叉湁寮€鍏筹紝椤圭洰閲屾浘鍙戠幇 `TEMP=1.0` 鍦ㄦ湰绠＄嚎閲?娌℃湁瀹為檯鏁堟灉"锛宍docs/phase0_report_20261017.md:84`锛夛紝涓嶈娣疯繘涓绘敼娉曘€?
-### 2.4 AlphaZero 寮?min/max 澶囦唤锛堟妸瀵规墜鍥炲簲鏀捐繘鏍戦噷锛?
-- **閾炬帴**锛?https://arxiv.org/abs/1712.01815>銆愭鏂囨憳瑕侀〉銆戯紱MuZero <https://arxiv.org/abs/1911.08265>銆愭憳瑕侀〉銆戯紱KataGo 鐨?MCTS 璇存槑 <https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md>銆愭鏂囥€?- **鏍稿績鎬濇兂**锛氭爲閲?*浜ゆ浛 max/min**锛涗环鍊间粠"褰撳墠琛屽姩鑰呰瑙?缁欏嚭锛屽洖浼犳椂鍙栬礋锛坣egamax锛夈€傚鎵嬬殑鍥炲簲鍥犳**鑷姩**杩涘叆璇勪及銆?- **鍏抽敭鍋囪**锛氫环鍊肩綉鍦ㄥ彾鑺傜偣鍒嗗竷涓婃湁鎰忎箟锛涙ā鎷熸鏁板锛堟垜浠彧鏈?16 娆?rollout/鍊欓€夛紝灞炴瀬浣庨绠楋級銆?- **钀藉湴**锛氣渽 **鏈€鐩存帴鐨勫疄鐜拌矾寰?*銆備綘浠凡缁忔湁"鍊欓€?鈫?鍊肩綉鎵撳垎"鐨勬鏋讹紝缂虹殑鍙槸"鍦ㄥ€欓€変箣鍚庢彃鍏ヤ竴灞?P1 鐨勫洖搴旇妭鐐癸紝骞舵妸鍥炰紶浠?average 鎹㈡垚 min"銆?
-### 2.5 鏋佷綆妯℃嫙棰勭畻涓嬬殑绛栫暐鏀硅繘锛圙umbel AlphaZero锛?
-- **閾炬帴**锛?https://www.iclr.cc/virtual/2022/poster/6418>锛圛CLR 2022锛?Policy improvement by planning with Gumbel*锛孌anihelka et al.锛夈€愭憳瑕侀〉銆?- **鏍稿績鎬濇兂**锛氱敤 **Gumbel-Top-k + 搴忚疮 halving** 浠ｆ浛 PUCT 鐨勮闂鏁板垎閰嶏紝鍦?*鍑犲崄娆℃ā鎷?*杩欑鏋佺棰勭畻涓嬫槑鏄句紭浜?PUCT锛屼笖甯︾瓥鐣ユ敼杩涗繚璇併€?- **鍏抽敭鍋囪**锛氭湁绛栫暐鍏堥獙锛堟垜浠湁锛夛紱鍔ㄤ綔鏁颁笉澶ぇ锛堟垜浠?~24 涓€欓€夛級銆?- **钀藉湴**锛氣渽 寰堝鍚?姣忔 10 绉掋€佹瘡鍊欓€?16 鍥炲悎 rollout"鐨?regime銆?*浠ｄ环**锛氳鏀瑰€欓€夊垎閰嶉€昏緫锛堜笉鏄敼缃戠粶锛夛紝灞炰簬涓瓑鏀瑰姩锛涘缓璁湪鏂规 A 涔嬪悗浣滀负"鍚岄绠椾笅姣旀洿澶氬€欓€?鐨勫姞閫熷櫒銆?
-### 2.6 娣卞害鍙楅檺姹傝В + 浠峰€煎嚱鏁帮紙depth-limited solving锛?
-- **閾炬帴**锛?https://arxiv.org/abs/1805.08195>銆愭鏂囨憳瑕侀〉銆戯紱ReBeL <https://arxiv.org/abs/2007.13544>銆愭憳瑕侀〉銆戯紱瀹夊叏瀛愬崥寮堟眰瑙?<https://arxiv.org/abs/1705.02955>銆愭憳瑕侀〉銆?- **鏍稿績鎬濇兂**锛氱湡瀹炲崥寮堟爲澶繁锛屽氨鍦ㄦ繁搴?d 澶?*鐢ㄤ环鍊煎嚱鏁版浛浠ｇ户缁悳绱?*锛涙妸"娣辨悳"鎹㈡垚"娴呮悳 + 濂藉鍒扮殑鍙跺€?銆?- **鍏抽敭鍋囪**锛氫环鍊煎嚱鏁板湪"琚悳绱㈠垎甯?涓婃牎鍑嗗緱濂斤紙杩欐鏄綘浠弽澶嶈俯鐨勫潙锛氫环鍊煎ご绗﹀彿/瑙嗚/鏍″噯锛夈€?- **钀藉湴**锛氣渽 鎴戜滑宸茬粡鍦ㄥ仛锛?6 鍥炲悎 rollout 灏辨槸绮楃硻鐗堬級銆?*鐪熸鐨勬敼娉曟槸锛氭妸"16 鍥炲悎 rollout"鎹㈡垚"1 姝?+ 鍊肩綉"锛屾妸鐪佷笅鐨勯绠楄姳鍦?澶氱畻鍑犱釜 P1 鍥炲簲"涓娿€?* 杩欐槸鏂规 A 鐨勬牳蹇?trade-off銆?
-### 2.7 瀵规墜寤烘ā / 鏈€浣冲洖搴旓紙涓嶈拷鍧囪　锛岃拷 exploit锛?
-- **閾炬帴**锛歅SRO <https://arxiv.org/abs/1711.00832>銆愭憳瑕侀〉銆戯紱Stackelberg Planning锛圓AAI'18锛宭eader 鐢ㄦ悳绱㈤娴?follower 鐨勬渶浼樿鍒掞級<https://doi.org/10.1609/aaai.v32i1.12090>銆愯惤鍦伴〉銆? <https://ojs.aaai.org/index.php/AAAI/article/view/12090>銆愯惤鍦伴〉銆?- **鏍稿績鎬濇兂**锛氱湡瀹炲鎵嬩笉鏄?鍏ㄧ煡鏈€鍧忓鎵?銆?*瀵瑰叿浣撳鎵嬫眰鏈€浣冲洖搴旓紙BR锛?*锛屾敹鐩婇€氬父楂樹簬 minimax锛汸SRO 鐢?绉嶇兢 + BR"杩唬閫艰繎銆?- **鍏抽敭鍋囪**锛氬鎵嬬瓥鐣ョ浉瀵瑰浐瀹氥€佸彲棰勬祴銆?- **钀藉湴**锛氣渽 **杩欐槸鎴戜滑鏈€璇ユ嬁鐨勯偅鍧?*銆侾1 灏辨槸"鎴戜滑鑷繁鐨勭▼搴?锛屾墍浠?**P1 鐨勫洖搴旀ā鍨嬪彲浠ョ洿鎺ョ敤鎴戜滑鑷繁鐨勭瓥鐣ョ綉 top-k 鏉ヨ繎浼?*锛坰elf-play rollout锛夈€傛垚鏈渶浣庛€佸亸宸彲鎺с€傛敞鎰忚繖涓?minimax 鐨?min"涓嶅悓锛歮in 鍋囪瀵规墜瀹岀編锛孊R 鍋囪瀵规墜灏辨槸瀹冭嚜宸扁€斺€?*瀹炶返涓?BR 鏇村噯**锛屼絾浼氳"瀵规墜鎹汉"鎵撹劯锛屾墍浠ヤ袱鑰呰鑳藉垏鎹€?
-### 2.8 杞寲 min锛歈RE / 璁ょ煡灞傜骇
+> 每条给出：名称 + 链接 + 核心思想 + 关键假设 + 对我们能不能落地。
 
-- **閾炬帴**锛歈RE <https://en.wikipedia.org/wiki/Quantal_response_equilibrium>銆愭鏂囥€戯紱璁ょ煡灞傜骇 <https://doi.org/10.1016/j.geb.2016.08.007>銆愪粎鍏冩暟鎹€?- **鏍稿績鎬濇兂**锛氱湡瀹炲鎵嬩笉浼氱簿纭渶灏忓寲鎴戜滑鐨勬敹鐩婏紱鐢?`softmin_尾`锛堟垨 level-k 鐨勬湁闄愬眰鎺ㄧ悊锛夋浛浠ｇ‖ min锛岄伩鍏?P0 涓?鎯宠薄涓殑瀹岀編鍙嶅嚮"杩囧害淇濆畧銆?- **鍏抽敭鍋囪**锛毼?鍙及锛堝巻鍙插灞€閲?P1 鐨勫疄闄呴€夋嫨瀵?鎴戜滑棰勬祴鐨?top-k"鐨勫懡涓巼鍙互鎷熷悎 尾锛夈€?- **钀藉湴**锛氣渽 涓€琛屼唬鐮佺骇鍒殑鏇挎崲锛歚score = -1/尾 路 log 危_k exp(-尾路V_k)`锛浳测啋鈭?灏辨槸纭?min銆?*寤鸿榛樿 尾 鏈夐檺**锛堝洜涓?P1 鏄惎鍙戝紡鎼滅储锛屼笉鏄畬缇庢渶灏忓寲鍣級銆?
-### 2.9 CFR 涓轰粈涔堜笉鏄閫夛紙鎶婅繖鏉″啓娓呮锛岄伩鍏嶈蛋鍥炲ご璺級
+### 2.1 完全信息序列博弈 / SPE / 逆向归纳
 
-- **閾炬帴**锛歓inkevich et al., *Regret Minimization in Games with Incomplete Information*锛圢eurIPS 2007锛?https://proceedings.neurips.cc/paper_files/paper/2007/hash/08d98638c6fcd194a4b1e6992063e944-Abstract.html>銆愭憳瑕侀〉銆?- **鏍稿績鎬濇兂**锛氭妸鏁翠綋 regret 鍒嗚В鍒版瘡涓俊鎭泦涓婄殑鍙嶄簨瀹?regret锛岀嫭绔嬫渶灏忓寲鍗冲彲锛涗袱鏂归浂鍜屾椂骞冲潎绛栫暐鏀舵暃鍒?蔚-Nash銆?- **鍏抽敭鍋囪**锛?*涓嶅畬鍏ㄤ俊鎭?*锛堜俊鎭泦鍚涓姸鎬侊級+ 瀹岀編鍥炲繂銆傚畠鐨勫叏閮ㄥ▉鍔涙潵鑷?瀵规墜涓嶇煡閬撴垜鍦ㄥ摢涓姸鎬?銆?- **钀藉湴**锛氣潓 **涓嶆帹鑽愪綔涓轰富鏂规硶**銆傜悊鐢憋細(i) 鎴戜滑淇℃伅闆嗗叏鏄崟鐐癸紝CFR 鐨勬満鍒剁┖杞紱(ii) 瀹冩敹鏁涘埌 NE锛岃€屽畬鍏ㄤ俊鎭崥寮堥噷 **NE 鏈繀鏄?SPE**锛堢┖濞佽儊鍙互鏄?NE锛夛紝off-path 琛屼负涓嶅彲淇★紱(iii) 鎴愭湰楂橈紙瑕佸瓨鏁存５鏍戠殑 regret锛夈€?*鍞竴鍊煎緱鍊熺殑鏄畠鐨?骞冲潎绛栫暐"鎬濇兂**鈥斺€斾絾閭ｅ張鍥炲埌 2.3 鐨?娣峰悎鍙綔 exploit"銆?- **涓€涓瘹瀹炵殑淇濈暀**锛欳FR 鍦ㄥ畬鍏ㄤ俊鎭崥寮堥噷褰㈠紡涓婁粛鑳借窇锛堟槸鍏剁壒渚嬶級锛屼絾鎴戞病鏈夋壘鍒?CFR 鍦ㄥ畬鍏ㄤ俊鎭崥寮堥噷鏀舵暃鍒?SPE"鐨勬闈㈢粨璁猴紝**杩欐潯灞炰簬鏈瘉瀹?*锛堣瑙?搂4锛夈€?
-### 2.10 鍏堟墜/鍚庢墜浼樺娍锛氱瓥鐣ョ獌鍙栥€佽创鐩€乸ie rule銆亃ugzwang
+- **链接**：<https://plato.stanford.edu/entries/game-theory/>【正文】；<https://en.wikipedia.org/wiki/Subgame_perfect_equilibrium>【正文】
+- **核心思想**：从叶节点往回推，每个节点上"轮到谁，谁就取对自己最优的动作"；这样得到的策略在每个子博弈里都是 NE，因而排除了"空威胁"（不可信的 off-path 行为）。
+- **关键假设**：博弈有限、完美回忆、信息集是单点（= 完全信息）。**本局全部满足**（回合上限 512，`Ant-Game/README.md:13`；局面完全可见）。
+- **落地**：✅ 直接可用。这就是"我们一步 + 对手一步"。**注意**：我们的 rollout 现状（对手 idle/随机）破坏了这个假设，等于解了别的问题。
 
-- **閾炬帴**锛氱瓥鐣ョ獌鍙?<https://en.wikipedia.org/wiki/Strategy-stealing_argument>銆愭鏂囥€戯紱璐寸洰 <https://en.wikipedia.org/wiki/Komi_(Go)>銆愭鏂囥€戯紱鍥介檯璞℃鍏堟墜浼樺娍 <https://en.wikipedia.org/wiki/First-move_advantage_in_chess>銆愭鏂囥€戯紱pie rule <https://en.wikipedia.org/wiki/Pie_rule>銆愭鏂囥€戯紱zugzwang <https://en.wikipedia.org/wiki/Zugzwang>銆愭鏂囥€?- **鏍稿績鎬濇兂涓庨噺绾?*锛?  - **绛栫暐绐冨彇**锛氬湪"澶氳蛋涓€姝ユ案涓嶅悆浜?鐨勫绉板崥寮堥噷锛?*鍚庢墜涓嶅彲鑳藉繀鑳?*锛堝惁鍒欏厛鎵嬪伔鍚庢墜鐨勭瓥鐣ワ級銆傗啋 鍏堟墜浼樺娍鏈夌悊璁轰笂鐣岀殑瀛樺湪鎬э紝浣嗘病鏈夋暟鍊笺€?  - **鍥介檯璞℃**锛氱櫧鏂规€诲垎 52.55%锛?851鈥?8锛夆啋 55.47%锛?919鈥?2锛夆啋 **寮曟搸璧?55.4%**锛圕EGT 2009锛夆啋 54.95%锛圕hessgames 2015 搴擄級銆?*鍗?宸ㄥぇ鐨勫厛鎵嬩紭鍔?鍦ㄦ暟鍊间笂涔熷氨 3鈥?.5pp銆?*
-  - **鍥存**锛氳创鐩ˉ鍋块粦鍏堬紝"榛戝厛浼樺娍鐨勫叕璁ゅ€肩害 5鈥? 鐩?锛涚幇浠ｈ创鐩?6.5/7.5 浣胯儨璐熸帴杩?50/50銆?  - **pie rule / swap rule**锛氭娓哥晫瀵?宸茶瘉瀹炲瓨鍦ㄥ厛鎵嬩紭鍔?鐨勬爣鍑嗙紦瑙ｆ墜娈碘€斺€?*寮€灞€鍚庤鍚庢墜閫夋嫨"鎺ョ洏鎴栨崲杈?**锛岀洿鎺ユ妸浼樺娍鎷嶅崠鎺夈€?  - **zugzwang**锛氬弽渚嬧€斺€斿湪鏌愪簺灞€闈㈤噷"蹇呴』璧版"鏈韩鏄姡鍔裤€傝鏄?鍏堝姩"涓嶆槸鍗曡皟鏈夊埄锛?*鍏堝姩 = 鍏堟毚闇叉壙璇?*鍦ㄤ俊鎭崥寮堥噷鍙互鏄礋璧勪骇銆?- **閲忓寲鏉愭枡锛堜袱鏉★紝鍧囧凡璇绘鏂囷級**锛?  - *First-Turn Bias in Turn-Based Games*锛? 椤电患杩扮煭鏂囷紝**闈炲悓琛岃瘎瀹?*锛夛細<https://big-stupid-jellyfish.github.io/GFMath/pages/files/first-turn.pdf>銆愭鏂囥€戙€傞噺鍖栫粨璁猴細"In chess ... White scores about **54%** on average, roughly a **+5.9% win-probability edge**"锛?Go: Black moves first, but standard komi (usually **6.5** points) compensates; **without komi Black would have a strong advantage**"锛汣onnect Four 宸茶瑙ｅ嚭涓哄厛鎵嬪繀鑳滐紝checkers / tic-tac-toe 鏄拰銆傚師鏂囩敤璇嶆槸"most popular strategy games give the first player a **modest** advantage"鈥斺€?*modest 杩欎釜璇嶏紝姝ｅソ鍜?27pp 涓嶆槸 modest"瀵逛笂**銆?  - Micklich, *Do First Mover Advantages Exist In Competitive Board Games: The Importance of Zugzwang*锛圓BSEL 2009锛? 椤碉紝Connect-Four 瀹炶瘉锛夛細<https://absel-ojs-ttu.tdl.org/absel/article/view/371>銆愭鏂囥€戙€傜粨璁猴細**鍏堟墜涓嶆槸鑳滆礋鐨勫敮涓€鍐冲畾鍥犵礌**锛寊ugzwang 绛夐潪绾挎€у洜绱犱篃鍙備笌锛涗絾浣滆€呰嚜宸卞啓鏄庤繖浜涘洜绱?**"not statistically significant"**銆傗啋 鍙兘褰?鏂规硶璁烘梺璇?锛堝厛鎵嬩紭鍔库墵鍏ㄩ儴锛夛紝**涓嶈兘褰撻噺绾ц瘉鎹?*銆?- **鍏抽敭鍋囪**锛氱瓥鐣ョ獌鍙栬姹?澶氳蛋涓€姝ヤ笉鍚冧簭"锛堝崟璋冩€э級銆?*濉旈槻娓告垙涓嶆弧瓒?*锛氬嚭鎷涜鑺遍噾甯併€佷笖琚鎵嬬湅瑙侊紝鍏堝姩鍙兘鏄礋璧勪骇銆傛墍浠ユ垜浠殑搴т綅宸?*涓嶈鐞嗚淇濇姢锛屼篃涓嶈鐞嗚瑙ｉ噴鎴?27pp**銆?- **钀藉湴**锛氣渽 浣嗚惤鍦板湪**璇勬祴鍗忚**鑰屼笉鏄?AI锛?  - 搴т綅缃崲閰嶅锛堝悓 seed 鎵撲袱灞€銆佷氦鎹㈠厛鎵嬶級+ McNemar锛?  - 鎶ュ憡**鍒嗗骇浣?*鐨?CI锛屼笉鎶ユ贩鍚堣儨鐜囷紱
-  - 璁粌渚у仛**搴т綅骞宠　閲囨牱** + 搴т綅鏉′欢鍖栵紙鎶?`player` 浣滀负鐗瑰緛锛屽凡鏈夛級銆?  - 鉂?涓嶈鍦ㄦ瘮璧涢噷鎸囨湜 pie rule锛堣鍒欎笉鏄垜浠兘鏀圭殑锛夈€?
-### 2.11 杩戝拰灞€ / 骞冲眬鍒ゅ畾
+### 2.2 Stackelberg / commitment games（SE、SSE、WSE）
 
-- **閾炬帴**锛?0 姝ヨ鍒?<https://en.wikipedia.org/wiki/Fifty-move_rule>銆愭鏂囥€戯紱termbase/娈嬪眬搴?<https://en.wikipedia.org/wiki/Endgame_tablebase>銆愭鏂囥€戯紱WDL 澶?<https://lczero.org/blog/2020/04/wdl-head/>銆愭鏂囥€戯紱澶氱洰鏍?瀛楀吀搴?<https://www.jair.org/index.php/jair/article/view/10836>銆愭鏂囪惤鍦伴〉銆戯紱璐寸洰 <https://en.wikipedia.org/wiki/Komi_(Go)>銆愭鏂囥€?- **鏍稿績鎬濇兂锛堝洓绉嶆祦娲撅級**锛?  1. **瑙勫垯绾ц鍐?*锛?0 姝ヨ鍒?/ 涓夋閲嶅 / 瀛愬姏涓嶈冻 鈫?鎶?鏃犻檺鎺ヨ繎鍜屽眬"鐩存帴鍒ゆ帀锛涘洿妫嬬敤璐寸洰鎶婂厛鎵嬩紭鍔挎姌鎴愬垎鏁般€?  2. **W/D/L 涓夊ご**锛氫笉瑕佹妸"鏈熸湜寰楀垎"褰撲竴涓爣閲忊€斺€斿畠鍒嗕笉娓?鍜屾"鍜?鑳滆礋鍚勫崐"銆侺c0 浠?2019-07 璧锋墍鏈夌綉缁滈兘鏈?WDL 澶达紝鏄庣‘璇?浠?鑳滅巼'鍙樻垚'鏈熸湜寰楀垎'鏄竴涓亣璁撅紝鑰屾垜浠彲浠ョ洿鎺ラ娴嬩笁绉嶇粨鏋?銆愭鏂囥€戙€?  3. **骞虫粦 utility**锛氳耽 1 鐩拰璧?100 鐩笉璇ョ瓑浠凤紙鍥存 AI 鐨?utility 璁捐锛夛紝浣嗕篃涓嶈兘璁?鍒峰垎"鏇夸唬"姹傝儨"銆?  4. **瀛楀吀搴?/ 澶氱洰鏍?*锛氬厛淇濊瘉涓荤洰鏍囷紙鑳滆礋锛夛紝鍐嶄紭鍖栨绾х洰鏍囷紙琛€宸?/ 鍑绘潃 / 鐢ㄦ椂锛夈€傚鐩爣搴忚疮鍐崇瓥鐨勬爣鍑嗙患杩拌 Roijers et al.銆愭鏂囪惤鍦伴〉銆戙€?- **瀵规垜浠殑鐩存帴鍚箟锛? 鏉★級**锛?  - a) 缁堝眬鍥炴姤鍒敤绾?卤1锛歚u = sign(鑳滆礋) + 蔚路(琛€宸?50)`锛屾垨骞茶剢**鍙屽ご**锛堣儨璐熷ご + 琛€宸ご锛夛紝璁╄繎鍜屽眬鏈夋搴︼紱蔚 瑕佸皬鍒颁笉鏀瑰彉"姹傝儨"鐨勬帓搴忋€?  - b) **variance/uncertainty 涔熻杩涙墦鍒?*锛氳繎鍜屽眬鏃跺€肩綉鏂瑰樊澶э紝`score = mean 鈭?位路std` 鑳介伩鍏?璧屼竴鎶?銆?  - c) **鎵撴弧 512 鍥炲悎鏄竴涓嫭绔嬪垎鏀?*锛岃鏈変笓闂ㄧ殑璁粌鏍锋湰锛堢幇鍦ㄥ緢澶氬眬 240 鍥炲悎缁撴潫锛宍docs/alphazero_intent_mcts_plan.md:16`锛夛紝鍚﹀垯"杩涘叆瑁佸喅"杩欐潯璺緞鏍规湰娌¤瀛﹁繃銆?  - d) **鐢ㄦ椂鏄?tiebreak 鐨勭 4 椤?*锛坄README.md:297`锛夛細鎼滅储瓒婁箙锛岃秺鍙兘鍦?琛€鍚屻€佸嚮鏉€鍚屻€佽秴姝︽鏁板悓"鏃惰緭鎺夈€傗啋 棰勭畻瑕?*鑷€傚簲**锛堝彧鍦ㄥ鍊欏洖鍚堣姳婊?10 绉掞紝鍗曞€欓€夌洿鎺ョ煭璺紝瑙?搂3.2锛夛紝骞舵妸"绱鐢ㄦ椂"浣滀负鐗瑰緛鍠傜粰鍊肩綉銆?  - e) 姒傚康鎻愰啋锛氭畫灞€搴撻噷鐨?**"cursed win"锛堣耽妫嬩絾杩濆弽 50 姝ヨ鍒?鈬?瀹為檯鍒ゅ拰锛?* 鏄垜浠儏褰㈢殑绮剧‘绫绘瘮鈥斺€?鎸夊疄鍔涜耽浜嗭紝浣嗘寜瑙勫垯娌¤耽"銆傚畼鏂归〉闈㈣ bot 妫€娴嬫嫤鎴紝鏈兘璇诲埌锛埪?锛夈€?
+- **链接**：<https://arxiv.org/abs/2111.02111>【正文】；<https://arxiv.org/abs/1811.03871>【正文】；<https://doi.org/10.24963/ijcai.2018/775>【落地页】；<https://users.cs.duke.edu/~conitzer/commitEC06.pdf>【正文】
+- **核心思想**：leader 先**公开承诺**一个（可随机化的）完整策略，follower 对它做最佳回应；leader 在这一约束下最大化自己的收益。
+- **关键假设**：① leader 有**不可反悔的承诺装置**；② 承诺**公开可观测**；③ follower 回应的是**策略/分布**。
+- **对我们的判断**：⚠️ **三条里我们只满足第 ② 条**。P1 确实观测到我们的动作（②✓），但我们没有承诺装置（①✗，每回合可反悔），P1 回应的是实现值而不是分布（③✗）。**所以"我们是一个 Stackelberg 博弈"这个说法是半个错**——正确的说法是"每回合内的单步子博弈长得像 Stackelberg，但整局是 SPE；而单步子博弈里 P1 观测实现值这一条，让混合策略失效"。
+- **落地**：✅ 只用它的**打分形式**（`max_{a0} min_{a1}`，即 WSE 式的"P1 在同优回应里挑最差的给我们"），不要用它的"混合承诺"结论。
+
+### 2.3 完全信息博弈里"随机化"到底还有没有用
+
+- **链接**：同 2.2；QRE：<https://en.wikipedia.org/wiki/Quantal_response_equilibrium>【正文】
+- **核心思想**：混合策略的价值 = 让对手**在不知道实现值**时无法针对性回应（matching pennies 逻辑）。一旦对手看到实现值，混合的最优值退化到 `max_{a0} min_{a1}`。
+- **关键假设**：对手的信息 = 分布，而不是实现。
+- **落地**：⚠️ **理论上是弱劣势**，但工程上有两个正当用途：(i) 在 P1 是**不完美搜索者**时，随机化能打到它的盲点（这是 exploit，不是均衡）；(ii) 在多个候选**评估值几乎相同**时随机选，能避免被对手跨回合建模（去相关）。→ 建议做成**独立 ablation**（项目里 `TEMP` 开关曾被发现"在本管线里没有实际效果"，`docs/phase0_report_20261017.md:84`），不要混进主改法。
+
+### 2.4 AlphaZero 式 min/max 备份（把对手回应放进树里）
+
+- **链接**：<https://arxiv.org/abs/1712.01815>【摘要页】；MuZero <https://arxiv.org/abs/1911.08265>【摘要页】；KataGo 的 MCTS 说明 <https://github.com/lightvector/KataGo/blob/master/docs/GraphSearch.md>【正文】
+- **核心思想**：树里**交替 max/min**；价值从"当前行动者视角"给出，回传时取负（negamax）。对手的回应因此**自动**进入评估。
+- **关键假设**：价值网在叶节点分布上有意义；模拟次数够（我们只有 16 次 rollout/候选，属极低预算）。
+- **落地**：✅ **最直接的实现路径**。你们已经有"候选 → 值网打分"的框架，缺的只是"在候选之后插入一层 P1 的回应节点，并把回传从 average 换成 min"。
+
+### 2.5 极低模拟预算下的策略改进（Gumbel AlphaZero）
+
+- **链接**：<https://www.iclr.cc/virtual/2022/poster/6418>（ICLR 2022，*Policy improvement by planning with Gumbel*，Danihelka et al.）【仅摘要页】
+- **核心思想**：用 **Gumbel-Top-k + 序贯 halving** 代替 PUCT 的访问计数分配，在**几十次模拟**这种极端预算下明显优于 PUCT，且带策略改进保证。
+- **关键假设**：有策略先验（我们有）；动作数不太大（我们 ~24 个候选）。
+- **落地**：✅ 很契合"每步 10 秒、每候选 16 回合 rollout"的 regime。**代价**：要改候选分配逻辑（不是改网络），属中等改动；建议在方案 A 之后作为"同预算下比更多候选"的加速器。
+
+### 2.6 深度受限求解 + 价值函数（depth-limited solving）
+
+- **链接**：<https://arxiv.org/abs/1805.08195>【摘要页】；ReBeL <https://arxiv.org/abs/2007.13544>【摘要页】；安全子博弈求解 <https://arxiv.org/abs/1705.02955>【摘要页】
+- **核心思想**：真实博弈树太深，就在深度 d 处**用价值函数替代继续搜索**；把"深搜"换成"浅搜 + 好学到的叶值"。
+- **关键假设**：价值函数在"被搜索分布"上校准得好（这正是你们反复踩的坑：价值头的符号/视角/校准）。
+- **落地**：✅ 我们已经在做（16 回合 rollout 就是粗糙版）。**真正的改法是：把"16 回合 rollout"换成"1 步 + 值网"，把省下的预算花在"多算几个 P1 回应"上。** 这是方案 A 的核心 trade-off。
+
+### 2.7 对手建模 / 最佳回应（不追均衡，追 exploit）
+
+- **链接**：PSRO <https://arxiv.org/abs/1711.00832>【摘要页】；Stackelberg Planning（AAAI'18，leader 用搜索预测 follower 的最优计划）<https://doi.org/10.1609/aaai.v32i1.12090> / <https://ojs.aaai.org/index.php/AAAI/article/view/12090>【落地页】
+- **核心思想**：真实对手不是"全知最坏对手"。**对具体对手求最佳回应（BR）**，收益通常高于 minimax；PSRO 用"种群 + BR"迭代逼近。
+- **关键假设**：对手策略相对固定、可预测。
+- **落地**：✅ **这是我们最该拿的那块**。P1 就是"我们自己的程序"，所以 **P1 的回应模型可以直接用我们自己的策略网 top-k 来近似**（self-play rollout）。成本最低、偏差可控。注意这与"minimax 的 min"不同：min 假设对手完美，BR 假设对手就是它自己——**实践中 BR 更准**，但会被"对手换人"打脸，所以两者要能切换。
+
+### 2.8 软化 min：QRE / 认知层级
+
+- **链接**：QRE <https://en.wikipedia.org/wiki/Quantal_response_equilibrium>【正文】；认知层级 <https://doi.org/10.1016/j.geb.2016.08.007>【仅元数据】
+- **核心思想**：真实对手不会精确最小化我们的收益；用 `softmin_β`（或 level-k 的有限层推理）替代硬 min，避免 P0 为"想象中的完美反击"过度保守。
+- **关键假设**：β 可估（用历史对局里"P1 实际选择 vs 我们预测的 top-k"的命中率拟合 β）。
+- **落地**：✅ 一行代码级别的替换：`score = -1/β · log Σ_k exp(-β·V_k)`；β→∞ 就是硬 min。**建议默认 β 有限**（因为 P1 是启发式搜索，不是完美最小化器）。
+
+### 2.9 CFR 为什么不是首选（把这条写清楚，避免走回头路）
+
+- **链接**：Zinkevich et al., *Regret Minimization in Games with Incomplete Information*（NeurIPS 2007）<https://proceedings.neurips.cc/paper_files/paper/2007/hash/08d98638c6fcd194a4b1e6992063e944-Abstract.html>【摘要页】
+- **核心思想**：把整体 regret 分解到每个信息集上的反事实 regret，独立最小化即可；两方零和时平均策略收敛到 ε-Nash。
+- **关键假设**：**不完全信息**（信息集含多个状态）+ 完美回忆。它的全部威力来自"对手不知道我在哪个状态"。
+- **落地**：❌ **不推荐作为主方法**。理由：(i) 我们信息集全是单点，CFR 的机制空转；(ii) 它收敛到 NE，而完全信息博弈里 **NE 未必是 SPE**（空威胁可以是 NE），off-path 行为不可信；(iii) 成本高（要存整棵树的 regret）。**唯一值得借的是它的"平均策略"思想**——但那又回到 2.3 的"混合只作 exploit"。
+
+### 2.10 先手/后手优势：策略窃取、贴目、pie rule、zugzwang
+
+- **链接**：策略窃取 <https://en.wikipedia.org/wiki/Strategy-stealing_argument>【正文】；贴目 <https://en.wikipedia.org/wiki/Komi_(Go)>【正文】；国际象棋先手优势 <https://en.wikipedia.org/wiki/First-move_advantage_in_chess>【正文】；pie rule <https://en.wikipedia.org/wiki/Pie_rule>【正文】；zugzwang <https://en.wikipedia.org/wiki/Zugzwang>【正文】
+- **核心思想与量级**：
+  - **策略窃取**：在"多走一步永不吃亏"的对称博弈里，**后手不可能必胜**（否则先手偷后手的策略）。→ 先手优势的存在性有理论保证，但没有数值。
+  - **国际象棋**：白方总分 52.55%（1851–78）→ 55.47%（1919–32）→ **引擎赛 55.4%**（CEGT 2009）→ 54.95%（Chessgames 2015 库）。**即"巨大的先手优势"在数值上也就 3–5.5pp。**
+  - **围棋**：贴目补偿黑先，"黑先优势的公认值约 5–7 目"；现代贴目 6.5/7.5 使胜负接近 50/50。
+  - **pie rule / swap rule**：桌游界对"已证实存在先手优势"的标准缓解手段——**开局后让后手选择"接盘或换边"**，直接把优势拍卖掉。
+  - **zugzwang**：反例——在某些局面里"必须走棋"本身是劣势。说明"先动"不是单调有利，**先动 = 先暴露承诺**在信息博弈里可以是负资产。
+- **量化材料（两条，均已读正文）**：
+  - *First-Turn Bias in Turn-Based Games*（3 页综述短文，**非同行评审**）：<https://big-stupid-jellyfish.github.io/GFMath/pages/files/first-turn.pdf>【正文】。量化结论："In chess ... White scores about **54%** on average, roughly a **+5.9% win-probability edge**"；"Go: Black moves first, but standard komi (usually **6.5** points) compensates; **without komi Black would have a strong advantage**"；Connect Four 已被解出为先手必胜，checkers / tic-tac-toe 是和。原文用词是"most popular strategy games give the first player a **modest** advantage"——**modest 这个词，正好和"27pp 不是 modest"对上**。
+  - Micklich, *Do First Mover Advantages Exist In Competitive Board Games: The Importance of Zugzwang*（ABSEL 2009，7 页，Connect-Four 实证）：<https://absel-ojs-ttu.tdl.org/absel/article/view/371>【正文】。结论：**先手不是胜负的唯一决定因素**，zugzwang 等非线性因素也参与；但作者自己写明这些因素 **"not statistically significant"**。→ 只能当"方法论旁证"（先手优势≠全部），**不能当量级证据**。
+- **关键假设**：策略窃取要求"多走一步不吃亏"（单调性）。**塔防游戏不满足**：出招要花金币、且被对手看见，先动可能是负资产。所以我们的座位差**不被理论保护，也不被理论解释成 27pp**。
+- **落地**：✅ 但落地在**评测协议**而不是 AI：
+  - 座位置换配对（同 seed 打两局、交换先手）+ McNemar；
+  - 报告**分座位**的 CI，不报混合胜率；
+  - 训练侧做**座位平衡采样** + 座位条件化（把 `player` 作为特征，已有）。
+  - ❌ 不要在比赛里指望 pie rule（规则不是我们能改的）。
+
+### 2.11 近和局 / 平局判定
+
+- **链接**：50 步规则 <https://en.wikipedia.org/wiki/Fifty-move_rule>【正文】；残局库 <https://en.wikipedia.org/wiki/Endgame_tablebase>【正文】；WDL 头 <https://lczero.org/blog/2020/04/wdl-head/>【正文】；多目标/字典序 <https://www.jair.org/index.php/jair/article/view/10836>【落地页】；贴目 <https://en.wikipedia.org/wiki/Komi_(Go)>【正文】
+- **核心思想（四种流派）**：
+  1. **规则级裁决**：50 步规则 / 三次重复 / 子力不足 → 把"无限接近和局"直接判掉；围棋用贴目把先手优势折成分数。
+  2. **W/D/L 三头**：不要把"期望得分"当一个标量——它分不清"和棋"和"胜负各半"。Lc0 从 2019-07 起所有网络都有 WDL 头，原文明确说"从'胜率'变成'期望得分'是一个假设，而我们可以直接预测三种结果"【正文】。
+  3. **平滑 utility**：赢 1 目和赢 100 目不该等价，但也不能让"刷分"替代"求胜"。
+  4. **字典序 / 多目标**：先保证主目标（胜负），再优化次级目标（血差 / 击杀 / 用时）。多目标序贯决策综述见 Roijers et al.【落地页】。
+- **对我们的直接含义（5 条）**：
+  - a) 终局回报别用纯 ±1：`u = sign(胜负) + ε·(血差/50)`，或干脆**双头**（胜负头 + 血差头），让近和局有梯度；ε 要小到不改变"求胜"的排序。
+  - b) **方差/不确定性也要进打分**：近和局时值网方差大，`score = mean − λ·std` 能避免"赌一把"。
+  - c) **打满 512 回合是一个独立分支**，要有专门的训练样本（现在很多局 ~240 回合结束，`docs/alphazero_intent_mcts_plan.md:16`），否则"进入裁决"这条路径根本没被学过。
+  - d) **用时是 tiebreak 的第 4 项**（`Ant-Game/README.md:297`）：搜索越久，越可能在"血同、击杀同、超武次数同"时输掉。→ 预算要**自适应**（只在多候回合花满 10 秒，单候选直接短路，见 §3.1），并把"累计用时"作为特征喂给值网。
+  - e) 概念提醒：残局库里的 **"cursed win"（赢棋但违反 50 步规则 ⇒ 实际判和）** 是我们情形的精确类比——"按实力赢了，但按规则没赢"。官方页面被 bot 检测拦截，未能读到（§4.1）。
+
 ---
 
-## 3. 钀藉湴鑽夋
+## 3. 落地草案
 
-> 鍓嶆彁锛氬彧鏀?*鎵撳垎/璇勬祴**锛屼笉鏀瑰姩浣滅┖闂淬€佷笉鍑忓皯 HOLD銆佷笉鍔ㄦ鍦ㄨ窇鐨勫疄楠屻€?
-### 3.1 鏂规 A锛堥閫夛級锛歅0 渚х殑"鍥炲簲鎰熺煡鎵撳垎"锛?-ply Stackelberg / negamax 鎵撳垎锛?
-**鏀瑰摢涓ā鍧?*
-- `code/my_ai/bundle_mcts.py`锛氭牴鑺傜偣鍊欓€夋墦鍒嗭紙鎶婂彾鍊?`value` 鎹㈡垚 `score_resp`锛夈€?- 鏂板 `code/my_ai/opponent_response.py`锛氱粰瀹?`(state, a0)`锛岀敤**鎴戜滑鑷繁鐨勭瓥鐣?浣嶇疆鍏堥獙**鍦?`s1 = apply(a0)` 涓婂彇 P1 鐨?top-k 鍥炲簲銆?- 鍙 **P0 渚?*鍚敤銆侾1 渚т笉闇€瑕佲€斺€擯1 宸茬粡鐪嬪埌 P0 鐨勫姩浣滐紝瀹冪己鐨勪笉鏄?寤烘ā鍥炲簲"锛岃€屾槸"鏇村噯鐨勪环鍊?锛堝彟涓€鏉＄嚎锛夈€?
-**浼唬鐮?*
+> 前提：只改**打分/评测**，不改动作空间、不惩罚 HOLD、不动正在跑的实验。
+
+### 3.1 方案 A（首选）：P0 侧的"回应感知打分"（1-ply Stackelberg / negamax 打分）
+
+**改哪个模块**
+- `code/my_ai/bundle_mcts.py`：根节点候选打分（把叶值 `value` 换成 `score_resp`）。
+- 新增 `code/my_ai/opponent_response.py`：给定 `(state, a0)`，用**我们自己的策略/位置先验**在 `s1 = apply(a0)` 上取 P1 的 top-k 回应。
+- 只对 **P0 侧**启用。P1 侧不需要——P1 已经看到 P0 的动作，它缺的不是"建模回应"，而是"更准的价值"（另一条线）。
+
+**伪代码**
 
 ```python
-# 鈹€鈹€ 鐜扮姸锛氬鎵嬩笉鍥炲簲 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+# ── 现状：对手不回应 ───────────────────────────────
 def score_now(state, a0):
     s1 = apply(state, a0)
-    return rollout(s1, horizon=16, p1_policy=idle_or_random)   # ~0.32s/鍊欓€?
-# 鈹€鈹€ 鏂规 A锛氫竴姝ュ洖搴旀劅鐭ワ紙SPE 鐨勪竴姝ラ€嗗悜褰掔撼锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-def score_resp(state, a0, k1=3, h=4, beta=4.0, lam=0.5):
-    s1 = apply_ops(state, a0)                       # 寮曟搸 apply锛寏20ms
-    cands1 = topk(policy_prior(s1, player=1), k1)   # 鐢ㄦ垜浠嚜宸辩殑缃戝綋"P1 鍥炲簲妯″瀷"
+    return rollout(s1, horizon=16, p1_policy=idle_or_random)   # ~0.32s/候选
+
+# ── 方案 A：一步回应感知（SPE 的一步逆向归纳）─────────
+def score_resp(state, a0, k1=3, beta=4.0, lam=0.5):
+    s1 = apply_ops(state, a0)                       # 引擎 apply，~20ms
+    cands1 = topk(policy_prior(s1, player=1), k1)   # 用我们自己的网当"P1 回应模型"
     vals = []
     for a1 in cands1:
-        s2 = resolve_turn(s1, a1)                   # 涓€娆℃暣鍥炲悎缁撶畻锛寏20ms
-        v  = value_net(s2)                          # 涓€娆″墠鍚戯紝~5ms锛堜笉 rollout锛?        vals.append(v)
-    m = softmin(vals, beta)                          # beta鈫掆垶 閫€鍖栦负 hard min锛圵SE 寮忥級
-    return m - lam * stdev(vals)                     # 鎯╃綒"鍥炲簲鍒嗘澶?鐨勫€欓€?
-# 鈹€鈹€ 鏍硅妭鐐?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+        s2 = resolve_turn(s1, a1)                   # 一次整回合结算，~20ms
+        v  = value_net(s2)                          # 一次前向，~5ms（不 rollout）
+        vals.append(v)
+    m = softmin(vals, beta)                         # beta→∞ 退化为 hard min（WSE 式）
+    return m - lam * stdev(vals)                    # 惩罚"回应分歧大"的候选
+
+# ── 根节点 ────────────────────────────────────────
 def choose(state, K0=8, K1=3):
-    cands0 = topk(candidates(state), K0)             # 鍏堥獙鎴柇 24 鈫?8
+    cands0 = topk(candidates(state), K0)            # 先验截断 24 → 8
     scored = [(score_resp(state, a0), prior(a0), a0) for a0 in cands0]
     best = max(scored)[2]
-    # 鍙鍐犲啗鍋氫竴娆″畬鏁?16 鍥炲悎 rollout 澶嶆牳锛堝彲閫夛紝+0.32s锛?    return best if rollback_check(state, best) else second_best(scored)
+    # 只对冠军做一次完整 16 回合 rollout 复核（可选，+0.32s）
+    return best if rollback_check(state, best) else second_best(scored)
 ```
 
-**10 绉掗绠楁牳绠楋紙鐢ㄩ」鐩疄娴嬪父鏁帮級**
+**10 秒预算核算（用项目实测常数）**
 
-| 椤?| 甯告暟 | 鏉ユ簮 |
+| 项 | 常数 | 来源 |
 |---|---|---|
-| 寮曟搸鏁村洖鍚堢粨绠?| 鈮?20 ms | `docs/az_training_validation_results.md:42`銆愰」鐩唴銆?|
-| 鐜扮姸姣忓€欓€?| 16 鍥炲悎 rollout 鈮?16脳20ms 鈮?0.32 s | 鎺ㄧ畻 |
-| 鐜扮姸姣忓喅绛?| 24 鍊欓€?脳 0.32 s 鈮?**7.7 s** | 鎺ㄧ畻锛堣创 10 s 涓婇檺锛?|
-| 鏂规 A 姣忓€欓€?| k1=3 脳 [apply 0.02 + 鍓嶅悜 0.005] 鈮?**0.08 s** | 鎺ㄧ畻 |
-| 鏂规 A 姣忓喅绛?| 8 脳 0.08 鈮?**0.64 s**锛堝啀鐣欎竴娆?16 鍥炲悎澶嶆牳 +0.32s锛?| **鈮?10 s** |
-| 鍏?2-ply + rollout | 24 脳 24 脳 0.32 鈮?**184 s** | **涓嶅彲琛?*锛堣繖灏辨槸涓轰粈涔堜笉鑳界洿鎺ヤ笂瀹屾暣 minimax锛?|
+| 引擎整回合结算 | ≈ 20 ms | `docs/az_training_validation_results.md:42`【项目内】 |
+| 现状每候选 | 16 回合 rollout ≈ 16×20ms ≈ 0.32 s | 推算 |
+| 现状每决策 | 24 候选 × 0.32 s ≈ **7.7 s** | 推算（贴 10 s 上限） |
+| 方案 A 每候选 | k1=3 × [apply 0.02 + 前向 0.005] ≈ **0.08 s** | 推算 |
+| 方案 A 每决策 | 8 × 0.08 ≈ **0.64 s**（再留一次 16 回合复核 +0.32s） | **≪ 10 s** |
+| 全 2-ply + rollout | 24 × 24 × 0.32 ≈ **184 s** | **不可行**（这就是为什么不能直接上完整 minimax） |
 
-**鍏抽敭娲炲療锛氶绠楁牴鏈笉鏄摱棰堬紝鍊欓€夋暟鎵嶆槸銆?* 椤圭洰瀹炴祴 91.6% 鐨勫喅绛栧彧鏈?1 涓€欓€夈€?0% 鐨勫喅绛栬 `SKIP1` 鐭矾锛坄docs/goal2_winrate_method_analysis.md:68`锛夈€愰」鐩唴銆戔€斺€斾篃灏辨槸璇寸渷涓嬫潵鐨勬椂闂存瀬鍏堕泦涓€傛柟妗?A 鍙互鍦?*鍙崰 6% 棰勭畻**鐨勬儏鍐典笅鎶?min 灞傚姞杩涘幓锛涘墿涓嬬殑棰勭畻搴旇鑺卞湪"澶氱暀鍑犱釜 P1 鍥炲簲鍊欓€夛紙k1=5~8锛?鍜?P0 渚у鐣欏嚑涓?a0锛圞0=12锛?涓娿€?
-**涓轰粈涔堜笉鍋氬畬鏁?alpha-beta**锛氬垎鏀洜瀛愭槸缁勫悎鐖嗙偢锛坆undle 24脳24锛夛紝鍙跺€艰瘎浼拌璺戝紩鎿庯紙鏄傝吹锛夛紝鑰屼笖鎴戜滑娌℃湁鍙潬鐨勭晫鍋氬壀鏋濃€斺€攁lpha-beta 鐨勬敹鐩婇殢"璇勪及渚垮疁"鑰屾定锛屾垜浠殑鍦烘櫙鎭板ソ鐩稿弽銆?*1-ply + 鍊肩綉鍙跺€?*鎵嶆槸姝ｇ‘褰㈡€侊紙杩欎篃姝ｆ槸 AlphaZero 鍦ㄦ瀬浣庨绠椾笅鐨勫仛娉曪紝搂2.4锛夈€?
-**棰勬敞鍐岄獙鏀跺垽鎹紙寤鸿锛?*
-1. 鏈哄埗鍒ゆ嵁锛歅0 渚х殑**鍔ㄤ綔鏀瑰彉鐜?* 鈮?20%锛堣瘉鏄庢墦鍒嗙‘瀹炴敼鍐崇瓥锛岃€屼笉鏄楗帮級锛?2. 鎬ц兘鍒ゆ嵁锛歅0 渚ц儨鐜囷紙搴т綅缃崲閰嶅銆乶鈮?4 瀵癸級鎻愬崌 鈮?5pp 涓?CI 涓嬬晫 > 0锛?3. 鎴愭湰鍒ゆ嵁锛歅0 渚у钩鍧囩敤鏃?鈮?鐜扮姸 脳 1.5锛堝惁鍒欎細鍦?tiebreak 涓婁簭鍥炲幓锛夛紱
-4. 鍙嶄緥鍒ゆ嵁锛?*HOLD 姣斾緥涓嶅簲鏄捐憲涓嬮檷**锛堝洖搴旀劅鐭ユ墦鍒嗕笉搴旀妸 HOLD 鎸ゆ帀锛涜 搂3.3 鐨勮В閲娾€斺€旂悊璁轰笂瀹冨弽鑰屽彲鑳戒笂鍗囷級銆?
-### 3.2 鏂规 B锛氬骇浣嶈В鑰︾殑璇勬祴鍗忚锛堥浂绠楁硶椋庨櫓鐨?鍏堝仛杩欎釜"锛?
-**涓轰粈涔堝繀椤诲厛鍋?*锛氫綘浠幇鏈夌殑 64 灞€鏁板瓧锛?2% / 25%锛夊鏋滄寜搴т綅鍚?32 灞€锛屽樊鐨?SE 绾?12.5pp锛?7pp 鍙湁 ~2.2蟽锛涜€屼笖椤圭洰鍙蹭笂**鍚屽瀷鐨?28.1pp 鍦ㄩ厤瀵硅ˉ娴嬮噷鐩存帴褰掗浂**锛坄docs/experiment_log.md:1015-1024`锛夈€?*鍦ㄥ崗璁病瀹氭涔嬪墠锛屼换浣曢拡瀵?搴т綅宸?鐨勭畻娉曟敼鍔ㄩ兘鍙兘鏄湪鎷熷悎鍣０銆?*
+**关键洞察：预算根本不是瓶颈，候选数才是。** 项目实测 91.6% 的决策只有 1 个候选、80% 的决策被 `SKIP1` 短路（`docs/goal2_winrate_method_analysis.md:68`）【项目内】——也就是说省下来的时间极其集中。方案 A 可以在**只占 6% 预算**的情况下把 min 层加进去；剩下的预算应该花在"多留几个 P1 回应候选（k1=5~8）"和"P0 侧多留几个 a0（K0=12）"上。
 
-**鍋氭硶**
-1. 鍚屼竴鎵瑰湴鍥撅紝姣忓紶鍥炬墦涓ゅ眬锛堜氦鎹㈠厛鎵嬶級锛屽緱**閰嶅**鏍锋湰锛?2. 涓绘寚鏍囩敤**閰嶅 McNemar**锛堝彧缁熻"涓€鑳滀竴璐?鐨勪笉涓€鑷村锛夛紝骞舵姤**鍒嗗骇浣?CI**锛?3. 鏍锋湰閲忥細64 灞€锛?2 瀵癸級鍙兘鍒嗚鲸 ~25pp 鐨勬晥搴旓紱瑕佸垎杈?10pp 閲忕骇闇€瑕?~150+ 瀵癸紙椤圭洰閲?64 灞€鍒嗚鲸涓嶄簡 60% 鐨勬晥搴?鐨勭粡楠岋紝`docs/experiment_log.md:947`锛夛紱
-4. 鍚屾椂鎶?*琛€閲忓樊**锛堣繛缁噺锛屾柟宸皬寰楀锛変綔涓哄壇鎸囨爣鈥斺€旈」鐩凡缁忓湪鐢紙`docs/exp_plan_20261024_night.md:4`锛夈€?
-### 3.3 涓€涓?闆舵垚鏈瘖鏂?锛堝缓璁厛璺戯紝鐢ㄦ潵鍐冲畾 A 鍊间笉鍊煎緱鍋氾級
+**为什么不做完整 alpha-beta**：分支因子是组合爆炸（bundle 24×24），叶值评估要跑引擎（昂贵），而且我们没有可靠的界做剪枝——alpha-beta 的收益随"评估便宜"而涨，我们的场景恰好相反。**1-ply + 值网叶值**才是正确形态（这也正是 AlphaZero 在极低预算下的做法，§2.4）。
 
-**鍥炲簲鍊肩己鍙ｏ紙response gap锛夋祴閲?*锛氬湪 N鈮?00 涓湡瀹?P0 鍐崇瓥鐐逛笂锛屽姣忎釜鍊欓€?a0 鍚屾椂绠?- `V_idle(a0)`锛氱幇鐘舵墦鍒嗭紙瀵规墜 idle锛夛紱
-- `V_resp(a0)`锛氭柟妗?A 鐨?`min_k V(s(a0,a1_k))`銆?
-鐒跺悗鎶ヤ笁涓暟锛?1. `螖 = mean_a0 [ V_idle(a0) 鈭?V_resp(a0) ]`锛?*蹇界暐鍥炲簲璁╂垜浠珮浼颁簡澶氬皯**锛?2. `argmax 涓€鑷寸巼`锛氱幇鐘堕€夌殑 a0 鍦ㄥ洖搴旀劅鐭ヤ笅杩樻槸涓嶆槸绗竴锛堣繖涓暟鐩存帴鎹㈢畻鎴?P0 鏈夊灏戞瘮渚嬬殑鍐崇瓥鏄敊鐨?锛夛紱
-3. `P1 鍥炲簲鍛戒腑鐜嘸锛歅1 瀹為檯鍔ㄤ綔钀藉湪鎴戜滑 top-k 棰勬祴閲岀殑姣斾緥 鈫?鐢ㄦ潵鏍″噯 `beta`銆?
-濡傛灉涓€鑷寸巼 > 90%锛岃鏄?蹇界暐鍥炲簲"涓嶆槸涓诲洜锛?7pp 瑕佸幓鏌?*浠峰€肩綉鐨勫骇浣嶆牎鍑?*鎴?*鏁版嵁鍒嗗竷**锛涘鏋滀竴鑷寸巼 < 70%锛屾柟妗?A 鍩烘湰閿佸畾銆?*杩欎釜璇婃柇涓嶉渶瑕佽缁冦€佷笉闇€瑕佹敼瀵瑰眬娴佺▼锛屼竴澶╄兘鍑恒€?*
+**预注册验收判据（建议）**
+1. 机制判据：P0 侧的**动作改变率** ≥ 20%（证明打分确实改决策，而不是装饰）；
+2. 性能判据：P0 侧胜率（座位置换配对、n≥64 对）提升 ≥ 5pp 且 CI 下界 > 0；
+3. 成本判据：P0 侧平均用时 ≤ 现状 × 1.5（否则会在 tiebreak 上亏回去）；
+4. 反例判据：**HOLD 比例不应显著下降**（回应感知打分不应把 HOLD 挤掉；见 §3.3 的解释——理论上它反而可能上升）。
 
-**鍏充簬 HOLD锛堟寜浣犵殑鎻愰啋锛?*锛氭湰鏂规**涓嶆敼鍙樺姩浣滅┖闂淬€佷笉鏀瑰厛楠屻€佷笉鎯╃綒 HOLD**銆傝€屼笖浠庢満鍒朵笂璁诧紝HOLD 鏄?P0 鍞竴"涓嶆柊澧炰竴涓彲琚拡瀵规€у弽鍒剁殑鍏蜂綋瀵硅薄"鐨勫姩浣溾€斺€斿畠涓嶆硠闇?鎴戣鍦ㄥ摢涓€鏍艰捣濉?銆傛墍浠ュ湪鍥炲簲鎰熺煡鎵撳垎涓嬶紝**HOLD 鐨勭浉瀵逛环鍊煎彲鑳戒笂鍗囪€屼笉鏄笅闄?*銆傞獙鏀跺垽鎹噷鎴戞妸瀹冨啓鎴?涓嶅簲鏄捐憲涓嬮檷"锛屽氨鏄负浜嗛槻姝㈡妸 HOLD 褰撴垚缂洪櫡鍘诲帇銆?
+### 3.2 方案 B：座位解耦的评测协议（零算法风险的"先做这个"）
+
+**为什么必须先做**：你们现有的 64 局数字（72% / 25%）如果按座位各 32 局，差的 SE 约 12.5pp，27pp 只有 ~2.2σ；而且项目史上**同型的 28.1pp 在配对补测里直接归零**（`docs/experiment_log.md:1015-1024`）。**在协议没定死之前，任何针对"座位差"的算法改动都可能是在拟合噪声。**
+
+**做法**
+1. 同一批地图，每张图打两局（交换先手），得**配对**样本；
+2. 主指标用**配对 McNemar**（只统计"一胜一负"的不一致对），并报**分座位 CI**；
+3. 样本量：64 局（32 对）只能分辨 ~25pp 的效应；要分辨 10pp 量级需要 ~150+ 对（项目里"64 局分辨不了 60% 的效应"的经验，`docs/experiment_log.md:947`）；
+4. 同时报**血量差**（连续量，方差小得多）作为副指标——项目已经在用（`docs/exp_plan_20261024_night.md:4`）。
+
+### 3.3 一个"零成本诊断"（建议先跑，用来决定 A 值不值得做）
+
+**回应值缺口（response gap）测量**：在 N≈200 个真实 P0 决策点上，对每个候选 a0 同时算
+- `V_idle(a0)`：现状打分（对手 idle）；
+- `V_resp(a0)`：方案 A 的 `min_k V(s(a0,a1_k))`。
+
+然后报三个数：
+1. `Δ = mean_a0 [ V_idle(a0) − V_resp(a0) ]`：**忽略回应让我们高估了多少**；
+2. `argmax 一致率`：现状选的 a0 在回应感知下还是不是第一（这个数直接换算成"P0 有多少比例的决策是错的"）；
+3. `P1 回应命中率`：P1 实际动作落在我们 top-k 预测里的比例 → 用来校准 `beta`。
+
+如果一致率 > 90%，说明"忽略回应"不是主因，27pp 要去查**价值网的座位校准**或**数据分布**；如果一致率 < 70%，方案 A 基本锁定。**这个诊断不需要训练、不需要改对局流程，一天能出。**
+
+**关于 HOLD**：本方案**不改变动作空间、不改先验、不惩罚 HOLD**。而且从机制上讲，HOLD 是 P0 唯一"不新增一个可被针对性反制的具体对象"的动作——它不泄露"我要在哪一格起塔"。所以在回应感知打分下，**HOLD 的相对价值可能上升而不是下降**。验收判据里我把它写成"不应显著下降"，就是为了防止把 HOLD 当成缺陷去压。
+
 ---
 
-## 4. 涓嶇‘瀹?/ 璁块棶鍙楅檺娓呭崟锛堣涓嶅埌灏卞啓璇讳笉鍒帮級
+## 4. 不确定 / 访问受限清单（读不到就写读不到）
 
-### 4.1 宸ュ叿涓庤闂?- **`web_fetch` 鍦ㄦ湰鐜涓嶅彲鐢?*锛氭墍鏈夊閮ㄥ煙鍚嶈瑙ｆ瀽鍒伴潪鍏綉鍦板潃娈碉紙濡?`arxiv.org 鈫?198.18.3.21`锛夛紝宸ュ叿鐩存帴鎷掔粷銆傚疄闄呯敤浜嗕笁鏉℃浛浠ｈ矾寰勶細
-  1. **Playwright MCP** 鎵撳紑 `ar5iv.labs.arxiv.org` 鐨?HTML 鍏ㄦ枃锛堢敤浜?arXiv:2111.02111銆乤rXiv:1811.03871锛夛紱
-  2. **pwsh `Invoke-WebRequest`** 鎶撴爣棰?鍏冩暟鎹?Wikipedia REST API锛?  3. **PDF 涓嬭浇 + PyMuPDF 鎶芥枃鏈?*锛堢敤浜?Conitzer鈥揝andholm銆丮icklich銆丗irst-Turn Bias 涓夌瘒锛夈€?  鈫?鎵€浠?銆愭鏂囥€?鐨勮娉曟湁宸紓锛?*PDF 鎶芥枃鏈渶鍙潬锛汬TML 鎶藉彇娆′箣**锛堝彲鑳戒涪鍏紡/琛ㄦ牸锛屼篃鍙兘琚〉闈㈤噸瀹氬悜鎵撴柇鈥斺€旀垜鍦ㄨ arXiv:1811.03871 鏃堕〉闈㈡浘琚噸瀹氬悜鍒板彟涓€绡囪鏂囷紝鏄洖鍒版鏂囬噸鍙栫殑锛夈€?- **403 / 浠樿垂澧欙紝姝ｆ枃鏈**锛歚dl.acm.org`锛圕onitzer鈥揝andholm 鐨?ACM 椤?403鈥斺€斾絾浣滆€呬富椤?PDF 鎷垮埌浜嗭紝宸茶姝ｆ枃锛夈€乣sciencedirect.com`锛圙EB 绯诲垪鍏ㄩ儴鏃犳硶鐩磋繛锛夈€乣openreview.net`锛?Verifying your browser" 鍙嶇埇锛孏umbel 閭ｇ瘒鍙鍒?ICLR 鐨?poster 鎽樿椤碉級銆?- **bot 妫€娴嬫嫤鎴?*锛歚syzygy-tables.info` 杩斿洖 "Making sure you're not a bot!"锛?*cursed win 鐨勬潈濞佽鏄庢病璇诲埌**銆?- **瀹樻柟瑙勫垯椤典笉鍙揪**锛歚handbook.fide.com/chapter/E012023`锛團IDE 鍥介檯璞℃瑙勫垯锛?0 姝ヨ鍒欑殑瀹樻柟鍑哄锛夎繛鎺ュけ璐ワ紝**鍙牳鍒?Wikipedia 鐗堟湰**銆?- **涓嬭浇澶辫触**锛欱o拧ansk媒 鐨?habilitation 璁烘枃锛坄dspace.cvut.cz`锛岄噷闈㈡湁 Stackelberg 鍦ㄦ墿灞曞紡鍗氬紙閲岀殑瀹屾暣瀹氫箟绔犺妭锛変笅杞藉崱姝汇€? 瀛楄妭锛?*鏈**锛涙敼鐢?arXiv:2111.02111 鐨勬鏂囨浛浠ｃ€?
-### 4.2 璇佹嵁娓呭崟锛堣皝璇诲埌浜嗘鏂囥€佽皝鍙槸浜屾墜锛?
-| 鏂囩尞 | 鐘舵€?| 鎴戞€庝箞璇荤殑 |
+### 4.1 工具与访问
+- **`web_fetch` 在本环境不可用**：所有外部域名被解析到非公网地址段（如 `arxiv.org → 198.18.3.21`），工具直接拒绝。实际用了三条替代路径：
+  1. **Playwright MCP** 打开 `ar5iv.labs.arxiv.org` 的 HTML 全文（用于 arXiv:2111.02111、arXiv:1811.03871）；
+  2. **pwsh `Invoke-WebRequest`** 抓标题/元数据/Wikipedia REST API；
+  3. **PDF 下载 + PyMuPDF 抽文本**（用于 Conitzer–Sandholm、Micklich、First-Turn Bias 三篇）。
+  → 所以"【正文】"的读法有差异：**PDF 抽文本最可靠；HTML 抽取次之**（可能丢公式/表格，也可能被页面重定向打断——读 arXiv:1811.03871 时页面曾被重定向到另一篇论文，我回到正文重取）。
+- **403 / 付费墙，正文未读**：`dl.acm.org`（Conitzer–Sandholm 的 ACM 页 403——但作者主页 PDF 拿到了，已读正文）、`sciencedirect.com`（GEB 系列全部无法直连）、`openreview.net`（"Verifying your browser" 反爬，Gumbel 那篇只读到 ICLR 的 poster 摘要页）。
+- **bot 检测拦截**：`syzygy-tables.info` 返回 "Making sure you're not a bot!"，**cursed win 的权威说明没读到**。
+- **官方规则页不可达**：`handbook.fide.com/chapter/E012023`（FIDE 国际象棋规则，50 步规则的官方出处）连接失败，**只核到 Wikipedia 版本**。
+- **下载失败**：Bošanský 的 habilitation 论文（`dspace.cvut.cz`，里面有 Stackelberg 在扩展式博弈里的完整定义章节）下载卡死、0 字节，**未读**；改用 arXiv:2111.02111 的正文替代。
+
+### 4.2 证据清单（谁读到了正文、谁只是二手）
+
+| 文献 | 状态 | 我怎么读的 |
 |---|---|---|
-| Conitzer & Sandholm, EC'06 | **姝ｆ枃** | `users.cs.duke.edu/~conitzer/commitEC06.pdf` + PyMuPDF |
-| arXiv:2111.02111锛圫E with memory锛?| **姝ｆ枃**锛堟憳瑕?寮曡█+瀹氫箟娈碉級 | Playwright / ar5iv HTML |
-| arXiv:1811.03871锛圦uasi-Perfect SE锛?| **姝ｆ枃**锛堟憳瑕?寮曡█锛?| Playwright / ar5iv HTML |
-| First-Turn Bias锛? 椤电煭鏂囷紝闈炲悓琛岃瘎瀹★級 | **姝ｆ枃** | PDF + PyMuPDF |
-| Micklich, ABSEL 2009锛圕onnect-Four锛?| **姝ｆ枃** | PDF + PyMuPDF |
-| Wikipedia锛歋PE / Komi / 鍏堟墜浼樺娍 / 50 姝?/ pie rule / zugzwang / 绛栫暐绐冨彇 / tablebase / MCTS / QRE | **姝ｆ枃** | REST API 鎽樿 + 椤甸潰姝ｆ枃 |
-| SEP *Game Theory* | **姝ｆ枃**锛堢浉鍏虫钀斤級 | HTML 鎶藉彇 |
-| Zinkevich et al., NeurIPS 2007锛圕FR锛?| 浠呮憳瑕侀〉 | 鈥?|
-| AlphaZero 1712.01815 / MuZero / depth-limited / ReBeL / safe subgame / PSRO | **浠呮憳瑕侀〉** | 鈥?|
-| ICLR 2022 Gumbel锛坧oster 椤碉級 | 浠呮憳瑕?| OpenReview 琚弽鐖?|
-| Leela WDL 鍗氬 / KataGo GraphSearch.md | **姝ｆ枃**锛堢浉鍏虫钀斤級 | HTML 鎶藉彇 |
-| IJCAI'18 SSG 缁艰堪 | 浠?DOI 钀藉湴椤?+ PDF 瀛樺湪鎬?| 姝ｆ枃鏈娊 |
-| Letchford & Conitzer锛圓CM TEAC锛?| 浠?DOI | 鈥?|
-| Letchford/Conitzer/Munagala锛圖uke 璇剧▼ PDF锛?| 浠呯‘璁ゅ彲涓嬭浇 | 姝ｆ枃鏈娊 |
-| von Stengel & Zamir锛圙EB 2010锛?| 浠?DOI | 鈥?|
-| *Sequential commitment games*锛圙EB 2017锛?| 浠?DOI锛?*鏈锛屾晠鍏ㄦ枃鏈紩鐢ㄥ叾缁撹** | 鈥?|
-| Bo拧ansk媒 habilitation锛圕VUT锛?| **涓嬭浇澶辫触锛屾湭璇?* | 鈥?|
+| Conitzer & Sandholm, EC'06 | **正文** | `users.cs.duke.edu/~conitzer/commitEC06.pdf` + PyMuPDF |
+| arXiv:2111.02111（SE with memory） | **正文**（摘要+引言+定义段） | Playwright / ar5iv HTML |
+| arXiv:1811.03871（Quasi-Perfect SE） | **正文**（摘要+引言） | Playwright / ar5iv HTML |
+| First-Turn Bias（3 页短文，非同行评审） | **正文** | PDF + PyMuPDF |
+| Micklich, ABSEL 2009（Connect-Four） | **正文** | PDF + PyMuPDF |
+| Wikipedia：SPE / Komi / 先手优势 / 50 步 / pie rule / zugzwang / 策略窃取 / tablebase / MCTS / QRE | **正文** | REST API 摘要 + 页面正文 |
+| SEP *Game Theory* | **正文**（相关段落） | HTML 抽取 |
+| Zinkevich et al., NeurIPS 2007（CFR） | 仅摘要页 | — |
+| AlphaZero 1712.01815 / MuZero / depth-limited / ReBeL / safe subgame / PSRO | **仅摘要页** | — |
+| ICLR 2022 Gumbel（poster 页） | 仅摘要 | OpenReview 被反爬 |
+| Leela WDL 博客 / KataGo GraphSearch.md | **正文**（相关段落） | HTML 抽取 |
+| IJCAI'18 SSG 综述 | 仅 DOI 落地页 + PDF 存在性 | 正文未抽 |
+| Letchford & Conitzer（ACM TEAC） | 仅 DOI | — |
+| Letchford/Conitzer/Munagala（Duke 课程 PDF） | 仅确认可下载 | 正文未抽 |
+| von Stengel & Zamir（GEB 2010） | 仅 DOI | — |
+| *Sequential commitment games*（GEB 2017） | 仅 DOI，**未读，故全文未引用其结论** | — |
+| Bošanský habilitation（CVUT） | **下载失败，未读** | — |
 
-### 4.3 娌℃壘鍒扮殑锛堟槑纭笉缂栵級
-- **娌℃壘鍒?*"濉旈槻 / 鍏竟褰㈢綉鏍?/ RTS 绫绘父鎴忛噷鍚庢墜淇℃伅浼樺娍鐨勫疄娴嬮噺绾?鐨勭洿鎺ョ爺绌躲€俛rXiv 涓婃寜 `"turn order" AND "board game"`銆乣"first-player advantage"`銆乣"second-mover advantage"` 妫€绱㈠潎鏃犵浉鍏冲疄娴嬭鏂囥€?  **閫€鑰屾眰鍏舵鎵惧埌鐨勬槸妫嬬被/妗屾父閿氱偣**锛堝凡璇绘鏂囷級锛氬浗闄呰薄妫嬬害 **54%**銆佸洿妫嬭创鐩?**6.5**銆丆onnect Four 鍏堟墜蹇呰儨銆乧heckers/tic-tac-toe 鍜岋紱浠ュ強涓€绡?*闈炲悓琛岃瘎瀹?*鐨?3 椤电患杩般€?*杩欎簺鍙兘缁?閲忕骇鎰?锛屼笉鑳界粰"鎴戜滑杩欏眬搴旇鏄灏?銆?*
-- **娌℃壘鍒?*"CFR 鍦ㄥ畬鍏ㄤ俊鎭崥寮堥噷鏀舵暃鍒?SPE"鐨勬闈㈢粨璁恒€傛垜鍙‘璁や簡 CFR 鐨勮璁＄洰鏍囨槸**涓嶅畬鍏ㄤ俊鎭?*涓ゆ柟闆跺拰锛?瀹屽叏淇℃伅鍗氬紙鏄畠鐨勭壒渚?鍦ㄥ舰寮忎笂鎴愮珛銆?*"CFR 鐨?off-path 琛屼负鏄惁鍙俊"鎴戞病鏈夎瘉鎹紝鏁呮寜"鏈瘉瀹?澶勭悊銆?*
-- **娌℃牳鍒?*"leader 鍦ㄥ畬鍏ㄤ俊鎭?+ follower 瑙傛祴瀹炵幇鍊肩殑璁惧畾涓嬶紝娣峰悎绛栫暐涓ユ牸鍔ｄ簬鏈€浼樼函鍔ㄤ綔"鐨?*姝ｅ紡瀹氱悊缂栧彿**銆偮?.2(b) 鐨勪笉绛夊紡鏄垜鑷繁鍐欑殑鍒濈瓑鎺ㄥ锛坄E[min] 鈮?max min`锛夛紱Conitzer鈥揝andholm 鍘熸枃鍙粰浜?鑳芥壙璇烘贩鍚堟椂娣峰悎涓嶄簭"杩欎竴渚э紙搂0.2 琛ュ厖绗?2 鏉★級锛?*鍙︿竴渚э紙瑙傛祴瀹炵幇鍊兼椂娣峰悎涓嶈禋锛夋槸鎴戣ˉ鐨勬帹鐞嗭紝娌℃湁鏂囩尞瀹氱悊缂栧彿**銆?
-### 4.4 鏁板瓧鍙ｅ緞闇€瑕佷綘纭
-- 浣犵粰鐨?"P1 72% / P0 25%" 涓?搴т綅宸害 27pp"**瀵逛笉涓?*锛?2 鈭?25 = **47pp**銆傚彲鑳界殑瑙ｉ噴锛?i) 27pp 鏄?鐩稿 50% 鐨勫钩鍧囧亸绉?锛?2 + 25)/2 鈮?23.5pp锛屼粛瀵逛笉涓婏紱(ii) 涓や釜鏁板瓧鏉ヨ嚜涓嶅悓瀛愰泦/涓嶅悓鏍锋湰閲忥紱(iii) 27pp 鏄彟涓€涓疄楠屻€?*寤鸿鍏堟妸杩欎袱涓暟瀛楃殑鍒嗘瘝銆佸瓙闆嗐€佹槸鍚﹂厤瀵瑰啓娓呮**锛屽惁鍒欏悗闈㈢殑鏄捐憲鎬ч兘鏃犱粠璋堣捣銆?- 椤圭洰鍐呰繕鏈変釜鏂瑰悜鐩稿弽鐨勬暟瀛楋細`docs/experiment_log.md:1312` 璁板綍 "P1 91 鑳?/ P0 69 鑳?= 57%"锛岃€?`docs/phase0_report_20261017.md:105` 璁板綍"绂侀棯鐢靛悗鍏堟墜鍙嶈€屽彉鍔ｅ娍锛垀18pp 鐨勮鑹蹭笉瀵圭О锛?銆?*涓嶅悓瀛愬崥寮堛€佷笉鍚屽鎵嬶紝搴т綅鏁堝簲绗﹀彿閮戒細鍙?*鈥斺€旇繖鏈韩鍙堟槸"搴т綅宸富瑕佹槸绛栫暐/瀵规墜鐩稿寮哄害锛岃€屼笉鏄父鎴忓父鏁?鐨勮瘉鎹€?
+### 4.3 没找到的（明确不编）
+- **没找到**"塔防 / 六边形网格 / RTS 类游戏里后手信息优势的实测量级"的直接研究。arXiv 上按 `"turn order" AND "board game"`、`"first-player advantage"`、`"second-mover advantage"` 检索均无相关实测论文。
+  **退而求其次找到的是棋类/桌游锚点**（已读正文）：国际象棋约 **54%**、围棋贴目 **6.5**、Connect Four 先手必胜、checkers/tic-tac-toe 和；以及一篇**非同行评审**的 3 页综述。**这些只能给"量级感"，不能给"我们这局应该是多少"。**
+- **没找到**"CFR 在完全信息博弈里收敛到 SPE"的正面结论。我只确认了 CFR 的设计目标是**不完全信息**两方零和，"完全信息博弈是它的特例"在形式上成立。**"CFR 的 off-path 行为是否可信"我没有证据，故按"未证实"处理。**
+- **没核到**"leader 在完全信息 + follower 观测实现值的设定下，混合策略严格劣于最优纯动作"的**正式定理编号**。§0.2(b) 的不等式是我自己写的初等推导（`E[min] ≤ max min`）；Conitzer–Sandholm 原文只给了"能承诺混合时混合不亏"这一侧（§0.2 补充第 2 条），**另一侧（观测实现值时混合不赚）是我补的推理，没有文献定理编号**。
+
+### 4.4 数字口径需要你确认
+- 你给的 "P1 72% / P0 25%" 与"座位差约 27pp"**对不上**：72 − 25 = **47pp**。可能的解释：(i) 27pp 是"相对 50% 的平均偏移"（22 + 25)/2 ≈ 23.5pp，仍对不上；(ii) 两个数字来自不同子集/不同样本量；(iii) 27pp 是另一个实验。**建议先把这两个数字的分母、子集、是否配对写清楚**，否则后面的显著性都无从谈起。
+- 项目内还有个方向相反的数字：`docs/experiment_log.md:1312` 记录 "P1 91 胜 / P0 69 胜 = 57%"，而 `docs/phase0_report_20261017.md:105` 记录"禁闪电后先手反而变劣势（~18pp 的角色不对称）"。**不同子博弈、不同对手，座位效应符号都会变**——这本身又是"座位差主要是策略/对手相对强度，而不是游戏常数"的证据。
+
 ---
 
-## 闄勶細涓€鍙ヨ瘽鍥炵瓟浣犵殑鍥涗釜闂
+## 附：一句话回答你的四个问题
 
-1. **鏍囧噯寤烘ā**锛氬畬鍏ㄤ俊鎭簭鍒楀崥寮?鈫?**SPE / 閫嗗悜褰掔撼**锛?Stackelberg"鍙簲浣滀负**鍗曞洖鍚堝崟姝ュ瓙鍗氬紙**鐨勭被姣旓紙leader=P0锛宖ollower=P1锛夛紝涓斿繀椤诲０鏄?鎴戜滑娌℃湁鎵胯瑁呯疆銆丳1 瑙傛祴瀹炵幇鍊?杩欎袱涓亸宸€?*鍧囪　姒傚康鏄?SPE锛屼笉鏄?SE銆?*
-2. **瀵规悳绱㈢殑鍚箟**锛氬繀椤绘妸 min 灞傚姞杩涘幓銆備笁绉嶅仛娉曠殑浠ｄ环锛歴elf-play rollout锛堟渶渚垮疁锛岃繎浼?BR锛夈€?-ply minimax锛堟渶姝ｇ‘锛? 鍊欓€?脳 3 鍥炲簲 鈮?0.64 s锛?*鍙**锛夈€佸畬鏁?2-ply rollout锛?84 s锛?*涓嶅彲琛?*锛夈€?*娣峰悎绛栫暐鎸?搂0.2(b) 搴旈檷绾т负 exploit 鎵嬫锛屼笉鏄富鏂规銆?*
-3. **27pp 鏄惁涓庢満鍒朵竴鑷?*锛?*鏂瑰悜涓€鑷达紙P1 鏈変俊鎭紭鍔匡級锛岄噺绾т笉涓€鑷?*銆傛绫婚敋鐐?3鈥?.5pp銆侀」鐩唴 AntWar 鏁版嵁 5.4pp銆侀」鐩彶涓婂悓鍨?28pp 鍦ㄩ厤瀵硅ˉ娴嬮噷褰掗浂銆?*寤鸿鍏堟寜 搂3.2 閲嶆祴锛屽啀鍐冲畾鏄惁涓哄畠鏀圭畻娉曘€?*
-4. **杩戝拰灞€**锛氳鍒欑骇瑁佸喅锛?0 姝?璐寸洰/cursed win锛? WDL 涓夊ご + 瀛楀吀搴忔晥鐢紱鎴戜滑鏄?琛€ 鈫?鍑绘潃 鈫?瓒呮娆℃暟 鈫?鐢ㄦ椂 鈫?鍏堟墜"鐨勫瓧鍏稿簭锛?*鍒敤绾?卤1**锛屽苟涓旇浣?鎯冲緱涔?鏈韩鏄 4 椤?tiebreak 鐨勫姡鍔裤€?
+1. **标准建模**：完全信息序列博弈 → **SPE / 逆向归纳**；"Stackelberg"只应作为**单回合单步子博弈**的类比（leader=P0，follower=P1），且必须声明"我们没有承诺装置、P1 观测实现值"这两个偏差。**均衡概念是 SPE，不是 SE。**
+2. **对搜索的含义**：必须把 min 层加进去。三种做法的代价：self-play rollout（最便宜，近似 BR）、1-ply minimax（最正确，8 候选 × 3 回应 ≈ 0.64 s，**可行**）、完整 2-ply rollout（184 s，**不可行**）。**混合策略按 §0.2(b) 应降级为 exploit 手段，不是主方案。**
+3. **27pp 是否与机制一致**：**方向一致（P1 有信息优势），量级不一致**。棋类锚点 3–5.5pp、项目内 AntWar 数据 5.4pp、项目史上同型 28pp 在配对补测里归零。**建议先按 §3.2 重测，再决定是否为它改算法。**
+4. **近和局**：规则级裁决（50 步/贴目/cursed win）+ WDL 三头 + 字典序效用；我们是"血 → 击杀 → 超武次数 → 用时 → 先手"的字典序，**别用纯 ±1**，并且记住"想得久"本身是第 4 项 tiebreak 的劣势。
