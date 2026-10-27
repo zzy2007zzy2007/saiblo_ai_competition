@@ -14,7 +14,7 @@
 | **A** | 折 `y_std/y_mean` 进 `value_head` | ✅ 产出 `checkpoints/small32_3/v_32_3_folded.pt`（429,075 B）。**等价性 `max|folded-(raw*y_std+y_mean)|=1.24e-07`**；1000 帧留出集 **ρ(tanh vs 现役)=0.9600**（报告口径 0.9603）；不折的对照：Pearson 0.9513（掉）、`\|tanh\|>0.9` 从 0% 变 5.70% |
 | **B** | `AZAI_VALUE_CKPT` 开关（默认关） | ✅ 空值：**探测器的 6 个决策哈希与改动前逐行相同（diff 0 行）**；非空：同探针 **24 行不同**（决策真的变了）+ 两处消费点都跑通 |
 | **C** | 同一局面计时 | ✅ **总耗时 10.30 s → 6.78 s（1.52×）**；`_leaf_values` 6.00 s → 2.55 s（2.35×）；**纯值网前向 4.33 s（42%）→ 0.90 s（13%），4.8×**。同预算换算：**N 64→86（保守 88 实测）**，或 **k 48→65** |
-| **D** | 8 局冒烟 | 见 §5（每局 `verdict=engine`、无异常退出、逐局耗时） |
+| **D** | 8 局冒烟 | ✅ **8/8 `verdict=engine`**、`terminal=True`、**0 次 ILLEGAL**、两批 `rc=0`；逐局 13.2–19.8 min（见 §4.2） |
 
 **一句话**：小值网**能接**（折叠正确、开关零影响、两处消费点兼容），**也确实省时间**——但在
 `k=48/N=64/h=8` 这个部署配置里**只能把总耗时砍到 1/1.52**，因为决策里 58% 是值网管不到的固定成本
@@ -268,10 +268,51 @@ AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only   (+ AZAI_TORCH_
 ① `AZAI_VALUE_CKPT` 空（= 改动前逻辑） ② `AZAI_VALUE_CKPT=checkpoints/small32_3/v_32_3_folded.pt`；
 两批都用 `5 5r 6 6r`（2 seed × 2 座位），对手 = 亚军 `ai_cpp_lure_v4.exe`。
 
-### 4.2 结果
+### 4.2 结果（`exit=0`，总 wall 3935 s；两批各 4 局）
 
-（本次运行结束后填入 —— 见 `training_history/runs/20261027_141750_small_value_smoke/output.log`
-与 `match_results/ladder_logs/small_value_smoke_{off,on}/`）
+运行记录：`training_history/runs/20261027_141750_small_value_smoke/output.log`；
+对局日志 `match_results/ladder_logs/small_value_smoke_{off,on}/`（含 `stderr/` 归档）。
+
+**① 开关关（`AZAI_VALUE_CKPT` 空，= 改动前逻辑）** wall 2156 s
+
+| token | 我们执 | 结果 | verdict | rounds | base_hp（我们, 对手） | 用时 |
+|---|---|---|---|---|---|---|
+| `5` | P0 | 负 | **engine** | 416 | (0, 33) | 14.9 min |
+| `5r` | P1 | 负 | **engine** | 512 | (9, 23) | 16.1 min |
+| `6` | P0 | 负 | **engine** | 512 | (7, 11) | 18.2 min |
+| `6r` | P1 | 负 | **engine** | 512 | (11, 15) | 19.8 min |
+
+**② 开关开（`AZAI_VALUE_CKPT=checkpoints/small32_3/v_32_3_folded.pt`）** wall 1775 s
+
+| token | 我们执 | 结果 | verdict | rounds | base_hp（我们, 对手） | 用时 |
+|---|---|---|---|---|---|---|
+| `5` | P0 | 负 | **engine** | 504 | (0, 26) | 15.2 min |
+| `5r` | P1 | 负 | **engine** | 512 | (4, 28) | 15.2 min |
+| `6` | P0 | 负 | **engine** | 512 | (11, 29) | 14.4 min |
+| `6r` | P1 | 负 | **engine** | 512 | (5, 25) | 13.2 min |
+
+**冒烟判据（脚本 ④ 自动判定，原文）**
+
+```
+  verdict=engine 的局数: 8  （非 engine: 0）
+  ILLEGAL 出现次数: 0
+  ✅ 8 局全部 verdict=engine、无非法操作、两批都 rc=0
+```
+
+- **每局都 `verdict=engine` + `terminal=True`** ⇒ 都是官方 5 级级联判出来的，**没有 `hp_tiebreak` 兜底、没有 timeout**。
+  （8 局里有 **7 局打到 512 回合上限**，那几局由官方级联按剩余基地 HP 比较定胜负 —— 仍是 `engine`，
+  但**说明这个对手下本配置很难在回合上限内打穿**；这是"冒烟能跑通"，不是"强度好"。）
+- **无异常退出**：8 个 `rc=0`，两批 lstderr 里没有 traceback；`_tmp_ladder` 的逐局表 `ill` 列全 0。
+- **开关真的在整局里生效**：ON 批的 AI stderr 有 2 条
+  `[value_override] 叶子值网 = v_32_3_folded.pt ValueNetwork(params=103,137) …（ckpt 已折）`；
+  OFF 批该行出现 **0 次**（脚本查过）。
+- **同 seed 换了值网 ⇒ 对局确实变了**（`5`：416→504 回合、hp (0,33)→(0,26)），不是"开关没接上"。
+- **胜负 0W-4L（两批都是）**：对手是**亚军** `ai_cpp_lure_v4`，本配置（`K=160` + `pos-only` + `pin=argmax`）
+  在 4 局里没赢；**这不是强度结论**（n=4、且两臂都一样），强度只能看明早的 128 局配对。
+- **粗算每决策耗时（派生量，非计时实验）**：OFF 3904 个决策 / 2156 s = **0.552 s/决策**；
+  ON 4080 个决策 / 1775 s = **0.435 s/决策**（1.27×）。方向与 §3 的 1.52× 一致，但**对局不同、负载不同，不能当证据用**，
+  只用来确认"没有变慢"。
+
 
 ---
 

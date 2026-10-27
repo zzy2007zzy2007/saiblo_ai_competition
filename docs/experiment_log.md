@@ -12650,3 +12650,33 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   现役 N=64 = **13247 ms**、小网 N=64 = **8645 ms（1.53×）**、**小网 N=81 = 10828 ms（0.82× 基准，还有余量）**、
   现役 N=81 = 16599 ms。⇒ 上一轮外推 N*≈86 的方向成立；负载更重时 81 都还富余，
   故 §5 明早推荐 **N=88（保守）** 或 **k=64**。主表同运行读数：13569 → 8697 ms（1.56×）、值网 44.4% → 13.6%。
+
+## 2026-10-27 11:17:47 — rollout_strength_v2
+
+- **commit**: `234f5ec` (dirty: 2 files)
+- **exit**: 0，用时 13533s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rollout_strength_v2.sh
+  ```
+- **output**: `training_history/runs/20261027_111747_rollout_strength_v2/output.log`
+- **result**: _待填_
+
+## 2026-10-27 14:17:50 — small_value_smoke
+
+- **commit**: `6db56ab` (dirty: 7 files)
+- **exit**: 0，用时 3935s
+- **cmd**:
+  ```bash
+  bash code/test_match/_smoke_small_value.sh
+  ```
+- **output**: `training_history/runs/20261027_141750_small_value_smoke/output.log`
+- **result**: **D 8 局冒烟通过（详见 `docs/small_value_net_integration_20261027.md` §4）**。
+  冠军配置（`K=160 / FLAT_ROUNDS=39000 / ROLLOUT_MODE=idle / SEARCH=flat / MODE=pos-only`），
+  对手 = 亚军 `ai_cpp_lure_v4.exe`，seeds `5 5r 6 6r`（2 seed × 2 座位），`AZAI_VALUE_CKPT` 关/开各 4 局：
+  - **8/8 局 `verdict=engine` + `terminal=True`**，0 次 `ILLEGAL`，8 个 `rc=0`，**无 timeout、无 traceback**；
+  - 逐局耗时（关）：14.9 / 16.1 / 18.2 / 19.8 min（wall 2156 s）；（开）：15.2 / 15.2 / 14.4 / 13.2 min（wall 1775 s）；
+  - 开关在整局内**确实生效**：开批 AI stderr 有 `[value_override] 叶子值网 = v_32_3_folded.pt …（ckpt 已折）`，关批 0 次；
+    同 seed 换网后对局变了（`5`：416→504 回合、hp (0,33)→(0,26)）；
+  - 胜负 **0W-4L（两批各 0W-4L）**：对手是亚军，本配置 4 局没赢 —— n=4，**不是强度结论**，强度看明早 128 局配对；
+  - 派生量（非计时实验）：关 0.552 s/决策、开 0.435 s/决策（1.27×），方向与 §3 的 1.52× 一致。
