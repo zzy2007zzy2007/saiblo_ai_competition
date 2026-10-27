@@ -12756,3 +12756,58 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   | E 仅RNG const p=0.5 | 710.7 (69.3%) | **64.0**（9/9 重复全满） | **7.627** | 7.543 |
   ⇒ **E 用 68.4% 墙钟、75.7% 节点，拿到封顶多样性**。与 17:08/17:19 两次独立运行一致（A 11.169/11.153、E 7.588/7.627）⇒ 结论稳。
   详见 `docs/engine_rng_impl.md` §3.1。
+
+## 2026-10-27 18:30:34 — illegal_fault_inject_strict
+
+- **commit**: `08e398d` (dirty: 4 files)
+- **exit**: 0，用时 5s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_183034_illegal_fault_inject_strict/output.log`
+- **result**: _待填_
+
+## 2026-10-27 18:30:40 — illegal_fault_inject_cold
+
+- **commit**: `08e398d` (dirty: 5 files)
+- **exit**: 0，用时 8s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_183040_illegal_fault_inject_cold/output.log`
+- **result**: _待填_
+
+## 2026-10-27 18:32:11 — illegal_fault_inject_strict
+
+- **commit**: `01b15d7` (dirty: 3 files)
+- **exit**: 0，用时 6s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_183211_illegal_fault_inject_strict/output.log`
+- **result**: _待填_
+
+## 2026-10-27 18:32:18 — illegal_fault_inject_cold
+
+- **commit**: `01b15d7` (dirty: 3 files)
+- **exit**: 0，用时 8s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_183218_illegal_fault_inject_cold/output.log`
+- **result**: _待填_
+
+## 2026-10-27 18:32:27 — illegal_strict_smoke
+
+- **commit**: `01b15d7` (dirty: 3 files)
+- **exit**: 127，用时 499s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101 8101r 8102 8102r
+  ```
+- **output**: `training_history/runs/20261027_183227_illegal_strict_smoke/output.log`
+- **result**: _待填_

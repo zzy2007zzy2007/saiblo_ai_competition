@@ -718,26 +718,35 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
                                  coins=_coins, hp=_hp)
                 except Exception:
                     pass
+            _OPS_HISTORY.append([op.to_protocol_tokens() for op in ops0] + [None] + [op.to_protocol_tokens() for op in ops1])
             # ── ① 只读影子校验（**先做**，绝不改状态）──────────────────────────────
             # 逐条问引擎"这个 op 能不能落"（dry + clone 版冷路径），非法就逐条打 stderr、
             # 计数并按 (op_type, reason) 归类。这一步与是否严格模式**无关**：冷模式下也照打。
+            # ⚠️ **顺序必须与官方一致：p0 校验→应用，再 p1 校验→应用**（main.cpp:41/52 的
+            #    round_read_from_judger(0) → (1)）。若两侧都先查再一起应用，就会漏掉
+            #    "p0 本回合放 EMP ⇒ p1 的建塔落在护盾格上" 这类**同回合跨侧**影响
+            #    （官方 apply_operation 里 TowerBuild 的 `EMPBlaster is active` 检查）。
             bad0 = check_ops(state, 0, ops0, stats, seed=seed, round_index=rounds,
                              tag="apply", cold=COLD_ILLEGAL)
+            if bad0 and not COLD_ILLEGAL:
+                result["strict_illegal_side"] = 0
+                result["strict_illegal_ops"] = bad0
+                print(f"  !!! 严格模式(cold=False)：p0 在第 {rounds} 回合发非法操作 "
+                      f"⇒ 按官方规则判负（winner=p1）", file=sys.stderr, flush=True)
+                break
+            # ── ② 应用（冷模式与"全合法"的严格模式都走这里，行为与历史逐位一致）────────
+            state.apply_operation_list(0, ops0)
             bad1 = check_ops(state, 1, ops1, stats, seed=seed, round_index=rounds,
                              tag="apply", cold=COLD_ILLEGAL)
-            _OPS_HISTORY.append([op.to_protocol_tokens() for op in ops0] + [None] + [op.to_protocol_tokens() for op in ops1])
-            if (bad0 or bad1) and not COLD_ILLEGAL:
-                # ── ② 严格模式 = 官方判题口径：`set_AI_state_IO(player)` ⇒ 立刻终局、肇事方判负。
-                #    官方按 p0 → p1 的顺序读操作块（main.cpp:41/52），p0 先非法就先判 p0。
-                #    这里**不应用任何 op**（对局已结束；官方那半步的前缀副作用不影响胜负）。
-                strict_side = 0 if bad0 else 1
-                result["strict_illegal_side"] = strict_side
-                result["strict_illegal_ops"] = (bad0 if strict_side == 0 else bad1)
-                print(f"  !!! 严格模式(cold=False)：p{strict_side} 在第 {rounds} 回合发非法操作 "
-                      f"⇒ 按官方规则判负（winner=p{1 - strict_side}）", file=sys.stderr, flush=True)
+            if bad1 and not COLD_ILLEGAL:
+                # 严格模式 = 官方判题口径：`set_AI_state_IO(player)` ⇒ 立刻终局、肇事方判负。
+                # 官方按 p0 → p1 的顺序读操作块 ⇒ p0 先非法就先判 p0。
+                # 这里**不再应用 p1 的 op**（对局已结束；官方那半步的前缀副作用不影响胜负）。
+                result["strict_illegal_side"] = 1
+                result["strict_illegal_ops"] = bad1
+                print(f"  !!! 严格模式(cold=False)：p1 在第 {rounds} 回合发非法操作 "
+                      f"⇒ 按官方规则判负（winner=p0）", file=sys.stderr, flush=True)
                 break
-            # ── ③ 应用（冷模式与"全合法"的严格模式都走这里，行为与历史逐位一致）────────
-            state.apply_operation_list(0, ops0)
             state.apply_operation_list(1, ops1)
             state.advance_round()
             rounds += 1
