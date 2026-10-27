@@ -1,3 +1,4 @@
+# DEPRECATED: 已被 eval_recall_report.py 取代（2026-10-27）
 """统一评估多个先验 checkpoint：同一批留出局、同一支撑集口径（2026-10-27）。
 
 留出：`g9376-g9379`（80 局版训练时未见过）
@@ -29,6 +30,8 @@ NETS = [
     ("z_only", "checkpoints/prior_hybrid_z_only.pt"),
     ("z_ce_w1", "checkpoints/prior_hybrid_z_ce_w1.pt"),
     ("z_ce_w3", "checkpoints/prior_hybrid_z_ce_w3.pt"),
+    ("hard_ce_w1", "checkpoints/prior_hard_ce_w1.pt"),
+    ("hard_ce_w3", "checkpoints/prior_hard_ce_w3.pt"),
 ]
 
 
