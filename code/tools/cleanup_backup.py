@@ -27,10 +27,10 @@ G = 1024 ** 3
 # ---- 第一档:名字本身就说"没用/是副本"的目录(按名字匹配,较深层的会随父目录一起删) ----
 TIER1_DIR_KEYWORDS = [
     "没用的",
-    "没用的旧模型",
     "旧版本对战",
     " - 副本",
     " - copy",
+    " copy",
 ]
 
 # ---- 第一档:训练中间产物文件 ----
@@ -66,7 +66,8 @@ def collect_tier1():
             for d in dirnames:
                 full = os.path.join(dirpath, d)
                 rel = os.path.relpath(full, vp)
-                if rel in PROTECTED or any(rel.startswith(p + os.sep) for p in PROTECTED):
+                # 只保护"版本根"本身,不保护它下面的任何东西
+                if rel in PROTECTED:
                     keep.append(d)
                     continue
                 if any(k in d for k in TIER1_DIR_KEYWORDS):
@@ -106,15 +107,30 @@ def main():
     hits = collect_tier1()
     hits.sort(key=lambda x: -x[1])
 
-    total = sum(h[1] for h in hits)
+    junk = [h for h in hits if h[3].startswith("junk目录")]
+    temp = [h for h in hits if not h[3].startswith("junk目录")]
+
+    jb = sum(h[1] for h in junk)
+    tb = sum(h[1] for h in temp)
+    total = jb + tb
     nf = sum(h[2] for h in hits)
 
     print(f"=== 第一档候选:{len(hits)} 项,{total/G:.2f} GiB,{nf} 个文件 ===")
-    print(f"{'-- 前 40 项 --':^100}")
-    for p, s, n, why in hits[:40]:
-        print(f"  {s/G:8.2f} GiB  n={n:<6} [{why}]  {os.path.relpath(p, BACKUP_ROOT)[:95]}")
-    if len(hits) > 40:
-        print(f"  ... 其余 {len(hits)-40} 项")
+    print(f"\n-- (A) '没用的 / 副本 / copy' 目录:{len(junk)} 个,{jb/G:.2f} GiB --")
+    for p, s, n, why in junk[:30]:
+        print(f"  {s/G:8.2f} GiB  n={n:<6} {os.path.relpath(p, BACKUP_ROOT)[:95]}")
+    if len(junk) > 30:
+        print(f"  ... 其余 {len(junk)-30} 个")
+
+    # temp 文件按 run 目录聚合
+    agg = {}
+    for p, s, n, why in temp:
+        agg[os.path.dirname(p)] = agg.get(os.path.dirname(p), 0) + s
+    print(f"\n-- (B) temp_* 训练中间产物:{len(temp)} 个文件,{tb/G:.2f} GiB,散布在 {len(agg)} 个目录 --")
+    for d, b in sorted(agg.items(), key=lambda kv: -kv[1])[:15]:
+        print(f"  {b/G:8.2f} GiB  {os.path.relpath(d, BACKUP_ROOT)[:100]}")
+    if len(agg) > 15:
+        print(f"  ... 其余 {len(agg)-15} 个目录")
 
     if not args.apply:
         print(f"\n[只列出] 没有删除任何东西。确认后加 --apply 执行。")
