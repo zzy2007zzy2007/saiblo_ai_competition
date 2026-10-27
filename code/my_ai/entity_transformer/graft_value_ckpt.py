@@ -44,7 +44,10 @@ def main() -> int:
 
     ck = torch.load(base, map_location="cpu", weights_only=False)
     vk = torch.load(vp, map_location="cpu", weights_only=False)
-    vnet = ValueNetwork()
+    # ⚠️ 按被嫁网自己的 `config` 建网（否则把 32/3 装进 64/6 只会得到"shape mismatch"警告）
+    _cfg = vk.get("config") or {}
+    vnet = ValueNetwork(latent_dim=int(_cfg.get("latent_dim", 64)),
+                        num_resblocks=int(_cfg.get("num_resblocks", 6)))
     vnet.load_state_dict(vk["state_dict"])
     vsd = vnet.state_dict()
 

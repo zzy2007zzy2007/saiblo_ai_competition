@@ -271,3 +271,27 @@ python -u code/tools/extract_model_from_ckpt.py \
 | `D:\...\distill_top2\lowq_f64\` | 6.5 GB | **每局均匀抽 64 帧**的紧凑集（32 万样本，可全量进内存） |
 
 ⚙️ 磁盘：**D 是 SSD（954 GB）、E/F 都是 HDD（3726 GB）**。数据放 HDD 时顺序读 ~130 MB/s，随机读会退化成寻道风暴——同一任务"散读帧"与"整窗口顺序读"实测差 30 倍以上。
+
+## 小值网 `ValueNetwork(32,3)`（2026-10-27，详见 `docs/small_value_net_20261027.md`）
+
+**目的**：把 rollout 的叶子值网从 542,913 参数（64/6）换成 **103,137 参数（32/3）**，
+换取前向 **5.1×**（batch64 实测 143.4 ms → 25.7 ms，4 线程），用于在 10 s 预算内加随机化。
+
+| 文件 | 大小 | 是什么 |
+|---|---|---|
+| `checkpoints/small32_3/lowq_value_seed{0,1,2}.pt` | 各 **429,587 B** | `ValueNetwork(latent_dim=32, num_resblocks=3)`，**103,137 参数**。数据/标签/切分**与上面 64/6 那三个完全同口径**（`lowq_f64` + `label.npy` + 最后 500 局留出）。**val R²=0.4711 / 0.4707 / 0.4730（均值 0.4716，种子间 0.0010）**，MAE≈0.215 —— **不输 64/6 的 0.4701，远高于现役 `posnet_A_k5_m32` 的 0.4533**。ckpt 里带 `config={latent_dim:32,num_resblocks:3}` 与 `y_mean=-0.0004 / y_std=0.3861` |
+
+⚠️ **这是独立 `ValueNetwork`，不能灌进三网 ckpt**（`load_three_models` 用同一组 `latent_dim/num_resblocks` 建三个网）⇒ 只能在消费侧单独加载，
+且 `az_intent/value_batch.py:55` 与 `az_intent/flat_rollout_greedy.py:284` 写的是 `["value"]`，取值前要适配裸张量。
+**部署时必须把 `y_std/y_mean` 折进 `value_head.2`**（照 `graft_value_ckpt.py:68-76`），否则输出放大 2.6×。
+
+⚠️ 与现役值网的排序一致性：**Spearman ρ(tanh)=0.9598 / 0.9621 / 0.9590**（20,000 帧，同一留出集；门槛 0.95，**贴线通过**）。
+在 `|tanh老师|≥0.2` 的帧上符号不一致只有 0.00–0.02%。
+
+校验（2026-10-27 实测）：
+```
+fe643552461db0fccde21379b480bc55461cf730a65b8f336532ab92ab8082d7  small32_3/lowq_value_seed0.pt
+42f60aeb1e6f6959517963623c01f3c2d7940e3fa602e0dd81ef0f7216e5987f  small32_3/lowq_value_seed1.pt
+ddeedc3d5f6db8fd19953f7b36d77125f1bd9121d5798106d1d672d4ef965b04  small32_3/lowq_value_seed2.pt
+```
+（训练日志 `training_history/logs/train_small32_3.log`；`exit=0`，911 s，commit `ed5b28d`，`run_logged.sh` 名 `small_value_32_3`。）

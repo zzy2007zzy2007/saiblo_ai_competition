@@ -66,6 +66,11 @@ def main() -> int:
                     help="实时进度日志（每 --log-every 步一行，随时 tail 查看）")
     ap.add_argument("--log-every", type=int, default=50)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    # 网络规模：默认 64/6 = `ValueNetwork()` 的历史行为，**不传时与原逻辑完全一致**
+    ap.add_argument("--width", type=int, default=64, help="ValueNetwork latent_dim（默认 64）")
+    ap.add_argument("--blocks", type=int, default=6, help="ValueNetwork num_resblocks（默认 6）")
+    ap.add_argument("--snap-dir", default="",
+                    help="每次创新高的快照目录；空 = 写进 --out-dir（历史行为）")
     a = ap.parse_args()
 
     d = Path(a.data)
@@ -143,6 +148,11 @@ def main() -> int:
     if not outdir.is_absolute():
         outdir = _REPO / outdir
     outdir.mkdir(parents=True, exist_ok=True)
+    # 快照目录：空 ⇒ 与历史行为一致（写进 outdir）
+    snapdir = Path(a.snap_dir) if a.snap_dir else outdir
+    if not snapdir.is_absolute():
+        snapdir = _REPO / snapdir
+    snapdir.mkdir(parents=True, exist_ok=True)
 
     # ── 实时进度日志 ──────────────────────────────────────────────────────
     _logfh = None
@@ -161,7 +171,9 @@ def main() -> int:
 
     for seed in a.seeds:
         torch.manual_seed(seed); np.random.seed(seed)
-        model = ValueNetwork().to(dev)
+        model = ValueNetwork(latent_dim=a.width, num_resblocks=a.blocks).to(dev)
+        log(f"[net] seed{seed} ValueNetwork(width={a.width}, blocks={a.blocks}) "
+            f"params={model.count_parameters():,}")
         opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=1e-4)
         loss_fn = nn.MSELoss()
         best = -1e9; best_sd = None; best_ep = -1
@@ -217,8 +229,9 @@ def main() -> int:
                 best, best_ep, star = r, ep, "  *"
                 best_sd = {k: v.detach().clone() for k, v in model.state_dict().items()}
                 # 每次创新高就立刻落盘，方便随时拿去做对战测试（不用等全部 epoch）
-                _snap = outdir / f"lowq_seed{seed}_ep{ep}_r{r:.4f}.pt"
-                torch.save({"state_dict": best_sd, "config": {"latent_dim": 64, "num_resblocks": 6},
+                _snap = snapdir / f"lowq_seed{seed}_ep{ep}_r{r:.4f}.pt"
+                torch.save({"state_dict": best_sd,
+                            "config": {"latent_dim": a.width, "num_resblocks": a.blocks},
                             "label": a.label, "label_file": a.label_file,
                             "y_mean": y_mean, "y_std": y_std, "val_r2": r,
                             "ep": ep, "seed": seed, "data": str(d)}, _snap)
@@ -226,7 +239,8 @@ def main() -> int:
             log(f"  [seed {seed} ep {ep:2d}] train_mse={tl:.4f} val_R2={r:.4f} "
                 f"val_MAE={mae:.4f}{star} ({time.time()-t0:.0f}s)")
         p = outdir / f"lowq_value_seed{seed}.pt"
-        torch.save({"state_dict": best_sd, "config": {"latent_dim": 64, "num_resblocks": 6},
+        torch.save({"state_dict": best_sd,
+                    "config": {"latent_dim": a.width, "num_resblocks": a.blocks},
                     "label": a.label, "y_mean": y_mean, "y_std": y_std,
                     "val_r2": best, "best_ep": best_ep, "seed": seed,
                     "data": str(d)}, p)

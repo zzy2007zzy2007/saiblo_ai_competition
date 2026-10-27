@@ -12561,3 +12561,22 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261027_094519_oracle_pilot/output.log`
 - **result**: _待填_
+
+## 2026-10-27 12:59:02 — small_value_32_3
+
+- **commit**: `ed5b28d` (dirty: 5 files)
+- **exit**: 0，用时 911s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/entity_transformer/train_value_stream.py --data D:/2026智能体大赛_新2_distill/training_history/distill_top2/lowq_f64 --label-file label.npy --width 32 --blocks 3 --seeds 0 1 2 --epochs 10 --batch-size 512 --shard-games 50 --val-games 500 --out-dir checkpoints/small32_3 --snap-dir training_history/distill_top2/small32_3_snaps --log-file training_history/logs/train_small32_3.log
+  ```
+- **output**: `training_history/runs/20261027_125902_small_value_32_3/output.log`
+- **result**: **小值网 32/3 离线过关**（详见 `docs/small_value_net_20261027.md`）。
+  留出 R²（按局切最后 500 局 = 32,000 行）= **0.4711 / 0.4707 / 0.4730（均值 0.4716，种子间 pstdev 0.0010）**，
+  同口径对照：朴素 0.3932 / 现役 `posnet_A_k5_m32` 0.4533 / 64/6 重训 0.4701 ⇒ **容量砍到 1/5.3 无精度损失**。
+  独立复算（`eval_value_ckpt.py`）逐位一致；epoch10 均值 0.4708（不是 best-of-10 挑出来的）。
+  与现役值网排序一致性 **Spearman ρ(tanh)=0.9598 / 0.9621 / 0.9590**（20,000 帧留出样本，门槛 0.95，**贴线过**）；
+  `|tanh老师|≥0.2` 的帧上符号不一致仅 0.00–0.02%。
+  前向（batch64、4 线程、5 次中位）**143.4 ms → 25.7 ms = 5.13×**（2.24 → 0.40 ms/帧）。
+  产物 `checkpoints/small32_3/lowq_value_seed{0,1,2}.pt`（各 429,587 B / 103,137 参数）。
+  ⚠️ 未做：rollout 里的有效叶子实测、128 局配对 —— 离线过关**只**说明值得花 128 局去证伪（历史 5 次"离线更准、实战更差"）。

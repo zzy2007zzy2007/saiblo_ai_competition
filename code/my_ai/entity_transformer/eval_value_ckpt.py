@@ -59,7 +59,11 @@ def main() -> int:
     idx = np.arange(lo, hi)
 
     c = torch.load(ck, map_location="cpu", weights_only=False)
-    model = ValueNetwork()
+    # ⚠️ 按 ckpt 里的 `config` 建网：32/3 的小网不能再用写死的 `ValueNetwork()`。
+    # 老 ckpt 的 config 就是 64/6 ⇒ 不传参数时行为与以前完全一致。
+    _cfg = c.get("config") or {}
+    model = ValueNetwork(latent_dim=int(_cfg.get("latent_dim", 64)),
+                         num_resblocks=int(_cfg.get("num_resblocks", 6)))
     model.load_state_dict(c["state_dict"])
     model.eval()
     ym, ys = float(c["y_mean"]), float(c["y_std"])
