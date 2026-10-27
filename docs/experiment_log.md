@@ -12691,3 +12691,68 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261027_153738_train_hard_ce/output.log`
 - **result**: _待填_
+
+## 2026-10-27 17:08:30 — expl_rng_perturb
+
+- **commit**: `f731fc0` (dirty: 3 files)
+- **exit**: 0，用时 322s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/expl_rng_perturb.py --ablate-key
+  ```
+- **output**: `training_history/runs/20261027_170830_expl_rng_perturb/output.log`
+- **result**: ✅ k=48/N=64/H=16/share_prefix=1，3 局面(seed 10/11/12 @60 回合) × 3 重复(rollout_seed 53/61/71)，每格 = 每候选均值：
+  | 组 | 节点/候选(占上界1025) | 去重叶子/64 | 总耗时 s | ms/千节点 | RNG 消费 |
+  |---|---|---|---|---|---|
+  | A 动作随机 decay(1.0,3) | 938.7 (91.6%) | 62.4 | **11.169** | 0.246 | 0 |
+  | B 仅RNG decay(.3,1) | 99.1 (9.7%) | 6.7 | 3.149 | 0.641 | 277 |
+  | C 仅RNG decay(1.0,3) | 410.2 (40.0%) | 39.8 | 5.435 | 0.272 | 2299 |
+  | D 叠加 decay(1.0,3) | 968.6 (94.5%) | 63.9 | 11.324 | 0.242 | 8391 |
+  A 的 11.17 s 与父任务记录的"11.0 s"一致 ⇒ 口径可比。C 组只有 39.8/64（decay 的"有效随机回合数"≈3.5 ⇒ 消费模式熵不足，**不是**接近 64/64）。
+  键 ablation（每候选节点数，`rollout_rng_key=none` 会错误合并不同 rng_state 的分支）：B 17.0→98.1 (+477%)；C 17.0→408.4 (+2302%)。
+  详见 `docs/engine_rng_impl.md` §4。
+
+## 2026-10-27 17:17:02 — expl_rng_perturb_const
+
+- **commit**: `f731fc0` (dirty: 4 files)
+- **exit**: 1，用时 2s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/expl_rng_perturb.py --only RNG const --out code/cpp_engine/build_probe/rng_impl/expl_rng_const.json
+  ```
+- **output**: `training_history/runs/20261027_171702_expl_rng_perturb_const/output.log`
+- **result**: ❌ 仅跑通 2 秒即失败：`TypeError: got multiple values for keyword argument 'rollout_act_prob'`（harness 的默认 kw 与 const 组的 cfg 重复）。已改成 `kw.update(cfg)` 后重跑，见下一条。**不是**引擎/rollout 的问题。
+
+## 2026-10-27 17:19:28 — expl_rng_perturb_const
+
+- **commit**: `f731fc0` (dirty: 4 files)
+- **exit**: 0，用时 93s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/expl_rng_perturb.py --only RNG const --out code/cpp_engine/build_probe/rng_impl/expl_rng_const.json
+  ```
+- **output**: `training_history/runs/20261027_171928_expl_rng_perturb_const/output.log`
+- **result**: ✅ 补两个"均匀调度"组（同一 k=48/N=64/H=16 口径）：
+  | 组 | 节点/候选(占上界1025) | 去重叶子/64 | 总耗时 s | ms/千节点 | RNG 消费 |
+  |---|---|---|---|---|---|
+  | E 仅RNG const p=0.5 | 710.7 (69.3%) | **64.0 (满)** | **7.588** | 0.220 | 17041 |
+  | F 仅RNG const p=1.0 | 17.0 (1.7%) | **1.0** | 2.519 | — | 768 |
+  ⇒ **E 用 A 的 68% 耗时拿到比 A 更好的多样性（64.0 vs 62.4）**；F 是重要反面：**p=1（每回合必消费）反而 0 多样性**——所有分支消费模式相同 ⇒ RNG 流始终对齐 ⇒ 完全复用。
+  详见 `docs/engine_rng_impl.md` §4。
+
+## 2026-10-27 17:30:21 — expl_rng_AE_sameprocess
+
+- **commit**: `f731fc0` (dirty: 4 files)
+- **exit**: 0，用时 171s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/expl_rng_perturb.py --only A 动作,E RNG const.5 --out code/cpp_engine/build_probe/rng_impl/expl_rng_AE.json
+  ```
+- **output**: `training_history/runs/20261027_173021_expl_rng_AE_sameprocess/output.log`
+- **result**: ✅ **A/E 同进程复测（排除负载漂移）= 核心数字**：
+  | 组 | 节点/候选(上界1025) | 去重叶子/64 | 总耗时 s | rollout s |
+  |---|---|---|---|---|
+  | A 动作随机 decay(1.0,3) | 938.7 (91.6%) | 62.4 | **11.153** | 11.064 |
+  | E 仅RNG const p=0.5 | 710.7 (69.3%) | **64.0**（9/9 重复全满） | **7.627** | 7.543 |
+  ⇒ **E 用 68.4% 墙钟、75.7% 节点，拿到封顶多样性**。与 17:08/17:19 两次独立运行一致（A 11.169/11.153、E 7.588/7.627）⇒ 结论稳。
+  详见 `docs/engine_rng_impl.md` §3.1。

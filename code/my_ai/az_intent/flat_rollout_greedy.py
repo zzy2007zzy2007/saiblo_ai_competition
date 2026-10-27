@@ -471,6 +471,9 @@ class FlatRolloutGreedy(BundleMCTS):
         #   种子只由 (rollout_seed, 决策序号, 候选序号, 采样序号) 决定，不依赖时间/哈希随机化：
         #   同一局、同一配置重跑 ⇒ 完全相同的对局。
         self._decision_idx = int(getattr(self, "_decision_idx", 0)) + 1
+        # 每次决策重置 RNG 消费计数（诊断/验收用；不开 perturb 时恒为 0）
+        self.last_rng_consumed = 0
+        self.last_rng_missing = 0
         self._expand(root, self.k)                 # ← 每决策唯一一次 net_fn（含根节点的 MC 类仲裁）
         bundles = list(root.bundles)
         n_net = len(bundles)                      # 网络候选数（注入前的边界；命中判定用它）
@@ -529,10 +532,20 @@ class FlatRolloutGreedy(BundleMCTS):
             # 2026-10-23：前缀树记忆化（随机 rollout 专用）。
             #   随机 rollout 要大 N 才抹得平噪声，而朴素实现成本 ∝ N×H；
             #   树版按 (父节点, 本回合 ops) 复用状态：共享率 43%~94% ⇒ 省 21%~91%。
-            if _rctx is not None and self.rollout_share_prefix:
-                _rngs = [np.random.default_rng(
-                    (int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
-                    + int(index) * 101 + int(_k)) for _k in range(n_rollouts)]
+            # 2026-10-27：**仅引擎 RNG 消费**（rollout_mode=idle + perturb 开）也要走
+            #   树，否则 N 条会各自 clone 到底、白跑 N×H 回合。默认（perturb 关）条件
+            #   与改动前完全一致 ⇒ 走哪条路不变。
+            _use_tree = self.rollout_share_prefix and (_rctx is not None or self._rng_on)
+            if _use_tree:
+                _base = ((int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
+                         + int(index) * 101)
+                _rngs = [np.random.default_rng(_base + int(_k))
+                         for _k in range(n_rollouts)]
+                if self._rng_on:
+                    # 消费决策用**独立**的随机流（不和动作抽签抢 draw，否则开/关
+                    # perturb 会改变动作随机的抽样序列 ⇒ 两种随机源不再正交）
+                    _rngs = [(g, np.random.default_rng(_base + 500003 + int(_k)))
+                             for _k, g in enumerate(_rngs)]
                 _t0 = _time.perf_counter()
                 scores[index] = self._tree_rollout_value(child, player, _rngs)
                 total_rounds += self.horizon * n_rollouts
@@ -541,6 +554,11 @@ class FlatRolloutGreedy(BundleMCTS):
             for _k in range(n_rollouts):
                 sim = child.clone()
                 _rng = None
+                _rng_p = None
+                if self._rng_on:
+                    _rng_p = np.random.default_rng(
+                        (int(self.rollout_seed) * 1000003 + self._decision_idx) * 100003
+                        + int(index) * 101 + int(_k) + 500003)
                 if _rctx is not None:
                     # 种子 = f(rollout_seed, 决策序号, 候选序号, 采样序号) ⇒ 完全可复现
                     _rng = np.random.default_rng(
@@ -552,6 +570,9 @@ class FlatRolloutGreedy(BundleMCTS):
                         break
                     if _rng is not None:
                         self._random_actions(sim, _rng, _rctx, player, _round_idx)
+                    # 引擎 RNG 消费：ops 已施加、advance_round() 之前
+                    if _rng_p is not None and _rng_p.random() < self._prob_for_round(_round_idx):
+                        self._consume_rng(sim, self.rollout_rng_consume)
                     sim.advance_round()
                     _round_idx += 1
                     total_rounds += 1
