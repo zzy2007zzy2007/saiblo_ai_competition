@@ -295,3 +295,22 @@ fe643552461db0fccde21379b480bc55461cf730a65b8f336532ab92ab8082d7  small32_3/lowq
 ddeedc3d5f6db8fd19953f7b36d77125f1bd9121d5798106d1d672d4ef965b04  small32_3/lowq_value_seed2.pt
 ```
 （训练日志 `training_history/logs/train_small32_3.log`；`exit=0`，911 s，commit `ed5b28d`，`run_logged.sh` 名 `small_value_32_3`。）
+
+### 2.7 `checkpoints/small32_3/v_32_3_folded.pt`（**部署可直接用**的折叠版，2026-10-27）
+
+| 文件 | 大小 | 是什么 |
+|---|---|---|
+| `checkpoints/small32_3/v_32_3_folded.pt` | **429,075 B** | `lowq_value_seed0.pt` 的**归一化折叠版**：`value_head.2` 换成 `W*y_std` / `b*y_std+y_mean`（`y_std=0.386068, y_mean=-0.000408`），**输出直接是标签尺度**，部署侧 `AZAI_VALUE_TANH=1` 只做 tanh、不用改。仍带 `config={latent_dim:32,num_resblocks:3}`、`y_std/y_mean`、`y_folded=True`、`fold_info`、`source/val_r2/seed` |
+
+- 生成：`code/test_match/fold_small_value_ckpt.py`（日志 `training_history/logs/fold_small32_3.log`）
+- 自检：`max|folded - (raw*y_std+y_mean)| = 1.24e-07`（等价，逐位级）；1000 帧留出集
+  `Spearman(tanh folded, tanh 现役) = 0.9600`、`Pearson=0.9708`、`R²(folded raw vs label)=0.4876`
+- 反例（不折）：`Pearson` 掉到 0.9513、`tanh` 的 std 从 0.2489 变 0.4979（2.0×）、
+  `|tanh|>0.9` 的帧从 0.00% 变 5.70% —— 就是调研 §5.3 那个"排序被压平"的事故
+- 部署：`AZAI_VALUE_CKPT=checkpoints/small32_3/v_32_3_folded.pt`（空 = 关，行为逐位不变）。
+  见 `code/my_ai/az_intent/value_override.py`、`docs/small_value_net_integration_20261027.md`
+
+校验（2026-10-27 实测）：
+```
+76dfa446ac16704ef85e4a5d71c28775438ee3a3bba7116883d33ce92f7ef315  small32_3/v_32_3_folded.pt
+```

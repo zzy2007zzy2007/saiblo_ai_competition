@@ -44,6 +44,9 @@ for _p in (_REPO, _CODE):
         sys.path.insert(0, str(_p))
 
 from my_ai.az_intent.bundle_mcts import BundleMCTS, BundleNode, BundleSearchResult  # noqa: E402
+# 取值兼容：`AZAI_VALUE_CKPT` 的独立 `ValueNetwork` 返回裸张量，三网返回 `{"value": ...}`。
+# 默认（环境变量为空）时没有任何额外模型被加载 ⇒ 行为逐位不变（见 value_override.py）。
+from my_ai.az_intent.value_override import value_of  # noqa: E402
 
 # 完整引擎 pybind 实测：advance_round ≈ 62.7 µs ⇒ 39_000 回合 ≈ 2.45 s
 DEFAULT_MAX_TOTAL_ROUNDS = 39_000
@@ -281,7 +284,7 @@ class FlatRolloutGreedy(BundleMCTS):
                 board, stat = board.cuda(), stat.cuda()
             with torch.no_grad():
                 out = float("nan")
-                raw = self.value_model(board, stat)["value"].squeeze(-1)
+                raw = value_of(self.value_model(board, stat)).squeeze(-1)
             if self.value_tanh:
                 raw = torch.tanh(raw)
             for offset, value in enumerate(raw.detach().cpu().numpy().tolist()):

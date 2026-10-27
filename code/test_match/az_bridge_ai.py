@@ -27,6 +27,10 @@
   AZAI_ITERS AZAI_DEPTH AZAI_TCLASS AZAI_TPOS AZAI_K AZAI_TEMP
   AZAI_MODE(joint|class-only|pos-only) AZAI_POSPIN(argmax|playable)
   AZAI_SKIP1(0/1) AZAI_VALUE_TANH(0/1) AZAI_REL2ABS(float) AZAI_TRACE(0/1) AZAI_DEVICE(cpu|auto)
+  AZAI_VALUE_CKPT=<path>    可选：把**叶子值网**换成该 ckpt 里的独立 `ValueNetwork`
+                            （**空 = 关 = 完全走原逻辑**，不加载任何额外模型，行为逐位不变）。
+                            见 `code/my_ai/az_intent/value_override.py`；产出该 ckpt 用
+                            `code/test_match/fold_small_value_ckpt.py`（必须已折 y_std/y_mean）。
 """
 from __future__ import annotations
 
@@ -571,8 +575,13 @@ def build_engine(seed: int, player: int):
     if _env("AZAI_MC_SCORE", "") == "net":
         from my_ai.az_intent.az_selfplay import load_three_models as _l3
         from my_ai.az_intent.value_batch import make_batched_value_fn as _mbvf
+        from my_ai.az_intent.value_override import describe as _vdesc, maybe_override as _vovr
         _, _, _mc_vm = _l3(ckpt)
+        # 可选：叶子值网替换（`AZAI_VALUE_CKPT` 空 ⇒ 原样返回同一对象，行为不变）
+        _mc_vm = _vovr(_mc_vm)
         _mc_vm.eval()
+        if _vdesc(_mc_vm):
+            _log(_vdesc(_mc_vm))
         _kw["mc_value_fn"] = _mbvf(_mc_vm, feat,
                                    batch_size=int(_env("AZAI_FLAT_BATCH", "32")))
         _log("mc_score=net：已挂批量值函数（叶子批量评估）")
@@ -584,8 +593,13 @@ def build_engine(seed: int, player: int):
     if _search_kind == "flat":
         from my_ai.az_intent.az_selfplay import load_three_models
         from my_ai.az_intent.flat_rollout_greedy import FlatRolloutGreedy
+        from my_ai.az_intent.value_override import describe as _vdesc, maybe_override as _vovr
         _, _, _value_model = load_three_models(ckpt)
+        # 可选：叶子值网替换（`AZAI_VALUE_CKPT` 空 ⇒ 原样返回同一对象 ⇒ 行为逐位不变）
+        _value_model = _vovr(_value_model)
         _value_model.eval()
+        if _vdesc(_value_model):
+            _log(_vdesc(_value_model))
         mcts = FlatRolloutGreedy(
             net_fn,
             rollouts_per_candidate=int(_env("AZAI_FLAT_ROLLOUTS", "16")),
@@ -619,8 +633,13 @@ def build_engine(seed: int, player: int):
         # 见 docs/idea_unified_bandit_search.md 与 code/my_ai/az_intent/unified_action_search.py
         from my_ai.az_intent.az_selfplay import load_three_models
         from my_ai.az_intent.unified_action_search import UnifiedActionSearch
+        from my_ai.az_intent.value_override import describe as _vdesc, maybe_override as _vovr
         _, _, _value_model = load_three_models(ckpt)
+        # 可选：叶子值网替换（`AZAI_VALUE_CKPT` 空 ⇒ 原样返回同一对象 ⇒ 行为逐位不变）
+        _value_model = _vovr(_value_model)
         _value_model.eval()
+        if _vdesc(_value_model):
+            _log(_vdesc(_value_model))
         mcts = UnifiedActionSearch(
             net_fn,
             horizon=int(_env("AZAI_UNI_HORIZON", "32")),

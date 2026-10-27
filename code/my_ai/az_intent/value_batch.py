@@ -14,6 +14,10 @@ from typing import Callable, Sequence
 
 import numpy as np
 
+# 取值兼容：三网返回 `{"value": ...}`，独立 `ValueNetwork`（AZAI_VALUE_CKPT）返回**裸张量**。
+# dict 分支返回的就是原来那个张量对象 ⇒ 默认路径逐位不变（见 value_override.py）。
+from my_ai.az_intent.value_override import value_of
+
 
 def make_batched_value_fn(value_model, feature_extractor, *,
                           batch_size: int = 32,
@@ -52,7 +56,7 @@ def make_batched_value_fn(value_model, feature_extractor, *,
             if next(value_model.parameters()).is_cuda:
                 board, stat = board.cuda(), stat.cuda()
             with torch.no_grad():
-                raw = value_model(board, stat)["value"].squeeze(-1)
+                raw = value_of(value_model(board, stat)).squeeze(-1)
                 if tanh:
                     raw = torch.tanh(raw)
             vals = raw.detach().cpu().numpy().tolist()

@@ -12580,3 +12580,73 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   前向（batch64、4 线程、5 次中位）**143.4 ms → 25.7 ms = 5.13×**（2.24 → 0.40 ms/帧）。
   产物 `checkpoints/small32_3/lowq_value_seed{0,1,2}.pt`（各 429,587 B / 103,137 参数）。
   ⚠️ 未做：rollout 里的有效叶子实测、128 局配对 —— 离线过关**只**说明值得花 128 局去证伪（历史 5 次"离线更准、实战更差"）。
+
+## 2026-10-27 13:46:37 — small_value_timing
+
+- **commit**: `6db56ab` (dirty: 5 files)
+- **exit**: 0，用时 739s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/bench_leaf_value_swap.py --seeds 7 8 9 --scan-rounds 120 150 180 210 240 270 300 --n-pos 3 --reps 3 --sweep-reps 2 --out-json training_history/logs/bench_leaf_value_swap.json
+  ```
+- **output**: `training_history/runs/20261027_134637_small_value_timing/output.log`
+- **result**: **C 计时（本次核心产出，详见 `docs/small_value_net_integration_20261027.md` §3）**。
+  3 个真实中局（VS_RU_dump seed7 重放，候选饱和=48）× 2 臂 × 3 重复取中位，部署配置
+  k=48/N=64/h=8/decay(1,3)/share_prefix/random/idle-threads=1，两侧 rollout 叶子完全相同（配对）。
+  **总耗时 10296 → 6776 ms（1.52×）**；`_leaf_values` 累计 5997 → 2546 ms（2.35×）；
+  **纯值网前向 4326 → 900 ms（4.81×），占比 42.0% → 13.3%**；每叶固定成本 0.544 vs 0.536 ms（与值网无关）。
+  双点斜率：每多样本 5.05 → 3.28 ms、每多候选 336 → 220 ms ⇒ 同预算 **N 64→86 或 k 48→65**；
+  实测验证：小网 N=88 = 1.14× 基准、另一次运行 N=81 = 0.82× ⇒ 安全区间 N≈81–88。
+  ⚠️ 绝对值受负载污染（同配置跨运行 10.30/13.25/13.57 s），只引用同运行内比值。
+
+## 2026-10-27 13:59:10 — small_value_timing_n80
+
+- **commit**: `6db56ab` (dirty: 6 files)
+- **exit**: 1，用时 5s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/bench_leaf_value_swap.py --tag VS_RU_dump --positions 7:120:1,7:210:1,7:240:1 --n-pos 3 --n 80 --reps 3 --sweep 0 --out-json training_history/logs/bench_leaf_value_swap_n80.json
+  ```
+- **output**: `training_history/runs/20261027_135910_small_value_timing_n80/output.log`
+- **result**: ❌ **无效运行（我的命令错误，不是代码/对局问题）**：忘了传 `--scan-rounds`，
+  `--positions 7:120:1` 不在重放集里 ⇒ 脚本主动 `SystemExit`（5 s）。已用下面的 `135937` 重跑。
+
+## 2026-10-27 13:59:24 — small_value_timing_n80
+
+- **commit**: `6db56ab` (dirty: 6 files)
+- **exit**: 1，用时 4s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/bench_leaf_value_swap.py --tag VS_RU_dump --seeds 7 --positions 7:120:1,7:210:1,7:240:1 --n-pos 3 --n 80 --reps 3 --sweep 0 --out-json training_history/logs/bench_leaf_value_swap_n80.json
+  ```
+- **output**: `training_history/runs/20261027_135924_small_value_timing_n80/output.log`
+- **result**: ❌ **同上（重复的无效运行）**：`--seeds 7` 已修，但 `--scan-rounds` 仍缺 ⇒ 4 s 退出。
+  正确的那次是 `20261027_135937`。
+
+## 2026-10-27 13:59:37 — small_value_timing_n80
+
+- **commit**: `6db56ab` (dirty: 6 files)
+- **exit**: 0，用时 246s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/bench_leaf_value_swap.py --tag VS_RU_dump --seeds 7 --scan-rounds 120 210 240 --positions 7:120:1,7:210:1,7:240:1 --n-pos 3 --n 80 --reps 3 --sweep 0 --out-json training_history/logs/bench_leaf_value_swap_n80.json
+  ```
+- **output**: `training_history/runs/20261027_135937_small_value_timing_n80/output.log`
+- **result**: N=80 的补充测量（两侧同 N=80，3 局面 × 3 重复）：现役 16249 ms / 小网 10671 ms = **1.52×**
+  （比值与前一次运行完全一致），值网占比 43.3% → 13.4%、纯前向 4.92×。
+  ⚠️ 这次运行的**绝对值比 `small_value_timing` 高 1.6×（负载漂移）** ⇒ 不与那次混用，
+  只当作"比值稳定"的旁证；换算用的是 `small_value_timing` + `small_value_budget_check` 的同运行数据。
+
+## 2026-10-27 14:04:46 — small_value_budget_check
+
+- **commit**: `6db56ab` (dirty: 7 files)
+- **exit**: 0，用时 646s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/bench_leaf_value_swap.py --tag VS_RU_dump --seeds 7 --scan-rounds 120 210 240 --positions 7:120:1,7:210:1,7:240:1 --n-pos 3 --n 64 --reps 3 --sweep 0 --budget-check 81 --out-json training_history/logs/bench_budget_check.json
+  ```
+- **output**: `training_history/runs/20261027_140446_small_value_budget_check/output.log`
+- **result**: **同进程内交替验证"等时间预算"**（3 局面 × 3 重复，顺序交替）：
+  现役 N=64 = **13247 ms**、小网 N=64 = **8645 ms（1.53×）**、**小网 N=81 = 10828 ms（0.82× 基准，还有余量）**、
+  现役 N=81 = 16599 ms。⇒ 上一轮外推 N*≈86 的方向成立；负载更重时 81 都还富余，
+  故 §5 明早推荐 **N=88（保守）** 或 **k=64**。主表同运行读数：13569 → 8697 ms（1.56×）、值网 44.4% → 13.6%。
