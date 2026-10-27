@@ -1,0 +1,1012 @@
+{
+ "total": 1993382416553,
+ "n_files": 214289,
+ "versions": [
+  "智能体大赛备份2",
+  "智能体大赛备份3",
+  "智能体大赛备份4",
+  "智能体大赛备份5",
+  "智能体大赛备份6",
+  "智能体大赛备份7",
+  "智能体大赛备份8"
+ ],
+ "unique_by_size_bytes": 49458171195,
+ "dup_upper_bound_bytes": 1943924245358,
+ "confirmed_saving_bytes": 136027294844,
+ "covered_bytes": 147818842594,
+ "copy_like_bytes": 386317457492,
+ "ext": {
+  ".py": [
+   159216257,
+   14237
+  ],
+  ".md": [
+   29660957,
+   457
+  ],
+  ".log": [
+   31850591,
+   826
+  ],
+  ".zip": [
+   18090691053,
+   391
+  ],
+  ".pdf": [
+   14257558,
+   14
+  ],
+  ".txt": [
+   1851552380,
+   42763
+  ],
+  ".json": [
+   371977679117,
+   91198
+  ],
+  ".html": [
+   17028703,
+   40
+  ],
+  ".pth": [
+   509727022358,
+   17290
+  ],
+  ".pyc": [
+   179644340,
+   9240
+  ],
+  ".csv": [
+   14204903,
+   8706
+  ],
+  ".cpp": [
+   7897113,
+   442
+  ],
+  ".sh": [
+   166536,
+   676
+  ],
+  "(no ext)": [
+   87560740,
+   1677
+  ],
+  ".yml": [
+   7042,
+   14
+  ],
+  ".ini": [
+   3834,
+   26
+  ],
+  ".sample": [
+   180789,
+   98
+  ],
+  ".idx": [
+   206892,
+   14
+  ],
+  ".pack": [
+   118611885,
+   14
+  ],
+  ".rev": [
+   28140,
+   14
+  ],
+  ".npz": [
+   783638793928,
+   19600
+  ],
+  ".h": [
+   1857902,
+   248
+  ],
+  ".hpp": [
+   13164159,
+   28
+  ],
+  ".bat": [
+   20313,
+   25
+  ],
+  ".pkl": [
+   280639263128,
+   3611
+  ],
+  ".png": [
+   9597310,
+   82
+  ],
+  ".下载": [
+   62310206,
+   288
+  ],
+  ".jpeg": [
+   547956,
+   9
+  ],
+  ".css": [
+   330293,
+   69
+  ],
+  ".ico": [
+   8390592,
+   32
+  ],
+  ".1777651248816": [
+   19528,
+   4
+  ],
+  ".cfg": [
+   2100,
+   8
+  ],
+  ".pyi": [
+   6542060,
+   1052
+  ],
+  ".typed": [
+   1352,
+   60
+  ],
+  ".pxd": [
+   433608,
+   28
+  ],
+  ".c": [
+   285332,
+   24
+  ],
+  ".f90": [
+   122324,
+   244
+  ],
+  ".f": [
+   45328,
+   96
+  ],
+  ".pyf": [
+   9732,
+   28
+  ],
+  ".inc": [
+   68,
+   4
+  ],
+  ".f95": [
+   576,
+   4
+  ],
+  ".template": [
+   6900,
+   4
+  ],
+  ".lib": [
+   1574808,
+   84
+  ],
+  ".pyd": [
+   28145664,
+   76
+  ],
+  ".npy": [
+   4132,
+   20
+  ],
+  ".rst": [
+   78016,
+   8
+  ],
+  ".gz": [
+   2804,
+   12
+  ],
+  ".pyx": [
+   71372,
+   16
+  ],
+  ".build": [
+   19132,
+   12
+  ],
+  ".pc": [
+   792,
+   4
+  ],
+  ".fits": [
+   34560,
+   4
+  ],
+  ".dll": [
+   83962176,
+   8
+  ],
+  ".pem": [
+   1165464,
+   4
+  ],
+  ".exe": [
+   7198492,
+   52
+  ],
+  ".apache": [
+   81392,
+   8
+  ],
+  ".bsd": [
+   10752,
+   8
+  ],
+  ".fish": [
+   9140,
+   4
+  ],
+  ".ps1": [
+   116772,
+   4
+  ],
+  ".pt": [
+   26570724820,
+   278
+  ],
+  ".tag": [
+   382,
+   2
+  ]
+ },
+ "groups": [
+  {
+   "size": 94332382,
+   "n": 357,
+   "save": 33582327992,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\opponents\\opponent1.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 129,
+   "save": 12074544896,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_213111\\temp_genome_1_0_2.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 78,
+   "save": 7263593414,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_0.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 57,
+   "save": 5282613392,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 33,
+   "save": 3018636224,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 33,
+   "save": 3018636224,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_26.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 30,
+   "save": 2735639078,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_27.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 24,
+   "save": 2169644786,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_10_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 24,
+   "save": 2169644786,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 24,
+   "save": 2169644786,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 21,
+   "save": 1886647640,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_10_0_5.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 21,
+   "save": 1886647640,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 21,
+   "save": 1886647640,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 21,
+   "save": 1886647640,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_22.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_11_0_18.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_22.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_18.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_26.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 18,
+   "save": 1603650494,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_14.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 15,
+   "save": 1320653348,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_14.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 15,
+   "save": 1320653348,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_7.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 15,
+   "save": 1320653348,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_15.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_225212\\temp_genome_1_0_3.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_225933\\temp_genome_1_0_3.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235039\\temp_genome_1_0_2.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_10_0_6.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_7.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 12,
+   "save": 1037656202,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_18.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_225933\\temp_genome_1_0_2.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235039\\temp_genome_1_0_3.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_15.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_18.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_20.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_26.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_15.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_16.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_21.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_25.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 9,
+   "save": 754659056,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_17.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_213111\\temp_genome_1_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_225212\\temp_genome_1_0_2.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_233306\\temp_genome_1_0_2.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_10_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_11_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_11_0_16.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_11_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_12_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_1_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_21.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_28.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_14.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_27.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_27.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_16.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_22.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_25.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_11.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_28.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_8.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_11.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_25.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_27.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_14.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 6,
+   "save": 471661910,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_27.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 4,
+   "save": 282997146,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\nn_distillation\\models\\two_stage_model.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_205456\\top_1_gen_1.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_205456\\top_2_gen_1.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_205929\\top_2_gen_1.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_225933\\temp_genome_1_0_4.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_233306\\temp_genome_1_0_3.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_233306\\temp_genome_1_0_4.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_233428\\temp_genome_1_0_3.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235039\\temp_genome_1_0_4.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_12_0_11.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_12_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_12_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_12.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_23.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_2_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_16.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_21.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_22.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_3_0_8.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_15.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_22.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_4_0_8.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_17.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_18.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_5_0_28.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_11.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_17.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_23.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_24.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_28.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_6_0_8.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_13.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_17.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_29.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_7_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_10.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_21.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_23.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_29.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_7.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_8.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_8_0_9.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_11.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_19.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_23.npz"
+  },
+  {
+   "size": 94332382,
+   "n": 3,
+   "save": 188664764,
+   "sample": "智能体大赛备份5\\2026智能体大赛\\ga_nn_training\\training_history\\run_20260428_235337\\temp_genome_9_0_24.npz"
+  }
+ ]
+}

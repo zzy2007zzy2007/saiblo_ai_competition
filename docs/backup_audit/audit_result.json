@@ -1,0 +1,107 @@
+{
+ "total": 1993382416553,
+ "n_files": 214289,
+ "cat_bytes": {
+  "small": 101843953063,
+  "ckpt": 700548636479,
+  "junk_dir": 719278119169,
+  "dataset": 185886385188,
+  "temp_file": 285825322654
+ },
+ "cat_files": {
+  "small": 41683,
+  "ckpt": 19634,
+  "junk_dir": 148726,
+  "dataset": 1212,
+  "temp_file": 3034
+ },
+ "per_ver": {
+  "v2": {
+   "small": 46100317292,
+   "ckpt": 70445442410,
+   "junk_dir": 104831756995,
+   "dataset": 4436683609,
+   "temp_file": 21332
+  },
+  "v3": {
+   "small": 55388306096,
+   "ckpt": 100160083322,
+   "junk_dir": 146341771382,
+   "dataset": 4688760790,
+   "temp_file": 21332
+  },
+  "v4": {
+   "small": 58077877,
+   "ckpt": 52942293084,
+   "dataset": 3391326545,
+   "junk_dir": 254958683409,
+   "temp_file": 0
+  },
+  "v5": {
+   "small": 66994249,
+   "dataset": 8282793937,
+   "ckpt": 68417772900,
+   "temp_file": 95275093330,
+   "junk_dir": 145788831027
+  },
+  "v6": {
+   "small": 67353081,
+   "dataset": 54999633840,
+   "ckpt": 80216330486,
+   "temp_file": 95275093330,
+   "junk_dir": 377329722
+  },
+  "v7": {
+   "small": 71852188,
+   "dataset": 54999633840,
+   "ckpt": 111668417057,
+   "junk_dir": 33489512424,
+   "temp_file": 95275093330
+  },
+  "v8": {
+   "small": 91052280,
+   "dataset": 55087552627,
+   "ckpt": 216698297220,
+   "junk_dir": 33490234210,
+   "temp_file": 0
+  }
+ },
+ "junk_roots": {
+  "2026智能体大赛\\没用的": 326931387667,
+  "2026智能体大赛\\没用的_2": 73627461908,
+  "2026智能体大赛\\download\\旧版本对战": 65816662439,
+  "2026智能体大赛\\ai_neural_network_new\\没用的旧模型": 57894771972,
+  "2026智能体大赛\\ai_neural_network_new - 副本 (2)": 46605826276,
+  "2026智能体大赛\\Ant-Game\\training_pipeline - 副本 (2)": 39190317478,
+  "2026智能体大赛\\ai_neural_network_new - 副本 (3)": 34599476921,
+  "2026智能体大赛\\ai_neural_network - 副本 (2)": 33533099498,
+  "2026智能体大赛\\Ant-Game\\training_pipeline - 副本": 23939152226,
+  "2026智能体大赛\\ai_neural_network_new - 副本": 8911718112,
+  "2026智能体大赛\\Ant-Game\\training_pipeline - 副本 (3)": 3094895700,
+  "2026智能体大赛\\ai_submission_neural_network - 副本 (2)": 1178654102,
+  "2026智能体大赛\\ai_submission_neural_network - 副本 (3)": 894119088,
+  "2026智能体大赛\\nn_distillation\\models\\backup": 754659444,
+  "2026智能体大赛\\ai_submission_neural_network - 副本": 694854574,
+  "2026智能体大赛\\nn_distillation_new\\models\\backup": 565994583,
+  "2026智能体大赛\\ai_neural_network - 副本": 523661656,
+  "2026智能体大赛\\experiment_modified multitask copy 3": 137919962,
+  "2026智能体大赛\\ai_dqn_submission - 副本": 123474010,
+  "2026智能体大赛\\experiment_modified multitask - 副本": 87731568,
+  "2026智能体大赛\\experiment_modified multitask copy 2": 36365548,
+  "2026智能体大赛\\ai_neural_network_new\\runs\\test_old_ai_fix": 23420281,
+  "2026智能体大赛\\ai_neural_network_new\\runs\\test_old_ai_final": 23352511,
+  "2026智能体大赛\\ai_neural_network_new\\runs\\test_old_ai_fixed": 23352150,
+  "2026智能体大赛\\ai_neural_network_new\\runs\\test_old_ai_opponent": 23351752,
+  "2026智能体大赛\\experiment_modified copy 202604061326": 17026022,
+  "2026智能体大赛\\experiment_modified copy 202604061642": 8455326,
+  "2026智能体大赛\\experiment_modified copy 202604052000": 7815140,
+  "2026智能体大赛\\experiment_modified copy 202604042037": 6940218,
+  "2026智能体大赛\\old_ai": 1283044,
+  "2026智能体大赛\\Ant-Game\\training_pipeline - 副本 (4)": 721786,
+  "2026智能体大赛\\ai_dqn_new\\sdk_copy": 196207
+ },
+ "temp_roots": {
+  "2026智能体大赛\\ga_nn_training\\training_history": 285825279990,
+  "2026智能体大赛\\独立的环境配置文件，但暂时用不着.venv\\Lib": 42664
+ }
+}

@@ -559,3 +559,6 @@ for n in (11308, 11311, 11329, 11336, 11343, 11350, 11374, 11391, 11394, 11399, 
 2. **同时补一个 20 行的"学生 vs 老师 Spearman"脚本**（照 `train_prior_distill.py:37` 的 `spearman()` + `cpp_test/check_incumbent_value.py` 的加载方式），这是**唯一能回答"换网会不会改变决策"的离线指标**。
 3. **容量验证（可选、便宜）**：在 **128 局那份数据**（`entity_ds_128_board.board.npy` 的 board + `entity_ds_128.npz` 的 `stats`/`value`/`seed`）上再训一个 32/3，看能不能达到 R²≈0.99。⚠️ 注意 `train_value_distill.py` 要求 `board` 与 `value` 在**同一个 npz** 里，而这里两份是分开的（2.4 GB board 在 `.npy`）⇒ 需要 ~30 行的自定义 loader 或先合成一个 npz（`board` float16 占 2.4 GB 内存，本机 16 GB 够但要小心）。若 32/3 也能到 R²≈0.99，就**彻底排除"容量不够"这个解释**。
 4. 离线过关后，**必须**跑 128 局配对（`AZAI_CKPT` 不变、只换叶子值网）—— 历史 5 次"离线更准、实战更差"（`docs/dl_feasibility_20261026.md:49-55`），离线指标不能当结论。
+
+
+> **归档说明（2026-10-28）**：lowq_full/（85.1 GB）已移至备份盘，路径为 F:\2026智能体大赛_新2\training_history\distill_top2\lowq_full。lowq_f64/（训练实际使用的那份）仍在 D 盘原位。
