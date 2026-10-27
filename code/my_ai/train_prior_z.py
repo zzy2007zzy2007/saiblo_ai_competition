@@ -63,7 +63,8 @@ def zscore(t: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     return (t - t.mean()) / (t.std(unbiased=False) + eps)
 
 
-def groups_loss(out_row: torch.Tensor, targets: dict, clip: float, min_cells: int) -> list:
+def groups_loss(out_row: torch.Tensor, targets: dict, clip: float, min_cells: int,
+                ce_weight: float = 0.0, ce_temp: float = 0.2) -> list:
     losses = []
     for op, cells in targets.items():
         keys = list(cells.keys())
@@ -76,7 +77,13 @@ def groups_loss(out_row: torch.Tensor, targets: dict, clip: float, min_cells: in
         xi = torch.tensor([k[0] for k in keys], device=sc.device); yi = torch.tensor([k[1] for k in keys], device=sc.device)
         pred = sc[xi, yi]
         zv = zscore(v).clamp(-clip, clip)
-        losses.append(((zscore(pred) - zv) ** 2).mean())
+        loss = ((zscore(pred) - zv) ** 2).mean()
+        if ce_weight > 0.0:
+            # CE 项：目标用 softmax(v/T)，预测用标准化后的分数（尺度对齐）
+            w = torch.softmax(v / max(ce_temp, 1e-6), dim=0)
+            logits = zscore(pred)
+            loss = loss + ce_weight * (-(w * torch.log_softmax(logits, dim=0)).sum())
+        losses.append(loss)
     return losses
 
 
@@ -111,6 +118,8 @@ def main() -> int:
     ap.add_argument("--unfreeze", default="trunk", choices=["head", "trunk"])
     ap.add_argument("--clip", type=float, default=3.0)
     ap.add_argument("--min-cells", type=int, default=3)
+    ap.add_argument("--ce-weight", type=float, default=0.0, help="CE 项权重（0=纯 z-score）")
+    ap.add_argument("--ce-temp", type=float, default=0.2, help="CE 目标温度（越小越接近 one-hot）")
     ap.add_argument("--overfit-states", type=int, default=0, help=">0 时只取 N 个局面做过拟合检验")
     ap.add_argument("--steps", type=int, default=0, help="过拟合检验的总步数（覆盖 epochs）")
     ap.add_argument("--eval-every", type=int, default=0, help=">0 时每 K 个 epoch 评估留出集并记录最优")
@@ -149,7 +158,8 @@ def main() -> int:
                     torch.from_numpy(np.stack([c[1] for c in chunk])).to(DEV))["action_map"]
             losses = []
             for j, (_, _, targets) in enumerate(chunk):
-                losses += groups_loss(out[j], targets, args.clip, args.min_cells)
+                losses += groups_loss(out[j], targets, args.clip, args.min_cells,
+                                         args.ce_weight, args.ce_temp)
             if not losses:
                 continue
             loss = torch.stack(losses).mean()

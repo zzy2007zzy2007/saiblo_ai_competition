@@ -154,21 +154,102 @@ decide() 的第一件事：oracle_step()
 
 ## 4. 验证
 
-（见 §4.1/§4.2 的真实输出，随本轮实验回填）
+### 4.1 零影响（`AZAI_ORACLE_INJECT` 为空）—— 两层逐位证据
 
-### 4.1 零影响（`AZAI_ORACLE_INJECT` 为空）
+**① 搜索层：同一批真实局面，改动前后 `search` 的输出逐位相同。**
 
-两层证据：
+`code/test_match/probe_oracle_inject_zero_impact.py` 把**真实对局**（`VS_RU_dump/8r.log`，
+501 回合、我方 vs 亚军）的双方操作重放成局面，在回合 3/10/26/47/83/200 × 2 个座位
+= 12 个决策上跑 `search`，把 `last_scores`（float64 原始字节）、`visit_policy`、
+`res.bundles`、`last_actions`（含每个候选的浮点均值）、`chosen_bundle` 全部打哈希：
 
-1. **逐位哈希**（最强）：`code/test_match/probe_oracle_inject_zero_impact.py` 在**真实对局局面**
-   （从 `match_results/ladder_logs/<tag>/*.log` 的 `--trace-ops` 行重放，含塔/蚁/金币）
-   上跑同一批 `search`，把 `last_scores` 的 float64 字节、`visit_policy`、`chosen_bundle`
-   全部打哈希。改动前 / 改动后两份日志**逐行相同**。
-2. **真对局**：`AZAI_ORACLE_INJECT` 为空跑 2 局，`verdict=engine`、无 timeouts、正常终局。
+```
+$ python code/test_match/probe_oracle_inject_zero_impact.py --tag VS_RU_dump --seed 8 \
+      --rounds 3 10 26 47 83 200 --search flat --out .../zero_impact_flat_AFTER.log
+[probe] r47   p0 | 候选=1    额外候选=0  rollouts=16  回合=1024    | chosen_idx=0 chosen=() root_value=0.045388877391815186
+[probe]            | scores_sha=553280d8b43ad89d actions_sha=dc937b59892604f5 policy_sha=... bundles_sha=... sum_scores=0.045388877391815186
+...
+[probe] 完成：12 个决策全部打印哈希 ⇒ 与另一份日志逐行 diff 应无差异
+```
+
+| 对比 | 结果 |
+|---|---|
+| flat：BEFORE vs BEFORE2（**确定性**自检） | **逐行相同**（不先证明这个，BEFORE/AFTER 的差异就分不清是"改了行为"还是"本来就抖"） |
+| flat：BEFORE vs AFTER（改动前后） | **逐行相同** |
+| unified：BEFORE vs BEFORE2 / BEFORE vs AFTER | **逐行相同** |
+
+日志：`match_results/oracle_inject/zero_impact_{flat,unified}_{BEFORE,BEFORE2,AFTER}.log`。
+
+> 覆盖到的形态：92 个候选的大局面（含闪电）、只有 1 个候选（HOLD）的回合、
+> 多 op 的 bundle（`((13,6,-1),(13,10,-1))`）、p0/p1 两条决策路径。
+
+**② 对局层：同一批 seed，改动前后**整局**逐位相同。**
+
+用 `ab_search_modes.py`（两侧都是同一份冠军配置、都不注入）跑 seed 3000/3001，
+一次用**改动前**的代码（`git checkout fced917 -- <3 个文件>`），一次用**改动后**的代码，
+两边都开 `AZAI_AZ_DUMP`：
+
+```
+RESULT seed=3000 ... winner_side=p0 verdict=engine rounds=469 terminal=True base_hp=16,0 coins=538,264   ← 改动前
+RESULT seed=3000 ... winner_side=p0 verdict=engine rounds=469 terminal=True base_hp=16,0 coins=538,264   ← 改动后
+RESULT seed=3001 ... winner_side=p1 verdict=engine rounds=434 terminal=True base_hp=0,20 coins=206,514    ← 改动前
+RESULT seed=3001 ... winner_side=p1 verdict=engine rounds=434 terminal=True base_hp=0,20 coins=206,514    ← 改动后
+```
+
+4 个 `AZAI_AZ_DUMP` jsonl（**每回合的候选束 / 访问分布 / chosen / root_value 全在里面**）：
+
+```
+az_seed03000_p0  new=65C8BC44E681D735(258606 B)  old=65C8BC44E681D735(258606 B)  same=True
+az_seed03000_p1  new=631CB41F03756FC3(257105 B)  old=631CB41F03756FC3(257105 B)  same=True
+az_seed03001_p0  new=1374C2618935E064(240325 B)  old=1374C2618935E064(240325 B)  same=True
+az_seed03001_p1  new=97A729D26641AFD6(239795 B)  old=97A729D26641AFD6(239795 B)  same=True
+```
+
+⇒ **对局正常结束（`verdict=engine`）、且 903 条决策的候选集与访问分布逐字节相同**。
 
 ### 4.2 注入生效（`AZAI_ORACLE_INJECT=<exe>`）
 
-4 局（2 seed × 2 座位），要求：每局 `verdict=engine`、`inject>0`、`hit>0`、决策耗时 p50/p95 不爆。
+（本节输出随冒烟回填，见下）
+
+### 4.3 怎么跑
+
+单局（我们 vs 亚军，注入开在我方）：
+
+```bash
+P="D:/anaconda3/envs/pytorch-gpu/python.exe"
+CHAMP="AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_K=160;AZAI_FLAT_ROUNDS=39000;AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only"
+EXE="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe"
+
+# 注入臂 = ai0（我方先手），ai1 = 亚军本体
+$P -u code/test_match/match_via_sdk.py --trace-ops \
+   --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe \
+   --ai0-env="$CHAMP;AZAI_ORACLE_INJECT=$EXE;AZAI_ORACLE_VERBOSE=1" \
+   3000
+```
+
+4 局冒烟（2 seed × 2 座位，注入臂 vs 不注入臂，同一份冠军配置）：
+
+```bash
+bash code/test_match/run_oracle_inject_ab.sh 3000 3001      # 建议套 run_logged
+```
+
+32 局 A/B（**16 个 seed × 2 座位**；注入臂与不注入臂只差 `AZAI_ORACLE_INJECT`）：
+
+```bash
+bash code/run_logged.sh oracle_ab32 \
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py \
+  --paired-sides --jobs 4 --out-dir match_results/oracle_inject/ab32 \
+  --seeds 3000 3001 3002 3003 3004 3005 3006 3007 3008 3009 3010 3011 3012 3013 3014 3015 \
+  --flat-env="$CHAMP;AZAI_ORACLE_INJECT=$EXE" --mcts-env="$CHAMP"
+# 读法：`--flat-env` 那一臂就是**注入臂**（ab_search_modes 里 arm A 叫 "flat"，与本实验无关），
+#       `flat 胜率` = 注入臂得分（配对座位 ⇒ 每 seed 两局各坐一次先后手）。
+```
+
+⚠️ 用 `ab_search_modes --paired-sides` 时**注入统计只能读最后存活的那一局**：它的 stderr 文件名
+只含 `(side, label, seed)`（`match_via_sdk.py:373-374`），配对的两局同一个 seed **并发** ⇒
+两个进程用 `"wb"` 打开同一个 `ai?_az_bridge_ai_seedN.stderr.log`。要看**每局**的
+`inject/hit/耗时`，用 `run_oracle_inject_ab.sh`（它把两局错开 seed 并发，并在每局结束时另存 stderr）。
+
 
 ---
 

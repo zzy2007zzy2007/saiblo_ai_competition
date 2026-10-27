@@ -1069,7 +1069,7 @@ def main() -> int:
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
                      f"dec_slow={STATS['dec_slow']}{_bi}")
                 # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
-                if _ORACLE["asks"]:
+                if _ORACLE["asks"] and _ORACLE["obj"] is not None:
                     _dt_all = STATS["dec_times"]
                     _log(f"⏱️ 决策耗时 p50={_pct(_dt_all, 0.50):.2f}s "
                          f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
@@ -1142,15 +1142,17 @@ def main() -> int:
         sys.stderr.write(traceback.format_exc())
         return 1
 
+    # ⚠️ 统计要在**"结束"之前**打：bridge 一旦拿到终局就 TerminateProcess 我们，
+    #    "结束"之后的行有概率被砍掉（实测：注入统计那行丢过一次）。
+    if _ORACLE["asks"]:
+        _dt_all = STATS["dec_times"]
+        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
+        _log(f"决策耗时: n={len(_dt_all)} p50={_pct(_dt_all, 0.50):.2f}s "
+             f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
+    _oracle_close()
     _log(f"结束: rounds={STATS['rounds']} terminal={facade.terminal} winner={facade.winner} "
          f"hp={[b.hp for b in facade.bases]} mismatch={STATS['mismatch']} "
          f"illegal={STATS['illegal']}")
-    if _ORACLE["asks"]:
-        _dt_all = STATS["dec_times"]
-        _log(f"决策耗时: n={len(_dt_all)} p50={_pct(_dt_all, 0.50):.2f}s "
-             f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
-        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
-    _oracle_close()
     # ⚠️ 显式在这里 dump：bridge 收尾时会**硬杀**子进程（Windows TerminateProcess ⇒ atexit/SIGTERM
     # 都不一定跑得到）⇒ 不能只靠 atexit（实测：只挂 atexit 时一个文件都没写出来）。
     _dump_value_data()

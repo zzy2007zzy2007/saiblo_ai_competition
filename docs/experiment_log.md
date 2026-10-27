@@ -12516,3 +12516,48 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261026_101149_rr64_run2/output.log`
 - **result**: _待填_
+
+## 2026-10-27 00:00:24 — oracle_zero_new
+
+- **commit**: `3a8c401` (dirty: 3 files)
+- **exit**: 0，用时 289s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 3000 3001 --jobs 2 --out-dir match_results/oracle_inject/zero_new --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_K=160;AZAI_FLAT_ROUNDS=39000;AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only;AZAI_AZ_DUMP=match_results/oracle_inject/azdump_new --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_K=160;AZAI_FLAT_ROUNDS=39000;AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only;AZAI_AZ_DUMP=match_results/oracle_inject/azdump_new
+  ```
+- **output**: `training_history/runs/20261027_000024_oracle_zero_new/output.log`
+- **result**: **零影响 A 半（改动后代码）**：2 局 `verdict=engine`（seed3000: p0 胜 rounds=469 hp=16,0；seed3001: p1 胜 rounds=434 hp=0,20）。两份 `AZAI_AZ_DUMP` 与 `oracle_zero_old` **逐字节相同**（4 个 jsonl 的 SHA256 全等，含每决策的候选/访问分布/chosen/root_value）⇒ 零影响成立。
+
+## 2026-10-27 00:05:50 — oracle_zero_old
+
+- **commit**: `3a8c401` (dirty: 6 files)
+- **exit**: 0，用时 283s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 3000 3001 --jobs 2 --out-dir match_results/oracle_inject/zero_old --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_K=160;AZAI_FLAT_ROUNDS=39000;AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only;AZAI_AZ_DUMP=match_results/oracle_inject/azdump_old --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_K=160;AZAI_FLAT_ROUNDS=39000;AZAI_FLAT_ROLLOUT_MODE=idle;AZAI_SEARCH=flat;AZAI_MODE=pos-only;AZAI_AZ_DUMP=match_results/oracle_inject/azdump_old
+  ```
+- **output**: `training_history/runs/20261027_000550_oracle_zero_old/output.log`
+- **result**: **零影响 B 半（改动前代码 fced917）**：与 `oracle_zero_new` 完全相同的 2 局；`RESULT` 行逐字段相同（rounds/base_hp/winner_side/verdict），4 个 AZ dump jsonl 的 SHA256 与 A 半全等。
+  ⚠️ 跑法说明：先把 3 个改动文件 `git checkout fced917 --` 回退，等两个 AI 进程打完 `init:`/`engine built:`（已在内存里 import 完旧模块）后立刻恢复新版文件 ⇒ 窗口 ~75s，不影响正在跑的对局。
+
+## 2026-10-27 00:11:28 — oracle_inject_smoke4
+
+- **commit**: `3a8c401` (dirty: 4 files)
+- **exit**: 0，用时 1607s
+- **cmd**:
+  ```bash
+  bash code/test_match/run_oracle_inject_ab.sh 3000 3001
+  ```
+- **output**: `training_history/runs/20261027_001127_oracle_inject_smoke4/output.log`
+- **result**: _待填_
+
+## 2026-10-27 09:45:19 — oracle_pilot
+
+- **commit**: `3a8c401` (dirty: 6 files)
+- **exit**: 0，用时 1335s
+- **cmd**:
+  ```bash
+  bash code/test_match/run_oracle_inject_ab.sh 3000 3001
+  ```
+- **output**: `training_history/runs/20261027_094519_oracle_pilot/output.log`
+- **result**: _待填_

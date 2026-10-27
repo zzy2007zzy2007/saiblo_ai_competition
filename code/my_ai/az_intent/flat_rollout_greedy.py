@@ -185,6 +185,7 @@ class FlatRolloutGreedy(BundleMCTS):
         return ops
 
     def _tree_rollout_value(self, child, player: int, rngs) -> float:
+        self.last_tree_stats = None
         """前缀树版 rollout：按 (父节点, 本回合 ops) 复用子状态，省掉重复的 clone/apply/advance。"""
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType, HIGHLAND_CELLS
@@ -229,6 +230,9 @@ class FlatRolloutGreedy(BundleMCTS):
         if not leaf_states:
             return 0.0
         _lv = self._leaf_values(leaf_states, player)     # ← 批量评估（与朴素路径一致）
+        if _REC_SAMPLES:
+            self.last_tree_stats = (len(states), len(leaf_states), len(set(leaf_tokens)))
+            self.last_leaf_tokens = list(leaf_tokens)
         if not self.rollout_dedupe_weight:
             self.last_effective_samples = (self.last_effective_samples or 0) + len(_lv)
             return float(np.mean(_lv))
