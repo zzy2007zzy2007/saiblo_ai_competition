@@ -360,5 +360,5 @@ foreach ($s in 0,1,2) {
 | 不改默认行为 | 见 §1.2（64/6 老 ckpt 重跑 **0.4701**，与文档逐位一致） |
 | 不改 `az_intent/*` 核心搜索代码 | 只**读**了 `value_batch.py` / `flat_rollout_greedy.py` 用来写 §5 的结论，**没有改动** |
 | 不删/移数据 | 只新增；训练写的是 `checkpoints/small32_3/`，**没有覆盖**已入库的 64/6 基线 |
-| 日志落盘 | `training_history/logs/train_small32_3.log`、`runs/20261027_125902_small_value_32_3/output.log`、`eval_small_value_seed{0,1,2}.log/.json`、`bench_value_forward.log` |
+| 日志落盘 | `training_history/logs/train_small32_3.log`（35 KB）、`runs/20261027_125902_small_value_32_3/output.log`、`bench_value_forward.log`、`eval_small_value_seed{0,1,2}.json`（seed0 另有一份 `.log`） |
 | 已知没做 | ① rollout 里的叶子数/耗时实测；② 128 局配对；③ 与"部署时实时 encode 出来的 stats"逐维比对（调研 §5.2 遗留项） |
