@@ -17,6 +17,11 @@
 这是"同一个时刻的目录里就有多份副本",不是"历史版本存了多次"。
 git 能去重**内容**,但去不掉**工作区里的重复路径**:你 checkout 出来还是两份。
 
+> ⚠️ 但**不要被目录名骗了**:第 6 节的抽查发现,这 668.56 GiB 的 "没用的/副本" 里
+> 有 **27.31 GiB 是在全部 7 个备份里独一份的源码/文档**,删了就真没了。
+> 其中 `备份4\没用的` 其实是"当时整个项目被整份改名"进去的,不是垃圾堆。
+> 真正能无脑删的只有 **266.20 GiB 的 `temp_*`** 和约 **290 GiB 的 `- 副本*` 目录**。
+
 所以:git 用来管源码(已经在用了),空间靠**删中间产物 + 只留白名单 checkpoint**。
 
 ---
@@ -203,15 +208,24 @@ git 优化的是**存储**,不是**工作区**。
 
 ## 4. 建议的执行方案(按性价比排序)
 
-### 第一档:零风险,立刻可做 —— 实测可回收 **934.95 GiB**
+### 第一档:低风险,实测可自动回收 **500.60 GiB**
 
-`python code/tools/cleanup_backup.py --tier1` 的实测结果(**默认只列出,不删除**):
+> ⚠️ **先看第 6 节**:最初我把 668.76 GiB 的 junk 目录整体判成"零风险 934.95 GiB",
+> 后来做全局唯一性检查发现 **27.31 GiB 是全备份独一份、删了就真没了**,
+> 而且 `备份4\没用的` 其实是**当时整个项目被整份改名**进去的,不是垃圾堆。
+> 下面这张表已按检查结果重新分档。
 
-| 类别 | 项数 | 占用 |
-| --- | ---: | ---: |
-| (A) `没用的 / 副本 / copy / 旧版本对战` 目录 | 50 个 | **668.76 GiB** |
-| (B) `temp_*` 训练中间产物 | 3,044 个文件 | **266.20 GiB** |
-| **合计** | — | **934.95 GiB / 152,549 个文件** |
+`python code/tools/cleanup_backup.py`(**默认只列出,不删除**):
+
+| 档位 | 内容 | 项数 | 占用 | 说明 |
+| --- | --- | ---: | ---: | --- |
+| 第 1 档 | `temp_*` 训练中间产物 | 3,044 文件 | **266.20 GiB** | GA 每代临时 genome,`备份5/6/7` 各存一份 |
+| 第 2 档 | `*- 副本*`、`*- copy`、`没用的旧模型` | 45 项 | **234.40 GiB** | 全局比对 C 类(独一份)≈ 0,删了内容仍在别处 |
+| **可自动合计** | — | — | **500.60 GiB** | — |
+| 需人工 | `没用的` / `没用的_2` / `旧版本对战` | 5 项 | **434.34 GiB** | **工具绝不自动删**,见第 6 节 |
+
+> 第 2 档的注意点:`没用的旧模型` 在 `备份2` 和 `备份3` 各有一份,
+> 两份之间互有约 12.5 GiB 只在对方那里 —— **删一份安全,两份都删就丢内容**。
 
 (A) 里最大的几项(还暴露了跨版本重复):
 
@@ -240,9 +254,6 @@ git 优化的是**存储**,不是**工作区**。
 | `...\run_20260428_221316` | 4.92 GiB |
 | `...\run_20260428_213111` | 3.16 GiB |
 | `...\run_20260428_215557` | 3.16 GiB |
-
-合计 **≈ 935 GiB**,1.81 TiB → **≈ 0.92 TiB**,风险几乎为零
-(删的都是"名字本身就说它没用"的东西 + 训练临时文件)。
 
 ### 第二档:砍历史版本 —— 预计降到 40 ~ 60 GiB
 
@@ -295,7 +306,118 @@ python code/tools/summarize_dedupe.py
 
 # 5. 第一档清理(默认 dry-run,只列出)
 python code/tools/cleanup_backup.py --tier1
+
+# 6. 抽样取证:junk 目录里到底是什么
+python code/tools/inspect_junk.py --tree --only 0     # 看目录结构
+python code/tools/inspect_junk.py --read --only 2     # 抽小文本文件读内容
+
+# 7. 全局唯一性:删了 junk 会不会丢内容
+python code/tools/check_junk_uniqueness.py    # 版本内对比
+python code/tools/global_junk_check.py        # 全备份 7 版本对比(A/B/C 三类)
 ```
+
+---
+
+## 6. 追加(2026-10-27):"没用的" 里面到底装了什么
+
+原本只按目录名把它判成垃圾。实际打开看之后,**结论要修正**。
+
+### 6.1 结构:它不是一堆零散垃圾,是"整个项目被改名"
+
+`备份4` 的根目录只有两样东西:
+
+| 目录 | 占用 |
+| --- | ---: |
+| `没用的` | 237.45 GiB |
+| `distillation_trainer` | 52.41 GiB |
+
+也就是说 **2026-04 那阵子,你把整个旧项目重命名成 `没用的`,然后开了一个新的
+`distillation_trainer` 从头做蒸馏**。所以 `备份4\没用的` = **那一代的全量存档**,
+不是"重复文件堆"。它内部结构和项目根目录完全一样:
+
+| 内部目录 | 占用 | 是什么 |
+| --- | ---: | --- |
+| `ai_neural_network_new` | 33.10 GiB | 自对弈 BC/RL 训练框架,含 `没用的旧模型` 29.40 GiB |
+| `ai_neural_network_new - 副本 (3)` | 32.22 GiB | 上面那份的副本 |
+| `ai_neural_network_new - 副本 (2)` | 21.70 GiB | 副本 |
+| `ai_neural_network` | 15.90 GiB | 第一版 NN(含 `model.pth` 10.11 MiB) |
+| `ai_neural_network - 副本 (2)` | 15.62 GiB | 上面那份的副本 |
+| `training` | 15.31 GiB | **`dataset.pkl` 单文件 15.3 GB**(行为克隆数据集) |
+| `ga_training_new` | 14.31 GiB | 遗传算法训练 |
+| `ga_training_new_2` | 14.31 GiB | 同一份 |
+| `ga_training_new - 副本 (2)` / `- 副本` | 13.37 / 13.13 GiB | 副本 |
+| `ga_training` / `- 副本 (2)` / `- 副本 (3)` | 10.90 / 10.92 / 10.90 GiB | 三份几乎一样 |
+| `ai_dqn_new` | 5.40 GiB | DQN 版本 |
+| 根目录散文件 | ~2 GiB | `蚁洋陷役2 - Saiblo.pdf/html`、`Trae聊天记录1~21.md`、`历史训练记录.txt`、`experiment_modified.zip`、`old_ai.zip` |
+
+`备份5` 的两个 "没用的" 则是**训练实验目录的集合**:
+
+- `备份5\没用的`: `ga_training - 副本 (2)/(3)`、`ga_training_new - 副本 (2)/副本`、
+  `distillation_training`、`distillation_trainer copy`、`ga_nn_trainer`、`nn_trainer`、`ai_submission`
+- `备份5\没用的_2`: `ga1_gen32_1`、`ga_nn_training_2`、`ga_nn_training_refactored`、
+  `ga_training_new`、`ga_training_new_2`、`good_versions`、`my_ai_agent`、`my_ai_dev`、`my_ant_game`
+
+**`没用的_2\good_versions` 值得单独提**:里面是**可以直接提交的 zip 包**
+（`example.zip` 38 文件 / `v3.zip` 20.5 MB 91 文件 / `run_20260406_203812_gen99.zip` 101 文件），
+这是当时的比赛提交产物,不该当垃圾删。
+
+**`备份3\...\download\旧版本对战`** 也不是垃圾:里面是 `FalseCat_ / Happigy / kskvnkadvnj /
+Xishiqing / zzy25` 五个对手的**平台对战回放**(文件名是 match_id,单个 3.8 MB 的完整
+`op0/op1/round_state` 录制)。删了就没法复现当时的对局。
+
+**只有 `备份3\...\ai_neural_network_new\没用的旧模型` 是干净可删的**:
+29.40 GiB / 9,636 文件,by name+size 100% 都能在别处找到。
+
+### 6.2 全局唯一性检查(A/B/C 三类)
+
+对 junk 目录里的每个文件,按 `(文件名, 大小)` 去**全部 7 个版本**里找:
+
+| junk 目录(相对路径) | 合计 | A 别处非 junk 也有 | B 只在别的 junk 里有 | C 全备份独一份 |
+| --- | ---: | ---: | ---: | ---: |
+| `没用的`(备份4+备份5) | 304.48 | 182.89 | 107.12 | **14.47** |
+| `没用的_2` | 68.57 | 29.87 | 25.88 | **12.82** |
+| `download\旧版本对战` | 61.30 | 11.45 | 49.85 | 0.00 |
+| `ai_neural_network_new\没用的旧模型` | 53.92 | 41.41 | 12.50 | 0.00 |
+| `ai_neural_network_new - 副本 (2)` | 43.41 | 31.02 | 12.38 | 0.00 |
+| `Ant-Game\training_pipeline - 副本 (2)` | 36.50 | 36.50 | 0.00 | 0.00 |
+| `ai_neural_network_new - 副本 (3)` | 32.22 | 25.92 | 6.30 | 0.00 |
+| `ai_neural_network - 副本 (2)` | 31.23 | 31.21 | 0.02 | 0.00 |
+| `Ant-Game\training_pipeline - 副本` | 22.30 | 22.29 | 0.00 | 0.00 |
+| 其余小项 | — | — | — | ~0.02 |
+| **合计** | **668.56** | **426.48** | **214.78** | **27.31** |
+
+C 类(独一份)抽样看是什么 —— **几乎全是源码 / README / 聊天记录,不是大权重**:
+
+```
+智能体大赛备份4\...\没用的\analyze_replay.py
+智能体大赛备份4\...\没用的\Trae聊天记录19.md
+智能体大赛备份4\...\没用的\ai_neural_network_new\训练指令.txt
+智能体大赛备份4\...\没用的\rank_traceing\rank_history.json
+智能体大赛备份5\...\没用的\distillation_training\test_two_stage.py
+智能体大赛备份5\...\没用的_2\ga_nn_training_refactored\README.md
+智能体大赛备份5\...\没用的_2\ga_nn_training_refactored\ga_trainer.py
+智能体大赛备份5\...\没用的_2\ga_nn_training_refactored\ai\two_stage_nn.py
+智能体大赛备份5\...\没用的_2\ga_nn_training_refactored\ga\evaluator.py
+智能体大赛备份3\...\ai_submission_neural_network - 副本 (3)\model.pth   (22.3 MiB)
+```
+
+> `ga_nn_training_refactored` 这一套(**重构版 GA 框架** + README)在全备份里只有一份,
+> 藏在 `没用的_2` 里。这大概是这一轮抽查最有价值的一个发现。
+
+### 6.3 修正后的建议
+
+1. **`temp_*` 266.20 GiB 照删** —— 判断不变,纯粹是 GA 每代的临时 genome。
+2. **`没用的旧模型`(29.40 GiB)、`training_pipeline - 副本*`(58.8 GiB)、
+   各种 `ai_neural_network* - 副本*`** —— A 类占比接近 100%,可删。
+3. **`没用的` / `没用的_2` 不要整目录删**。里面藏着:
+   - `dataset.pkl` 15.3 GB(行为克隆数据集,重建要重新采集)
+   - `good_versions` 的提交包
+   - `ga_nn_training_refactored` 重构版框架(全备份唯一一份)
+   - `Trae聊天记录19.md` 等文档
+   正确做法:**先把这 27.31 GiB 的 C 类文件挑出来单独存**,再删剩下的。
+4. `download\旧版本对战`(61.30 GiB)没有 C 类,但 A 类只有 11.45 GiB、
+   B 类 49.85 GiB —— 意思是**备份2 和备份3 各存了一份,删掉其中一份即可省 30 GiB**,
+   两份都删就没了。
 
 > 注意:F: 是 USB 外接机械盘(WD Elements SE),随机读只有 ~1.3 MB/s。
 > 任何全量内容哈希(214k 文件)会跑十几个小时,不要随便试。
