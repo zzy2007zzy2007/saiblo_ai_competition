@@ -284,6 +284,21 @@ _OP_LABEL_WARNED = False   # 2026-10-22：op 标签解析失败只提示一次
 STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0,
          "dec_times": []}   # 2026-10-26：每决策墙钟（算 p50/p95；只用于日志，不参与决策）
 
+# ── 非法操作自检（2026-10-27）──────────────────────────────────────────────────────
+# 为什么需要它：`GameStateFacade.apply_operation_list` 返回 **None**
+# （`game_state_facade.py:167-170` 把 binding 的 accepted 计数丢掉了），而冷路径本身
+# **静默跳过**非法 op ⇒ 本文件原来的 `bad = facade.apply_operation_list(...)` +
+# `len(bad) if bad else 0` **恒为 0**（`STATS["illegal"]` 从来没真的数过任何东西，
+# 和 bridge 侧 `if il0 or il1:` 是同一个坑）。
+# 现在改用 `match_via_sdk.check_ops`（逐条 can_apply_dry + can_apply_cold 交叉验证、**只读**），
+# 只记日志/计数，**不改变任何决策**。覆盖的高风险改写路径：
+#   decide_final（出口，含强制升级 / mc 显式升级 op(12) / HOLD）
+#   after_no_downgrade（AZAI_NO_DOWNGRADE 去掉降级后的剩余 op —— 去掉降级会**少一笔收入**，
+#                       后面的建塔/升级可能因此变成"钱不够"⇒ 非法）
+#   shadow_apply（影子状态应用前，两侧都查）
+#   oracle_bundle（AZAI_ORACLE_INJECT 注入的候选，见 `_oracle_bundle` 里原有的逐条检查）
+ILLEGAL_STATS = MVS.IllegalStats()
+
 # ── 亚军候选注入（2026-10-26；**开关式，默认关**；见 docs/oracle_inject_design.md）─────────
 # `AZAI_ORACLE_INJECT` 为空 ⇒ 每条分支第一行就返回：**不 import 查询器、不起子进程、
 # 不加任何耗时**（零影响由 `code/test_match/probe_oracle_inject_zero_impact.py` 的哈希比对验证）。
@@ -295,6 +310,7 @@ _ORACLE: dict = {
     "seed": 0, "player": 0, "exe": "", "timeout": 2.5,
     "asks": 0,            # 实际 ask 的回合数
     "ok": 0,              # 成功拿到回包
+    "checked": 0,         # 2026-10-27：注入通道**逐条 can_apply 复核过**的 op 数（都应合法）
     "inject": 0,          # 交给搜索的次数（含 HOLD / 去重后为空的）
     "new": 0,             # 去重后**真正追加为候选**的次数
     "dup": 0,             # 与已有候选重复而被去重掉的次数
@@ -321,7 +337,8 @@ def _pct(vals: list, q: float) -> float:
 def _oracle_stats_text() -> str:
     """注入统计的一行文本（本功能的**主读数**）。字段含义见 docs/oracle_inject_design.md §3.5。"""
     st = _ORACLE
-    txt = (f"asks={st['asks']} ok={st['ok']} inject={st['inject']} new={st['new']} "
+    txt = (f"asks={st['asks']} ok={st['ok']} checked={st['checked']} inject={st['inject']} "
+           f"new={st['new']} "
            f"dup={st['dup']} hit={st['hit']} illegal={st['illegal']} "
            f"timeout={st['timeouts']} dead={st['dead']}")
     if st["ms"]:
@@ -766,6 +783,9 @@ def main() -> int:
                      f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}）")
                 return None
             accepted.append(op)
+        # 2026-10-27：这条路径**本来就有**逐条 can_apply（上面的循环）⇒ 注入的 op 不会非法；
+        # 这里只补计数，进 `_oracle_stats_text()` 的 `checked=`，让"注入通道查了 N 条"可见。
+        _ORACLE["checked"] += len(ops)
         return tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in accepted)
 
     def _oracle_init() -> None:
@@ -992,6 +1012,9 @@ def main() -> int:
                 _log(f"🧪 抑制降级: round={STATS['rounds']} 去掉 {len(ops) - len(_kept)} 个"
                      f"（累计 {STATS['down_killed']}）；剩余={len(_kept)}")
             ops = _kept
+            # 2026-10-27：**去掉降级后的剩余 op 必须重查**——降级是"退钱"操作，去掉它之后
+            # 后面的建塔/升级可能就变成"钱不够"（非法）。只记日志，不改决策。
+            _legal_check(int(player), ops, "after_no_downgrade")
         # 🧪 诊断（`AZAI_LIGHT_MIN_COINS=180`，预注册 `prereg_20261007_light_reserve.md`）：
         #   **闪电储备门槛**：金币 < 阈值时**不放闪电**（该回合等于 HOLD）⇒ 复现"手写储备规则"那条纪律
         #   （项目史上最大的一次准入增益 +13.3pp，机理 = 省下的钱变成塔）。只在**执行层**做，不动搜索/网络。
@@ -1029,15 +1052,34 @@ def main() -> int:
             ops = _kept4
         return ops
 
+    def _legal_check(pl: int, ops: list, tag: str) -> list:
+        """**只读**逐条合法性自检：非法就逐条打 stderr（带 round/side/op/reason）+ 计数。
+
+        绝不改变决策：改状态的只有 `facade.apply_operation_list`，这里只问 `can_apply`
+        （dry + clone 版冷路径交叉验证，见 `match_via_sdk.check_ops`）。检查器自身出错也只记日志。
+        `tag` 标出这一手来自哪条改写路径（decide_final / after_no_downgrade / shadow_apply）。
+        """
+        try:
+            bad = MVS.check_ops(facade, int(pl), ops, ILLEGAL_STATS, seed=int(seed),
+                                round_index=int(STATS.get("rounds", 0)), tag=str(tag),
+                                cold=False, log=_log)
+        except Exception as exc:  # noqa: BLE001
+            _log(f"⚠️ 合法性自检异常（忽略，不影响对局）: {type(exc).__name__}: {exc}")
+            return []
+        STATS["illegal_checked"] = ILLEGAL_STATS.checked
+        STATS["illegal"] = ILLEGAL_STATS.total          # 让既有的 illegal= 日志行变成**真的**
+        STATS["hold"] = ILLEGAL_STATS.holds[0] + ILLEGAL_STATS.holds[1]
+        return bad
+
     def _apply(pl: int, ops: list) -> None:
         """把操作打进影子状态，并统计非法数（影子与裁判的分歧会在这里先露头）。"""
         from my_ai.az_intent.timing import T as _T
+        # ⚠️ 旧写法 `bad = facade.apply_operation_list(...)` 的返回值**恒为 None**
+        #    （facade:167-170 丢掉了 binding 的计数）⇒ STATS["illegal"] 从来没数到过东西。
+        #    现在先做**只读**校验（在计时器外，保证 apply 的耗时读数可比），再照原样应用。
+        _legal_check(pl, ops, "shadow_apply")
         with _T("apply"):
-            bad = facade.apply_operation_list(pl, ops)
-        n = len(bad) if bad else 0
-        if n:
-            STATS["illegal"] += n
-            _log(f"!! 第 {STATS['rounds']} 回合 p{pl} 有 {n} 个非法操作: {bad}")
+            facade.apply_operation_list(pl, ops)
 
     try:
         def _decide_timed():
@@ -1055,6 +1097,10 @@ def main() -> int:
                 _ops = decide()
                 _dt = time.monotonic() - _t
             T.finish()
+            # 2026-10-27：出口自检 —— 一处覆盖 decide() 的**所有** return 分支
+            # （AZAI_FORCE_UPG 的升级 op / mc 显式升级 op(12) / HOLD 空列表 / 各改写后缀）。
+            # 放在计时器外 ⇒ `decision` 的耗时读数与改动前口径一致。
+            _legal_check(int(player), _ops, "decide_final")
             STATS["dec_n"] = int(STATS.get("dec_n", 0)) + 1
             STATS["dec_times"].append(round(_dt, 3))   # 2026-10-26：p50/p95 用（只进日志）
             if _dt > float(STATS.get("dec_max_s", 0.0)):
@@ -1087,6 +1133,8 @@ def main() -> int:
                     pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
                      f"dec_slow={STATS['dec_slow']}{_bi}")
+                # 2026-10-27：非法操作自检也**对局中**周期打印（同样因为收尾常被硬杀）
+                _log("🔎 非法操作自检: " + ILLEGAL_STATS.summary(int(seed), False))
                 # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
                 if _ORACLE["asks"] and _ORACLE["obj"] is not None:
                     _dt_all = STATS["dec_times"]
@@ -1169,9 +1217,13 @@ def main() -> int:
         _log(f"决策耗时: n={len(_dt_all)} p50={_pct(_dt_all, 0.50):.2f}s "
              f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
     _oracle_close()
+    # 2026-10-27：非法操作自检汇总（**本进程自己发出去的那一手**；裁判侧另有一份，见 bridge 的
+    # `illegal-summary`）。这里用 `illegal_total=` 措辞、且不加前缀大写 ILLEGAL。
+    _log("非法操作自检汇总: " + ILLEGAL_STATS.summary(int(seed), False))
     _log(f"结束: rounds={STATS['rounds']} terminal={facade.terminal} winner={facade.winner} "
          f"hp={[b.hp for b in facade.bases]} mismatch={STATS['mismatch']} "
-         f"illegal={STATS['illegal']}")
+         f"illegal={STATS['illegal']} illegal_checked={STATS.get('illegal_checked', 0)} "
+         f"hold={STATS.get('hold', 0)}")
     # ⚠️ 显式在这里 dump：bridge 收尾时会**硬杀**子进程（Windows TerminateProcess ⇒ atexit/SIGTERM
     # 都不一定跑得到）⇒ 不能只靠 atexit（实测：只挂 atexit 时一个文件都没写出来）。
     _dump_value_data()
