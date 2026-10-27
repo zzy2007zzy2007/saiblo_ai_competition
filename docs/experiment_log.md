@@ -12766,7 +12766,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261027_183034_illegal_fault_inject_strict/output.log`
-- **result**: _待填_
+- **result**: ✅ 严格模式(cold=False)抓住注入：r0 s1 op=(11,16,9) reason=build_on_base ⇒ 按官方 `set_AI_state_IO` 语义 p1 立即判负。RESULT: `winner=runnerup winner_side=p0 verdict=illegal_strict illegal=1 rounds=0 terminal=True`。
 
 ## 2026-10-27 18:30:40 — illegal_fault_inject_cold
 
@@ -12777,7 +12777,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261027_183040_illegal_fault_inject_cold/output.log`
-- **result**: _待填_
+- **result**: ✅ 旧行为(cold=True)同一注入：15 回合 15 条 ILLEGAL **全部静默跳过**，对局照常。RESULT: `verdict=hp_tiebreak illegal=15 rounds=15` ⇒ 这就是「本地测不出」的现场。
 
 ## 2026-10-27 18:32:11 — illegal_fault_inject_strict
 
@@ -12788,7 +12788,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261027_183211_illegal_fault_inject_strict/output.log`
-- **result**: _待填_
+- **result**: （commit 01b15d7 上复跑，同 18:30 那条）`verdict=illegal_strict illegal=1 rounds=0`。
 
 ## 2026-10-27 18:32:18 — illegal_fault_inject_cold
 
@@ -12799,7 +12799,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261027_183218_illegal_fault_inject_cold/output.log`
-- **result**: _待填_
+- **result**: （commit 01b15d7 上复跑）`verdict=hp_tiebreak illegal=15 rounds=15`（15 条全被吞）。
 
 ## 2026-10-27 18:32:27 — illegal_strict_smoke
 
@@ -12810,4 +12810,81 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101 8101r 8102 8102r
   ```
 - **output**: `training_history/runs/20261027_183227_illegal_strict_smoke/output.log`
-- **result**: _待填_
+- **result**: ⚠️ **无效局（事故）**：seed 8101 跑到 round 295 时**被外部杀掉**（`exit_code: 127`，18:40:47；同一时刻 parent 的 rng_ab_controlled 在 18:40:56 起、18:02 那批 A/B 进程全消失），日志无任何异常 ⇒ 无终局判词、不计入判据。被杀前 `illegal_total=0`。判据改用 `illegal_strict_fast`（见 18:48:40 那条）。
+
+## 2026-10-27 18:40:47 — illegal_strict_highrisk
+
+- **commit**: `01b15d7` (dirty: 4 files)
+- **exit**: 0，用时 799s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=32;AZAI_K=8;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=1;AZAI_TEMP=1e-6;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=8;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;AZAI_MC_UPG=1;AZAI_NO_DOWNGRADE=1;AZAI_ORACLE_INJECT=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe;AZAI_ORACLE_TIMEOUT=2.5 8103 8103r
+  ```
+- **output**: `training_history/runs/20261027_184047_illegal_strict_highrisk/output.log`
+- **result**: 🔴 **重要发现：2/2 局都出现非法 op**。`AZAI_ORACLE_INJECT` 注入亚军的「降级退钱+建塔」整块候选（合法），`AZAI_NO_DOWNGRADE=1` 只砍掉降级 ⇒ 建塔变买不起：seed 8103 `r61 s0 (11,8,2) build_no_gold(cost=45,coins=3)`、seed 8103r `r244 s1 (11,10,8) build_no_gold(cost=45,coins=30)`。两局均 `verdict=illegal_strict`（我方判负），`illegal=1`。机制/归因/修法建议见 `docs/illegal_op_strict_mode_20261028.md` §5.3。
+
+## 2026-10-27 18:54:10 — illegal_cold_control
+
+- **commit**: `1d31457` (dirty: 3 files)
+- **exit**: 0，用时 748s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101
+  ```
+- **output**: `training_history/runs/20261027_185410_illegal_cold_control/output.log`
+- **result**: ✅ canonical 配置的旧行为对照（seed 8101）：`verdict=engine illegal=0 rounds=383`、`winner=runnerup(hp 0,31)`。（本该与 canonical 严格局配对，但那局被外部杀掉，见 18:32:27 条）
+
+## 2026-10-27 18:58:41 — illegal_highrisk_cold_control
+
+- **commit**: `1d31457` (dirty: 3 files)
+- **exit**: 0，用时 750s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=300 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=32;AZAI_K=8;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=1;AZAI_TEMP=1e-6;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=8;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;AZAI_MC_UPG=1;AZAI_NO_DOWNGRADE=1;AZAI_ORACLE_INJECT=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe;AZAI_ORACLE_TIMEOUT=2.5 8103r
+  ```
+- **output**: `training_history/runs/20261027_185841_illegal_highrisk_cold_control/output.log`
+- **result**: ⚠️ **不作 A/B 用**：冷模式 300 回合 `illegal_total=0`，但原因是 oracle 注入在第 83 回合因 `AZAI_ORACLE_TIMEOUT=2.5s` 超时被**永久停用**（OracleTimeout 2516ms）⇒ 之后没有「降级+建塔」候选。`verdict=hp_tiebreak`（`--rounds=300` 截断）。
+
+## 2026-10-27 19:16:49 — illegal_fault_inject_strict_d2
+
+- **commit**: `1d31457` (dirty: 4 files)
+- **exit**: 0，用时 6s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_191649_illegal_fault_inject_strict_d2/output.log`
+- **result**: ✅ commit 1d31457（顺序修正后）复跑：`verdict=illegal_strict illegal=1 rounds=0`（报告正文引用的是这一对）。
+
+## 2026-10-27 19:16:55 — illegal_fault_inject_cold_d2
+
+- **commit**: `1d31457` (dirty: 4 files)
+- **exit**: 0，用时 9s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261027_191655_illegal_fault_inject_cold_d2/output.log`
+- **result**: ✅ commit 1d31457 复跑：`verdict=hp_tiebreak illegal=15 rounds=15`（15 条 ILLEGAL 全部被静默吞掉）。
+
+## 2026-10-27 18:48:40 — illegal_strict_fast
+
+- **commit**: `1d31457` (dirty: 2 files)
+- **exit**: 0，用时 2880s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=8;AZAI_DEPTH=3;AZAI_K=4;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=0;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_MC_EVERY=999;AZAI_POSPRIOR=off 8301 8301r 8302 8302r
+  ```
+- **output**: `training_history/runs/20261027_184840_illegal_strict_fast/output.log`
+- **result**: ✅ **判据达成：4/4 局 `verdict=engine`、`illegal_total=0`**（1454 回合 / 530 op / `mismatch=0`）。seed 8301(374r,hp 0,31)、8301r(333r,hp 39,0)、8302(365r,hp 0,36)、8302r(382r,hp 27,0)。低配搜索（ITERS=8/K=4）⇒ 我方 0/4 胜，不影响本判据。
+
+## 2026-10-27 19:36:41 — illegal_cold_fast_control
+
+- **commit**: `03c03c1` (dirty: 4 files)
+- **exit**: 0，用时 1528s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=8;AZAI_DEPTH=3;AZAI_K=4;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=0;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_MC_EVERY=999;AZAI_POSPRIOR=off 8301 8301r
+  ```
+- **output**: `training_history/runs/20261027_193641_illegal_cold_fast_control/output.log`
+- **result**: ✅ 与 `illegal_strict_fast` **逐字段相同**（两局 rounds 374/333、hp 0,31/39,0、coins 78,462/663,64、checked_ops 120/111、holds 分布完全一致）⇒ 证明 `illegal_total=0` 时改默认值**不改变任何结果**。`verdict=engine illegal=0`。
