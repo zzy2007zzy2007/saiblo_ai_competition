@@ -81,6 +81,24 @@ class FlatRolloutGreedy(BundleMCTS):
                  rollout_act_prob: float = 0.5,     # 每回合每方出招概率
                  rollout_build_ratio: float = 0.7,  # 出招时选"建塔"的比例（否则降级）
                  rollout_seed: int = 0,
+                 # ── 2026-10-27：**引擎 RNG 消费**这个正交随机源（开关式，默认关）──
+                 #   动机：现在的唯一随机源是"对手出招随机"，decay(.3,1) 下 N=64 只有
+                 #   17~20 条不同轨迹（大量分支整段没触发）。引擎自己在每次
+                 #   `advance_round()` 里本来就要抽 12~17 次 48-bit LCG（蚂蚁走位 softmax
+                 #   + 刷怪 + 传送 + 武器漂移），在 rollout 里**主动多抽**几次就能让分支
+                 #   从第一回合起就分开，而且几乎不花时间（LCG 一次 ~2 ns，见
+                 #   docs/engine_rng_impl.md）。
+                 #   ⚠️ 不消费时（默认）代码路径与改动前逐位一致（`rollout_rng_perturb=False`）。
+                 #   ⚠️ 引擎必须支持 `consume_rng` ⇒ 见 `my_ai/az_intent/rng_engine.py`
+                 #   （`AZAI_FLAT_RNG_PERTURB=1` 时会在 __init__ 里自动 enable）。
+                 rollout_rng_perturb: bool = None,   # None ⇒ 读 env AZAI_FLAT_RNG_PERTURB
+                 # 每回合独立 Bernoulli(p(r)) 命中时消费几次（"位置"固定在第 r 回合
+                 # ops 施加之后、advance_round() 之前；"次数"由这个参数给）
+                 rollout_rng_consume: int = 1,
+                 # 前缀树缓存键里是否带引擎 rng_state（"state"=正确、默认；
+                 # "none" 只是**诊断用**：会错误合并 rng_state 不同的分支，
+                 # 用来量化"把 rng_state 加进键到底多花多少节点"）
+                 rollout_rng_key: str = "state",
                  max_total_rounds: int = DEFAULT_MAX_TOTAL_ROUNDS,
                  verbose: bool = False,
                  **kwargs):
@@ -100,7 +118,7 @@ class FlatRolloutGreedy(BundleMCTS):
         self.rollout_seed = int(rollout_seed)
         assert rollout_random_side in ("both", "opponent"), rollout_random_side
         self.rollout_random_side = rollout_random_side
-        assert rollout_prob_mode in ("const", "decay", "first"), rollout_prob_mode
+        assert rollout_prob_mode in ("const", "decay", "first", "reverse"), rollout_prob_mode
         self.rollout_prob_mode = rollout_prob_mode
         self.rollout_decay_c = float(rollout_decay_c)
         self.rollout_decay_k = max(1e-6, float(rollout_decay_k))
@@ -123,10 +141,86 @@ class FlatRolloutGreedy(BundleMCTS):
         self.last_timing = {}
         self.last_rollouts = 0
         self.last_rounds = 0
+        # ── 引擎 RNG 消费开关（默认关 ⇒ 下面所有 `if self._rng_on` 分支都不执行）──
+        #   `AZAI_FLAT_RNG_PERTURB=1` 时自动打开（命令行/构造参数也可显式给）。
+        if rollout_rng_perturb is None:
+            rollout_rng_perturb = _os.environ.get("AZAI_FLAT_RNG_PERTURB", "0") == "1"
+        self.rollout_rng_perturb = bool(rollout_rng_perturb)
+        self.rollout_rng_consume = max(1, int(rollout_rng_consume))
+        assert rollout_rng_key in ("state", "none"), rollout_rng_key
+        self.rollout_rng_key = rollout_rng_key
+        self._rng_on = False          # 真正生效（引擎支持 consume_rng）才置 True
+        self._rng_warned = False
+        self.last_rng_consumed = 0    # 本决策实际消费的 RNG 次数（诊断/验收用）
+        self.last_rng_missing = 0     # 想消费但引擎不支持而跳过的次数（应为 0）
+        self._rng_enabled_engine = None
+        if self.rollout_rng_perturb:
+            from my_ai.az_intent import rng_engine as _rng_engine
+            self._rng_enabled_engine = _rng_engine.enable(verbose=self.verbose or True)
+            self._rng_on = bool(self._rng_enabled_engine)
         if eval_mode == "net" and value_model is None:
             raise ValueError("eval_mode='net' 需要 value_model（load_three_models 的第三个返回值）")
         if eval_mode == "net" and feature_extractor is None:
             raise ValueError("eval_mode='net' 需要 feature_extractor（SDK.utils.features.FeatureExtractor）")
+
+    # ── 每回合的"随机化强度"p(r)：动作随机与 RNG 消费**共用**同一套调度 ──────
+    def _prob_for_round(self, round_idx: int) -> float:
+        """`rollout_prob_mode` 决定的、第 round_idx 回合的随机化概率。
+
+        ⚠️ 这段逻辑原来是内联在 `_decide_actions` 里的，2026-10-27 抽出来供
+        "引擎 RNG 消费"复用同一套 C/k（行为逐位不变：同样的输入返回同样的 p）。
+        """
+        if self.rollout_prob_mode == "first":
+            return float(self.rollout_decay_c) if round_idx == 0 else 0.0
+        if self.rollout_prob_mode == "decay":
+            import math as _math
+            return float(self.rollout_decay_c * _math.exp(-round_idx / self.rollout_decay_k))
+        if self.rollout_prob_mode == "reverse":
+            # 时间反演：p(r) = C*exp(-(H-r)/k)，末期才反击 => 前缀树节点更少
+            import math as _math
+            _p = self.rollout_decay_c * _math.exp(
+                -(self.horizon - round_idx) / self.rollout_decay_k)
+            return float(min(1.0, max(0.0, _p)))
+        return float(self.rollout_act_prob)
+
+    # ── 引擎 RNG 消费（只在 rollout 的**克隆**上动手，绝不碰裁判/真实对局）──────
+    #   RNG 是 48-bit LCG：s ← (25214903917*s + 11) & (2^48-1)（官方 game.cpp:25-27）。
+    #   这里只把"消费后 rng_state 是多少"算出来当**缓存键**用（一次乘法），
+    #   真正的消费由引擎的 `consume_rng()` 做。两者一致性由
+    #   `probe_engine_rng.py` 的 smoke/parity 断言（consume_rng(k) == 手推 LCG）。
+    _RNG_MULT = 25214903917
+    _RNG_INC = 11
+    _RNG_MASK = (1 << 48) - 1
+
+    @classmethod
+    def _rng_after(cls, state: int, count: int) -> int:
+        for _ in range(int(count)):
+            state = (cls._RNG_MULT * state + cls._RNG_INC) & cls._RNG_MASK
+        return state
+
+    def _rng_state_of(self, sim):
+        """读 sim 的引擎 rng_state（读不到返回 None）。"""
+        g = getattr(sim, "_g", sim)
+        fn = getattr(g, "get_rng_state", None)
+        if fn is None:
+            return None
+        return int(fn())
+
+    def _consume_rng(self, sim, count: int) -> bool:
+        """在 sim（一个 rollout 克隆）上消费 count 次引擎 RNG。不改变任何局面量。"""
+        g = getattr(sim, "_g", sim)
+        fn = getattr(g, "consume_rng", None)
+        if fn is None:
+            if not self._rng_warned:
+                self._rng_warned = True
+                print("[flat] ⚠️ 引擎不支持 consume_rng（native_game 不是 rng_build 版本）"
+                      "⇒ 本次 rollout 不消费 RNG；先跑 build_rng_variant.py 并 enable()",
+                      flush=True)
+            self.last_rng_missing += 1
+            return False
+        fn(int(count))
+        self.last_rng_consumed += int(count)
+        return True
 
     def _decide_actions(self, sim, rng, ctx, root_player=None, round_idx: int = 0) -> list:
         """只**决定**本回合双方各做什么（不落子），返回 [(player, t, a0, a1), ...]。
@@ -134,13 +228,13 @@ class FlatRolloutGreedy(BundleMCTS):
         2026-10-23：从 `_random_actions` 拆出来，供前缀树实现复用（先决策、查缓存、再决定是否真模拟）。
         概率按 `rollout_prob_mode`（const / decay / first）逐回合计算。
         """
-        if self.rollout_prob_mode == "first":
-            _p = self.rollout_decay_c if round_idx == 0 else 0.0
-        elif self.rollout_prob_mode == "decay":
-            import math as _math
-            _p = self.rollout_decay_c * _math.exp(-round_idx / self.rollout_decay_k)
-        else:
-            _p = self.rollout_act_prob
+        if self.rollout_mode != "random":
+            # 2026-10-27：只有 `rollout_mode="random"` 才出随机招。
+            # 原来这里没判 rollout_mode（因为前缀树路径只在 random 时进），现在
+            # "仅 RNG 消费"也要走前缀树 ⇒ 必须显式判。对现有配置是 no-op
+            # （_tree_rollout_value 只在 rollout_mode=="random" 时被调用）。
+            return []
+        _p = self._prob_for_round(round_idx)
         if _p <= 0.0:
             return []
 
@@ -201,7 +295,14 @@ class FlatRolloutGreedy(BundleMCTS):
         leaf_states = []
 
         leaf_tokens = []
-        for rng in rngs:
+        _rng_key_on = bool(self._rng_on and self.rollout_rng_key == "state")
+        for _item in rngs:
+            # 2026-10-27：`rngs` 里的元素可以是 Generator，也可以是
+            # (action_rng, rng_perturb_rng) 二元组（后者给"引擎 RNG 消费"抽 Bernoulli）。
+            if isinstance(_item, tuple):
+                rng, rng_p = _item
+            else:
+                rng, rng_p = _item, None
             cur = 0
             _seq = []
             for _r in range(self.horizon):
@@ -210,8 +311,24 @@ class FlatRolloutGreedy(BundleMCTS):
                     break
                 ops = self._decide_actions(st, rng, ctx, player, _r)
                 token = tuple(sorted(ops)) if ops else ()
-                _seq.append(token)
-                key = (cur, token)
+                # ── 引擎 RNG 消费（在 apply(ops) 之后、advance_round() 之前）──
+                #   `_k` 只影响"这一步子状态用哪个 rng_state"，不改变任何局面量。
+                _k = 0
+                if self._rng_on and rng_p is not None:
+                    if rng_p.random() < self._prob_for_round(_r):
+                        _k = self.rollout_rng_consume
+                if _rng_key_on:
+                    # 键里的 rng_state = **本回合 ops 施加后、advance_round() 之前**
+                    # 的引擎 rng_state（= 消费了 _k 次之后）。它和 (父状态, ops) 一起
+                    # 唯一决定子状态 ⇒ 精确键；(父状态, ops) 相同但消费回合组合不同
+                    # 的分支，rng_state 必不同 ⇒ 不会被错误合并。
+                    _parent_rng = self._rng_state_of(st)
+                    if _parent_rng is None:
+                        key = (cur, token)
+                    else:
+                        key = (cur, token, self._rng_after(_parent_rng, _k))
+                else:
+                    key = (cur, token)
                 nxt = edges.get(key)
                 if nxt is None:
                     sim = states[cur].clone()
@@ -221,12 +338,17 @@ class FlatRolloutGreedy(BundleMCTS):
                                                      [Operation(OperationType(int(_t)), int(_a0), int(_a1))])
                         except Exception:
                             pass
+                    if _k:
+                        self._consume_rng(sim, _k)
                     sim.advance_round()
                     nxt = next_id
                     next_id += 1
                     states[nxt] = sim
                     edges[key] = nxt
                 cur = nxt
+                # 去重加权按"轨迹签名"分组：消费次数也必须进签名（否则两条
+                # 消费模式不同的轨迹会被当成同一条）
+                _seq.append((token, _k) if _k else token)
             leaf_states.append(states[cur])
             leaf_tokens.append(tuple(_seq))
         self.last_tree_nodes = getattr(self, "last_tree_nodes", 0) + next_id

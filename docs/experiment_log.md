@@ -12680,3 +12680,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
     同 seed 换网后对局变了（`5`：416→504 回合、hp (0,33)→(0,26)）；
   - 胜负 **0W-4L（两批各 0W-4L）**：对手是亚军，本配置 4 局没赢 —— n=4，**不是强度结论**，强度看明早 128 局配对；
   - 派生量（非计时实验）：关 0.552 s/决策、开 0.435 s/决策（1.27×），方向与 §3 的 1.52× 一致。
+
+## 2026-10-27 15:37:38 — train_hard_ce
+
+- **commit**: `1ac61ff` (dirty: 3 files)
+- **exit**: 0，用时 3693s
+- **cmd**:
+  ```bash
+  bash code/my_ai/_train_hard_ce.sh
+  ```
+- **output**: `training_history/runs/20261027_153738_train_hard_ce/output.log`
+- **result**: _待填_

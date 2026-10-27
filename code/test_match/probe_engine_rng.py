@@ -359,29 +359,46 @@ def mode_parity(args) -> int:
     """回归验证：探针版引擎在**不消费** RNG 时，是否与现役 pyd 逐位一致。
 
     必须分两个子进程跑（同一进程 import 两个 pyd 会被 pybind11 的
-    `type already registered` 拒绝）。
+    `type already registered` 拒绝）。`--logs` 可传多条日志做批量对拍。
     """
-    tmp = Path(args.out).with_name("parity_live.json")
-    tmpp = Path(args.out).with_name("parity_probe.json")
-    for mod, outp in (("live", tmp), ("probe", tmpp)):
-        cmd = [sys.executable, __file__, "digest", "--log", str(args.log),
-               "--out", str(outp), "--module", mod, "--probe-dir", args.probe_dir]
-        r = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
-        print(r.stdout.strip())
-        if r.returncode != 0:
-            print(r.stderr[-3000:])
-            raise SystemExit(f"[parity] ✗ 子进程失败 module={mod}")
-    a = json.loads(tmp.read_text(encoding="utf-8"))
-    b = json.loads(tmpp.read_text(encoding="utf-8"))
-    same = a["digests"] == b["digests"]
-    first = next((i for i, (x, y) in enumerate(zip(a["digests"], b["digests"]))
-                  if x != y), None)
-    print(f"[parity] 现役 native_game.pyd : hp={a['hp']} rng={a['rng'][-1]}")
-    print(f"[parity] 探针 native_game_rng : hp={b['hp']} rng={b['rng'][-1]}")
-    print(f"[parity] 逐回合强摘要完全一致: {same}"
-          + ("" if same else f"  首个分歧回合={first}"))
-    print(f"[parity] rng_state 序列完全一致: {a['rng'] == b['rng']}")
-    return 0 if same else 1
+    logs = [Path(x) for x in (args.logs or [])] or [args.log]
+    engine_dir = args.engine_dir or str(REPO / "code/cpp_engine/rng_build")
+    if not (Path(engine_dir) / "native_game.pyd").exists():
+        print(f"[parity] ✗ {engine_dir} 里没有 native_game.pyd；"
+              f"先跑 python code/cpp_engine/build_rng_variant.py")
+        return 1
+    print(f"[parity] 候选引擎 = {Path(engine_dir) / 'native_game.pyd'}")
+    all_ok = True
+    for log in logs:
+        if not log.exists():
+            print(f"[parity] ✗ 找不到日志 {log}")
+            return 1
+        tmp = Path(args.out).with_name(f"parity_live_{log.stem}.json")
+        tmpp = Path(args.out).with_name(f"parity_cand_{log.stem}.json")
+        for tag, extra, outp in (("live", [], tmp),
+                                 ("cand", ["--engine-dir", str(engine_dir)], tmpp)):
+            cmd = [sys.executable, __file__, "digest", "--log", str(log),
+                   "--out", str(outp), "--module", "live", *extra]
+            r = subprocess.run(cmd, capture_output=True, encoding="utf-8",
+                               errors="replace")
+            if r.returncode != 0:
+                print(r.stdout.strip())
+                print(r.stderr[-3000:])
+                raise SystemExit(f"[parity] ✗ 子进程失败 {tag} log={log.name}")
+        a = json.loads(tmp.read_text(encoding="utf-8"))
+        b = json.loads(tmpp.read_text(encoding="utf-8"))
+        same = a["digests"] == b["digests"]
+        first = next((i for i, (x, y) in enumerate(zip(a["digests"], b["digests"]))
+                      if x != y), None)
+        rng_same = a["rng"] == b["rng"]
+        print(f"[parity] {log.name:10s} 回合={len(a['digests']):4d} "
+              f"hp={tuple(a['hp'])} vs {tuple(b['hp'])}  "
+              f"逐回合强摘要一致={same}  rng_state 序列一致={rng_same}"
+              + ("" if same else f"  首个分歧回合={first}"), flush=True)
+        all_ok = all_ok and same and rng_same
+    print(f"[parity] 汇总: {'✅ 全部逐位一致' if all_ok else '❌ 存在差异'} "
+          f"（{len(logs)} 条日志）")
+    return 0 if all_ok else 1
 
 
 def mode_sites(args) -> int:
@@ -721,6 +738,8 @@ def main() -> int:
                                      "official"])
     ap.add_argument("--log", type=Path,
                     default=REPO / "match_results/ladder_logs/VS_RUNNERUP_cells4/10.log")
+    ap.add_argument("--logs", type=str, nargs="+", default=None,
+                    help="parity 批量对拍用：多条日志路径")
     ap.add_argument("--out", type=str, default=None)
     ap.add_argument("--cut", type=int, default=120)
     ap.add_argument("--horizon", type=int, default=40)
@@ -732,7 +751,8 @@ def main() -> int:
     ap.add_argument("--probe-dir", type=str, default=str(PROBE_DIR))
     ap.add_argument("--module", choices=["live", "probe"], default="live")
     ap.add_argument("--engine-dir", type=str, default="",
-                    help="module=live 时优先用这个目录里的 native_game.pyd（用于比对重建产物）")
+                    help="module=live 时优先用这个目录里的 native_game.pyd"
+                         "（parity 默认 = code/cpp_engine/rng_build 那套 RNG 变体）")
     ap.add_argument("--judge", type=str,
                     default="code/cpp_engine/build_probe/judge_O0.exe")
     args = ap.parse_args()
