@@ -293,11 +293,60 @@ STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow":
 # 现在改用 `match_via_sdk.check_ops`（逐条 can_apply_dry + can_apply_cold 交叉验证、**只读**），
 # 只记日志/计数，**不改变任何决策**。覆盖的高风险改写路径：
 #   decide_final（出口，含强制升级 / mc 显式升级 op(12) / HOLD）
-#   after_no_downgrade（AZAI_NO_DOWNGRADE 去掉降级后的剩余 op —— 去掉降级会**少一笔收入**，
-#                       后面的建塔/升级可能因此变成"钱不够"⇒ 非法）
+#   after_filters（**过滤闸门**：`AZAI_NO_DOWNGRADE`/`BAN_OPS`/`*_MIN_COINS` 删 op 之后复核整块；
+#                  2026-10-28 起它取代了原来那条只记录不拦的 `after_no_downgrade` ——
+#                  闸门**自己**用独立的 IllegalStats + `GATE-BLOCK` 日志词，
+#                  所以 `illegal_total` 仍然只数"真的发出去了几个非法 op"）
 #   shadow_apply（影子状态应用前，两侧都查）
 #   oracle_bundle（AZAI_ORACLE_INJECT 注入的候选，见 `_oracle_bundle` 里原有的逐条检查）
 ILLEGAL_STATS = MVS.IllegalStats()
+
+# ── 事后过滤的「整块合法性闸门」（2026-10-28；修 docs/illegal_op_strict_mode_20261028.md §5.3）──
+# 背景：`AZAI_NO_DOWNGRADE` / `AZAI_BAN_OPS` / `AZAI_LIGHT_MIN_COINS` / `AZAI_BUILD_MIN_COINS`
+# 都是**事后**从一块（本来合法的）候选里删 op。删"降级退钱"会让后面的建塔变成"钱不够"：
+#   oracle 注入 [(13,3,-1),(11,8,2)]（合法：先退钱再建塔）→ NO_DOWNGRADE 只删 (13,3,-1)
+#   ⇒ 剩下 (11,8,2) 要 45 金币而手上只有 3 ⇒ 严格模式（=官方口径）当场判负。
+# 实测 2/2 局（seed 8103 r61、8103r r244）。修法：过滤之后**复核剩余整块**，
+# 只要有一条非法就**整块丢弃**（本回合 HOLD），**绝不发半块**。
+def _gate_log(msg: str) -> None:
+    """闸门的日志通道：`check_ops` 的 `ILLEGAL` 行改写为 `GATE-BLOCK`。
+
+    为什么要改词：`_tmp_ladder.py:192` 数的是"含 `ILLEGAL` 的行数" = **真的发出去**的非法 op；
+    闸门拦下的 op 没有发出去，混进去会让那份统计虚高（0 非法被数成 N）。
+    """
+    _log("🛡️ [gate] " + str(msg).replace("ILLEGAL ", "GATE-BLOCK "))
+
+
+def _block_legal_gate(facade, pl: int, ops: list) -> list:
+    """**整块**只读合法性复核（逐条 `can_apply`，带 `pending=` 前缀语义）。空返回 = 整块合法。
+
+    * 检查器与 `decide_final` / `shadow_apply` 自检**同一个**（`MVS.check_ops`：dry + clone 冷路径）；
+    * 用**独立**的 `IllegalStats`：`ILLEGAL_STATS` 的口径是"真发出去的非法 op"，被拦下的不算；
+    * 闸门自身异常 / 校验器对某一条失效（`CHECK-ERROR`）⇒ 返回"非法"（**fail-closed**）：
+      宁可 HOLD 也不能因为检查器坏了把非法 op 发出去（严格模式=官方口径，发出去就是判负；HOLD 一定安全）。
+      这与 `decide_final` 自检的 fail-open 相反，因为那里只是记录、这里决定发不发。
+    """
+    seen: list[str] = []
+
+    def _spy(msg: str) -> None:
+        seen.append(str(msg))
+        _gate_log(msg)
+
+    try:
+        st = MVS.IllegalStats()
+        bad = list(MVS.check_ops(facade, int(pl), list(ops), st,
+                                 seed=int(STATS.get("seed", 0)),
+                                 round_index=int(STATS.get("rounds", 0)),
+                                 tag="after_filters", cold=False, log=_spy))
+    except Exception as exc:  # noqa: BLE001
+        _log(f"🛡️ [gate] ⚠️ 闸门自身异常 ⇒ 按非法处理（丢弃整块，保守）："
+             f"{type(exc).__name__}: {exc}")
+        return [{"idx": -1, "op": None, "reason": f"gate_error({type(exc).__name__})"}]
+    if not bad and any("CHECK-ERROR" in m for m in seen):
+        # 校验器没能给出判定（不是"判成合法"）⇒ fail-closed
+        _log("🛡️ [gate] ⚠️ 有 op 的合法性校验器失效（CHECK-ERROR）⇒ 按非法处理（丢弃整块，保守）")
+        return [{"idx": -1, "op": None, "reason": "checker_unavailable"}]
+    return bad
 
 # ── 亚军候选注入（2026-10-26；**开关式，默认关**；见 docs/oracle_inject_design.md）─────────
 # `AZAI_ORACLE_INJECT` 为空 ⇒ 每条分支第一行就返回：**不 import 查询器、不起子进程、
@@ -380,8 +429,13 @@ def _report(*_args) -> None:
                    + (f" mc_err={_mc_err}" if _mc_err else ""))
     except Exception:  # noqa: BLE001
         pass
+    _gate = ""
+    if int(STATS.get("filter_gate_checks", 0)):
+        # 2026-10-28：事后过滤闸门的关键读数（拦下多少次半块 / 丢成 HOLD 多少次）
+        _gate = (f" gate_checks={STATS['filter_gate_checks']}"
+                 f" gate_dropped={STATS.get('filter_gate_dropped', 0)}")
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
-         f"illegal={STATS['illegal']}{_mc} dec_n={STATS.get('dec_n')} "
+         f"illegal={STATS['illegal']}{_gate}{_mc} dec_n={STATS.get('dec_n')} "
          f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
     _dt = STATS.get("dec_times") or []
     if _dt:
@@ -697,6 +751,7 @@ def main() -> int:
         _log("!! 没有收到 init 行就 EOF 了")
         return 1
     player, seed = (int(x) for x in init.split())
+    STATS["seed"] = int(seed)   # 2026-10-28：过滤闸门/日志要带 seed（原来只有局部变量）
     _log(f"init: player={player} seed={seed} pid={os.getpid()}")
 
     from SDK.backend.model import Operation
@@ -1001,6 +1056,10 @@ def main() -> int:
         _record_obs(res)
         chosen = res.chosen_bundle or ()
         ops = [Operation(OperationType(int(k[0])), int(k[1]), int(k[2])) for k in chosen]
+        # 2026-10-28：下面四个"事后删 op"的诊断开关共用的闸门基准（过滤前 op 数 + 原块引用）。
+        # 只有 `len(ops) != _n_raw`（真的删过东西）才复核整块合法性 ⇒ 开关全关时零成本、零行为变化。
+        _n_raw = len(ops)
+        _raw_ops = ops          # 只存引用（四个过滤块都是新建列表、不原地改）⇒ 不复制、不改行为
         # 🧪 诊断（`AZAI_NO_DOWNGRADE=1`，预注册 `prereg_20261007_no_downgrade.md`）：
         #   **在"实际执行"层去掉降级 op**（与"从候选菜单排除类 16"不同——那是选层，这是执行层消融）。
         #   依据：256 局败局签名里我方"升级+降级"在负局更高（Cliff's d = −0.302），而我们 10.8 次/局、从不升级
@@ -1013,8 +1072,12 @@ def main() -> int:
                      f"（累计 {STATS['down_killed']}）；剩余={len(_kept)}")
             ops = _kept
             # 2026-10-27：**去掉降级后的剩余 op 必须重查**——降级是"退钱"操作，去掉它之后
-            # 后面的建塔/升级可能就变成"钱不够"（非法）。只记日志，不改决策。
-            _legal_check(int(player), ops, "after_no_downgrade")
+            # 后面的建塔/升级可能就变成"钱不够"（非法）。
+            # 2026-10-28：这里原来调的是 `_legal_check(..., "after_no_downgrade")`（只记录、不拦），
+            # 现在**改由下面那道闸门统一处理**（同一个检查器，但会真的把整块丢掉）。
+            # 为什么不保留这条独立自检：它会把"**没发出去**的 op"也计进 `ILLEGAL_STATS` ⇒
+            # `illegal_total` 不再是"真的发出去了几个非法 op"（判据会失真）；
+            # 闸门拦下的量由 `gate_dropped` 单独计，日志里有 `🛡️ [gate]` 原文。
         # 🧪 诊断（`AZAI_LIGHT_MIN_COINS=180`，预注册 `prereg_20261007_light_reserve.md`）：
         #   **闪电储备门槛**：金币 < 阈值时**不放闪电**（该回合等于 HOLD）⇒ 复现"手写储备规则"那条纪律
         #   （项目史上最大的一次准入增益 +13.3pp，机理 = 省下的钱变成塔）。只在**执行层**做，不动搜索/网络。
@@ -1050,6 +1113,22 @@ def main() -> int:
                 _log(f"🧪 安全网: round={STATS['rounds']} 去掉被禁 op {len(ops) - len(_kept4)} 个"
                      f"（累计 {STATS['banned_op_killed']}）")
             ops = _kept4
+        # 🛡️ **整块合法性闸门**（2026-10-28）：上面四个开关都是"事后从已合法的块里删 op"，
+        #   删掉"降级退钱"会让剩下的建塔变成"钱不够"（§5.3 的 2/2 局非法就是这么来的）。
+        #   所以只要**真的删过东西**，就逐条复核剩余整块；有一条非法 ⇒ **整块丢弃 ⇒ 本回合 HOLD**。
+        #   开关全关（默认）时 `len(ops) == _n_raw` ⇒ 这段**一次都不进**，行为与改动前逐字相同。
+        if len(ops) != _n_raw:
+            _bad = _block_legal_gate(facade, int(player), ops)
+            STATS["filter_gate_checks"] = int(STATS.get("filter_gate_checks", 0)) + 1
+            if _bad:
+                STATS["filter_gate_dropped"] = int(STATS.get("filter_gate_dropped", 0)) + 1
+                _log(f"🛡️ [gate] 过滤后整块非法 ⇒ **整块丢弃（本回合 HOLD）**: "
+                     f"round={STATS['rounds']} 过滤前="
+                     f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in _raw_ops]} "
+                     f"过滤后={[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]} "
+                     f"非法={[(b.get('idx'), b.get('op'), b.get('reason')) for b in _bad]} "
+                     f"（累计丢弃 {STATS['filter_gate_dropped']}/{STATS['filter_gate_checks']} 次）")
+                ops = []
         return ops
 
     def _legal_check(pl: int, ops: list, tag: str) -> list:
@@ -1135,6 +1214,11 @@ def main() -> int:
                      f"dec_slow={STATS['dec_slow']}{_bi}")
                 # 2026-10-27：非法操作自检也**对局中**周期打印（同样因为收尾常被硬杀）
                 _log("🔎 非法操作自检: " + ILLEGAL_STATS.summary(int(seed), False))
+                # 2026-10-28：过滤闸门读数（拦下的半块**没有发出去** ⇒ 不能混进上面的 illegal_total）
+                if int(STATS.get("filter_gate_checks", 0)):
+                    _log(f"🛡️ 过滤闸门累计: checks={STATS['filter_gate_checks']} "
+                         f"dropped={STATS.get('filter_gate_dropped', 0)}"
+                         f"（dropped = 整块丢弃 ⇒ 该回合 HOLD）")
                 # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
                 if _ORACLE["asks"] and _ORACLE["obj"] is not None:
                     _dt_all = STATS["dec_times"]

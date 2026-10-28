@@ -13064,3 +13064,91 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261028_081915_rng_clean/output.log`
 - **result**: _待填_
+
+## 2026-10-28 08:52:57 — rng_idle_clean
+
+- **commit**: `64a61f5` (dirty: 2 files)
+- **exit**: 0，用时 7454s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rng_idle_clean.sh
+  ```
+- **output**: `training_history/runs/20261028_085257_rng_idle_clean/output.log`
+- **result**: _待填_
+
+## 2026-10-28 11:17:14 — illegal_fault_inject_strict
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 7s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261028_111714_illegal_fault_inject_strict/output.log`
+- **result**: _待填_
+
+## 2026-10-28 11:17:21 — illegal_fault_inject_cold
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 5s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
+  ```
+- **output**: `training_history/runs/20261028_111721_illegal_fault_inject_cold/output.log`
+- **result**: _待填_
+
+## 2026-10-28 11:19:09 — filter_gate_matrix
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 1，用时 1230s
+- **cmd**:
+  ```bash
+  bash code/test_match/_filter_gate_matrix.sh
+  ```
+- **output**: `training_history/runs/20261028_111909_filter_gate_matrix/output.log`
+- **result**: _待填_
+
+## 2026-10-28 11:40:04 — filter_gate_matrix_final
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 1250s
+- **cmd**:
+  ```bash
+  bash code/test_match/_filter_gate_matrix.sh
+  ```
+- **output**: `training_history/runs/20261028_114004_filter_gate_matrix_final/output.log`
+- **result**: _待填_
+
+## 2026-10-28 11:17:27 — illegal_strict_smoke
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 3079s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101 8101r 8102 8102r
+  ```
+- **output**: `training_history/runs/20261028_111727_illegal_strict_smoke/output.log`
+- **result**: _待填_
+
+## 2026-10-28 12:08:47 — illegal_strict_highrisk
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 1587s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=32;AZAI_K=8;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=1;AZAI_TEMP=1e-6;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=8;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;AZAI_MC_UPG=1;AZAI_NO_DOWNGRADE=1;AZAI_ORACLE_INJECT=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe;AZAI_ORACLE_TIMEOUT=2.5 8103 8103r
+  ```
+- **output**: `training_history/runs/20261028_120847_illegal_strict_highrisk/output.log`
+- **result**: _待填_
+
+## 2026-10-28 12:35:15 — illegal_cold_control
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 0，用时 533s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101
+  ```
+- **output**: `training_history/runs/20261028_123515_illegal_cold_control/output.log`
+- **result**: _待填_

@@ -623,8 +623,15 @@ def run_match(seed: int, keep_dir: Path, max_rounds: int = MAX_ROUND,
     except Exception:
         _TRACE = None
 
-    stderr0 = keep_dir / f"ai0_{p0_label}_seed{seed}.stderr.log"
-    stderr1 = keep_dir / f"ai1_{p1_label}_seed{seed}.stderr.log"
+    # 2026-10-28（opt-in，默认关闭）：`MVS_STDERR_SUFFIX=1` ⇒ 把驱动已按局设置好的
+    # `DSH_PROGRESS_SUFFIX`（`_p0`/`_p1`）拼进 stderr 文件名。
+    # 动机：`ab_search_modes --paired-sides` 同一个 seed 的两局**并发**，而这里原来的名字只含
+    # (seat, label, seed) ⇒ 两局用 "wb" 打开**同一个** `ai?_<label>_seed<N>.stderr.log`，互相覆盖
+    # （`docs/oracle_inject_design.md` §4.3 记录过：注入统计只能读最后存活的那局）。
+    # 不设该环境变量 ⇒ 文件名与改动前**逐字相同**（`_tmp_ladder.py` / `analyze_paired.py` 等老消费者不受影响）。
+    _suf = os.environ.get("DSH_PROGRESS_SUFFIX", "") if os.environ.get("MVS_STDERR_SUFFIX") == "1" else ""
+    stderr0 = keep_dir / f"ai0_{p0_label}_seed{seed}{_suf}.stderr.log"
+    stderr1 = keep_dir / f"ai1_{p1_label}_seed{seed}{_suf}.stderr.log"
 
     def ai_env(is_magica: bool, seed: int | None = None) -> dict:
         if is_magica:
