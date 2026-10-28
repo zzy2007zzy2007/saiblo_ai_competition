@@ -13053,3 +13053,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261028_084245_v5_retry_cannot_fix/output.log`
 - **result**: ✅ V5（已提交的最终代码）：看门狗故意设 5s（远小于正常单局墙钟）⇒ 两局都被杀、重试 1 轮仍被杀 ⇒ 报「已用满 1 轮，仍有 2 局无效」+ 最终有效率 0/2 + 仍然无效清单（不假装成功）。同时验证汇总行 `无效局=2`（这两局根本没有 RESULT 行，旧代码会当 0.5 平局）、「重跑过的局 2 个（转有效 0 个）」。
+
+## 2026-10-28 08:19:15 — rng_clean
+
+- **commit**: `9bc811a` (dirty: 2 files)
+- **exit**: 0，用时 2016s
+- **cmd**:
+  ```bash
+  bash code/test_match/_ab_rng_clean.sh
+  ```
+- **output**: `training_history/runs/20261028_081915_rng_clean/output.log`
+- **result**: _待填_
