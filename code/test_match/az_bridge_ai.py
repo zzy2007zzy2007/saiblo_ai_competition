@@ -31,6 +31,12 @@
                             （**空 = 关 = 完全走原逻辑**，不加载任何额外模型，行为逐位不变）。
                             见 `code/my_ai/az_intent/value_override.py`；产出该 ckpt 用
                             `code/test_match/fold_small_value_ckpt.py`（必须已折 y_std/y_mean）。
+  AZAI_UPG_BUNDLES=<int>     **升级候选进束**（2026-10-28，默认 **0 = 完全关闭、行为逐位不变**）：
+                             每回合把最多 N 条"合法且买得起"的单 op 升级 `((12, tower_id, target),)`
+                             通过**已有的**额外候选通道 `set_extra_bundles`（注入/安慰剂同一条）塞进去，
+                             与网络的 K 条候选**同台**被 flat rollout 评估器打分。**不改搜索算法**，
+                             也**不是** `AZAI_MC_UPG`（那个是 MC 仲裁直接接管一手、绕过评估器）。
+                             见 `docs/upgrade_bundles_20261028.md`；日志前缀 `[upg]`（stderr）。
 """
 from __future__ import annotations
 
@@ -392,6 +398,107 @@ _ORACLE: dict = {
 }
 
 
+# ── 升级候选进束（2026-10-28；`AZAI_UPG_BUNDLES=N`，**默认 0 = 完全关闭**）──────────────
+#   背景与设计见 `docs/upgrade_bundles_20261028.md`（上游只读诊断 `docs/why_no_upgrade_20261028.md`）。
+#   一句话：现役配置的 48 束被钉在同一类上（`bundle_mcts.py:870`），该类 100% ∈ {类 0, 类 16}
+#   ⇒ 升级**进不了候选**（0/7850 决策点）；本开关把最多 N 条单 op 升级走**已有的**额外候选通道
+#   `set_extra_bundles` 塞进去，让它们与另外 48 条**同台**被 flat rollout 评估器打分。
+#   N=0（默认）⇒ 三个钩子函数的**第一行**就 return：不枚举、不 dry-run、不碰通道、不打日志。
+_UPG: dict = {
+    "n": 0,            # 每回合最多塞几条（0 = 关；`AZAI_UPG_BUNDLES`）
+    "decided": 0,      # 决策点数（"有升级候选的决策点占比"的**分母**）
+    "rounds": 0,       # 真的塞进 ≥1 条升级候选的决策点数（分子）
+    "offers": 0,       # 累计塞进去的条数（选中率的**分母**）
+    "added": 0,        # `mcts.last_extra` 口径：去重后真正进束的条数（累计）
+    "sel": 0,          # 被评估器选中的**条数**（每决策 ≤1 ⇒ 也是"命中决策数"）
+    "sent": 0,         # 最终真的发出去的 `op=12` 数（执行层过滤之后）
+    "no_legal": 0,     # 开了开关、但本回合一条都凑不出来的次数
+    "gate_drop": 0,    # 被 `_block_legal_gate` 整块拦下的条数（应当恒 0）
+    "err": "",
+    "targets": {},     # 塞进去的目标塔型直方图
+    "sel_targets": {}, # **被选中**的目标塔型直方图（评估器偏好哪个升级）
+    "kinds": {},       # 每回合塞了几条 (1..N) 的直方图
+    "budget": {},      # "n_cand/n_rollouts" 直方图 —— 预算稀释的**实测**
+    "mine": None,      # 本回合塞进去的 bundle 元组（搜索后判命中用）
+    "set_prev": (),    # 上一回合我写进通道的那份（下回合先摘掉，否则会逐回合累加）
+}
+
+
+# ── E4：候选集只保留额外候选 + 随机挑一个（2026-10-28；两个开关**默认关**）──────────────
+#   目的（`docs/us_vs_champion_20261028.md` §5）：
+#     E4  = 候选集**只有**「冠军这一手 + 亚军这一手」，由**同一个** flat 评估器裁决
+#           ⇒ 直接量化"候选/先验"这一侧的上限（网络那 K 条被类轴 pinned 的候选不参与）；
+#     E4R = 同一候选集，但**不走评估器**，随机挑一个（固定种子可复现）
+#           ⇒ 对照臂：分离"动作来源的质量"与"评估器把两个里挑对的贡献"。
+#   两个开关都是 `0`/不设 ⇒ 下面的函数第一行就 return，行为与改动前**逐位相同**
+#   （证据：`_only_extra_zero_impact.sh` 的 `RESULT` 逐字段比较）。
+_ONLY: dict = {
+    "on": False,        # `AZAI_ONLY_EXTRA=1` ⇒ `mcts.set_only_extra(True)`
+    "random": False,    # `AZAI_ONLY_EXTRA_RANDOM=1` ⇒ 选层不看分数，随机挑一个
+    "seed": 0,          # 随机流种子（默认 = `AZAI_FLAT_SEED`；可用 `AZAI_ONLY_EXTRA_SEED` 覆盖）
+    "decided": 0,       # 做过随机挑的决策数
+    "pick": {},         # 被挑中的候选直方图（`repr(bundle) -> 次数`）
+    "ncand": {},        # 每决策候选数直方图
+    "err": "",
+}
+
+# ── 双 oracle：A/B 两个常驻查询会话（2026-10-28；`AZAI_ORACLE_INJECT_B` 非空才启用）────────
+#   A 会话 = 原来的 `AZAI_ORACLE_INJECT`（走 `_ORACLE`，那条路径**一行都没改**）；
+#   B 会话 = 这里新增的第二个进程（E4 用冠军做 A、亚军做 B）。
+#   ⚠️ 两个会话都只是 `RunnerUpOracle` —— 它不绑定亚军，只是"按官方协议喂局面、收操作"的外壳。
+#   ⚠️ B 的 stderr 必须**显式**给不同路径：`RunnerUpOracle` 的默认名只含 (seed, player, pid)，
+#      两个会话会写同一个文件（历史踩过，`docs/oracle_inject_design.md` §4.3）。
+_ORACLE_B: dict = {
+    "off": True,          # True = 不启用（默认）
+    "obj": None, "exe": "", "timeout": 20.0, "seed": 0, "player": 0,
+    "asks": 0, "ok": 0, "inject": 0, "checked": 0, "illegal": 0,
+    "timeouts": 0, "dead": 0, "hit": 0, "ms": [], "err": "",
+    "pending_opp": None, "last_bundle": None, "round_log": None,
+}
+
+
+def _oracle_b_stats_text() -> str:
+    """B 会话的统计一行（默认零日志；只有 `AZAI_ORACLE_INJECT_B` 才用得上）。"""
+    st = _ORACLE_B
+    txt = (f"asks={st['asks']} ok={st['ok']} checked={st['checked']} inject={st['inject']} "
+           f"hit={st['hit']} illegal={st['illegal']} timeout={st['timeouts']} dead={st['dead']}")
+    _ms = st.get("ms") or []
+    if _ms:
+        txt += (f" avg_ms={sum(_ms) / len(_ms):.0f} p50_ms={_pct(_ms, 0.50):.0f} "
+                f"p95_ms={_pct(_ms, 0.95):.0f} max_ms={max(_ms):.0f}")
+    if st.get("err"):
+        txt += f" err={st['err']}"
+    return txt
+
+
+def _upg_stats_text() -> str:
+    """`[upg] 统计:` 一行（对局结束前打；bridge 会硬杀 ⇒ 每决策那些日志才是主读数）。"""
+    st = _UPG
+    n_off = int(st.get("offers", 0))
+    n_sel = int(st.get("sel", 0))
+    n_dec = int(st.get("decided", 0))
+    txt = (f"n_max={st.get('n', 0)} decisions={n_dec} rounds_with_cand={st.get('rounds', 0)}"
+           f"({(100.0 * st.get('rounds', 0) / max(1, n_dec)):.1f}% of decisions)"
+           f" offered={n_off} sel={n_sel}({100.0 * n_sel / max(1, n_off):.1f}% of offered)"
+           f" added={st.get('added', 0)} sent_op12={st.get('sent', 0)}"
+           f" no_legal={st.get('no_legal', 0)} gate_drop={st.get('gate_drop', 0)}")
+    _k = st.get("kinds") or {}
+    if _k:
+        txt += " kinds={" + ",".join(f"{k}:{int(_k[k])}" for k in sorted(_k)) + "}"
+    _t = st.get("targets") or {}
+    if _t:
+        txt += " targets={" + ",".join(f"{k}:{int(_t[k])}" for k in sorted(_t)) + "}"
+    _st = st.get("sel_targets") or {}
+    if _st:
+        txt += " sel_targets={" + ",".join(f"{k}:{int(_st[k])}" for k in sorted(_st)) + "}"
+    _b = st.get("budget") or {}
+    if _b:
+        txt += " cand/rollouts={" + ",".join(f"{k}:{int(_b[k])}" for k in sorted(_b)) + "}"
+    if st.get("err"):
+        txt += f" err={st['err']}"
+    return txt
+
+
 def _fmt_act(act) -> str:
     """动作的日志格式：`()` = HOLD；`(t,a0,a1)` = 单个 op；`((t,a0,a1),(t,a0,a1))` = 多 op。
 
@@ -504,6 +611,9 @@ def _report(*_args) -> None:
              f"max={max(_dt):.2f}s")
     if _ORACLE.get("asks"):
         _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
+    if _UPG.get("n", 0) > 0:
+        # 2026-10-28：升级候选臂的收尾读数（每 50 决策还会周期打一次，防 bridge 硬杀丢掉）
+        _log(f"[upg] 统计: {_upg_stats_text()}")
     sys.stderr.flush()
 
 
@@ -1088,6 +1198,185 @@ def main() -> int:
 
     _oracle_init()
 
+    # ── 升级候选进束（2026-10-28；`AZAI_UPG_BUNDLES=N`，**默认 0 = 完全关闭**）───────────
+    #   背景（`docs/why_no_upgrade_20261028.md`）：现役配置下整束 48 个候选被钉在同一个类上
+    #   （`bundle_mcts.py:870` 的 `pinned=[_ccls]*3`），那个类 100% ∈ {类 0, 类 16}；类 0
+    #   数学上不可能产出升级（`decoder.py:452-456`）、类 16 走降级分支 ⇒ 我方升级 0/3175 op，
+    #   尽管 42.3% 的回合**合法且买得起**（22368 个 op 全没发）。
+    #   本开关**只补候选、不改搜索算法**：把最多 N 条单 op 升级候选 `((12, tower_id, target),)`
+    #   走**已有的**额外候选通道 `set_extra_bundles`（`flat_rollout_greedy.py:417-453`，注入/
+    #   安慰剂在用的那条）塞进去，让它们和另外 48 条**同台**被 flat rollout 打分。
+    #   ⚠️ 与 `AZAI_MC_UPG` 的区别（别混）：那个是"MC 仲裁选中后**直接发这一手**、绕过 48 束
+    #      评估器"（`az_bridge_ai.py:1381-1384`），三次自对弈 A/B 都更弱（23.4/18.8/31.2%）；
+    #      这个是"**成为候选**、由同一个评估器裁决"。设计/读数见 `docs/upgrade_bundles_20261028.md`。
+    #   N=0（默认）⇒ 三个钩子函数第一行就 return：不枚举、不 dry-run、不碰通道、不打日志。
+
+    def _upg_enable() -> None:
+        """读 `AZAI_UPG_BUNDLES`。**不设 = 0 = 关**；非法值/无通道 ⇒ 也按关处理（绝不让它改默认行为）。"""
+        raw = _env("AZAI_UPG_BUNDLES", "0")
+        try:
+            n = int(str(raw).strip() or 0)
+        except ValueError:
+            _log(f"[upg] ⚠️ AZAI_UPG_BUNDLES={raw!r} 不是整数 ⇒ 按 0（关闭）处理")
+            n = 0
+        if n < 0:
+            _log(f"[upg] ⚠️ AZAI_UPG_BUNDLES={n} < 0 ⇒ 按 0（关闭）处理")
+            n = 0
+        if n > 0 and not hasattr(mcts, "set_extra_bundles"):
+            _log(f"[upg] ⚠️ {type(mcts).__name__} 没有额外候选通道（只有 flat/unified 有）⇒ 不启用升级候选")
+            n = 0
+        _UPG["n"] = int(n)
+        if n > 0:
+            _log(f"[upg] 升级候选已启用: 每回合最多 {n} 条（seed={seed} player={player} "
+                 f"K={getattr(mcts, 'k', '?')} search={type(mcts).__name__}；"
+                 f"通道=set_extra_bundles（与注入同一入口））")
+
+    def _upg_bundles(n_max: int) -> list:
+        """枚举"合法且买得起"的升级 bundle `((12, tower_id, target),)`，**确定性**取前 n_max 条。
+
+        * 顺序 = `tower_id` 升序 × `TOWER_UPGRADE_TREE` 的目标顺序（**塔外层、目标内层**，与
+          `bundle_mcts.py:784-820` 的 `for _tw: for _tgt:` 同构；**不用 RNG** ⇒ 逐局可复现）；
+        * 合法性 = `facade.can_apply_operation(...)`（**只读** dry-run；与 `_oracle_bundle:1022`
+          同一个检查器：它复刻冷路径的金币/塔位/营地上限 ⇒ "买得起"天然含在里面，
+          `docs/why_no_upgrade_20261028.md` §4.3 的"方法 B"就是它，与"买得起"口径**同值**）；
+        * 单 op ⇒ `pending` 恒空，不存在"半块非法"（那是 `AZAI_NO_DOWNGRADE` 多 op 块的问题）；
+        * 异常一律 **fail-closed**（当非法丢掉）：宁可本回合少一条候选，也绝不发没验过的 op。
+        """
+        from SDK.utils.constants import TOWER_UPGRADE_TREE as _TREE
+        pl = int(player)
+        out: list = []
+        try:
+            # 便宜的预筛：升级价最低 60（二级）/ 200（三级）⇒ 金币 < 60 时**一条都不可能**，
+            #   直接省掉 towers×targets 次 dry-run（`game_state_facade.py:304-310`）。
+            if int(facade.coins[pl]) < 60:
+                return out
+            tws = sorted(facade.towers_of(pl), key=lambda z: int(z.tower_id))
+        except Exception as exc:  # noqa: BLE001
+            _UPG["err"] = f"towers_of: {type(exc).__name__}: {exc}"
+            return out
+        for tw in tws:
+            for tgt in (_TREE.get(int(tw.tower_type), ()) or ()):
+                op = (12, int(tw.tower_id), int(tgt))
+                try:
+                    ok = bool(facade.can_apply_operation(
+                        pl, Operation(OperationType(op[0]), op[1], op[2])))
+                except Exception as exc:  # noqa: BLE001
+                    _UPG["err"] = f"can_apply: {type(exc).__name__}: {exc}"
+                    ok = False
+                if not ok:
+                    continue
+                out.append((op,))
+                if len(out) >= int(n_max):
+                    return out
+        return out
+
+    def _upg_step() -> None:
+        """搜索**前**：把最多 N 条升级候选写进额外候选通道（N=0 ⇒ 第一行返回，零影响）。"""
+        st = _UPG
+        if st["n"] <= 0:
+            return
+        st["decided"] += 1
+        rnd = int(facade.round_index)
+        # ① 先摘掉**自己上一回合**写进通道的那份：`extra_bundles` 是**跨回合持久**的字段
+        #    （`search()` 读 `self.extra_bundles`，`set_extra_bundles` 只在调用时改它）⇒ 不摘就会
+        #    逐回合累加。⚠️ 只摘"我写的那些"，注入臂（A 臂/安慰剂臂）那份必须留住（合并而非覆盖）。
+        try:
+            prev = list(getattr(mcts, "extra_bundles", None) or ())
+        except Exception:  # noqa: BLE001
+            prev = []
+        mine_prev = tuple(st.get("set_prev") or ())
+        base = [b for b in prev
+                if tuple(tuple(int(x) for x in op) for op in b) not in mine_prev]
+        st["mine"], st["set_prev"] = None, ()
+        bundles = _upg_bundles(int(st["n"]))
+        if bundles:
+            # ② 再用独立校验器复核一遍（`_block_legal_gate`：`MVS.check_ops`，与 `decide_final`
+            #    自检同一个、fail-closed）。⚠️ **必须逐条（每条 bundle 单独）**调用，不能把 4 条
+            #    当成一个块：它们对评估器是**互斥的备选**（同回合只会发一条），而闸门的 `pending=`
+            #    语义是"同一回合先后执行" ⇒ 整块查会把"同一座塔升不同目标"误判成
+            #    `tower_already_used_in_round`（2026-10-28 冒烟实测：4 条全被误拦）。
+            _kept: list = []
+            for b in bundles:
+                bad = _block_legal_gate(facade, int(player),
+                                        [Operation(OperationType(12), b[0][1], b[0][2])])
+                if bad:
+                    st["gate_drop"] += 1
+                    _log(f"[upg] ⚠️ round={rnd} 闸门拦下 1 条升级候选 {b[0]} ⇒ 丢掉"
+                         f"（bad={list(bad)[:1]}）")
+                    continue
+                _kept.append(b)
+            bundles = _kept
+        if not bundles:
+            st["no_legal"] += 1
+            mcts.set_extra_bundles(base if base else None)   # 注入臂的候选原样保留
+            _log(f"[upg] round={rnd} 加入 0 条升级候选 targets=[]")
+            return
+        keys = tuple(tuple(tuple(int(x) for x in op) for op in b) for b in bundles)
+        st["rounds"] += 1
+        st["offers"] += len(bundles)
+        st["kinds"][len(bundles)] = int(st["kinds"].get(len(bundles), 0)) + 1
+        for b in bundles:
+            k = int(b[0][2])
+            st["targets"][k] = int(st["targets"].get(k, 0)) + 1
+        _log(f"[upg] round={rnd} 加入 {len(bundles)} 条升级候选 "
+             f"targets=[{', '.join(f'(12,{b[0][1]},{b[0][2]})' for b in bundles)}]")
+        mcts.set_extra_bundles(list(base) + list(bundles))   # ← 与注入**同一条**通道
+        st["mine"] = keys
+        st["set_prev"] = keys
+
+    def _upg_after_search(res) -> None:
+        """搜索**后**：这些升级候选有没有被评估器选中 + 实测每回合的 `(n_cand, n_rollouts)`。"""
+        st = _UPG
+        mine = st.get("mine")
+        if not mine:
+            return
+        st["mine"] = None
+        try:
+            chosen = tuple(tuple(int(x) for x in k) for k in (res.chosen_bundle or ()))
+        except Exception:  # noqa: BLE001
+            chosen = ()
+        hit = int(chosen in mine)
+        st["sel"] += hit
+        added = int(getattr(mcts, "last_extra", 0) or 0)
+        st["added"] += added
+        if hit:
+            for _op in chosen:
+                st["sel_targets"][int(_op[2])] = int(st["sel_targets"].get(int(_op[2]), 0)) + 1
+        _ls = getattr(mcts, "last_scores", None)
+        n_cand = int(len(_ls)) if _ls is not None else 0
+        n_roll = int(getattr(mcts, "last_rollouts", 0) or 0)   # flat 里**实际用的** n_rollouts
+        _bk = f"{n_cand}/{n_roll}"
+        st["budget"][_bk] = int(st["budget"].get(_bk, 0)) + 1
+        _log(f"[upg] sel round={int(facade.round_index)} hit={hit} mine={len(mine)} extra={added} "
+             f"n_cand={n_cand} n_rollouts={n_roll} chosen={_fmt_act(chosen)}")
+
+    def _upg_count_sent(final_ops) -> None:
+        """出口：最终**真的发出去**的 op 里数 `op=12`（执行层过滤/闸门之后；N=0 时零成本）。"""
+        if _UPG["n"] <= 0:
+            return
+        try:
+            _UPG["sent"] += sum(1 for o in (final_ops or ()) if int(o.op_type) == 12)
+        except Exception:  # noqa: BLE001
+            pass
+        # 预算稀释的**实测**（每个决策都记，包括"本回合没塞升级"的）：`n_cand`/`n_rollouts`
+        #   直接取 flat 自己算好/用掉的那两个量（`flat_rollout_greedy.py:521-523, 591`），不猜。
+        try:
+            _ls = getattr(mcts, "last_scores", None)
+            _nc = int(len(_ls)) if _ls is not None else 0
+            _nr = int(getattr(mcts, "last_rollouts", 0) or 0)
+            _bk = f"{_nc}/{_nr}"
+            _UPG["budget"][_bk] = int(_UPG["budget"].get(_bk, 0)) + 1
+        except Exception:  # noqa: BLE001
+            pass
+        # 周期汇总（bridge 收尾时会直接 terminate 我们 ⇒ 主读数必须随对局落盘）
+        if _UPG["decided"] and _UPG["decided"] % 50 == 0:
+            _log(f"[upg] 统计: {_upg_stats_text()}")
+
+    _upg_enable()
+    # 2026-10-28：E4 的两个开关（默认关 ⇒ 各是一行 `os.environ.get`）
+    _oracle_b_init()
+    _only_extra_enable()
+
     def _probe_upgrade_once() -> None:
         """🔬 诊断（`AZAI_PROBE_UPG=1`）：**在真实对局的引擎环境里**问清"升级 op 到底能不能生效"。
 
@@ -1160,10 +1449,14 @@ def main() -> int:
                     return _ops
             except Exception as _exc:  # noqa: BLE001
                 _log(f"🧪 强制升级异常: {type(_exc).__name__}: {_exc}")
+        # ⬆️ 升级候选（`AZAI_UPG_BUNDLES=N`；**默认 0 ⇒ 这一行立刻返回、行为逐位不变**）：
+        #    必须在 `mcts.search()` **之前**塞进通道（`search()` 才读 `self.extra_bundles`）。
+        _upg_step()
         from my_ai.az_intent.timing import T as _T
         with _T("search"):
             res = mcts.search(facade, player, temperature=temperature)
         _oracle_after_search()   # 注入统计（去重后是否真的加进去 / 是否被选中）
+        _upg_after_search(res)   # 升级候选：有没有被**同一个**评估器选中 + 实测预算
         # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
         _expl = getattr(mcts, 'mc_last_explicit', None)
         if _expl is not None:
@@ -1297,6 +1590,8 @@ def main() -> int:
             # 那串 op（已过执行层过滤/闸门），所以 `hit` 才是"我们改没改亚军那一手"。
             # ⚠️ 它**只读**、只在 `AZAI_ORACLE_INJECT` 非空且本回合真的注入时打 ⇒ 默认零日志零影响。
             _oracle_log_round(_ops)
+            # 2026-10-28：出口数一下"最终真的发出去几个升级 op"（`AZAI_UPG_BUNDLES` 关时零成本）
+            _upg_count_sent(_ops)
             # 2026-10-27：出口自检 —— 一处覆盖 decide() 的**所有** return 分支
             # （AZAI_FORCE_UPG 的升级 op / mc 显式升级 op(12) / HOLD 空列表 / 各改写后缀）。
             # 放在计时器外 ⇒ `decision` 的耗时读数与改动前口径一致。

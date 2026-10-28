@@ -32,6 +32,9 @@ JOBS="${JOBS:-8}"
 # 重试轮数：一批跑完后凡是没有 verdict=engine 的局再跑一遍，最多这么多轮
 RETRY="${RETRY:-2}"
 ARMS="${ARMS:-A B}"
+# 2026-10-28：**C 臂（升级候选诊断臂）** = BASE + `AZAI_UPG_BUNDLES=$UPG_N`（只加升级候选，
+#   不加注入）。见 docs/upgrade_bundles_20261028.md。N=0 ⇒ 等价于 B 臂（开关关 = 逐位不变）。
+UPG_N="${UPG_N:-4}"
 SEEDS="${SEEDS:-7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r}"
 
 RU_REL="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe"
@@ -144,6 +147,12 @@ for arm in $ARMS; do
         echo ""
         echo "############ A 臂（注入开启）vs 亚军  $(date '+%H:%M:%S')"
         echo "[ivr] A env = $export_env"
+    elif [ "$arm" = "C" ]; then
+        # 2026-10-28：诊断臂 C —— 只多一个开关：`AZAI_UPG_BUNDLES=N`（升级进候选，由评估器裁决）
+        export_env="$BASE;AZAI_UPG_BUNDLES=$UPG_N"
+        echo ""
+        echo "############ C 臂（升级候选 $UPG_N 条，不注入）vs 亚军  $(date '+%H:%M:%S')"
+        echo "[ivr] C env = $export_env"
     else
         export_env="$BASE"
         echo ""
@@ -159,6 +168,12 @@ for arm in $ARMS; do
     done
     if [ "$arm" = "A" ]; then
         [ -n "${AZAI_ORACLE_INJECT:-}" ] || { echo "[ivr] !! A 臂没有 AZAI_ORACLE_INJECT" >&2; exit 4; }
+    elif [ "$arm" = "C" ]; then
+        # C 臂的三条前置断言：开关真的开了、注入真的没开、`AZAI_MC_UPG` 真的没开（别混两条路）
+        [ "${AZAI_UPG_BUNDLES:-}" = "$UPG_N" ] || { echo "[ivr] !! C 臂 AZAI_UPG_BUNDLES=${AZAI_UPG_BUNDLES:-<空>} != $UPG_N" >&2; exit 4; }
+        [ -z "${AZAI_ORACLE_INJECT:-}" ] || { echo "[ivr] !! C 臂竟然带着 AZAI_ORACLE_INJECT" >&2; exit 4; }
+        [ -z "${AZAI_ORACLE_PLACEBO:-}" ] || { echo "[ivr] !! C 臂竟然带着 AZAI_ORACLE_PLACEBO" >&2; exit 4; }
+        [ -z "${AZAI_MC_UPG:-}" ] || { echo "[ivr] !! C 臂竟然带着 AZAI_MC_UPG（那是另一条路，会污染归因）" >&2; exit 4; }
     else
         [ -z "${AZAI_ORACLE_INJECT:-}" ] || { echo "[ivr] !! B 臂竟然带着 AZAI_ORACLE_INJECT=$AZAI_ORACLE_INJECT" >&2; exit 4; }
         [ -z "${AZAI_ORACLE_TIMEOUT:-}" ] || { echo "[ivr] !! B 臂竟然带着 AZAI_ORACLE_TIMEOUT" >&2; exit 4; }

@@ -13335,3 +13335,33 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   **A−B = +37.5pp，配对 ΔHP +20.69 [+9.42,+31.95]（McNemar p=0.0703，符号检验 p≈0.0018）**。
   读数：`match_results/inject_vs_ru/summary.json`、`…/analysis.log`、`…/opp_budget.log`；
   报告 `docs/inject_vs_runnerup_20261028.md`。
+
+## 2026-10-28 21:32:02 — upg_bundles_zero_impact
+
+- **commit**: `f9afd27` (dirty: 4 files)
+- **exit**: 0，用时 1314s
+- **cmd**:
+  ```bash
+  bash code/test_match/_upg_bundles_zero_impact.sh
+  ```
+- **output**: `training_history/runs/20261028_213201_upg_bundles_zero_impact/output.log`
+- **result**: **N=0（默认）零影响通过**：seeds 7/7r，改动前副本（`_az_bridge_ai_preupg.py`，md5 `8841F843C058D68564077ABC1978EC8E`）
+  vs 改动后，`--rounds=200` 并发跑，`compare_result_lines.py` **逐字段相同**（winner_side/verdict/rounds/terminal/base_hp/
+  coins/illegal + `illegal-summary` 自检行 checked_ops=210/holds/mismatch 全同），总退出码 0；AI stderr 里 `[upg]` 行数 = 0。
+  见 `docs/upgrade_bundles_20261028.md` §2。
+
+## 2026-10-28 21:54:28 — upg_bundles_ab
+
+- **commit**: `f9afd27` (dirty: 5 files)
+- **exit**: 0，用时 3603s
+- **cmd**:
+  ```bash
+  bash code/test_match/_inject_vs_runnerup.sh
+  ```
+- **output**: `training_history/runs/20261028_215428_upg_bundles_ab/output.log`
+- **result**: **C 臂（`AZAI_UPG_BUNDLES=4`）vs 亚军本体 16 局：2W-0D-14L = 12.5%（Wilson CI [3.5,36.0]），
+  血量差 −20.25**；对照 B 臂（同 BASE 不注入）= 12.5% / −20.12 ⇒ 配对 ΔHP −0.12（CI [−12.22,+11.97]，
+  McNemar p=1.0）。**升级候选被选中率 13.3%/条**（526/3961；有候选的回合里 52.9% 走了升级；
+  有候选的决策点占 14.3%）。我方 `UPGRADE_TOWER` **0.0% → 22.8%**，塔等级 **100% 一级 → 58.8/39.8/1.5%**。
+  `verdict` 全 `engine`、`illegal=0`、`gate_drop=0`。决策耗时 p50 0.54s / p95 16.80s / max 25.90s（B: 0.56/19.76/28.84）。
+  结论：机制成立但**棋力无可测收益**，**不转正**（默认 0 保持）。报告 `docs/upgrade_bundles_20261028.md`。
