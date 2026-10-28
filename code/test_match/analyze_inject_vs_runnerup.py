@@ -130,8 +130,11 @@ def parse_stderr(path: Path) -> dict:
     steps = INJ_STEP_RE.findall(txt)
     out["steps"] = len(steps)
     out["steps_new"] = sum(1 for s in steps if s[2] == "1")
+    out["steps_dup"] = sum(1 for s in steps if s[1] == "1")
     out["steps_hit"] = sum(1 for s in steps if s[4] == "1")
-    out["steps_dup_hold"] = sum(1 for s in steps if s[1] == "1" and "chosen=()" in str(s[3]))
+    out["steps_hit_new"] = sum(1 for s in steps if s[2] == "1" and s[4] == "1")
+    out["steps_hit_dup"] = sum(1 for s in steps if s[1] == "1" and s[4] == "1")
+    out["steps_dup_hold"] = sum(1 for s in steps if s[1] == "1" and s[3] == "()")
     # 决策耗时（p50/p95/max）：取对局中周期打印的最后一条 + 收尾报告
     dec = None
     for ln in txt.splitlines():
@@ -197,6 +200,16 @@ def read_arm(log_dir: Path, stderr_dir: Path | None) -> dict:
         else:
             rec["score"] = 0.5 if ws in ("draw", "none", "") else None
         rec["valid"] = (rec["verdict"] == "engine")
+        # 行为画像（"治疗有没有真的咬住"）：我方/对手的出招构成。数据来自 `--trace-ops` 的
+        # `[round N] pX(...) -> [Operation(...)]` 行（`_ladder.read_game` 已经统计好）。
+        if seat is not None:
+            who, opp = f"p{seat}", f"p{1 - seat}"
+            rec["our_ops"] = g["ops"][who]
+            rec["our_act"] = g["act"][who]
+            rec["our_hist"] = dict(g["hist"][who])
+            rec["opp_hist"] = dict(g["hist"][opp])
+            rec["opp_ops"] = g["ops"][opp]
+            rec["opp_act"] = g["act"][opp]
         if stderr_dir is not None:
             sp = stderr_dir / f"ai{seat}_az_bridge_ai_seed{rec['seed']}.stderr.log" \
                 if seat is not None else None
@@ -242,6 +255,8 @@ def summarize(arm: dict) -> dict:
     if subs:
         asks = sum(int(s["inj_stats"].get("asks", 0)) for s in subs)
         # 注入覆盖率：asks 应该 ≈ 该局的回合数（每回合问一次）。明显偏小 ⇒ 注入中途死了/没启用。
+        # ⚠️ 阈值 0.90 而不是 0.98：周期日志每 **25 个决策**才打一次（`_report()` 的收尾那行
+        #    在对局结束时可能被 bridge 硬杀吃掉）⇒ `asks` 最多滞后 24 个决策（512 回合下 = 4.7%）。
         short = []
         for g in games:
             st = g.get("stderr") or {}
@@ -249,7 +264,7 @@ def summarize(arm: dict) -> dict:
                 continue
             a = int((st.get("inj_stats") or {}).get("asks", 0))
             r = int(g.get("rounds") or 0)
-            if r and a < 0.98 * r:
+            if r and a < 0.90 * r:
                 short.append({"token": g["token"], "asks": a, "rounds": r})
         out["inj_short"] = short
         out["inj_cover"] = (
@@ -257,6 +272,10 @@ def summarize(arm: dict) -> dict:
                 if (g.get("stderr") or {}).get("exists"))
             / max(1, sum(int(g.get("rounds") or 0) for g in games
                          if (g.get("stderr") or {}).get("exists"))))
+        # 覆盖率只在"真的开了注入"的臂里才有意义（B 臂 asks 恒 0 ⇒ 不要报成"覆盖不足"）
+        if not any(s.get("inj_enabled") for s in subs):
+            out["inj_short"] = []
+            out["inj_cover"] = None
         out["inj"] = {
             "games_with_stderr": len(subs),
             "games_inj_enabled": sum(1 for s in subs if s.get("inj_enabled")),
@@ -278,7 +297,11 @@ def summarize(arm: dict) -> dict:
             "lat_max": max([s["inj_stats"].get("max_ms", 0) for s in subs], default=None),
             "steps": sum(int(s.get("steps") or 0) for s in subs),
             "steps_new": sum(int(s.get("steps_new") or 0) for s in subs),
+            "steps_dup": sum(int(s.get("steps_dup") or 0) for s in subs),
             "steps_hit": sum(int(s.get("steps_hit") or 0) for s in subs),
+            "steps_hit_new": sum(int(s.get("steps_hit_new") or 0) for s in subs),
+            "steps_hit_dup": sum(int(s.get("steps_hit_dup") or 0) for s in subs),
+            "steps_dup_hold": sum(int(s.get("steps_dup_hold") or 0) for s in subs),
             "illegal_ai": max([int(s.get("illegal_summary") or 0) for s in subs], default=0),
         }
         decs = [s["dec"] for s in subs if s.get("dec")]
@@ -292,6 +315,31 @@ def summarize(arm: dict) -> dict:
                 "max_median": statistics.median([d["max"] for d in decs]),
                 "max_worst": max(d["max"] for d in decs),
             }
+    # ── 行为画像：出招构成（每 100 个我方决策的 op 数 / 各类 op 占比）──
+    act = [g for g in games if g.get("our_act") is not None]
+    if act:
+        n_dec = sum(int(g["our_act"]) for g in act)
+        n_ops = sum(int(g["our_ops"]) for g in act)
+        types: collections.Counter = collections.Counter()
+        for g in act:
+            for k, v in (g.get("our_hist") or {}).items():
+                types[k] += int(v)
+        opp_types: collections.Counter = collections.Counter()
+        opp_dec = sum(int(g.get("opp_act") or 0) for g in act)
+        for g in act:
+            for k, v in (g.get("opp_hist") or {}).items():
+                opp_types[k] += int(v)
+        tot = sum(types.values()) or 1
+        out["behavior"] = {
+            "decisions": n_dec, "ops": n_ops,
+            "ops_per_decision": (n_ops / n_dec) if n_dec else None,
+            "act_rate": (sum(1 for g in act if int(g["our_act"]) > 0) / len(act)) if act else None,
+            "mix_pct": {k: 100.0 * v / tot for k, v in types.most_common(6)},
+            "mix_counts": {k: int(v) for k, v in types.most_common(8)},
+            "opp_decisions": opp_dec,
+            "opp_mix_pct": ({k: 100.0 * v / (sum(opp_types.values()) or 1)
+                             for k, v in opp_types.most_common(6)}),
+        }
     return out
 
 
@@ -335,6 +383,25 @@ def paired(a: dict, b: dict) -> dict:
     }
 
 
+def shares(sa: dict, sb: dict) -> dict:
+    """§2.4 预注册的份额公式：G = 1−B；Δ = A−B；s = Δ/G（含 Wilson 界的 min/max）。
+
+    ⚠️ 这只是**操作化定义**（"候选通道 = 亚军那一手 + 它自己的搜索/评估"），不是因果份额。
+    """
+    if not sa.get("n_scored") or not sb.get("n_scored"):
+        return {}
+    a, b = sa["winrate"], sb["winrate"]
+    a_lo, a_hi = sa["winrate_ci"]
+    b_lo, b_hi = sb["winrate_ci"]
+    g = 1.0 - b
+    return {
+        "A": a, "B": b, "G": g, "delta": a - b,
+        "s_point": (a - b) / g if g > 0 else None,
+        "s_min": (a_lo - b_hi) / (1.0 - b_lo) if b_lo < 1 else None,
+        "s_max": (a_hi - b_lo) / (1.0 - b_hi) if b_hi < 1 else None,
+    }
+
+
 def print_arm(label: str, arm: dict, s: dict) -> None:
     print(f"\n{'='*100}\n### {label}   (log_dir={arm['log_dir']})\n{'='*100}")
     print(f"{'token':<6}{'seat':<6}{'score':<7}{'hp我':<6}{'hp敌':<6}{'Δhp':<7}"
@@ -369,19 +436,34 @@ def print_arm(label: str, arm: dict, s: dict) -> None:
     if s.get("inj"):
         j = s["inj"]
         t = j["totals"]
+        t["asks_total"] = j["asks_total"]
         print(f"注入有效性: stderr={j['games_with_stderr']}局  注入已启用={j['games_inj_enabled']}局  "
               f"路径 D:/ 形态={j['paths_ok']}局  有 asks={j['games_with_asks']}局  "
               f"停用标记={j['disabled_marks']}  失败行={j['fail_lines']}")
-        print(f"注入覆盖: asks/回合 = {100*s['inj_cover']:.1f}%"
-              + (f"  ⚠️ 覆盖不足的局: {s['inj_short']}" if s["inj_short"] else "  ✓ 每局都覆盖整局"))
-        print(f"注入统计: asks={t['asks_total']} new={t['new']} dup={t['dup']} "
+        if s.get("inj_cover") is not None:
+            print(f"注入覆盖: asks/回合 = {100*s['inj_cover']:.1f}%"
+                  + (f"  ⚠️ 覆盖不足的局: {s['inj_short']}" if s["inj_short"] else "  ✓ 每局都覆盖整局"))
+        else:
+            print("注入覆盖: —（本臂没开注入，asks 恒 0 是预期的）")
+        print(f"注入统计: asks={j['asks_total']} new={t['new']} dup={t['dup']} "
               f"dup_hold={t['dup_hold']} hit={t['hit']} hit_new={t['hit_new']} "
               f"hit_sel={t['hit_sel']} illegal={t['illegal']} timeout={t['timeout']} "
               f"dead={t['dead']}")
-        print(f"每决策日志: steps={j['steps']} new={j['steps_new']} hit={j['steps_hit']}")
+        print(f"每决策日志: steps={j['steps']}（dup={j['steps_dup']} new={j['steps_new']} "
+              f"hit={j['steps_hit']} hit_new={j['steps_hit_new']} hit_dup={j['steps_hit_dup']} "
+              f"dup_hold={j['steps_dup_hold']}）⇒ "
+              f"new/asks={100*j['steps_new']/max(1,j['steps']):.1f}%  "
+              f"hit_new/new={100*j['steps_hit_new']/max(1,j['steps_new']):.1f}%  "
+              f"hit/asks={100*j['steps_hit']/max(1,j['steps']):.1f}%")
         print(f"oracle 耗时(每局中位): avg={j['lat_ms']['avg_ms']}ms p50={j['lat_ms']['p50_ms']}ms "
               f"p95={j['lat_ms']['p95_ms']}ms  全体最大={j['lat_max']}ms")
         print(f"AI 侧 illegal_total(max over games)={j['illegal_ai']}")
+    if s.get("behavior"):
+        b = s["behavior"]
+        print(f"行为画像: 我方 {b['decisions']} 决策 / {b['ops']} op "
+              f"= {b['ops_per_decision']:.2f} op/决策  （出手决策占比 {100*b['act_rate']:.0f}%）")
+        print(f"  我方 op 构成: {[(k, f'{v:.1f}%') for k, v in b['mix_pct'].items()]}")
+        print(f"  对手 op 构成: {[(k, f'{v:.1f}%') for k, v in b['opp_mix_pct'].items()]}")
     if s.get("dec"):
         d = s["dec"]
         print(f"决策耗时: {d['games']}局/{d['decisions']}决策  "
@@ -435,6 +517,14 @@ def main() -> int:
             print(f"McNemar 精确双侧 p={p['mcnemar_p']:.4f}；"
                   f"胜率差 = {(p['delta_winrate'] or 0)*100:+.1f}pp（n={p['n_pairs']} 对）")
             print(f"逐 seed 得分差 (A−B，每 seed 两局合计，范围 −2..+2): {p['per_seed_delta']}")
+            sh = shares(summ[a_lab], summ[b_lab])
+            if sh:
+                pairs[f"{a_lab}-{b_lab}"]["shares"] = sh
+                print(f"\n§2.4 份额（操作化定义：候选通道 = {a_lab} 的注入）: "
+                      f"G=1−B={100*sh['G']:.1f}pp  Δ=A−B={100*sh['delta']:+.1f}pp")
+                print(f"  候选/先验份额 s = Δ/G = {100*(sh['s_point'] or 0):+.1f}%  "
+                      f"（95% 区间 [{100*(sh['s_min'] or 0):+.1f}%, {100*(sh['s_max'] or 0):+.1f}%]）"
+                      f" ⇒ 评估/搜索份额 = {100*(1-(sh['s_point'] or 0)):.1f}%")
 
     if args.json:
         outp = REPO / args.json

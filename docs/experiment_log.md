@@ -13251,3 +13251,87 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261028_160834_p1_logging_equiv_old2/output.log`
 - **result**: ✅ **"每决策日志改动不改变对局"的实测**（老版 = commit `475894a` 未含新日志）：seed 7 / canonical 配置 / 注入关 / `--rounds=200` ⇒ `RESULT seed=7 p0=_tmp_old_bridge ... rounds=200 base_hp=27,33 coins=39,167 illegal=0` + `illegal-summary ... checked_ops=78 holds=p0:186,p1:167 mismatch=0`。与新版（`runs/20261028_160014_p1_logging_equiv_new`，p0=az_bridge_ai）**逐字段相同**（除 p0 标签），且新版 stderr 里 `[oracle] inject round=` 行数 = 0（注入关 ⇒ 新日志零输出）。日志 `training_history/p1_logs/logging_equivalence2.log`。
+
+## 2026-10-28 16:42:43 — placebo_zero_impact
+
+- **commit**: `f3e46d9` (dirty: 3 files)
+- **exit**: 1，用时 182s
+- **cmd**:
+  ```bash
+  bash code/test_match/_placebo_zero_impact.sh
+  ```
+- **output**: `training_history/runs/20261028_164243_placebo_zero_impact/output.log`
+- **result**: _待填_
+
+## 2026-10-28 16:45:30 — placebo_smoke
+
+- **commit**: `f3e46d9` (dirty: 3 files)
+- **exit**: 0，用时 49s
+- **cmd**:
+  ```bash
+  bash code/test_match/_placebo_smoke.sh
+  ```
+- **output**: `training_history/runs/20261028_164530_placebo_smoke/output.log`
+- **result**: _待填_
+
+## 2026-10-28 16:55:33 — inject_vs_ru_smoke
+
+- **commit**: `f3e46d9` (dirty: 4 files)
+- **exit**: 1，用时 89s
+- **cmd**:
+  ```bash
+  bash code/test_match/_inject_vs_runnerup_smoke.sh
+  ```
+- **output**: `training_history/runs/20261028_165533_inject_vs_ru_smoke/output.log`
+- **result**: **注入冒烟第 1 版：exit 1（断言失败，但注入其实是活的）** — 30 回合跑通、两个座位都有
+  `[oracle] inject round=` 行，但断言写成 `exe` 必须以 `D:/` 开头，而 bridge 打的是 `str(Path(...))`
+  = `D:\…`（反斜杠）⇒ 误判"静默失效"；且 `--rounds=24` < 25 个决策 ⇒ 周期统计行没打出来、`asks` 读空。
+  修：断言接受 `D:/` 与 `D:\`（判据 = Windows 绝对路径），回合数 24→30。详见报告 §1.4。
+
+## 2026-10-28 16:57:57 — inject_vs_ru_smoke
+
+- **commit**: `f3e46d9` (dirty: 4 files)
+- **exit**: 0，用时 108s
+- **cmd**:
+  ```bash
+  bash code/test_match/_inject_vs_runnerup_smoke.sh
+  ```
+- **output**: `training_history/runs/20261028_165757_inject_vs_ru_smoke/output.log`
+- **result**: **通过（✅ 全部断言通过）**：vs 亚军本体的真实对局里，P0/P1 两个座位的注入都生效
+  ——`注入已启用=1`、`exe=D:\…ai_cpp_lure_v4.exe`（Windows 绝对路径）、`asks=25`、`timeout=0 dead=0`、
+  失败标记 0、每决策日志 30 行；oracle 查询 p50 125-234 ms、max 907 ms。
+  **这一条是 A 臂"注入没有静默失效"的前置证据**（报告 `docs/inject_vs_runnerup_20261028.md` §1.4）。
+
+## 2026-10-28 17:00:19 — inject_vs_ru（人工补记：run_logged 未收尾）
+
+- **commit**: `f3e46d9`（脚本 `a58b3fd` 之后跑的 A+B 全批；跑前 `dirty_tracked=4` = 别人的安慰剂臂改动，
+  本实验**没开** `AZAI_ORACLE_PLACEBO`）
+- **exit**: **被外部中断**（19:07:53 后台作业树被杀，A 臂已完成、B 臂第 1 波中途；`run_logged` 因此没写
+  本条目，由人工补记）
+- **cmd**:
+  ```bash
+  bash code/run_logged.sh inject_vs_ru bash code/test_match/_inject_vs_runnerup.sh
+  ```
+- **output**: `training_history/runs/20261028_170019_inject_vs_ru/output.log`
+- **result**: **A 臂（注入开）vs 亚军本体：8W-0D-8L = 50.0%（Wilson [28.0,72.0]），血量差 +0.56
+  [−9.16,+10.29]，@P0 3-5 / @P1 5-3；16/16 `verdict=engine`、`illegal=0`、注入 16/16 局生效
+  （`D:\` 路径、`timeout=0 dead=0`、asks 覆盖 99.7%）。** 耗时 90 min（16 局 8 并行，单局 33-49 min）。
+  B 臂随后在 19:07:53 被外部 kill，由 `inject_vs_ru_B_restart`（下一条）补完。
+  报告 `docs/inject_vs_runnerup_20261028.md`。
+
+## 2026-10-28 19:19:24 — inject_vs_ru_B_restart
+
+- **commit**: `a58b3fd` (dirty: 6 files)
+- **exit**: 0，用时 4763s
+- **cmd**:
+  ```bash
+  bash code/test_match/_inject_vs_runnerup.sh
+  ```
+- **output**: `training_history/runs/20261028_191923_inject_vs_ru_B_restart/output.log`
+- **result**: **B 臂（不注入）vs 亚军本体：2W-0D-14L = 12.5%（Wilson [3.5,36.0]），血量差 −20.12
+  [−28.33,−11.92]，@P0 1-7 / @P1 1-7；16/16 `verdict=engine`、裁判侧 `illegal=0`、注入 0 局（预期）。**
+  这次带 `ARMS=B` 是**中断后的补跑**：19:07:53 原批被外部 kill（已完成 8/9 两局保留、其余 14 局重跑），
+  详见报告 §3.1.1。**A 臂**（另一条记录）：**8W-8L = 50.0% [28.0,72.0]，血量差 +0.56**；
+  **A−B = +37.5pp，配对 ΔHP +20.69 [+9.42,+31.95]（McNemar p=0.0703，符号检验 p≈0.0018）**。
+  读数：`match_results/inject_vs_ru/summary.json`、`…/analysis.log`、`…/opp_budget.log`；
+  报告 `docs/inject_vs_runnerup_20261028.md`。
