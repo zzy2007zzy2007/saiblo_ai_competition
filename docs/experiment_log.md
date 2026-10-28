@@ -13085,7 +13085,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261028_111714_illegal_fault_inject_strict/output.log`
-- **result**: _待填_
+- **result**: ✅ 严格模式仍能判负：`RESULT seed=7501 ... verdict=illegal_strict rounds=0 illegal=1`（faulty_ai 每回合发必非法 op）。P1 改动没有把判负逻辑改坏。
 
 ## 2026-10-28 11:17:21 — illegal_fault_inject_cold
 
@@ -13096,7 +13096,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --rounds=15 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=code/test_match/faulty_ai.py 7501
   ```
 - **output**: `training_history/runs/20261028_111721_illegal_fault_inject_cold/output.log`
-- **result**: _待填_
+- **result**: ✅ 旧行为对照：`verdict=hp_tiebreak rounds=15 illegal=15`（15 个非法 op 被冷路径静默吞掉）。同一个 seed、同一个非法 op ⇒ 差异只来自口径。
 
 ## 2026-10-28 11:19:09 — filter_gate_matrix
 
@@ -13107,7 +13107,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_filter_gate_matrix.sh
   ```
 - **output**: `training_history/runs/20261028_111909_filter_gate_matrix/output.log`
-- **result**: _待填_
+- **result**: ⚠️ 组合矩阵**第一版，读数作废**：4 局确实是 `verdict=engine` + 裁判侧 `illegal=0`，但 (i) `NO_DOWNGRADE` 那局 AI 侧 `illegal_total=48` 是**旧口径重复计数**（那条只记录不拦的 `after_no_downgrade` 自检把「没发出去的 op」也数了进去，现已删除；汇总脚本又按行把每 25 决策的累计值重复相加）；(ii) 已修脚本+改计数口径后用 `filter_gate_matrix_final` 重跑。**这一版数字不要引用**（stderr 留档 `match_results/filter_gate_matrix_v0/`）。
 
 ## 2026-10-28 11:40:04 — filter_gate_matrix_final
 
@@ -13118,7 +13118,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_filter_gate_matrix.sh
   ```
 - **output**: `training_history/runs/20261028_114004_filter_gate_matrix_final/output.log`
-- **result**: _待填_
+- **result**: ✅ **组合矩阵 4/4 干净**（注入 × 各过滤开关，1 局/组合，4 局并行）：`NO_DOWNGRADE`(8103/p0)、`BAN_OPS=13`(8103r/p1)、`LIGHT_MIN_COINS=180`(8201)、`BUILD_MIN_COINS=90`(8202) —— 全部 `verdict=engine`、裁判侧 `illegal=0`（0 行 ILLEGAL）、AI 侧 `illegal_total=0`；闸门 `checks/dropped` = 82/14、74/29、81/0、34/0。两个「删降级」组合闸门**真的拦下了半块**（含 `upgrade_no_gold(cost=60,coins=55)` 这个升级版新形态），两个「少花钱」组合 dropped=0（不误杀）。
 
 ## 2026-10-28 11:17:27 — illegal_strict_smoke
 
@@ -13129,7 +13129,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101 8101r 8102 8102r
   ```
 - **output**: `training_history/runs/20261028_111727_illegal_strict_smoke/output.log`
-- **result**: _待填_
+- **result**: ✅ canonical 部署配置 4 局：全部 `verdict=engine`、`illegal_total=0`、`mismatch=0`（8101: 383 回合 hp 0,31；8101r: 475 hp 29,0；8102: 476 hp 0,25；8102r: 449 hp 19,0）。种子 8101 与 2026-10-27 旧代码的 `RESULT` / `illegal-summary` **逐字段相同** ⇒ 默认行为不变。我方 0/4 胜（canonical 打不过亚军，与本次改动无关）。
 
 ## 2026-10-28 12:08:47 — illegal_strict_highrisk
 
@@ -13140,7 +13140,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=32;AZAI_K=8;AZAI_SAMPLE_MULT=1;AZAI_MODE=pos-only;AZAI_POSPIN=argmax;AZAI_SKIP1=1;AZAI_TEMP=1e-6;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=8;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;AZAI_MC_UPG=1;AZAI_NO_DOWNGRADE=1;AZAI_ORACLE_INJECT=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe;AZAI_ORACLE_TIMEOUT=2.5 8103 8103r
   ```
 - **output**: `training_history/runs/20261028_120847_illegal_strict_highrisk/output.log`
-- **result**: _待填_
+- **result**: ✅✅ **P1 复现路径验证通过**：`AZAI_ORACLE_INJECT + AZAI_NO_DOWNGRADE=1`（§5.3 那个组合、同一 seed 8103/8103r）现在 **0 非法**：8103(p0) 由修复前的 `illegal_strict @r61` 变成 `verdict=engine rounds=338 hp 0,39 illegal=0`；8103r(p1) 由 `@r244` 变成 `verdict=engine rounds=401 hp 30,0 illegal=0`。stderr 里能看到闸门在 r61 / r244 **拦下那两个 op 的原文**（`build_no_gold(cost=45,coins=3)` / `(cost=45,coins=30)`）。注入全程活着（timeout=0）。
 
 ## 2026-10-28 12:35:15 — illegal_cold_control
 
@@ -13151,4 +13151,103 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --cold-illegal --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off 8101
   ```
 - **output**: `training_history/runs/20261028_123515_illegal_cold_control/output.log`
+- **result**: ✅ 旧行为（`--cold-illegal`）对照 seed 8101：`verdict=engine rounds=383 hp 0,31 coins 55,507 illegal=0`，与批次 1 的严格局**逐字段相同** ⇒ `illegal_total=0` 时改默认口径不改变任何结果。
+
+## 2026-10-28 12:46:24 — oracle_inject_ab
+
+- **commit**: `64a61f5` (dirty: 5 files)
+- **exit**: 1，用时 1193s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_inject_ab.sh
+  ```
+- **output**: `training_history/runs/20261028_124624_oracle_inject_ab/output.log`
+- **result**: ❌ 作废（第 1 版）：按默认 `AZAI_ORACLE_TIMEOUT=2.5` 跑，8 个 A 臂里 5 个在 round 55/123/150/187/207 触发 OracleTimeout（每次 2515-2516 ms，而 p95 ~1.4 s ⇒ 调度尖峰），超时后注入**永久停用** ⇒ 后半局 A 臂退化成 B 臂。证据 `training_history/p1_logs/ab16_attempt1_stderr/`。已把超时放宽到 15 s 重跑。
+
+## 2026-10-28 13:06:57 — oracle_inject_ab
+
+- **commit**: `475894a` (dirty: 4 files)
+- **exit**: 1，用时 1247s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_inject_ab.sh
+  ```
+- **output**: `training_history/runs/20261028_130657_oracle_inject_ab/output.log`
+- **result**: ❌ 作废（第 2 版）：`$REPO` 是 Git-bash 的 `/d/...` 形态 ⇒ `Path(exe).is_absolute()` 在 Windows 上判 False ⇒ 拼成 `<repo>/d/...` ⇒ `FileNotFoundError` ⇒ **注入整局静默不启用，而 A/B 看起来照跑**（两臂行为完全一致，配对两局连 HP/金币都逐字节相同）。证据 `training_history/p1_logs/ab16_attempt2_noinject/`。已改成 `pwd -W` 的 `D:/...` 绝对路径重跑。
+
+## 2026-10-28 13:28:06 — oracle_inject_ab
+
+- **commit**: `475894a` (dirty: 5 files)
+- **exit**: 0，用时 6247s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_inject_ab.sh
+  ```
+- **output**: `training_history/runs/20261028_132806_oracle_inject_ab/output.log`
+- **result**: ✅✅ **P2 主结果**：16 局（seeds 3600-3607 × 2 座位，`--jobs 8`，wall 104.1 min，**无效局 0**）。A（注入）**13W-0D-3L = 81.2% ± 9.8%**；`@P0` 7W-1L = 87.5%、`@P1` 6W-2L = 75.0%；平均血量差 **+12.38**（胜局平均 +16.4 血，3 场败局只输 1-3 血）；5 个 seed 2-0、3 个 1-1、0 个 0-2；符号检验双尾 p≈0.021。16/16 `verdict=engine`、`illegal=0`、`mismatch=0`。注入侧：asks=8027（0 失败）、new=3051(38.0%)、dup=4976(62.0%)、hit_sel=1269（**老口径**：/new=41.6%、/asks=15.8%）、非法候选 0、timeout/dead=0；单次查询均值 1.14 s、**最大 6859 ms**（> 默认 2.5 s ⇒ 必须放宽）。详见 `docs/oracle_inject_ab_20261028.md` §4。
+
+## 2026-10-28 15:27:24 — illegal_strict_smoke_relogger
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 1119s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt
+  ```
+- **output**: `training_history/runs/20261028_152724_illegal_strict_smoke_relogger/output.log`
+- **result**: ⚠️ 半废（seed 传参丢了，实际跑的是 **seed 7** 而不是 8101，所以不能与批次 1 的 8101 逐字段对比）：canonical 配置 + **不开注入** + 新日志代码 ⇒ `verdict=engine rounds=327 base_hp=0,36 illegal=0 mismatch=0 checked_ops=106 holds=p0:312,p1:265`。只能当"改完日志后对局仍然干净"的冒烟。
+
+## 2026-10-28 15:47:15 — p1_relogger_old_bridge
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 0s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/_tmp_old_bridge.py --ai1=D:/2026智能体大赛_新2_distill/其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off --rounds=327 7
+  ```
+- **output**: `training_history/runs/20261028_154715_p1_relogger_old_bridge/output.log`
+- **result**: ❌ 作废：`git show ... > file` 在 PowerShell 里把文件写成了 UTF-16/单行，旧版桥接脚本语法坏掉 ⇒ `verdict=aborted rounds=0 exc=EOFError`。改用 bash 重定向重跑（见 `p1_logging_equiv_old2`）。
+
+## 2026-10-28 15:47:16 — p1_relogger_new_bridge
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 552s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=D:/2026智能体大赛_新2_distill/其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off --rounds=327 7
+  ```
+- **output**: `training_history/runs/20261028_154716_p1_relogger_new_bridge/output.log`
+- **result**: ℹ️ 新版（含每决策日志）+ canonical 配置 + 不开注入、`--rounds=200`：`verdict=hp_tiebreak rounds=200 base_hp=27,33 illegal=0`（回合上限截断，非引擎终局）。**没有出现任何 `[oracle] inject round=` 行**（注入关 ⇒ 新日志零输出），这就是"默认行为不变"的日志侧证据。
+
+## 2026-10-28 16:00:11 — p1_logging_equiv_old
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 2s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/_tmp_old_bridge.py --ai1=D:/2026智能体大赛_新2_distill/其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off --rounds=200 7
+  ```
+- **output**: `training_history/runs/20261028_160011_p1_logging_equiv_old/output.log`
 - **result**: _待填_
+
+## 2026-10-28 16:00:14 — p1_logging_equiv_new
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 299s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/az_bridge_ai.py --ai1=D:/2026智能体大赛_新2_distill/其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off --rounds=200 7
+  ```
+- **output**: `training_history/runs/20261028_160014_p1_logging_equiv_new/output.log`
+- **result**: _待填_
+
+## 2026-10-28 16:08:34 — p1_logging_equiv_old2
+
+- **commit**: `475894a` (dirty: 7 files)
+- **exit**: 0，用时 302s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/match_via_sdk.py --ai0=code/test_match/_tmp_old_bridge.py --ai1=D:/2026智能体大赛_新2_distill/其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai0-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=256;AZAI_DEPTH=4;AZAI_K=24;AZAI_SAMPLE_MULT=15;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=256;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off --rounds=200 7
+  ```
+- **output**: `training_history/runs/20261028_160834_p1_logging_equiv_old2/output.log`
+- **result**: ✅ **"每决策日志改动不改变对局"的实测**（老版 = commit `475894a` 未含新日志）：seed 7 / canonical 配置 / 注入关 / `--rounds=200` ⇒ `RESULT seed=7 p0=_tmp_old_bridge ... rounds=200 base_hp=27,33 coins=39,167 illegal=0` + `illegal-summary ... checked_ops=78 holds=p0:186,p1:167 mismatch=0`。与新版（`runs/20261028_160014_p1_logging_equiv_new`，p0=az_bridge_ai）**逐字段相同**（除 p0 标签），且新版 stderr 里 `[oracle] inject round=` 行数 = 0（注入关 ⇒ 新日志零输出）。日志 `training_history/p1_logs/logging_equivalence2.log`。

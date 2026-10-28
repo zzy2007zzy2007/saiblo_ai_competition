@@ -363,7 +363,16 @@ _ORACLE: dict = {
     "inject": 0,          # 交给搜索的次数（含 HOLD / 去重后为空的）
     "new": 0,             # 去重后**真正追加为候选**的次数
     "dup": 0,             # 与已有候选重复而被去重掉的次数
-    "hit": 0,             # 注入的候选被搜索选中的次数
+    # 2026-10-28（每决策一条日志）：把 dup 按"亚军这一手是不是 HOLD"拆开 —— 这一刀决定
+    # "注入的增量信息到底有多少"：dup_hold = 亚军也只是空过、而我们候选里本来就有 HOLD。
+    "dup_hold": 0,        # dup 且 亚军动作 = ()（HOLD）
+    "dup_nonhold": 0,     # dup 且 亚军动作非空
+    # 2026-10-28：`hit` 的口径扩成**动作一致率**（chosen == 亚军这一手），
+    # 老口径（"注入的额外候选被搜索选中"）保留为 `hit_sel`（数值与改动前逐位相同）。
+    "hit": 0,             # 动作一致：我们最终发出去的 == 亚军这一手（含 dup 情形）
+    "hit_new": 0,         # 动作一致 且 该候选是新增的（new=1）
+    "hit_dup": 0,         # 动作一致 且 该候选与已有候选重复（dup=1）
+    "hit_sel": 0,         # 老口径：额外候选被选中（chosen_index >= n_net）
     "illegal": 0,         # 因非法操作丢掉整条候选的次数
     "timeouts": 0, "dead": 0,
     "err": "",
@@ -371,7 +380,25 @@ _ORACLE: dict = {
     "pending_opp": None,  # P1 用：本回合的对手操作块原文
     "last_bundle": None,  # 上一回合注入的 bundle（命中日志用）
     "pending": False,     # 上一回合是否交过候选（用于统计 new/dup）
+    # 2026-10-28：本回合待打印的明细（`_oracle_step` 填 action，`_oracle_after_search` 填 new/dup，
+    # `_oracle_log_round` 在决定出口把它打出来并清空）
+    "round_log": None,
+    "round_new": None, "round_dup": None,
 }
+
+
+def _fmt_act(act) -> str:
+    """动作的日志格式：`()` = HOLD；`(t,a0,a1)` = 单个 op；`((t,a0,a1),(t,a0,a1))` = 多 op。
+
+    ⚠️ 单 op 是"扁平三元组"、多 op 是"三元组的元组" —— 这样它与既有日志里
+    `[(13,3,-1),(11,8,2)]` 这种 Python repr 的读法一致，同时 HOLD 仍是 `()`。
+    """
+    t = tuple(tuple(int(x) for x in o) for o in (act or ()))
+    if not t:
+        return "()"
+    if len(t) == 1:
+        return f"({t[0][0]},{t[0][1]},{t[0][2]})"
+    return "(" + ",".join(f"({a},{b},{c})" for a, b, c in t) + ")"
 
 
 def _pct(vals: list, q: float) -> float:
@@ -384,16 +411,34 @@ def _pct(vals: list, q: float) -> float:
 
 
 def _oracle_stats_text() -> str:
-    """注入统计的一行文本（本功能的**主读数**）。字段含义见 docs/oracle_inject_design.md §3.5。"""
+    """注入统计的一行文本（本功能的**主读数**）。字段含义见 docs/oracle_inject_design.md §3.5。
+
+    2026-10-28 起的口径（**三段分母，别混着看**）：
+      * `hit` = **动作一致率**的分子（我们最终发出去的 op 序列 == 亚军这一手），含 dup 情形；
+      * `hit_new` / `hit_dup` = 上面那个分子按"该候选是新增 / 与已有候选重复"拆开；
+      * `hit_sel` = 老口径（注入的**额外候选被搜索选中**），与改动前逐位相同、可跨版本比较；
+      * `hit_rate` = hit/new、`hit_rate_asks` = hit/asks、`hit_sel_rate` = hit_sel/new。
+    ⚠️ **`hit_rate`(hit/new) 在新口径下不是比率、可以 >100%**：`hit` 含 `hit_dup`（亚军说"空过"、
+       我们也空过 —— 这类"一致"不带来任何新动作），而分母 `new` 只数**新增候选**。
+       实测一局 40 决策：`new=7 hit=25` ⇒ `hit/new=357%`。
+       真正能当比率读的是：`hit/asks`（总体一致率）、`hit_new/new`、`hit_dup/dup`。
+       保留 `hit_rate=…%(hit/new)` 只是为了与旧日志的字段名对齐，**分母已写在括号里**。
+    """
     st = _ORACLE
     txt = (f"asks={st['asks']} ok={st['ok']} checked={st['checked']} inject={st['inject']} "
            f"new={st['new']} "
-           f"dup={st['dup']} hit={st['hit']} illegal={st['illegal']} "
+           f"dup={st['dup']} dup_hold={st['dup_hold']} dup_nonhold={st['dup_nonhold']} "
+           f"hit={st['hit']} hit_new={st['hit_new']} hit_dup={st['hit_dup']} "
+           f"hit_sel={st['hit_sel']} illegal={st['illegal']} "
            f"timeout={st['timeouts']} dead={st['dead']}")
     if st["ms"]:
         txt += (f" avg_ms={sum(st['ms']) / len(st['ms']):.0f} p50_ms={_pct(st['ms'], 0.50):.0f} "
                 f"p95_ms={_pct(st['ms'], 0.95):.0f} max_ms={max(st['ms']):.0f}")
-    txt += f" hit_rate={(100.0 * st['hit'] / max(1, st['new'])):.1f}%"
+    txt += (f" hit_rate={(100.0 * st['hit'] / max(1, st['new'])):.1f}%(hit/new) "
+            f"hit_rate_asks={(100.0 * st['hit'] / max(1, st['asks'])):.1f}%(hit/asks) "
+            f"hit_new_rate={(100.0 * st['hit_new'] / max(1, st['new'])):.1f}%(hit_new/new) "
+            f"hit_dup_rate={(100.0 * st['hit_dup'] / max(1, st['dup'])):.1f}%(hit_dup/dup) "
+            f"hit_sel_rate={(100.0 * st['hit_sel'] / max(1, st['new'])):.1f}%(hit_sel/new)")
     if st["err"]:
         txt += f" err={st['err']}"
     return txt
@@ -947,6 +992,11 @@ def main() -> int:
         st["inject"] += 1
         st["pending"] = True
         st["last_bundle"] = bundle
+        # 2026-10-28：登记本回合的"待打印明细"（action 在这里就有；new/dup 要等搜索后才知道，
+        # 由 `_oracle_after_search` 补；最终 `chosen` 由 `_oracle_log_round` 在出口补并打印）。
+        st["round_log"] = {"round": int(facade.round_index), "action": tuple(bundle)}
+        st["round_new"] = None
+        st["round_dup"] = None
         mcts.set_extra_bundles([bundle])         # ← 注入通道（HOLD = 空 bundle `()`）
 
     def _oracle_after_search() -> None:
@@ -958,14 +1008,58 @@ def main() -> int:
         added = int(getattr(mcts, "last_extra", 0) or 0)
         if added:
             st["new"] += 1
+            st["round_new"], st["round_dup"] = 1, 0
         else:
             st["dup"] += 1                       # 与网络候选重复（最常见：双方都 HOLD）
+            st["round_new"], st["round_dup"] = 0, 1
+            # 2026-10-28：dup 里"亚军也只是 HOLD"的那部分单独计数 —— 它决定了注入的**增量信息**
+            # 有多少（HOLD 与 HOLD 重复不带来任何新动作，只是"它也没招"）。
+            if tuple(st["last_bundle"] or ()) == ():
+                st["dup_hold"] += 1
+            else:
+                st["dup_nonhold"] += 1
         if added and bool(getattr(mcts, "last_chosen_is_extra", False)):
-            st["hit"] += 1
+            st["hit_sel"] += 1                   # 老口径（= 改动前的 `hit`，跨版本可比）
             _ls = getattr(mcts, "last_scores", None)
             _n = int(len(_ls)) if _ls is not None else 0   # ⚠️ 不能写 `_ls or []`（ndarray 真值歧义）
             _log(f"[oracle] 🎯 注入命中: round={facade.round_index} 亚军候选 {st['last_bundle']} "
                  f"被搜索选中（本决策共 {_n} 个候选，其中额外 1 个）")
+
+    def _oracle_log_round(final_ops) -> None:
+        """**每决策一条**注入明细（2026-10-28）：事后可以统计"一致率"，不必开 VERBOSE。
+
+        格式（stdout 绝不写，一律 stderr）：
+            [oracle] inject round=<r> action=<...> dup=<0/1> new=<0/1> chosen=<...> hit=<0/1>
+        * `action` = 亚军这一手（`()` = HOLD）；`chosen` = 我们**最终真的发出去**的 op 序列
+          （同一个格式；`()` = 我们这回合 HOLD）—— 注意它已经过执行层过滤/闸门，
+          所以这条日志能直接看出"我们改了亚军那一手没有"；
+        * `dup` / `new` 互斥：`dup=1` = 亚军这一手与**已有候选**重复（没有新增候选），
+          `new=1` = 它是**新增候选**；搜索没跑（`AZAI_FORCE_UPG` 早退）时两者为 `NA`；
+        * `hit = int(chosen == action)`（**动作一致率**的分子）。
+
+        整行只在 `AZAI_ORACLE_INJECT` 非空、且本回合**真的注入了候选**时出现 ⇒ 默认零日志。
+        """
+        st = _ORACLE
+        info = st.get("round_log")
+        if not info:
+            return
+        st["round_log"] = None
+        act = info["action"]
+        chosen = tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in (final_ops or ()))
+        same = int(chosen == act)
+        is_new, is_dup = st.get("round_new"), st.get("round_dup")
+        if same:
+            st["hit"] += 1
+            if is_new:
+                st["hit_new"] += 1
+            if is_dup:
+                st["hit_dup"] += 1
+
+        def _b(x) -> str:
+            return "NA" if x is None else str(int(x))
+
+        _log(f"[oracle] inject round={info['round']} action={_fmt_act(act)} "
+             f"dup={_b(is_dup)} new={_b(is_new)} chosen={_fmt_act(chosen)} hit={same}")
 
     def _oracle_close() -> None:
         _oracle_close_module()
@@ -1176,6 +1270,11 @@ def main() -> int:
                 _ops = decide()
                 _dt = time.monotonic() - _t
             T.finish()
+            # 2026-10-28：**每决策一条**注入明细（`[oracle] inject round=… action=… dup=… new=…
+            # chosen=… hit=…`）。放在这里而不是 `decide()` 里面：这里的 `_ops` 是**最终真的发出去的**
+            # 那串 op（已过执行层过滤/闸门），所以 `hit` 才是"我们改没改亚军那一手"。
+            # ⚠️ 它**只读**、只在 `AZAI_ORACLE_INJECT` 非空且本回合真的注入时打 ⇒ 默认零日志零影响。
+            _oracle_log_round(_ops)
             # 2026-10-27：出口自检 —— 一处覆盖 decide() 的**所有** return 分支
             # （AZAI_FORCE_UPG 的升级 op / mc 显式升级 op(12) / HOLD 空列表 / 各改写后缀）。
             # 放在计时器外 ⇒ `decision` 的耗时读数与改动前口径一致。
