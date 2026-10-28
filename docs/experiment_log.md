@@ -12888,3 +12888,36 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261027_193641_illegal_cold_fast_control/output.log`
 - **result**: ✅ 与 `illegal_strict_fast` **逐字段相同**（两局 rounds 374/333、hp 0,31/39,0、coins 78,462/663,64、checked_ops 120/111、holds 分布完全一致）⇒ 证明 `illegal_total=0` 时改默认值**不改变任何结果**。`verdict=engine illegal=0`。
+
+## 2026-10-28 08:09:10 — v1_old_2games
+
+- **commit**: `9a8ca98` (dirty: 2 files)
+- **exit**: 0，用时 98s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/_tmp_ab_old.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_old --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_080910_v1_old_2games/output.log`
+- **result**: _待填_
+
+## 2026-10-28 08:11:06 — v1_new_2games
+
+- **commit**: `9a8ca98` (dirty: 4 files)
+- **exit**: 0，用时 86s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_new --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_081106_v1_new_2games/output.log`
+- **result**: _待填_
+
+## 2026-10-28 08:12:59 — v2_retry_watchdog
+
+- **commit**: `9a8ca98` (dirty: 4 files)
+- **exit**: 0，用时 243s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 910 911 --jobs 1 --out-dir match_results/retry_resume_test/v2_retry --game-timeout-s 40 --retry-invalid 2 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;PYTHONPATH=D:/2026智能体大赛_新2_distill/_tmp_faultinject;FAULTINJECT_CLAIM_DIR=D:/2026智能体大赛_新2_distill/_tmp_fi_claim;FAULTINJECT_SLEEP_S=120 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_081259_v2_retry_watchdog/output.log`
+- **result**: _待填_
