@@ -37,6 +37,13 @@
                              与网络的 K 条候选**同台**被 flat rollout 评估器打分。**不改搜索算法**，
                              也**不是** `AZAI_MC_UPG`（那个是 MC 仲裁直接接管一手、绕过评估器）。
                              见 `docs/upgrade_bundles_20261028.md`；日志前缀 `[upg]`（stderr）。
+  AZAI_PIN_K=<int>           **整束允许落在 K 个不同类上**（2026-10-28，默认 **0 = 完全关闭、行为逐位不变**）：
+                              现役 `pinned=[_ccls]*3`（`bundle_mcts.py:884`）把 720 次采样钉在
+                              **一个类**上，而该类在 78% 的决策里是 HOLD(23) ⇒ 空束 ⇒ `n_cand=1`
+                              （= 搜索完全没有选择余地）。`=K>1` ⇒ 把 720 次采样轮流分给 K 个类
+                              （MC 的赢家 + `_econ_rank` 剩下的前几名）。**只改"哪些类参与采样"**：
+                              去重 / top-k 截断 / flat rollout 评估器 / 预算公式一行不动。
+                              见 `docs/why_effective_candidates_collapse_20261028.md`。
 """
 from __future__ import annotations
 
@@ -807,6 +814,9 @@ def build_engine(seed: int, player: int):
         mc_upg_targets=int(_env("AZAI_MC_UPG_TARGETS", "1")),
         # Phase 0：1 ⇒ 闪电不进 MC 菜单（仍由默认行为放闪电）
         mc_no_light=_env("AZAI_MC_NO_LIGHT", "0") == "1",
+        # 2026-10-28（诊断臂）：整束允许落在 K 个不同类上。0 = 旧的"单类"行为逐位不变。
+        #   见 docs/why_effective_candidates_collapse_20261028.md（78% 的决策被钉在 HOLD ⇒ n_cand=1）。
+        pin_k=int(_env("AZAI_PIN_K", "0")),
         # 方法侧 M5：3 候选菜单（AZAI_MENU3=1 时接管候选来源）
         candidate_fn=(_menu3_fn(_menu3_holder) if int(_env("AZAI_MENU3", "0")) else None),
         pos_prior_fn=ppf,

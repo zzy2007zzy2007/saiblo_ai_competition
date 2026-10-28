@@ -413,6 +413,18 @@ class BundleMCTS:
         mc_upgrade_bonus: float = 0.0,  # 2026-10-22: 显式升级奖励（照抄亚军 c1_root_bonus 思路）
         mc_upg_targets: int = 1,      # 2026-10-22: 每座塔枚举几个**升级目标**（1=只取第一个=HEAVY）
         skip_single_candidate: bool = False,
+        # ── 2026-10-28（诊断臂 `AZAI_PIN_K`，**默认 0 ⇒ 现役行为逐位不变**）──────────────
+        #   动机（只读诊断 `docs/why_effective_candidates_collapse_20261028.md`）：
+        #   `pos-only` 下 `pinned=[_ccls]*3`（下文 `pinned = [_ccls] * 3`）把**整束 720 次采样
+        #   钉在同一个类**上，而该类由 `mc_quiet` 仲裁选出 —— 实测 1518 个真实决策点里 78.0% 是
+        #   **类 23 = HOLD** ⇒ 720 次采样全部解出**空束** ⇒ `agg` 只有 1 个键 ⇒ 送进 flat rollout
+        #   的候选数 = 1（`[upg] sel … n_cand=1` 占 66.5% 的直接来源）。类 16（降级）次之
+        #   （11.5%，1-4 条），类 0（建塔）/17（闪电）才可能到 48。
+        #   `pin_k = K > 1` ⇒ 把 720 次采样**轮流**分给 K 个类：MC 的赢家 + `_econ_rank` 里
+        #   剩下的前几名（该排序本来就算了 17 个类，只是 `_econ_rank[0]` 之后被扔掉）。
+        #   ⚠️ 只改"哪些类参与采样"：`agg` 去重、按频次 top-k 截断、`_collect_extras`、
+        #   flat rollout 的预算公式与评估器**一行不动**。
+        pin_k: int = 0,
         pos_prior_fn=None,
         candidate_fn=None,
     ) -> None:
@@ -499,6 +511,8 @@ class BundleMCTS:
         self.mc_light_fallback = 0      # 2026-10-22：mc_light 分支的异常回退计数（原来不可见）
         self.mc_upg_skipped = 0         # 2026-10-22：显式升级候选构造失败次数（原来只有 print）
         self.skip_single_candidate = skip_single_candidate
+        # 2026-10-28：>1 ⇒ 整束允许落在**K 个不同类**上（默认 0 = 旧的"单类"行为逐位不变）
+        self.pin_k = max(0, int(pin_k))
         # OPTIONAL external position prior (2026-09-18), default None = 完全维持原行为。
         # 用途：让调用方**替换**"钉类的合法格"上的采样分布，从而测"让价值网决定候选菜单"
         # 这类问题（见 _tmp_position_choice_ab.py 的 --pos-prior value）。签名：
@@ -989,6 +1003,28 @@ class BundleMCTS:
                             _new.append(_c)
                     pinned = _new
             class_ids = [[c] * n_samples for c in pinned]
+            # 2026-10-28（`AZAI_PIN_K=K`；**默认 0 ⇒ 下面整段不执行，`class_ids` 与改动前逐位相同**）：
+            #   把 n_samples 次采样**轮流**分给 K 个合法的"钉住类" ⇒ 候选束不再被单一类掏空。
+            #   类序列 = [MC 的赢家] + [`_econ_rank` 剩下的前几名] + [HOLD(23), 闪电(17)]，去重后取前 K。
+            #   ⚠️ `pinned` 本身**不动**（还喂 pos_prior_fn / 训练目标 / topk 路径），只改每样本的类。
+            if self.pin_k > 1:
+                _seq: list[int] = []
+                for _c in pinned:
+                    if int(_c) not in _seq:
+                        _seq.append(int(_c))
+                try:                                  # 仅 pos_pin=mc_quiet 分支有这个局部量
+                    for _v2, _c2 in _econ_rank:       # type: ignore[name-defined]
+                        if int(_c2) not in _seq:
+                            _seq.append(int(_c2))
+                except NameError:
+                    pass
+                for _c3 in (23, 17):                  # HOLD / 闪电：本来就进 MC 菜单
+                    if _c3 not in _seq and bool(base_cls_mask[_c3]):
+                        _seq.append(int(_c3))
+                _seq = _seq[: self.pin_k]
+                if len(_seq) > 1:
+                    class_ids = [[_seq[_i % len(_seq)] for _i in range(n_samples)]
+                                 for _ in range(len(head_logits_list))]
         else:
             pinned = None
             class_probs_arg = [head_class_probs(hl, self.t_class) for hl in head_logits_list]
