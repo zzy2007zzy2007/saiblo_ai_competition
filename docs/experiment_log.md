@@ -12898,7 +12898,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/_tmp_ab_old.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_old --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
   ```
 - **output**: `training_history/runs/20261028_080910_v1_old_2games/output.log`
-- **result**: _待填_
+- **result**: V1 基线（HEAD 版驱动 `_tmp_ab_old.py`）：2 局都 `verdict=engine`、flat 1.0/1.0；与新版驱动的 RESULT 行逐字相同（整局日志仅 `shadow_ms` 计时字段不同）。
 
 ## 2026-10-28 08:11:06 — v1_new_2games
 
@@ -12909,7 +12909,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_new --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
   ```
 - **output**: `training_history/runs/20261028_081106_v1_new_2games/output.log`
-- **result**: _待填_
+- **result**: V1 初版新驱动：RESULT 与 v1_old 逐字相同。⚠️ 但那一版 `write_status()` 里嵌套抢非重入锁会死锁（见 08:17:39 那条），代码已改，本轮作废。
 
 ## 2026-10-28 08:12:59 — v2_retry_watchdog
 
@@ -12920,4 +12920,136 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 910 911 --jobs 1 --out-dir match_results/retry_resume_test/v2_retry --game-timeout-s 40 --retry-invalid 2 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;PYTHONPATH=D:/2026智能体大赛_新2_distill/_tmp_faultinject;FAULTINJECT_CLAIM_DIR=D:/2026智能体大赛_新2_distill/_tmp_fi_claim;FAULTINJECT_SLEEP_S=120 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
   ```
 - **output**: `training_history/runs/20261028_081259_v2_retry_watchdog/output.log`
-- **result**: _待填_
+- **result**: ❌ 看门狗 40s < 正常单局墙钟 55~90s ⇒ 两局都被杀，重试 2 轮仍 0/2。教训：阈值必须明显大于正常单局耗时。顺带证明 `taskkill /PID /T /F` 只杀本局 3 个 PID、没碰其它局。
+
+## 2026-10-28 08:17:39 — v1_new_2games
+
+- **commit**: `9a8ca98` (dirty: 4 files)
+- **exit**: 127，用时 599s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_new --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_081739_v1_new_2games/output.log`
+- **result**: ❌ 死锁：`invalid_count_for_summary()` 在 `write_status()`（已持锁）里又抢同一把 `threading.Lock` ⇒ 第一局跑完不再打印、第二局跑完堵在 lock 上；599s 后人工 kill（只 kill 自己这条测试进程）。已改 `RLock` + 该函数不抢锁。
+
+## 2026-10-28 08:27:46 — v1_new_2games
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 90s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --paired-sides --seeds 900 --jobs 1 --out-dir match_results/retry_resume_test/v1_new --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_082746_v1_new_2games/output.log`
+- **result**: ✅ V1 通过（最终代码）：与 `v1_old` 的 RESULT 行逐字相同（两局 engine、flat 1.0/1.0），汇总行也相同（仅耗时不同）⇒ 默认行为不变。目录里只多一个 `_progress.json`。
+
+## 2026-10-28 08:29:43 — v2_retry_watchdog
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 264s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 910 911 --jobs 1 --out-dir match_results/retry_resume_test/v2_retry --game-timeout-s 150 --retry-invalid 2 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000;PYTHONPATH=D:/2026智能体大赛_新2_distill/_tmp_faultinject;FAULTINJECT_CLAIM_DIR=D:/2026智能体大赛_新2_distill/_tmp_fi_claim;FAULTINJECT_SLEEP_S=600 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_082943_v2_retry_watchdog/output.log`
+- **result**: ✅ V2 通过：注入「第一局 flat AI 卡 600s」⇒ 150s 看门狗只杀该局 3 个 PID，记 `timeout_watchdog`；同批 seed911 正常 engine（未被波及）；自动重试第 1 轮只重跑 seed910 并转 engine ⇒ **最终有效率 2/2**，失败日志留档 `_attempts/seed910.attempt1.log`。进程普查：跑前跑后都是 26 个 python 进程，无任何误杀。
+
+## 2026-10-28 08:34:18 — v3_resume_s1_normal
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 97s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083418_v3_resume_s1_normal/output.log`
+- **result**: V3 第一遍 stage1（正常跑 2 局，都 engine）。同一条验证随后用最终代码又跑了一遍（08:38 那组），以那组为准。
+
+## 2026-10-28 08:35:57 — v3_resume_s2_resume
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 56s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083557_v3_resume_s2_resume/output.log`
+- **result**: V3 第一遍 stage2：手改 seed902 → `verdict=timeout` 后 `--resume` 打印「已完成 1 个、待跑 1 个」，只重跑 seed902，最终 2/2（seed901 采纳旧结果）。
+
+## 2026-10-28 08:36:55 — v3_resume_s3_missing
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 41s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083654_v3_resume_s3_missing/output.log`
+- **result**: V3 第一遍 stage3：删掉 seed901.log 后 `--resume` 只重跑 seed901（原因 `no_log`）。
+
+## 2026-10-28 08:37:49 — v4_resume_noop
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 0s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --retry-invalid 1 --game-timeout-s 600 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083749_v4_resume_noop/output.log`
+- **result**: V4 第一遍：`--resume --retry-invalid 1` 且全部已完成 ⇒ 0 局重跑、2s 结束。但「重跑过的局」把前几轮跑过的局也算进去了（显示 2 个），已改成只算本轮；见 08:37:59。
+
+## 2026-10-28 08:37:59 — v4_resume_noop
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 2s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --retry-invalid 1 --game-timeout-s 600 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083759_v4_resume_noop/output.log`
+- **result**: ✅ V4（最终代码）：`--resume --retry-invalid 1 --game-timeout-s 600` 且全部已完成 ⇒ 2s 结束、**一局都没重跑**，有效率 2/2。
+
+## 2026-10-28 08:38:08 — v3_resume_s1_normal
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 96s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083808_v3_resume_s1_normal/output.log`
+- **result**: ✅ V3（最终代码）stage1：正常跑 2 局（seed 901/902），都 engine、flat 1.0/1.0。
+
+## 2026-10-28 08:39:46 — v3_resume_s2_resume
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 57s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_083946_v3_resume_s2_resume/output.log`
+- **result**: ✅ V3 stage2：手改 seed902 的 RESULT → `verdict=timeout` 后 `--resume` 打印「已完成 1 个、待跑 1 个」，**只跑 seed902**（0.9 min），seed901 直接采纳 ⇒ 最终有效率 2/2。
+
+## 2026-10-28 08:40:44 — v3_resume_s3_missing
+
+- **commit**: `9bc811a` (dirty: 4 files)
+- **exit**: 0，用时 41s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 901 902 --jobs 1 --out-dir match_results/retry_resume_test/v3_resume --resume --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_084044_v3_resume_s3_missing/output.log`
+- **result**: ✅ V3 stage3：删掉 seed901.log 后 `--resume` 只补 seed901（原因 `no_log`，并提示「`_progress.json` 记为 ok ⇒ 以日志为准重跑」）⇒ 证明日志是唯一权威。
+
+## 2026-10-28 08:42:45 — v5_retry_cannot_fix
+
+- **commit**: `5cdccd0` (dirty: 2 files)
+- **exit**: 0，用时 25s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/test_match/ab_search_modes.py --seeds 920 921 --jobs 1 --out-dir match_results/retry_resume_test/v5_retry_cannot_fix --game-timeout-s 5 --retry-invalid 1 --flat-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=flat;AZAI_FLAT_ROLLOUTS=4;AZAI_FLAT_HORIZON=16;AZAI_FLAT_BATCH=8;AZAI_FLAT_ROUNDS=39000 --mcts-env=AZAI_CKPT=checkpoints/posnet_A_k5_m32.pt;AZAI_ITERS=16;AZAI_DEPTH=2;AZAI_K=8;AZAI_SAMPLE_MULT=4;AZAI_MODE=pos-only;AZAI_POSPIN=mc_quiet;AZAI_MC_EVERY=5;AZAI_MC_HORIZON=64;AZAI_MC_ROOTONLY=1;AZAI_SKIP1=1;AZAI_TCLASS=0.5;AZAI_TPOS=1.0;AZAI_TEMP=1e-6;AZAI_POSPRIOR=off;AZAI_SEARCH=mcts
+  ```
+- **output**: `training_history/runs/20261028_084245_v5_retry_cannot_fix/output.log`
+- **result**: ✅ V5（已提交的最终代码）：看门狗故意设 5s（远小于正常单局墙钟）⇒ 两局都被杀、重试 1 轮仍被杀 ⇒ 报「已用满 1 轮，仍有 2 局无效」+ 最终有效率 0/2 + 仍然无效清单（不假装成功）。同时验证汇总行 `无效局=2`（这两局根本没有 RESULT 行，旧代码会当 0.5 平局）、「重跑过的局 2 个（转有效 0 个）」。

@@ -246,7 +246,10 @@ def main() -> int:
     sem = threading.Semaphore(args.jobs)
     results: dict = {}
     state: dict[str, dict] = {}       # label → {valid, verdict, score, attempts, ...}
-    lock = threading.Lock()
+    # 2026-10-28：用 RLock 而不是 Lock —— `write_status()`（持锁调用）里要读 `state`，
+    #   如果那些读又去抢同一把非重入锁，整批会静默死锁（实测踩到：一局跑完后再也不打印、
+    #   后续局全部卡在 lock 上）。RLock 让"持锁调用的小工具函数"也安全。
+    lock = threading.RLock()
     # 2026-10-22：无结果/异常局计数（原来直接丢，不可见）
     # 2026-10-28：改成"任务标签集合"（同一个局不管重试几次只算一条）。
     #   默认路径（每个 task 只跑一次）⇒ len(INVALID) 与旧的计数器逐字相同。
@@ -323,12 +326,14 @@ def main() -> int:
         后者是 2026-10-28 顺手补的：旧代码对"没有 RESULT 行"的局**既不计无效也不计负**
         ⇒ 直接按 0.5 平局混进胜率（断电那批局正好是这种情况，看起来像"一半平局"）。
         有效局（verdict=engine）在两套口径下都不受影响 ⇒ 正常批次打印的数字与旧版逐字相同。
+
+        ⚠️ 这个函数会同时被"持锁调用"（`write_status`）和"无锁调用"（收尾汇总）用到，
+           所以**不在这里抢 lock**（只做 dict 只读访问，CPython 下是原子的）。
         """
         bad = set(INVALID)
         for task in tasks:
             label = task_label(task)
-            with lock:
-                v = (state.get(label) or {}).get("verdict")
+            v = (state.get(label) or {}).get("verdict")
             if v in ("no_result", "no_log", "unreadable",
                      "timeout_watchdog", "timeout_hard", "driver_error"):
                 bad.add(label)
@@ -364,6 +369,9 @@ def main() -> int:
     # ───────────────────────── 单局执行（Popen + 看门狗）─────────────────────────
     attempts: dict[str, int] = {task_label(t): int((prog.get(task_label(t)) or {}).get("attempts") or 0)
                                 for t in tasks}
+    # 本轮开始时各局的累计尝试次数（`_progress.json` 可能是前几次运行留下的）——
+    # 收尾的"本批重跑过几局"要靠它减出来，否则前几轮跑过的局会被算成"本次重试的"。
+    attempts_at_start = dict(attempts)
 
     def next_attempt(label: str) -> int:
         with lock:
@@ -605,7 +613,8 @@ def main() -> int:
         final = {task_label(t): (state.get(task_label(t)) or {}) for t in tasks}
         n_valid = sum(1 for r in final.values() if r.get("valid"))
         still_bad = {k: r.get("verdict") for k, r in final.items() if not r.get("valid")}
-        retried = [k for k, r in final.items() if int(r.get("attempts") or 0) > 1]
+        retried = [k for k in final
+                   if attempts.get(k, 0) - attempts_at_start.get(k, 0) > 1]   # 只算**本轮**重跑过的
         recovered = [k for k in retried if final[k].get("valid")]
         print(f"\n=== 最终有效率 {n_valid}/{n_total} "
               f"({(n_valid / n_total if n_total else 0):.1%}) ===", flush=True)
