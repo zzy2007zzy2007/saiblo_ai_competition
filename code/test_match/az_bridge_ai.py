@@ -283,6 +283,11 @@ _ENGINE = {}   # 2026-10-22：模块级持有 mcts/model，供 _report 读取
 _OP_LABEL_WARNED = False   # 2026-10-22：op 标签解析失败只提示一次
 STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow": 0, "dec_n": 0,
          "dec_times": []}   # 2026-10-26：每决策墙钟（算 p50/p95；只用于日志，不参与决策）
+# 2026-10-28（规则内口径）：**固定阈值**的超时计数。`dec_slow` 的阈值来自 `AZAI_SLOW_DECISION_SEC`
+# （默认 20s，可被实验配置改），而"每步 ≤ 10s"是**游戏硬约束**（比赛规则），必须有一个
+# 不随环境变量漂移的读数，否则两臂配置一改就不可比。⇒ 这里写死三条线，日志里常驻
+# `dec_ge10=… dec_ge20=… dec_ge30=…`（含义 = 该局**决策墙钟** ≥ 该秒数的决策条数）。
+_DEC_THRESHOLDS = (10, 20, 30)
 
 # ── 非法操作自检（2026-10-27）──────────────────────────────────────────────────────
 # 为什么需要它：`GameStateFacade.apply_operation_list` 返回 **None**
@@ -410,6 +415,16 @@ def _pct(vals: list, q: float) -> float:
     return float(s[max(0, min(len(s) - 1, k))])
 
 
+def _dec_hist_text() -> str:
+    """固定阈值超时计数（见 `_DEC_THRESHOLDS`）+ 占比。只读 `STATS`，不参与决策。"""
+    _n = max(1, int(STATS.get("dec_n", 0) or 0))
+    parts = []
+    for _th in _DEC_THRESHOLDS:
+        _c = int(STATS.get(f"dec_ge{_th}", 0) or 0)
+        parts.append(f"dec_ge{_th}={_c}({100.0 * _c / _n:.2f}%)")
+    return " ".join(parts)
+
+
 def _oracle_stats_text() -> str:
     """注入统计的一行文本（本功能的**主读数**）。字段含义见 docs/oracle_inject_design.md §3.5。
 
@@ -481,7 +496,8 @@ def _report(*_args) -> None:
                  f" gate_dropped={STATS.get('filter_gate_dropped', 0)}")
     _log(f"退出报告: rounds={STATS['rounds']} mismatch={STATS['mismatch']} "
          f"illegal={STATS['illegal']}{_gate}{_mc} dec_n={STATS.get('dec_n')} "
-         f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')}")
+         f"dec_max={STATS.get('dec_max_s')}s dec_slow={STATS.get('dec_slow')} "
+         f"{_dec_hist_text()}")
     _dt = STATS.get("dec_times") or []
     if _dt:
         _log(f"决策耗时: n={len(_dt)} p50={_pct(_dt, 0.50):.2f}s p95={_pct(_dt, 0.95):.2f}s "
@@ -892,7 +908,13 @@ def main() -> int:
         """按环境变量决定要不要启用注入。**默认（空）= 不 import、不起子进程、零耗时。**"""
         exe = _env("AZAI_ORACLE_INJECT", "").strip()
         _ORACLE["seed"], _ORACLE["player"] = int(seed), int(player)
-        _ORACLE["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT", "2.5"))
+        # 2026-10-28：**默认 2.5s → 10s**。实测依据（docs/oracle_inject_ab_20261028.md §4.1.1、§4.3）：
+        #   贵配置 16 局里单次查询 max = **6859 ms**（p95 ~1.4s），默认 2.5s 下 `--jobs 8` 时
+        #   8 个注入臂有 **5 个**在 round 55/123/150/187/207 触发 `OracleTimeout`（每次都停在
+        #   2515-2516ms，只是抖动尖峰），而超时后注入**永久停用**（读端错位，协议上不能重连）
+        #   ⇒ 后半局被测臂退化成基准臂，主读数被稀释。10s ≈ 实测 max 的 1.5 倍、p95 的 7 倍，
+        #   仍能抓真死；同时 10s 也是**游戏规则的每步上限**（规则内口径的硬边界）。
+        _ORACLE["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT", "10"))
         _ORACLE["off"] = True
         if not exe:
             _log("[oracle] AZAI_ORACLE_INJECT 为空 ⇒ 不启用候选注入（零开销）")
@@ -1288,6 +1310,10 @@ def main() -> int:
                 STATS["dec_slow"] = int(STATS.get("dec_slow", 0)) + 1
                 _log(f"⚠️ 慢决策 round={STATS['rounds']} 用时={_dt:.2f}s 阈值={_thr:g}s"
                      f" （超过 bridge 读超时会记 verdict=timeout）")
+            # 固定阈值计数（10/20/30s；`dec_slow` 那条线的阈值可配 ⇒ 口径会漂，这条不会）
+            for _th in _DEC_THRESHOLDS:
+                if _dt >= _th:
+                    STATS[f"dec_ge{_th}"] = int(STATS.get(f"dec_ge{_th}", 0)) + 1
             # ⚠️ 必须**对局中**周期打印：bridge 结束时会直接 terminate()，atexit 里的「退出报告」
             #    在正常对局里根本不会执行 ⇒ dec_max/dec_slow 只在异常局可见，等于没用。
             _every = int(_env("AZAI_TIMING_EVERY", "25"))
@@ -1310,7 +1336,13 @@ def main() -> int:
                 except Exception:
                     pass
                 _log(f"⏱️ 耗时累计: dec_n={STATS['dec_n']} dec_max={STATS['dec_max_s']}s "
-                     f"dec_slow={STATS['dec_slow']}{_bi}")
+                     f"dec_slow={STATS['dec_slow']} {_dec_hist_text()}{_bi}")
+                # 2026-10-28（规则内口径）：p50/p95 **两臂都打**（原来只 Injection 臂打 ⇒
+                # 基准臂的长尾只能靠收尾报告，而收尾常被 bridge 硬杀）。只多一行/25 决策。
+                _dt_all = STATS["dec_times"]
+                _log(f"⏱️ 决策耗时 p50={_pct(_dt_all, 0.50):.2f}s "
+                     f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s "
+                     f"n={len(_dt_all)}")
                 # 2026-10-27：非法操作自检也**对局中**周期打印（同样因为收尾常被硬杀）
                 _log("🔎 非法操作自检: " + ILLEGAL_STATS.summary(int(seed), False))
                 # 2026-10-28：过滤闸门读数（拦下的半块**没有发出去** ⇒ 不能混进上面的 illegal_total）
@@ -1320,9 +1352,6 @@ def main() -> int:
                          f"（dropped = 整块丢弃 ⇒ 该回合 HOLD）")
                 # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
                 if _ORACLE["asks"] and _ORACLE["obj"] is not None:
-                    _dt_all = STATS["dec_times"]
-                    _log(f"⏱️ 决策耗时 p50={_pct(_dt_all, 0.50):.2f}s "
-                         f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
                     _log(f"[oracle] 注入累计: {_oracle_stats_text()}")
             return _ops
 

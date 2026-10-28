@@ -214,7 +214,7 @@ def main() -> int:
             print(f"                  p50_ms = {[r.get('p50_ms') for r in mss]}  "
                   f"max_ms = {[r.get('max_ms') for r in mss]}")
             allmax = max(r["max_ms"] for r in mss)
-            print(f"                  全体最大 = {allmax} ms（超时阈值 AZAI_ORACLE_TIMEOUT 默认 2500 ms）")
+            print(f"                  全体最大 = {allmax} ms（超时阈值 AZAI_ORACLE_TIMEOUT 默认 10000 ms）")
         stp = [r["file"] for r in o["per_game"] if r.get("stopped")]
         print(f"  中途停用注入的局: {len(stp)}" + (f" -> {stp}" if stp else ""))
 
