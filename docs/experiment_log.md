@@ -13653,3 +13653,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261029_093158_ladder_resilience_v4_watchdog/output.log`
 - **result**: 终版：--watchdog-stall-min 1 在 1.0 min 命中 ⇒ 先停调度 → taskkill /PID 67792 一族（3 个 PID）→ 已死根 PID 闭包复查 0 存活 → 恢复调度；标 timeout_watchdog 并重试（第 2 次同样被杀）；engine 0/1（docs/ladder_resilience_20261029.md §3.4）
+
+## 2026-10-29 07:56:32 — us_vs_champion_e1_resume
+
+- **commit**: `6e543c2` (dirty: 8 files)
+- **exit**: 0，用时 6651s
+- **cmd**:
+  ```bash
+  bash code/test_match/_us_vs_champion_e1_resume.sh
+  ```
+- **output**: `training_history/runs/20261029_075632_us_vs_champion_e1_resume/output.log`
+- **result**: **E1（我们 vs 冠军）16 局补完：1W-15L = 6.2%（Wilson [1.1, 28.3]），血量差 −22.62（t 95%CI [−28.68, −16.57]）；@P0 0/8（−22.50）、@P1 1/8（−22.75）**。16/16 verdict=engine、裁判侧 illegal=0、我方 illegal_total=0、冠军侧 stderr 16/16 留存；每局墙钟 31.6/40.0/46.9 min，整批 110.9 min。上一批 3 个 timeout 的真根因 = 整机进 Modern Standby 被冻 2h06m（Kernel-Power 506@00:10:48 → 507@02:16:47）。见 docs/us_vs_champion_20261029.md。

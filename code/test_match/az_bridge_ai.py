@@ -37,8 +37,22 @@
                              与网络的 K 条候选**同台**被 flat rollout 评估器打分。**不改搜索算法**，
                              也**不是** `AZAI_MC_UPG`（那个是 MC 仲裁直接接管一手、绕过评估器）。
                              见 `docs/upgrade_bundles_20261028.md`；日志前缀 `[upg]`（stderr）。
+  AZAI_ORACLE_INJECT_B=<path> **第二个外部查询会话**（2026-10-28，E4；默认空 = 完全关闭）：
+                              A 会话仍是 `AZAI_ORACLE_INJECT`（那条路径**一行没改**）；B 是第二个
+                              `RunnerUpOracle` 进程（E4 里 A=冠军、B=亚军）。两者每回合各问一次，
+                              两条动作**一起**进 `set_extra_bundles([A, B])`。`AZAI_ORACLE_TIMEOUT_B`
+                              是 B 的单次读包超时（默认取 `AZAI_ORACLE_TIMEOUT`；E4 脚本设 20s）。
+                              见 `docs/us_vs_champion_20261028.md` §5；日志前缀 `[oracle-b]`。
+  AZAI_ONLY_EXTRA=1          **候选集只保留额外候选**（2026-10-28，E4；默认 0 = 完全关闭）：
+                              打开后 `FlatRolloutGreedy.set_only_extra(True)` ⇒ 候选集 = 额外塞进去
+                              的 bundle（E4 里 = 冠军动作 + 亚军动作），网络那 K 条被类轴 pinned 的
+                              候选**不进候选集**；预算公式/rollout/叶值网/选择规则一律不变。
+  AZAI_ONLY_EXTRA_RANDOM=1   **随机挑一个**（2026-10-28，E4R；默认 0 = 关；隐含 `AZAI_ONLY_EXTRA=1`）：
+                              候选集与 E4 相同，但**不看评估器分数**，用
+                              `sha256("onlyextra|<seed>|<dec_n>")` 的独立随机流挑一个 ⇒ 固定种子可复现。
+                              `AZAI_ONLY_EXTRA_SEED` 可覆盖随机流种子（默认 = `AZAI_FLAT_SEED`）。
   AZAI_PIN_K=<int>           **整束允许落在 K 个不同类上**（2026-10-28，默认 **0 = 完全关闭、行为逐位不变**）：
-                              现役 `pinned=[_ccls]*3`（`bundle_mcts.py:884`）把 720 次采样钉在
+                              现役 `pinned=[_ccls]*3`（`bundle_mcts.py:870`）把 720 次采样钉在
                               **一个类**上，而该类在 78% 的决策里是 HOLD(23) ⇒ 空束 ⇒ `n_cand=1`
                               （= 搜索完全没有选择余地）。`=K>1` ⇒ 把 720 次采样轮流分给 K 个类
                               （MC 的赢家 + `_econ_rank` 剩下的前几名）。**只改"哪些类参与采样"**：
@@ -47,8 +61,10 @@
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
+import random
 import struct
 import sys
 import time
@@ -366,6 +382,109 @@ def _block_legal_gate(facade, pl: int, ops: list) -> list:
         return [{"idx": -1, "op": None, "reason": "checker_unavailable"}]
     return bad
 
+# ── 安慰剂候选（2026-10-28；`AZAI_ORACLE_PLACEBO`；见 docs/placebo_inject_ab_20261028.md）──────
+# 目的：把"注入"的**信息量**抽掉、只留"多一个候选"，用来分离 A/B 里 +31pp 的两种解释：
+#   ① **知识**（亚军那一手含我们的先验/评估器给不出的信息）；
+#   ② **候选数 / 预算效应**（与"这一手好不好"无关，纯粹因为候选集里多了一项）。
+# 做法：走**同一条**通道 `mcts.set_extra_bundles([bundle])`（同样 1 个额外候选、同样进前缀/预算、
+#   同样的 new/dup/hit 统计与每决策一条日志），但候选 = 本地随机抽的一个**合法 op**，**不查询 oracle**。
+# 默认（`AZAI_ORACLE_PLACEBO` 不设）⇒ 下面这些函数**一个都不会被调用**、常量一个都不 import。
+_PLACEBO_OP_ORDER = ("build", "downgrade", "lightning", "upgrade")   # 固定顺序 ⇒ 可复现
+_PLACEBO_LIGHT_TRIES = 8     # 闪电的随机格最多试几个（闪电合法性几乎与格子无关，通常第 1 个就合法）
+_PLACEBO_IMPORTS: dict = {}
+
+
+def _placebo_imports() -> dict:
+    """懒加载 placebo 需要的 SDK 符号（只有 placebo 打开时才会执行 ⇒ 默认零成本）。"""
+    if not _PLACEBO_IMPORTS:
+        from SDK.backend.model import Operation as _Op
+        from SDK.utils.constants import (HIGHLAND_CELLS as _HC, OperationType as _OT,
+                                         TOWER_UPGRADE_TREE as _TREE)
+        _PLACEBO_IMPORTS.update({"Op": _Op, "OT": _OT, "HC": _HC, "TREE": _TREE})
+    return _PLACEBO_IMPORTS
+
+
+def _placebo_rng(dec_n: int, flat_seed: int):
+    """`seed = int(sha256("placebo|<FLAT_SEED>|<dec_n>").digest()[:8])`。
+
+    为什么用哈希而不是线性式：rollout 侧用的是
+    `(rollout_seed*1000003 + decision_idx)*100003 + index*101 + k`（`flat_rollout_greedy.py:540`），
+    线性式在参数相近时会落进同一族种子；哈希把两条随机流**彻底隔开**
+    （= 任务书要求的"与 rollout 种子无关的独立流"），同时"同一 (FLAT_SEED, 决策序号) ⇒ 同一个 Random"
+    ⇒ 完全可复现（不依赖时间/哈希随机化）。
+    """
+    h = hashlib.sha256(f"placebo|{int(flat_seed)}|{int(dec_n)}".encode()).digest()
+    return random.Random(int.from_bytes(h[:8], "big"))
+
+
+def _placebo_ok(facade, player: int, op: tuple) -> bool:
+    """**只读**合法性判定（引擎 `can_apply_dry`，与 `_oracle_bundle` 检查亚军候选**同一口径**）。
+
+    异常 ⇒ 按非法处理（**fail-closed**）：宁可本回合退回 HOLD，也绝不把一个没验过的 op 塞进候选
+    （严格模式 = 官方口径，发出去非法就是当场判负）。
+    """
+    _m = _placebo_imports()
+    try:
+        return bool(facade.can_apply_operation(
+            int(player), _m["Op"](_m["OT"](int(op[0])), int(op[1]), int(op[2]))))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _placebo_bundle(facade, player: int, dec_n: int, flat_seed: int,
+                    hold_p: float = 0.0) -> tuple:
+    """生成一个**合法**的单 op 束（或 HOLD）：返回 `(bundle, kind)`。
+
+    * bundle = `((op,),)` / `()`；kind ∈ `hold / nolegal / build / upgrade / downgrade / lightning`；
+    * 规则（预注册，见 docs/placebo_inject_ab_20261028.md §3.2）：
+        1. `rng.random() < hold_p` ⇒ HOLD（P 臂 hold_p=0 ⇒ **永不 HOLD**；P2 臂 = 0.78，对齐亚军 78% HOLD）；
+        2. 否则**先均匀抽 op 类**（只抽"有合法目标"的那几类），再在该类的合法目标里均匀抽一个：
+             11 建塔（我方高地的空格）/ 12 升级（我方塔 id + 下一级）/ 13 降级（我方塔 id）/
+             21 闪电（随机格）；
+        3. 合法性 = `_placebo_ok`（引擎 dry-run，只读）；
+        4. 一类合法目标都没有 ⇒ HOLD（**fail-safe**：绝不发非法 op）。
+    * 单 op ⇒ 不存在"半块非法"问题（P1 那个 bug 的前提是"多 op 块被事后删 op"）；
+    * ⚠️ **先抽类再抽目标**（而不是"在全池上均匀"）：闪电对**任何**格都合法，全池均匀会让
+      后期有钱时 361 个闪电格淹没别的类 ⇒ "随机"退化成"闪电发生器"。先抽类与策略头
+      "先类后位"的结构一致，也让 4 类各占 1/4（报告里给出实测直方图）。
+    """
+    rng = _placebo_rng(int(dec_n), int(flat_seed))
+    if rng.random() < float(hold_p):
+        return (), "hold"
+    _m = _placebo_imports()
+    pl = int(player)
+    towers = list(facade.towers_of(pl))
+    occupied = {(int(t.x), int(t.y)) for t in facade.towers}     # 一次集合化，别对每个高地格线性找塔
+    groups: dict = {
+        "build": [(11, int(x), int(y)) for (x, y) in _m["HC"][pl]
+                  if (int(x), int(y)) not in occupied],
+        "upgrade": [(12, int(t.tower_id), int(tgt))
+                    for t in towers
+                    for tgt in (_m["TREE"].get(int(t.tower_type), ()) or ())],
+        "downgrade": [(13, int(t.tower_id), -1) for t in towers],
+    }
+    legal: dict = {}
+    for kind in _PLACEBO_OP_ORDER:          # 固定顺序遍历 ⇒ 同一 rng 状态下的结果可复现
+        if kind == "lightning":
+            for _ in range(_PLACEBO_LIGHT_TRIES):
+                op = (21, int(rng.randrange(19)), int(rng.randrange(19)))
+                if _placebo_ok(facade, pl, op):
+                    legal[kind] = op
+                    break
+            continue
+        cand = list(groups.get(kind) or ())
+        if not cand:
+            continue
+        rng.shuffle(cand)
+        for op in cand:
+            if _placebo_ok(facade, pl, op):
+                legal[kind] = op
+                break
+    if not legal:
+        return (), "nolegal"
+    kind = tuple(legal)[rng.randrange(len(legal))]    # dict 顺序 = 上面的固定顺序 ⇒ 可复现
+    return (legal[kind],), kind
+
 # ── 亚军候选注入（2026-10-26；**开关式，默认关**；见 docs/oracle_inject_design.md）─────────
 # `AZAI_ORACLE_INJECT` 为空 ⇒ 每条分支第一行就返回：**不 import 查询器、不起子进程、
 # 不加任何耗时**（零影响由 `code/test_match/probe_oracle_inject_zero_impact.py` 的哈希比对验证）。
@@ -402,6 +521,13 @@ _ORACLE: dict = {
     # `_oracle_log_round` 在决定出口把它打出来并清空）
     "round_log": None,
     "round_new": None, "round_dup": None,
+    # 2026-10-28：**安慰剂臂**（`AZAI_ORACLE_PLACEBO=1`）—— 同一条注入通道，候选换成
+    # "本地随机抽的一个合法 op"（**不查 oracle**）。目的是分离"知识"与"多一个候选/预算效应"，
+    # 见 docs/placebo_inject_ab_20261028.md。默认 False ⇒ 下面整条 placebo 路径一次都不进。
+    "placebo": False,
+    "placebo_hold_p": 0.0,   # 该决策走 HOLD 的概率（P 臂 0；P2 臂 0.78 = 对齐亚军 78% HOLD）
+    "placebo_ms": [],        # 本地生成的墙钟（毫秒）—— 与 `ms`（oracle 查询）**分开记**，读数别混
+    "placebo_kinds": {},     # 生成结果直方图：hold / nolegal / build / upgrade / downgrade / lightning
 }
 
 
@@ -464,6 +590,79 @@ _ORACLE_B: dict = {
 }
 
 
+# ── 双 oracle 逐回合记录（2026-10-28；用户要求；**默认零日志**）──────────────────────────
+#   一句话：E4/E4R（= 冠军 + 亚军两个会话）每回合记一行 `[xor]`：
+#     · **冠亚军一致率** `agree`   —— 高 ⇒ 好动作集中（最优解唯一）；低 ⇒ 存在大量近似等价的好动作；
+#     · **都 HOLD** `both_hold`    —— 亚军 77.9% 是 HOLD，冠军也常在攒钱 ⇒ 预期很高；
+#     · **新信息占比** `champ_new` / `ru_new` —— 该动作**不在我们自己的网络候选集**里（= 真·增量）；
+#     · **我们更接近谁** `chosen_eq_champ` / `chosen_eq_ru` / `chosen_eq_neither`（含"两者不一致时"）。
+#   E2 只有一个会话（A=冠军）⇒ 同一行里 `ru=NA agree=NA dup_r=NA hit_r=NA`。
+#   默认（两个会话都没开）⇒ `_xor_log_round()` 第一行就 return，一个字节都不写。
+_XOR: dict = {
+    "rounds": 0, "agree": 0, "both_hold": 0, "disagree": 0,
+    "have_a": 0, "have_b": 0, "champ_hold": 0, "ru_hold": 0,
+    "champ_new": 0, "ru_new": 0, "champ_ops": 0, "ru_ops": 0,
+    "chosen_eq_champ": 0, "chosen_eq_ru": 0, "chosen_eq_neither": 0,
+    "eq_champ_when_disagree": 0,
+}
+
+# ── 候选分数差（2026-10-29；用户要求的「检验力诊断」；**默认零日志**）─────────────────────
+#   动机：E4（评估器从 2 个外部候选里挑）vs E4-rand（同样 2 个候选里随机挑）**只在"两个候选分数
+#   不同"的那些决策上才可能不同**；`agree=1`（冠亚军同一手）或 `both_hold` 的决策两臂**按构造
+#   完全一样**。不把这类决策剔掉，"E4≈E4-rand" 会被稀释成"评估器无用"的错误结论
+#   ⇒ 逐决策记下 `|Δscore|`，事后才能按分差分层比较、并报出"有效样本量"。
+_DS: dict = {"rounds": 0, "n2": 0, "n1": 0, "pick_hi": 0, "pick_lo": 0,
+             "pick_net": 0, "pick_na": 0, "ds": [], "dvn": [], "err": ""}
+
+
+def _xor_summary_text() -> str:
+    """`[xor-sum]` 一行（字段含义见上面 `_XOR` 的注释；百分比的分母都是 `rounds`）。"""
+    x = _XOR
+    n = max(1, int(x["rounds"]))
+
+    def _pc(k: str) -> str:
+        return f"{int(x[k])}({100.0 * int(x[k]) / n:.1f}%)"
+
+    txt = (f"rounds={int(x['rounds'])} agree={_pc('agree')} both_hold={_pc('both_hold')} "
+           f"disagree={int(x['disagree'])} champ_new={int(x['champ_new'])} "
+           f"ru_new={int(x['ru_new'])} chosen_eq_champ={int(x['chosen_eq_champ'])} "
+           f"chosen_eq_ru={int(x['chosen_eq_ru'])} "
+           f"chosen_eq_neither={int(x['chosen_eq_neither'])}")
+    if int(x["have_b"]):
+        txt += (f" eq_champ_when_disagree={int(x['eq_champ_when_disagree'])}/{int(x['disagree'])}"
+                f" champ_hold={_pc('champ_hold')} ru_hold={_pc('ru_hold')}"
+                f" champ_ops={int(x['champ_ops'])} ru_ops={int(x['ru_ops'])}")
+    return txt
+
+
+def _dscore_summary_text() -> str:
+    """`[dscore-sum]` 一行：分差分布 + 三个"有效样本量"分母（口径见 `_DS` 的注释）。
+
+    `d_*` = 两个额外候选在本评估器下的分数差 `|Δscore|` 的分位（只在 `n_extra≥2` 时才有值）；
+    `dvn_*` = 最佳额外候选 − 最佳网络候选（E2 单会话时这就是"注入 vs 我们自己候选"的差）；
+    `pick_hi/pick_lo` 的比例是**正向对照**：E4 应该 ≈ 全 hi（评估器按分数挑），
+    E4-rand 应该 ≈ 一半（随机挑）——两边都偏离就说明臂没按预期跑。
+    """
+    d = _DS
+    ds = sorted(float(v) for v in d["ds"])
+    dv = sorted(float(v) for v in d["dvn"])
+
+    def _q(xs: list, q: float) -> str:
+        if not xs:
+            return "NA"
+        i = min(len(xs) - 1, max(0, int(round(q * (len(xs) - 1)))))
+        return f"{xs[i]:+.4f}"
+
+    txt = (f"rounds={int(d['rounds'])} two_cand={int(d['n2'])} one_cand={int(d['n1'])} "
+           f"pick_hi={int(d['pick_hi'])} pick_lo={int(d['pick_lo'])} "
+           f"pick_net={int(d['pick_net'])} pick_na={int(d['pick_na'])} "
+           f"d_p25={_q(ds, 0.25)} d_med={_q(ds, 0.50)} d_p75={_q(ds, 0.75)} d_p90={_q(ds, 0.90)} "
+           f"dvn_p25={_q(dv, 0.25)} dvn_med={_q(dv, 0.50)} dvn_p75={_q(dv, 0.75)}")
+    if d.get("err"):
+        txt += f" err={d['err']}"
+    return txt
+
+
 def _oracle_b_stats_text() -> str:
     """B 会话的统计一行（默认零日志；只有 `AZAI_ORACLE_INJECT_B` 才用得上）。"""
     st = _ORACLE_B
@@ -504,6 +703,15 @@ def _upg_stats_text() -> str:
     if st.get("err"):
         txt += f" err={st['err']}"
     return txt
+
+
+def _inj_tag() -> str:
+    """注入日志的标签：`oracle`（真注入）/ `placebo`（安慰剂）。
+
+    默认（`AZAI_ORACLE_PLACEBO` 不设）返回 `oracle` ⇒ A 臂/基准臂的日志**逐字不变**
+    （`docs/oracle_inject_ab_20261028.md` 的读数口径可以继续跨版本比较）。
+    """
+    return "placebo" if _ORACLE.get("placebo") else "oracle"
 
 
 def _fmt_act(act) -> str:
@@ -568,6 +776,16 @@ def _oracle_stats_text() -> str:
             f"hit_new_rate={(100.0 * st['hit_new'] / max(1, st['new'])):.1f}%(hit_new/new) "
             f"hit_dup_rate={(100.0 * st['hit_dup'] / max(1, st['dup'])):.1f}%(hit_dup/dup) "
             f"hit_sel_rate={(100.0 * st['hit_sel'] / max(1, st['new'])):.1f}%(hit_sel/new)")
+    if st.get("placebo"):
+        # 安慰剂臂专有：HOLD 概率、本地生成耗时（**没有** oracle 查询 ⇒ 这个量级才是"注入成本"）
+        # 与生成结果直方图（hold/nolegal/四类 op 各多少）。
+        txt += f" hold_p={float(st.get('placebo_hold_p', 0.0)):g}"
+        _gm = st.get("placebo_ms") or []
+        if _gm:
+            txt += f" gen_ms_avg={sum(_gm) / len(_gm):.2f} gen_ms_max={max(_gm):.2f}"
+        _k = st.get("placebo_kinds") or {}
+        if _k:
+            txt += " kinds={" + ",".join(f"{k}:{int(_k[k])}" for k in sorted(_k)) + "}"
     if st["err"]:
         txt += f" err={st['err']}"
     return txt
@@ -582,6 +800,14 @@ def _oracle_close_module() -> None:
         except Exception:  # noqa: BLE001
             pass
         _ORACLE["obj"] = None
+    # 2026-10-28：B 会话（E4 双 oracle；默认 `off=True` ⇒ 这里什么都不做）
+    _ob2 = _ORACLE_B.get("obj")
+    if _ob2 is not None:
+        try:
+            _ob2.close()
+        except Exception:  # noqa: BLE001
+            pass
+        _ORACLE_B["obj"] = None
 
 
 def _report(*_args) -> None:
@@ -617,7 +843,20 @@ def _report(*_args) -> None:
         _log(f"决策耗时: n={len(_dt)} p50={_pct(_dt, 0.50):.2f}s p95={_pct(_dt, 0.95):.2f}s "
              f"max={max(_dt):.2f}s")
     if _ORACLE.get("asks"):
-        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
+        _log(f"[{_inj_tag()}] 注入统计: {_oracle_stats_text()}")
+    if _ORACLE_B.get("asks"):
+        # 2026-10-28：E4 的第二个会话（默认 0 ⇒ 不打）
+        _log(f"[oracle-b] 注入统计: {_oracle_b_stats_text()}")
+    if _XOR.get("rounds"):
+        # 2026-10-28：双 oracle 的收尾汇总（E4/E4R；E2 只有 A 侧）。默认 0 ⇒ 不打。
+        _log(f"[xor-sum] {_xor_summary_text()}")
+    if _DS.get("rounds"):
+        # 2026-10-29：候选分差汇总（E2/E4/E4R；默认 0 ⇒ 不打）
+        _log(f"[dscore-sum] {_dscore_summary_text()}")
+    if _ONLY.get("on"):
+        _log(f"[onlyextra] 统计: random={int(_ONLY['random'])} decided={_ONLY['decided']} "
+             f"ncand={_ONLY['ncand']} pick={_ONLY['pick']}"
+             + (f" err={_ONLY['err']}" if _ONLY.get("err") else ""))
     if _UPG.get("n", 0) > 0:
         # 2026-10-28：升级候选臂的收尾读数（每 50 决策还会周期打一次，防 bridge 硬杀丢掉）
         _log(f"[upg] 统计: {_upg_stats_text()}")
@@ -1036,6 +1275,37 @@ def main() -> int:
         #   仍能抓真死；同时 10s 也是**游戏规则的每步上限**（规则内口径的硬边界）。
         _ORACLE["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT", "10"))
         _ORACLE["off"] = True
+        # 2026-10-28：**安慰剂臂**（`AZAI_ORACLE_PLACEBO=1`，见 docs/placebo_inject_ab_20261028.md）
+        #   = 走**同一条**注入通道，但候选不由亚军给、本地随机抽一个合法 op（**不查 oracle、不起子进程**）。
+        #   `AZAI_ORACLE_PLACEBO_HOLD_P`（默认 0）是该决策走 HOLD 的概率：P 臂 0（每次都给一个非 HOLD op，
+        #   干预面最大 = "候选数效应"的上界检验），P2 臂 0.78（对齐亚军 78% 的 HOLD，比较"内容分布"）。
+        #   ⚠️ 两个环境变量都不设 ⇒ 下面这几行只是两次 `os.environ.get`，行为逐位不变。
+        try:
+            _ph_on = bool(int(_env("AZAI_ORACLE_PLACEBO", "0") or 0))
+        except ValueError:
+            _ph_on = False
+            _log(f"[placebo] ⚠️ AZAI_ORACLE_PLACEBO={_env('AZAI_ORACLE_PLACEBO', '')!r} 不是整数"
+                 f" ⇒ 按不启用处理")
+        try:
+            _ph_hold = float(_env("AZAI_ORACLE_PLACEBO_HOLD_P", "0") or 0)
+        except ValueError:
+            _ph_hold = 0.0
+        _ORACLE["placebo"] = _ph_on
+        _ORACLE["placebo_hold_p"] = min(1.0, max(0.0, _ph_hold))
+        if _ph_on:
+            if not hasattr(mcts, "set_extra_bundles"):
+                _ORACLE["placebo"] = False
+                _log(f"[placebo] ⚠️ {type(mcts).__name__} 没有额外候选通道（只有 flat/unified 有）"
+                     f" ⇒ 不启用安慰剂注入")
+                return
+            _ORACLE["off"] = True       # 明确：**不查 oracle**（obj 保持 None）
+            _ORACLE["obj"] = None
+            if exe:
+                _log(f"[placebo] ⚠️ AZAI_ORACLE_INJECT 也非空 ⇒ 本局**按安慰剂臂跑**（不查 oracle）")
+            _log(f"[placebo] 安慰剂注入已启用: seed={seed} player={player} "
+                 f"FLAT_SEED={_env('AZAI_FLAT_SEED', '0')} hold_p={_ORACLE['placebo_hold_p']:g} "
+                 f"（候选 = 本地随机**合法** op；不查询 oracle ⇒ 无 ~0.8s 等待）")
+            return
         if not exe:
             _log("[oracle] AZAI_ORACLE_INJECT 为空 ⇒ 不启用候选注入（零开销）")
             return
@@ -1080,6 +1350,46 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001
             _log(f"[oracle] ⚠️ 登记对手操作块失败（忽略，按空过处理）: {type(exc).__name__}: {exc}")
 
+    def _placebo_step() -> None:
+        """安慰剂臂的注入步骤：**不查 oracle**，本地生成 1 个合法候选（统计/日志与 A 臂同构）。
+
+        * 尾部那 7 行是 `_oracle_step()` 尾部的**逐字复制**（故意不抽公共函数）：
+          A 臂（亚军注入）的代码路径**一行都不动**，历史 A/B（81.2%）读数才继续成立；
+        * 生成失败一律吞掉：本回合不注入、决策照常（与 A 臂同一条纪律）。
+        """
+        st = _ORACLE
+        st["asks"] += 1
+        _t0 = time.monotonic()
+        try:
+            _bundle, _kind = _placebo_bundle(facade, int(player),
+                                             int(STATS.get("dec_n", 0)),
+                                             int(_env("AZAI_FLAT_SEED", "0") or 0),
+                                             float(st["placebo_hold_p"]))
+        except Exception as exc:  # noqa: BLE001
+            st["dead"] += 1
+            st["err"] = f"{type(exc).__name__}: {exc}"
+            st["last_bundle"] = None
+            if hasattr(mcts, "set_extra_bundles"):
+                mcts.set_extra_bundles(None)
+            _log(f"[placebo] ⚠️ 第 {facade.round_index} 回合生成失败 ⇒ 本回合不注入"
+                 f"（决策照常）: {st['err']}")
+            return
+        st["placebo_ms"].append((time.monotonic() - _t0) * 1000.0)
+        st["ok"] += 1
+        st["placebo_kinds"][_kind] = int(st["placebo_kinds"].get(_kind, 0)) + 1
+        st["checked"] += len(_bundle)     # 口径同 A 臂：注入通道**逐条 can_apply 复核过**的 op 数
+        if int(_env("AZAI_PLACEBO_VERBOSE", "0")):
+            _log(f"[placebo] r{facade.round_index} n={STATS.get('dec_n')} -> "
+                 f"{_bundle} ({_kind})")
+        st["inject"] += 1
+        st["pending"] = True
+        st["last_bundle"] = _bundle
+        # 与 `_oracle_step` 尾部逐字相同（见上面 docstring 第 1 条：故意复制）
+        st["round_log"] = {"round": int(facade.round_index), "action": tuple(_bundle)}
+        st["round_new"] = None
+        st["round_dup"] = None
+        mcts.set_extra_bundles([_bundle])        # ← 同一条注入通道（HOLD = 空 bundle `()`）
+
     def _oracle_step() -> None:
         """每回合**必做一次** ask（保持会话同步），把它的 ops 变成一个额外候选交给搜索。
 
@@ -1087,6 +1397,11 @@ def main() -> int:
         """
         st = _ORACLE
         st["pending"] = False
+        # 2026-10-28：安慰剂臂 —— 走同一条通道，但候选由**本地**生成（不查 oracle、不起子进程）。
+        #   默认 placebo=False ⇒ 这一支直接跳过，下面的代码与改动前逐字相同。
+        if st["placebo"]:
+            _placebo_step()
+            return
         if st["off"] or st["obj"] is None:
             return
         st["asks"] += 1
@@ -1144,7 +1459,10 @@ def main() -> int:
     def _oracle_after_search() -> None:
         """搜索结束：统计「去重后真正加进去几个」+「是不是选中了它」。"""
         st = _ORACLE
-        if st["off"] or not st["pending"]:
+        # 2026-10-28：守卫从 `st["off"] or not st["pending"]` 改成只看 `pending` —— **行为等价**：
+        #   `off=True`（默认/安慰剂臂）时 `pending` 只在安慰剂分支里被置 True，A 臂（off=False）不受影响。
+        #   原来那句 `st["off"]` 会让安慰剂臂永远跳过这里（new/dup/hit 全为 0）。
+        if not st["pending"]:
             return
         st["pending"] = False
         added = int(getattr(mcts, "last_extra", 0) or 0)
@@ -1164,7 +1482,8 @@ def main() -> int:
             st["hit_sel"] += 1                   # 老口径（= 改动前的 `hit`，跨版本可比）
             _ls = getattr(mcts, "last_scores", None)
             _n = int(len(_ls)) if _ls is not None else 0   # ⚠️ 不能写 `_ls or []`（ndarray 真值歧义）
-            _log(f"[oracle] 🎯 注入命中: round={facade.round_index} 亚军候选 {st['last_bundle']} "
+            _log(f"[{_inj_tag()}] 🎯 注入命中: round={facade.round_index} "
+                 f"{'安慰剂' if st['placebo'] else '亚军'}候选 {st['last_bundle']} "
                  f"被搜索选中（本决策共 {_n} 个候选，其中额外 1 个）")
 
     def _oracle_log_round(final_ops) -> None:
@@ -1179,7 +1498,9 @@ def main() -> int:
           `new=1` = 它是**新增候选**；搜索没跑（`AZAI_FORCE_UPG` 早退）时两者为 `NA`；
         * `hit = int(chosen == action)`（**动作一致率**的分子）。
 
-        整行只在 `AZAI_ORACLE_INJECT` 非空、且本回合**真的注入了候选**时出现 ⇒ 默认零日志。
+        整行只在 `AZAI_ORACLE_INJECT` / `AZAI_ORACLE_PLACEBO` 非空、且本回合**真的注入了候选**时出现
+        ⇒ 默认零日志。标签随 `_inj_tag()` 变（`[oracle]` / `[placebo]`），字段与格式**逐字相同**
+        ⇒ 两个臂的注入统计可以用同一个解析器读。
         """
         st = _ORACLE
         info = st.get("round_log")
@@ -1200,13 +1521,386 @@ def main() -> int:
         def _b(x) -> str:
             return "NA" if x is None else str(int(x))
 
-        _log(f"[oracle] inject round={info['round']} action={_fmt_act(act)} "
+        _log(f"[{_inj_tag()}] inject round={info['round']} action={_fmt_act(act)} "
              f"dup={_b(is_dup)} new={_b(is_new)} chosen={_fmt_act(chosen)} hit={same}")
 
     def _oracle_close() -> None:
         _oracle_close_module()
 
     _oracle_init()
+
+    # ── E4：双 oracle（B 会话）+ only-extra 候选集（2026-10-28；**默认全关**）────────────
+    #   设计见本文件头 `_ORACLE_B` / `_ONLY` 的定义处与 `docs/us_vs_champion_20261028.md` §5。
+    #   默认（`AZAI_ORACLE_INJECT_B` 空、`AZAI_ONLY_EXTRA*` 不设）⇒ 下面这些函数一个都不会被调用，
+    #   唯一多出来的开销是 `decide()` 里的一个 `if _ORACLE_B["off"]`（恒 True）。
+    def _oracle_b_init() -> None:
+        """按 `AZAI_ORACLE_INJECT_B` 决定要不要开第二个会话。**默认空 = 什么都不做。**"""
+        exe = _env("AZAI_ORACLE_INJECT_B", "").strip()
+        if not exe:
+            return
+        st = _ORACLE_B
+        st["seed"], st["player"] = int(seed), int(player)
+        try:
+            st["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT_B", _env("AZAI_ORACLE_TIMEOUT", "20")))
+        except ValueError:
+            st["timeout"] = 20.0
+        st["off"] = True
+        if not hasattr(mcts, "set_extra_bundles"):
+            _log("[oracle-b] ⚠️ 搜索器没有额外候选通道（只有 flat/unified 有）⇒ 不启用 B 会话")
+            return
+        try:
+            _exe = Path(exe)
+            if not _exe.is_absolute():
+                # ⚠️ 与 A 会话同一条纪律：`/d/...` 形态会让 `is_absolute()` 判 False
+                #    ⇒ 拼成 `<repo>/d/...` ⇒ Popen FileNotFoundError ⇒ **静默不启用**。
+                _exe = (Path(MVS.REPO_ROOT) / _exe).resolve()
+            _spec = importlib.util.spec_from_file_location(
+                "runnerup_oracle_for_azai_b", _HERE / "runnerup_oracle.py")
+            _mod = importlib.util.module_from_spec(_spec)
+            assert _spec.loader is not None
+            _spec.loader.exec_module(_mod)
+            # ⚠️ 显式给 stderr 路径：默认名只含 (seed, player, pid)，A/B 两会话会撞同一个文件
+            _stderr = (Path(MVS.REPO_ROOT) / "match_results" / "oracle_logs"
+                       / f"oracle_b_seed{int(seed)}_p{int(player)}_{os.getpid()}.stderr.log")
+            st["obj"] = _mod.RunnerUpOracle(
+                seed=int(seed), player=int(player), exe=str(_exe),
+                timeout=float(st["timeout"]), stderr_path=_stderr,
+                verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+            st["exe"] = str(_exe)
+            st["off"] = False
+            _log(f"[oracle-b] B 会话已启用（E4 的第二条外部动作）: exe={_exe} seed={seed} "
+                 f"player={player} timeout={st['timeout']:g}s stderr={_stderr}")
+        except Exception as exc:  # noqa: BLE001
+            st["off"] = True
+            st["obj"] = None
+            st["err"] = f"{type(exc).__name__}: {exc}"
+            _log(f"[oracle-b] ⚠️ 启用失败 ⇒ 本局没有 B 动作（A 会话/决策照常，绝不影响对局）: {st['err']}")
+
+    def _oracle_bundle_b(ops):
+        """B 会话回的操作 → bundle；**有一条非法 ⇒ None**（口径与 A 的 `_oracle_bundle` 相同）。
+
+        故意**复制**而不是给 `_oracle_bundle` 加参数：A 臂（亚军注入，81.2% 那批）走的代码
+        路径必须逐字不变，历史读数才继续可比。
+        """
+        accepted: list = []
+        for op in ops:
+            try:
+                ok = bool(facade.can_apply_operation(int(player), op, pending=accepted))
+            except Exception as exc:  # noqa: BLE001
+                _log(f"[oracle-b] ⚠️ can_apply_operation 抛异常（按非法处理）: "
+                     f"{type(exc).__name__}: {exc}")
+                ok = False
+            if not ok:
+                _log(f"[oracle-b] ⚠️ 第 {facade.round_index} 回合 B 给的 op 非法 ⇒ **整条候选丢弃**："
+                     f"{(int(op.op_type), int(op.arg0), int(op.arg1))}")
+                return None
+            accepted.append(op)
+        _ORACLE_B["checked"] += len(ops)
+        return tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in accepted)
+
+    def _oracle_b_ask():
+        """问 B 会话一次（每回合**必问一次**，跳回合会让它读端永久错位）。失败 ⇒ None。"""
+        st = _ORACLE_B
+        if st["off"] or st["obj"] is None:
+            return None
+        st["asks"] += 1
+        _opp = st["pending_opp"]
+        st["pending_opp"] = None        # 一回合一次，绝不复用上一回合的块
+        t0 = time.monotonic()
+        try:
+            if int(player) == 1:
+                ops = st["obj"].ask(facade, opponent_ops=_opp)
+            else:
+                ops = st["obj"].ask(facade)
+        except Exception as exc:  # noqa: BLE001
+            _dt = (time.monotonic() - t0) * 1000.0
+            st["ms"].append(_dt)
+            name = type(exc).__name__
+            if "Timeout" in name:
+                st["timeouts"] += 1
+            else:
+                st["dead"] += 1
+            st["err"] = f"{name}: {exc}"
+            try:
+                st["obj"].close()
+            except Exception:  # noqa: BLE001
+                pass
+            st["obj"] = None
+            _log(f"[oracle-b] ⚠️ 第 {facade.round_index} 回合 B 查询失败（{_dt:.0f}ms）"
+                 f"⇒ **本局停用 B 会话**，决策照常: {name}: {exc}")
+            return None
+        dt_ms = (time.monotonic() - t0) * 1000.0
+        st["ms"].append(dt_ms)
+        st["ok"] += 1
+        if int(_env("AZAI_ORACLE_VERBOSE", "0")):
+            _log(f"[oracle-b] r{facade.round_index} {dt_ms:.0f}ms -> "
+                 f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")
+        bundle = _oracle_bundle_b(ops)
+        if bundle is None:
+            st["illegal"] += 1
+            st["last_bundle"] = None
+            return None
+        st["last_bundle"] = bundle
+        st["round_log"] = {"round": int(facade.round_index), "action": tuple(bundle)}
+        return bundle
+
+    def _oracle_b_step() -> None:
+        """搜索**前**：A 走原路径、B 紧随其后，两条外部动作**一起**写进额外候选通道。
+
+        与 `_oracle_step()` 的关系：A 的那次 `set_extra_bundles([bundle])` 已经写完，
+        这里**覆盖**成 `[A 的动作, B 的动作]`（只多一次 set 调用，A 的查询/统计/日志都不动）。
+        """
+        _oracle_step()                     # ← 原路径（未启用 = no-op）
+        b = _oracle_b_ask()
+        if b is None:
+            return                         # B 未启用 / 失败 ⇒ 保留 A 写进通道的那份
+        base: list = []
+        if (not _ORACLE["off"]) and _ORACLE.get("pending") and _ORACLE.get("last_bundle") is not None:
+            base.append(tuple(_ORACLE["last_bundle"]))
+        base.append(tuple(b))
+        _ORACLE_B["inject"] += 1
+        mcts.set_extra_bundles(base)
+
+    def _oracle_b_set_opp(round_index: int, ops) -> None:
+        """把「对手本回合的操作块」也登记给 B（与 A 的 `_oracle_set_opp` 同语义）。"""
+        st = _ORACLE_B
+        if st["off"] or st["obj"] is None:
+            return
+        try:
+            st["obj"].set_opponent_ops(int(round_index), list(ops))
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[oracle-b] ⚠️ 登记对手操作块失败（忽略，按空过处理）: {type(exc).__name__}: {exc}")
+
+    def _oracle_b_log_round(final_ops) -> None:
+        """每决策一条 B 的明细（格式与 A 的 `inject round=` 同构；默认零日志）。"""
+        st = _ORACLE_B
+        info = st.get("round_log")
+        if not info:
+            return
+        st["round_log"] = None
+        chosen = tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in (final_ops or ()))
+        same = int(chosen == info["action"])
+        if same:
+            st["hit"] += 1
+        _log(f"[oracle-b] inject round={info['round']} action={_fmt_act(info['action'])} "
+             f"chosen={_fmt_act(chosen)} hit={same}")
+
+    def _xor_log_round(final_ops) -> None:
+        """`[xor]` 双 oracle 逐回合记录（E4/E4R；E2 只有 A ⇒ B 侧全 `NA`）。**默认零日志**。
+
+        ⚠️ **必须在 `_oracle_log_round()` / `_oracle_b_log_round()` 之前调用**：它只**读**
+        两个会话的 `round_log`（那两行会把它们置 None），因此 A/B 的日志与行为一个字节都不变。
+        `dup_c` / `dup_r` 的口径 = 该动作**是否已在网络候选集里**（`mcts.last_root.bundles`）：
+        `1` = 我们本来就有（不带来新信息），`0` = 真·增量。
+        """
+        a_info = _ORACLE.get("round_log")
+        b_info = _ORACLE_B.get("round_log")
+        if a_info is None and b_info is None:
+            return
+        a = tuple(tuple(int(x) for x in op) for op in (a_info["action"] if a_info else ()))
+        b = tuple(tuple(int(x) for x in op) for op in (b_info["action"] if b_info else ()))
+        chosen = tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in (final_ops or ()))
+        rnd = int((a_info or b_info).get("round", 0))
+        try:
+            _root = getattr(mcts, "last_root", None)
+            net = {tuple(tuple(int(x) for x in op) for op in k)
+                   for k in (getattr(_root, "bundles", None) or ())}
+        except Exception:  # noqa: BLE001
+            net = set()
+        has_a, has_b = a_info is not None, b_info is not None
+        x = _XOR
+        x["rounds"] += 1
+        x["have_a"] += int(has_a)
+        x["have_b"] += int(has_b)
+        if has_a:
+            x["champ_hold"] += int(a == ())
+            x["champ_ops"] += len(a)
+            x["champ_new"] += int(a not in net)
+            x["chosen_eq_champ"] += int(chosen == a)
+        if has_b:
+            x["ru_hold"] += int(b == ())
+            x["ru_ops"] += len(b)
+            x["ru_new"] += int(b not in net)
+            x["chosen_eq_ru"] += int(chosen == b)
+        if has_a and has_b:
+            _agree = int(a == b)
+            x["agree"] += _agree
+            x["both_hold"] += int(a == () and b == ())
+            if not _agree:
+                x["disagree"] += 1
+                x["eq_champ_when_disagree"] += int(chosen == a)
+        elif has_a:
+            # E2（单会话）：把 agree 记成 NA，不污染分母
+            pass
+        if has_a and has_b:
+            x["chosen_eq_neither"] += int(chosen != a and chosen != b)
+        elif has_a:
+            x["chosen_eq_neither"] += int(chosen != a)
+
+        def _b3(v) -> str:
+            # ⚠️ 只有"该会话本回合没有动作"才是 NA；`0` 是**有效读数**（= 不在网络候选里 = 新信息）
+            return "NA" if v is None else str(int(v))
+
+        _log(f"[xor] round={rnd} champ={_fmt_act(a) if has_a else 'NA'} "
+             f"ru={_fmt_act(b) if has_b else 'NA'} "
+             f"agree={_b3(int(a == b) if (has_a and has_b) else None)} "
+             f"dup_c={_b3(int(a in net) if has_a else None)} "
+             f"dup_r={_b3(int(b in net) if has_b else None)} "
+             f"chosen={_fmt_act(chosen)} "
+             f"hit_c={_b3(int(chosen == a) if has_a else None)} "
+             f"hit_r={_b3(int(chosen == b) if has_b else None)}")
+
+    def _dscore_log_round(final_ops) -> None:
+        """`[dscore]` 逐决策记录**两个额外候选在本评估器下的分数差**（2026-10-29；用户要求）。
+
+        ⚠️ 它**只读**（`mcts.last_scores` / `mcts.last_root.bundles` / `mcts.last_extra`），
+        不改任何决策；默认（没有额外候选）第一行就 return ⇒ **零日志、零影响**。
+
+        口径（与 `flat_rollout_greedy.search()` 的数组对齐关系一致）：
+          * `last_scores[i]` 对**搜索结果的** `bundles[i]`：**网络候选在前**，额外候选追加在**末尾**；
+            `only_extra` 时网络候选一个都不进 ⇒ `n_net=0`，`bundles` 全是额外候选。
+          * ⚠️ **不能**用 `mcts.last_root.bundles` 当候选表：那是 MCTS 根的网络候选（`K` 条、
+            不含 HOLD），与 `last_scores` **不对齐**（2026-10-29 第一版就踩了这个，读数全是
+            `d=NA pick=na`）。额外候选的唯一可靠来源是喂给通道的 `mcts.extra_bundles`，
+            去重规则与 `flat_rollout_greedy._collect_extras()` 逐字一致（按顺序去重、保留 HOLD）。
+          * `d`   = 两个额外候选的 `|Δscore|`（`n_extra≥2` 才有；`HOLD` 也是一个候选）；
+          * `dvn` = `max(额外候选分) − max(网络候选分)` —— E2（单会话）时这就是
+            "注入候选 vs 我们自己候选"的分数差（父任务要求的口径）；
+          * `pick` = 我们**最终发出去**的那一手落在 `hi`（额外候选里分最高的）/`lo`/`net`（网络候选）
+            /`na`。E4 应≈全 `hi`（评估器按分数挑），E4-rand 应≈一半 `hi` ⇒ **臂是否真的不同**的正向对照。
+        """
+        if _ORACLE.get("off", True) and _ORACLE_B.get("off", True):
+            return                       # 两个会话都关 ⇒ 不可能有额外候选（默认路径）
+        try:
+            n_extra = int(getattr(mcts, "last_extra", 0) or 0)
+            _ls = getattr(mcts, "last_scores", None)
+            if n_extra <= 0 or _ls is None or len(_ls) < n_extra:
+                return
+            # 额外候选 = 通道里那串（按顺序去重，与 `_collect_extras` 同规则）
+            ext, _seen = [], set()
+            for b in (getattr(mcts, "extra_bundles", None) or ()):
+                k = tuple(tuple(int(x) for x in op) for op in (b or ()))
+                if k in _seen:
+                    continue
+                _seen.add(k)
+                ext.append(k)
+            if len(ext) < n_extra:        # 通道被清过/不一致 ⇒ 宁可不记，也不记错的
+                return
+            ext = ext[:n_extra]
+            # 网络候选集合（只用来判 `pick=net` 的归属；`last_root.bundles` 就是那份 K 条网络束）
+            _root = getattr(mcts, "last_root", None)
+            _seen_net = {tuple(tuple(int(x) for x in op) for op in (b or ()))
+                         for b in (getattr(_root, "bundles", None) or ())}
+            only_extra = bool(getattr(mcts, "only_extra", False))
+            n_net = 0 if only_extra else max(0, len(_ls) - n_extra)
+            ext_s = [float(_ls[i]) for i in range(n_net, n_net + n_extra)]
+            net_s = [float(_ls[i]) for i in range(n_net)]
+            chosen = tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in (final_ops or ()))
+            d = _DS
+            d["rounds"] += 1
+            dd = None
+            pick = "only1"
+            if n_extra >= 2:
+                d["n2"] += 1
+                dd = max(ext_s) - min(ext_s)
+                d["ds"].append(dd)
+                hi = max(range(len(ext_s)), key=lambda i: ext_s[i])
+                if chosen == ext[hi]:
+                    d["pick_hi"] += 1
+                    pick = "hi"
+                elif chosen in {ext[j] for j in range(len(ext)) if j != hi}:
+                    d["pick_lo"] += 1
+                    pick = "lo"
+                elif chosen in _seen_net:
+                    d["pick_net"] += 1
+                    pick = "net"
+                else:
+                    d["pick_na"] += 1
+                    pick = "na"
+            else:
+                d["n1"] += 1
+                # 只有一个候选 ⇒ 没有"选哪个"的问题（两臂按构造相同）⇒ `pick` 记 `only1`，
+                # **不**算进 pick_hi/pick_lo（否则 `pick_hi/n2` 这个正向对照会被 n1 撑爆）。
+                pick = "only1"
+            dvn = (max(ext_s) - max(net_s)) if net_s else None
+            if dvn is not None:
+                d["dvn"].append(dvn)
+            _d_txt = "NA" if dd is None else "%.4f" % dd
+            _dvn_txt = "NA" if dvn is None else "%+.4f" % dvn
+            _s_txt = ", ".join("%+.4f" % v for v in ext_s)
+            _net_txt = "NA" if not net_s else "%+.4f" % max(net_s)
+            _log(f"[dscore] round={int(facade.round_index)} n_extra={n_extra} n_net={n_net} "
+                 f"d={_d_txt} dvn={_dvn_txt} pick={pick} s_extra=[{_s_txt}] s_netmax={_net_txt}")
+        except Exception as exc:  # noqa: BLE001
+            _DS["err"] = f"{type(exc).__name__}: {exc}"
+
+    def _only_extra_enable() -> None:
+        """读 `AZAI_ONLY_EXTRA` / `AZAI_ONLY_EXTRA_RANDOM`（**不设 = 0 = 关**）。"""
+        st = _ONLY
+        raw_on = _env("AZAI_ONLY_EXTRA", "0").strip()
+        raw_rd = _env("AZAI_ONLY_EXTRA_RANDOM", "0").strip()
+        on = raw_on not in ("", "0")
+        rd = raw_rd not in ("", "0")
+        if not (on or rd):
+            return
+        if not on:
+            # `AZAI_ONLY_EXTRA_RANDOM=1` **蕴含** only-extra（"同一候选集里随机挑一个"）
+            on = True
+            _log("[onlyextra] AZAI_ONLY_EXTRA_RANDOM=1 ⇒ 自动把 AZAI_ONLY_EXTRA 当 1（同一候选集）")
+        if not hasattr(mcts, "set_only_extra"):
+            _log(f"[onlyextra] ⚠️ {type(mcts).__name__} 不支持 only_extra（只有 flat 有）⇒ 不启用")
+            return
+        try:
+            st["seed"] = int(_env("AZAI_ONLY_EXTRA_SEED", _env("AZAI_FLAT_SEED", "0")) or 0)
+        except ValueError:
+            st["seed"] = 0
+        mcts.set_only_extra(True)
+        st["on"], st["random"] = True, bool(rd)
+        _log(f"[onlyextra] 候选集=**只保留**额外候选: seed={seed} player={player} "
+             f"random={int(rd)} rng_seed={st['seed']} search={type(mcts).__name__} "
+             f"K={getattr(mcts, 'k', '?')}（网络候选不进候选集；其余逻辑不变）")
+
+    def _only_extra_rng(dec_n: int):
+        """随机挑的随机流：`sha256("onlyextra|<seed>|<dec_n>")` ⇒ 与 rollout 种子**完全独立**、
+        同一 (seed, 决策序号) 恒得同一个 `Random` ⇒ 可复现（不依赖时间/哈希随机化）。"""
+        h = hashlib.sha256(f"onlyextra|{int(_ONLY['seed'])}|{int(dec_n)}".encode()).digest()
+        return random.Random(int.from_bytes(h[:8], "big"))
+
+    def _only_extra_pick(res):
+        """`AZAI_ONLY_EXTRA_RANDOM=1` ⇒ **不看分数**，在候选集里随机挑一个（默认原样返回）。
+
+        候选集 = 本决策写进通道的额外候选（= A/B 两条外部动作；HOLD 也是一个候选）。
+        只改 `chosen_bundle` / `chosen_index`，**不动** `last_scores`（诊断读数保留评估器的意见）。
+        """
+        if not _ONLY["random"]:
+            return res
+        try:
+            seen, cands = set(), []
+            for b in (getattr(mcts, "extra_bundles", None) or ()):
+                k = tuple(tuple(int(x) for x in op) for op in (b or ()))
+                if k in seen:
+                    continue
+                seen.add(k)
+                cands.append(k)
+        except Exception as exc:  # noqa: BLE001
+            _ONLY["err"] = f"{type(exc).__name__}: {exc}"
+            return res
+        if not cands:
+            return res
+        dec_n = int(STATS.get("dec_n", 0))
+        pick = cands[_only_extra_rng(dec_n).randrange(len(cands))]
+        _ONLY["decided"] += 1
+        _ONLY["ncand"][len(cands)] = int(_ONLY["ncand"].get(len(cands), 0)) + 1
+        _ONLY["pick"][repr(pick)] = int(_ONLY["pick"].get(repr(pick), 0)) + 1
+        try:
+            res.chosen_bundle = pick
+            res.chosen_index = list(res.bundles).index(pick)
+        except ValueError:
+            res.chosen_index = -1
+        _log(f"[onlyextra] 🎲 round={facade.round_index} n={dec_n} cands={len(cands)} "
+             f"picked={_fmt_act(pick)}（随机挑，不看评估器分数）")
+        return res
+
 
     # ── 升级候选进束（2026-10-28；`AZAI_UPG_BUNDLES=N`，**默认 0 = 完全关闭**）───────────
     #   背景（`docs/why_no_upgrade_20261028.md`）：现役配置下整束 48 个候选被钉在同一个类上
@@ -1433,7 +2127,13 @@ def main() -> int:
             STATS["_upg_probe_done"] = True
 
     def decide() -> list:
-        _oracle_step()   # 每回合**必做**：喂 oracle（保持会话同步）+ 把它的 ops 当额外候选注入
+        # 每回合**必做**：喂 oracle（保持会话同步）+ 把它的 ops 当额外候选注入。
+        # 2026-10-28：`AZAI_ORACLE_INJECT_B` 非空（E4）⇒ 走双会话那条（A 的动作原样保留）；
+        #   否则走**原来的** `_oracle_step()`（逐字不变，A 臂/基准臂的历史读数继续成立）。
+        if _ORACLE_B["off"]:
+            _oracle_step()
+        else:
+            _oracle_b_step()
         _probe_upgrade_once()
         # 🧪 强制升级实验（`AZAI_FORCE_UPG=1`）：只要有钱有塔，就**直接发 upgrade op**（不做搜索）
         #    目的：在**真实对局**里判定"我们发的升级 op 引擎到底认不认"（离线/克隆探针已证明不可靠）。
@@ -1465,6 +2165,9 @@ def main() -> int:
         from my_ai.az_intent.timing import T as _T
         with _T("search"):
             res = mcts.search(facade, player, temperature=temperature)
+        # 2026-10-28（E4R）：`AZAI_ONLY_EXTRA_RANDOM=1` 时**不看分数**随机挑一个候选；
+        #   默认（random=False）⇒ 原样返回，一个字节都不改。
+        res = _only_extra_pick(res)
         _oracle_after_search()   # 注入统计（去重后是否真的加进去 / 是否被选中）
         _upg_after_search(res)   # 升级候选：有没有被**同一个**评估器选中 + 实测预算
         # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
@@ -1599,7 +2302,16 @@ def main() -> int:
             # chosen=… hit=…`）。放在这里而不是 `decide()` 里面：这里的 `_ops` 是**最终真的发出去的**
             # 那串 op（已过执行层过滤/闸门），所以 `hit` 才是"我们改没改亚军那一手"。
             # ⚠️ 它**只读**、只在 `AZAI_ORACLE_INJECT` 非空且本回合真的注入时打 ⇒ 默认零日志零影响。
+            # 2026-10-28：**双 oracle 逐回合记录**（E4/E4R；E2 只有 A）。⚠️ 必须在下面两个
+            # `_oracle_*_log_round` **之前**：它只读 `round_log`，那两行会把它置 None。
+            # 默认（两个会话都没开）⇒ 第一行就 return，零日志零成本。
+            _xor_log_round(_ops)
+            # 2026-10-29：候选分数差（E2/E4/E4R；默认零日志）。放在 `_xor_log_round` 之后、
+            #   `_oracle_*_log_round` 之前/之后都行（它不读 `round_log`），这里紧跟 xor 便于对照。
+            _dscore_log_round(_ops)
             _oracle_log_round(_ops)
+            # 2026-10-28：B 会话（E4）的每决策明细；默认 `_ORACLE_B["round_log"]` 是 None ⇒ 零日志
+            _oracle_b_log_round(_ops)
             # 2026-10-28：出口数一下"最终真的发出去几个升级 op"（`AZAI_UPG_BUNDLES` 关时零成本）
             _upg_count_sent(_ops)
             # 2026-10-27：出口自检 —— 一处覆盖 decide() 的**所有** return 分支
@@ -1656,8 +2368,22 @@ def main() -> int:
                          f"dropped={STATS.get('filter_gate_dropped', 0)}"
                          f"（dropped = 整块丢弃 ⇒ 该回合 HOLD）")
                 # 2026-10-26：注入统计也要**对局中**周期打印（收尾报告常被 bridge 硬杀打断）
-                if _ORACLE["asks"] and _ORACLE["obj"] is not None:
-                    _log(f"[oracle] 注入累计: {_oracle_stats_text()}")
+                if _ORACLE["asks"] and (_ORACLE["obj"] is not None or _ORACLE["placebo"]):
+                    # ↑ 2026-10-28：安慰剂臂没有 oracle 对象（`obj is None`）但**有**注入读数
+                    #   ⇒ 条件里补 `or placebo`。默认/A 臂两者都为 False/True 时行为与改动前逐字相同。
+                    _log(f"[{_inj_tag()}] 注入累计: {_oracle_stats_text()}")
+                # 2026-10-28：B 会话（E4）的周期读数；默认 asks=0 ⇒ 不打
+                if _ORACLE_B["asks"]:
+                    _log(f"[oracle-b] 注入累计: {_oracle_b_stats_text()}")
+                if _ONLY["on"]:
+                    _log(f"[onlyextra] 累计: decided={_ONLY['decided']} ncand={_ONLY['ncand']} "
+                         f"pick={_ONLY['pick']}")
+                # 2026-10-28：双 oracle 的周期汇总（默认 rounds=0 ⇒ 不打；收尾那行常被 bridge 硬杀）
+                if _XOR["rounds"]:
+                    _log(f"[xor-sum] {_xor_summary_text()}")
+                # 2026-10-29：候选分差的周期汇总（同上；`[dscore-sum]` 的收尾行同样会被硬杀吃掉）
+                if _DS.get("rounds"):
+                    _log(f"[dscore-sum] {_dscore_summary_text()}")
             return _ops
 
         while not facade.terminal:
@@ -1671,6 +2397,7 @@ def main() -> int:
                 _apply(1, opp)
                 # P0：对手操作块的语义是「上一回合」（它先出招、后收对手行）⇒ 现在登记 round_index
                 _oracle_set_opp(facade.round_index, opp)
+                _oracle_b_set_opp(facade.round_index, opp)   # 2026-10-28：E4 的 B 会话（默认 no-op）
             else:
                 opp = io.recv_ops()
                 if opp is None:
@@ -1679,6 +2406,8 @@ def main() -> int:
                 # P1：本回合的对手操作块，`_oracle_step` 里 ask(opponent_ops=) 会用掉它
                 if not _ORACLE["off"]:
                     _ORACLE["pending_opp"] = ops_to_text(opp)
+                if not _ORACLE_B["off"]:      # 2026-10-28：E4 的 B 会话（默认 off ⇒ 不做任何事）
+                    _ORACLE_B["pending_opp"] = ops_to_text(opp)
                 self_ops = _decide_timed()
                 io.send_ops(self_ops)
                 _apply(1, self_ops)
@@ -1730,9 +2459,21 @@ def main() -> int:
     #    "结束"之后的行有概率被砍掉（实测：注入统计那行丢过一次）。
     if _ORACLE["asks"]:
         _dt_all = STATS["dec_times"]
-        _log(f"[oracle] 注入统计: {_oracle_stats_text()}")
+        _log(f"[{_inj_tag()}] 注入统计: {_oracle_stats_text()}")
         _log(f"决策耗时: n={len(_dt_all)} p50={_pct(_dt_all, 0.50):.2f}s "
              f"p95={_pct(_dt_all, 0.95):.2f}s max={max(_dt_all):.2f}s")
+    # 2026-10-28：B 会话 / only-extra 的收尾读数（默认各自为 0/False ⇒ 不打）
+    if _ORACLE_B["asks"]:
+        _log(f"[oracle-b] 注入统计: {_oracle_b_stats_text()}")
+    if _ONLY["on"]:
+        _log(f"[onlyextra] 统计: random={int(_ONLY['random'])} decided={_ONLY['decided']} "
+             f"ncand={_ONLY['ncand']} pick={_ONLY['pick']}"
+             + (f" err={_ONLY['err']}" if _ONLY.get("err") else ""))
+    if _XOR.get("rounds"):
+        # 2026-10-29：收尾的 xor 汇总（debug 报告里常被 bridge 硬杀打断 ⇒ 命中率低但留底）
+        _log(f"[xor-sum] {_xor_summary_text()}")
+    if _DS.get("rounds"):
+        _log(f"[dscore-sum] {_dscore_summary_text()}")
     _oracle_close()
     # 2026-10-27：非法操作自检汇总（**本进程自己发出去的那一手**；裁判侧另有一份，见 bridge 的
     # `illegal-summary`）。这里用 `illegal_total=` 措辞、且不加前缀大写 ILLEGAL。

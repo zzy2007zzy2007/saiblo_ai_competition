@@ -136,6 +136,12 @@ class FlatRolloutGreedy(BundleMCTS):
         self.extra_prior = 0.0         # 额外候选的 prior（只影响"全 NaN/全相等"的退化回退分支）
         self.last_extra = 0            # 本次决策**真正追加**的额外候选数（去重后）
         self.last_chosen_is_extra = False   # 选中的是不是额外候选（注入命中率靠它统计）
+        # 2026-10-28（E4；`AZAI_ONLY_EXTRA=1`，**默认 False = 改动前行为**）：
+        #   候选集**只保留**额外塞进来的 bundle（网络那 K 条被类轴 pinned 的候选不进候选集）。
+        #   动机：E4 要测"把冠军/亚军的动作原样当候选、由同一个评估器裁决"的上限
+        #   ⇒ 除了候选集，别的（预算公式/rollout/叶值网/选择规则）一个都不改。
+        #   由 `code/test_match/az_bridge_ai.py` 的 `set_only_extra(True)` 打开。
+        self.only_extra = False
         self.last_scores = None
         self.last_samples = None   # list[list[float]]：每候选每分支的分数（开关打开时记录）
         self.last_timing = {}
@@ -427,6 +433,15 @@ class FlatRolloutGreedy(BundleMCTS):
             out.append(tuple(tuple(int(x) for x in op) for op in (b or ())))
         self.extra_bundles = out
 
+    def set_only_extra(self, flag: bool = False) -> None:
+        """2026-10-28（E4；`AZAI_ONLY_EXTRA=1`）：候选集**只保留**额外候选。默认 `False`。
+
+        打开后 `search()` 里 `bundles = 额外候选`（网络候选不参与），`priors`/`intent_counts`
+        跟着对齐；预算公式、rollout、叶值网、选择规则（含全 NaN 时退回先验）**一律不变**。
+        关闭时 `search()` 走的是与改动前**逐字相同**的那几行（`probe_*_zero_impact` 口径）。
+        """
+        self.only_extra = bool(flag)
+
     def _collect_extras(self, extra_bundles, existing) -> list:
         """把调用方给的额外候选规整成 bundle 元组列表：**去重**（与已有候选、与彼此）+ 丢畸形项。
 
@@ -481,8 +496,18 @@ class FlatRolloutGreedy(BundleMCTS):
         #   追加在**末尾**：既有候选的下标/展开顺序/`_leaf_values` 批组成都不变
         #   ⇒ 不开注入时数值路径与改动前一致；开了也只有"末尾多几个候选"这一个变化。
         _extras_in = self.extra_bundles if extra_bundles is None else extra_bundles
-        _extras = self._collect_extras(_extras_in, bundles)
-        bundles.extend(_extras)
+        # 2026-10-28（E4）：`only_extra` ⇒ **候选集 = 只有额外候选**（绕过网络/类轴那一支）。
+        #   默认 False ⇒ 走的是与改动前**逐字相同**的两行（`_collect_extras(_, bundles)` +
+        #   `bundles.extend`），数值路径一个字节都不变。
+        #   ⚠️ only_extra 时额外候选只在**彼此之间**去重（不跟网络候选比），否则"冠军这一手刚好
+        #   也是网络候选"会被悄悄丢掉 —— 那样候选集就不再是"冠军动作 + 亚军动作"了。
+        _only_extra = bool(getattr(self, "only_extra", False))
+        _extras = self._collect_extras(_extras_in, [] if _only_extra else bundles)
+        if _only_extra:
+            bundles = list(_extras)
+            n_net = 0                     # 选中任何候选都算"额外候选"（命中统计口径）
+        else:
+            bundles.extend(_extras)
         self.last_extra = len(_extras)
         if not bundles:
             self.last_scores = np.zeros(0)
@@ -494,8 +519,12 @@ class FlatRolloutGreedy(BundleMCTS):
 
         _t_after_expand = _time.perf_counter()
         # priors 只用于「全 NaN / 全相等」的退化回退；额外候选没有网络先验 ⇒ 补 `extra_prior`。
-        priors = np.asarray([c.prior for c in root.children] + [self.extra_prior] * self.last_extra,
-                            dtype=np.float64)
+        # only_extra 时候选集里没有网络候选 ⇒ priors 只有额外候选那几项（长度必须与 bundles 对齐）。
+        if _only_extra:
+            priors = np.asarray([self.extra_prior] * self.last_extra, dtype=np.float64)
+        else:
+            priors = np.asarray([c.prior for c in root.children] + [self.extra_prior] * self.last_extra,
+                                dtype=np.float64)
 
         # 2026-10-23：随机出招 rollout 的上下文（**只在这里算一次**，rollout 内复用）
         _rctx = None
@@ -603,7 +632,7 @@ class FlatRolloutGreedy(BundleMCTS):
         policy = np.zeros(n_cand, dtype=np.float32)
         policy[best] = 1.0
         self.last_chosen_is_extra = bool(best >= n_net)
-        _ic = list(root.intent_counts)
+        _ic = [] if _only_extra else list(root.intent_counts)
         if self.last_extra:
             # 长度必须与 `bundles` 对齐（额外候选没有网络 intent 计数 ⇒ 补空字典）
             _ic = _ic + [[dict(), dict(), dict()] for _ in range(self.last_extra)]

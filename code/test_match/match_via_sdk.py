@@ -38,6 +38,50 @@ CHAMPION_EXE = (REPO_ROOT / "其他版本ai" / "ant-war2-magica-v3" / "magica_v3
 RUNNERUP_EXE = (REPO_ROOT / "其他版本ai" / "saiblo-30th-AI" / "Game1"
                 / "antgame_ai_cpp" / "cpp_lure_v4" / "build" / "ai_cpp_lure_v4.exe")
 
+
+def magica_env() -> dict[str, str]:
+    """magica（冠军）**专用**的启动环境：`PATH` 前置一个可用的 mingw DLL 目录 + 两个诊断变量。
+
+    为什么必须动 `PATH`（2026-10-28 实测，`docs/us_vs_champion_20261028.md` §2）：
+      * `magica_v3_O0.exe` 是 **mingw 动态链接**的，而它的目录里**一个 DLL 都没带**
+        （只有 exe + main.cpp + readme.md）⇒ Windows 加载器只能**沿 PATH** 找
+        `libstdc++-6.dll` / `libgcc_s_seh-1.dll` / `libwinpthread-1.dll`；
+      * 本机 PATH 里 **anaconda 的 mingw 目录**（`D:/anaconda3/Library/mingw-w64/bin`）排在
+        `C:/mingw64/bin` **前面**，那份 libstdc++ 与它的导入表不匹配 ⇒ 进程**刚起来就退出**，
+        退出码 `3221225785` = `0xC0000139`（STATUS_ENTRYPOINT_NOT_FOUND）；
+      * bridge 侧只看到 `EOFError` / `OSError [Errno 22]`（写一个已经死掉的 stdin），
+        极易被误读成"协议不对/它太慢"。
+    实测（`_tmp_mag_deps2.sh` 的三次试验）：干净 PATH、或把 `C:/mingw64/bin`（或亚军 build
+    目录那三份 DLL）放最前 ⇒ 正常输出 `[Magica] hello ... ReadInit 成功` 并进入协议。
+
+    ⚠️ 只改**这个子进程**的环境（调用方 `os.environ` 不动）：我们自己的进程跑 torch/pybind，
+    改全局 PATH 有把 `cpp_engine` 的 DLL 搜索顺序带偏的风险。
+    可用 `MVS_MAGICA_DLL_DIR` 显式指定（换机器时最省事）。
+    """
+    out: dict[str, str] = {
+        "ANTWAR_MAGICA_IO_TRACE": "1",
+        "ANTWAR_MAGICA_RUNTIME_ARTIFACT_DIR": r"e:\magica_runtime",
+    }
+    cands: list[Path] = []
+    _ov = os.environ.get("MVS_MAGICA_DLL_DIR", "").strip()
+    if _ov:
+        cands.append(Path(_ov))
+    cands.append(Path("C:/mingw64/bin"))
+    cands.append(RUNNERUP_EXE.parent)          # 亚军那三份 DLL 与它 ABI 相容（实测能起来）
+    for d in cands:
+        try:
+            if d.is_dir() and (d / "libstdc++-6.dll").is_file():
+                out["PATH"] = str(d) + os.pathsep + os.environ.get("PATH", "")
+                sys.stderr.write(f"[bridge] magica PATH 前置 {d}（避开 anaconda mingw 的 0xC0000139）\n")
+                sys.stderr.flush()
+                return out
+        except OSError:
+            continue
+    sys.stderr.write("[bridge] ⚠️ 没找到可用的 mingw DLL 目录 ⇒ magica 可能 0xC0000139 直接死\n")
+    sys.stderr.flush()
+    return out
+
+
 # 命令行 --ai0=/--ai1= 覆盖（默认 = 冠军/亚军）。用来跑任意两个 AI 的对局，
 # 例如阶梯计划的 A1（rule_v4 打自己）与 A2（rule_v4 打冠军/亚军）。
 AI0_EXE: Path | None = None
@@ -521,6 +565,11 @@ def start_ai(exe: Path, player: int, seed: int, stderr_path: Path, extra_env: di
     env = os.environ.copy()
     if extra_env:
         env.update(extra_env)
+    # 2026-10-28：magica 的启动要求（PATH 里的 mingw DLL）**集中在这里**，
+    #   这样**所有**调用点自动覆盖：真实对局（`run_match`）、注入会话（`runnerup_oracle`
+    #   也是用本函数起进程的）、以及任何探针。详见 `magica_env()` 的 docstring。
+    if "magica" in exe.name.lower():
+        env.update(magica_env())
     if exe.suffix == ".py":
         # 协议 AI 的 Python 壳：用 sys.executable 起，并把 Ant-Game 根放进 PYTHONPATH。
         # 抄自 code/test_match/run_cpp_ai_match.py:65-70（code/test_match/rv4_pkg/main.py
