@@ -13730,3 +13730,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261029_134638_always_hold_ab/output.log`
 - **result**: A (AZAI_ALWAYS_HOLD=1) 4W-12L = 25.0% [10.2,49.5], hp -13.44 [-22.54,-4.33]; B (关) 2W-14L = 12.5% [3.5,36.0], hp -18.44 [-26.41,-10.47]. 配对 +12.5pp, McNemar p=0.625, dHp +5.00 [-5.82,+15.82] => 预注册第 2 档 (HOLD 只是部分原因). HOLD 率 87.5% vs 75.7%, 降级占比 40.5% vs 46.0%; 26.8% 的回合候选里本来没有 HOLD, 补进去后 52.2% 的回合选了它. 零影响: 开关关时同 seed 与历史逐字节相同 (13/16 局).
+
+## 2026-10-29 16:59:26 — nonhold_inject_ab
+
+- **commit**: `affdc30` (dirty: 4 files)
+- **exit**: 0，用时 13174s
+- **cmd**:
+  ```bash
+  bash code/test_match/_nonhold_inject_ab.sh
+  ```
+- **output**: `training_history/runs/20261029_165926_nonhold_inject_ab/output.log`
+- **result**: 非HOLD 外部动作定价 A/B (每臂 24 局, seeds 7..18x2): A=ALWAYS_HOLD+注入(跳过HOLD) 11W-13L=45.8% [27.9,64.9], hp -0.04 [-7.78,+7.69]; B=ALWAYS_HOLD 4W-20L=16.7% [6.7,35.9], hp -14.62 [-20.88,-8.37]. 配对: 只A赢8/只B赢1, McNemar p=0.0391, dHp +14.58 [+6.88,+22.28], 符号检验 17正/6负/1平 p=0.0347 => 预注册第 1 档 (非HOLD外部动作有独立价值, +29.2pp). 剂量: inject(非HOLD)=1596/8180=19.5% of asks, 采纳 407/1596=25.5%; skipped_hold=6584. HOLD 率 84.1% vs 87.5%; 升级 126 vs 0; 降级每回合 0.102 vs 0.083; 两臂 24/24 engine, illegal=0. 零影响: SKIP_HOLD=0 时同 seed 与 INJECT_VS_RU_A 逐字节相同 (双方 512 回合 op 全同).

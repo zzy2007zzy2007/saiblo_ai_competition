@@ -76,14 +76,23 @@ case "$EXP" in
     E1)  TAG="${TAG:-US_VS_${OPP^^}_BASE}";      EXTRA="" ;;
     E2)  TAG="${TAG:-US_VS_${OPP^^}_INJ}"
          EXTRA=";AZAI_ORACLE_INJECT=$CHAMP;AZAI_ORACLE_TIMEOUT=20" ;;
+    # 2026-10-29：E3 = **注入亚军动作 vs 亚军**（父任务的"非 HOLD 外部动作定价"臂用）。
+    #   与 E2 的唯一差别 = 注入的是亚军本体（timeout=15，与历史 INJECT_VS_RU_A 一致）。
+    #   `AZAI_ORACLE_SKIP_HOLD`（默认 0）由外面的环境变量传进来（下面有回填）。
+    E3)  TAG="${TAG:-NONHOLD_VS_${OPP^^}}"
+         EXTRA=";AZAI_ORACLE_INJECT=$RU;AZAI_ORACLE_TIMEOUT=15" ;;
     E4)  TAG="${TAG:-ONLYEXTRA_VS_${OPP^^}}";    EXTRA="$E4_ENV" ;;
     E4R) TAG="${TAG:-ONLYEXTRA_RAND_VS_${OPP^^}}"
          EXTRA="$E4_ENV;AZAI_ONLY_EXTRA_RANDOM=1" ;;
-    *)   echo "[uvx] !! EXP=$EXP 不认识（E1|E2|E4|E4R）" >&2; exit 2 ;;
+    *)   echo "[uvx] !! EXP=$EXP 不认识（E1|E2|E3|E4|E4R）" >&2; exit 2 ;;
 esac
 # E2 的对手只能是冠军（"注入冠军动作 vs 冠军"）
 if [ "$EXP" = "E2" ] && [ "$OPP" != "champion" ]; then
     echo "[uvx] !! E2 的对手必须是冠军（注入的是冠军的动作）" >&2; exit 2
+fi
+# E3 的对手只能是亚军（"注入亚军动作 vs 亚军"）
+if [ "$EXP" = "E3" ] && [ "$OPP" != "runnerup" ]; then
+    echo "[uvx] !! E3 的对手必须是亚军（注入的是亚军的动作）" >&2; exit 2
 fi
 
 # stderr / 进度文件名加后缀：2026-10-28 机器上**同时**有别的实验在跑，而
@@ -100,6 +109,8 @@ _ORACLE_REBUILD_MAX_B="${AZAI_ORACLE_REBUILD_MAX_B:-}"
 _ORACLE_RESTART_EVERY_B="${AZAI_ORACLE_RESTART_EVERY_B:-}"
 # 2026-10-29：HOLD 恒为候选（消融臂 `AZAI_ALWAYS_HOLD=1`）—— 同样必须在这里抓住
 _ALWAYS_HOLD="${AZAI_ALWAYS_HOLD:-}"
+# 2026-10-29：oracle 给 HOLD 时不注入（默认 0 = 照旧）
+_ORACLE_SKIP_HOLD="${AZAI_ORACLE_SKIP_HOLD:-}"
 
 
 OUTROOT="match_results/us_vs_external"
@@ -292,7 +303,8 @@ for _kv in "AZAI_ORACLE_REBUILD_MAX=$_ORACLE_REBUILD_MAX" \
            "AZAI_ORACLE_RESTART_EVERY=$_ORACLE_RESTART_EVERY" \
            "AZAI_ORACLE_REBUILD_MAX_B=$_ORACLE_REBUILD_MAX_B" \
            "AZAI_ORACLE_RESTART_EVERY_B=$_ORACLE_RESTART_EVERY_B" \
-           "AZAI_ALWAYS_HOLD=$_ALWAYS_HOLD"; do
+           "AZAI_ALWAYS_HOLD=$_ALWAYS_HOLD" \
+           "AZAI_ORACLE_SKIP_HOLD=$_ORACLE_SKIP_HOLD"; do
     case "$_kv" in
         *=) ;;                                  # 值为空 ⇒ 不 export（用默认）
         *)  export "$_kv" ;;

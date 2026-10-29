@@ -533,6 +533,10 @@ _ORACLE: dict = {
     "restarts": 0,        # 主动重启次数
     "relabel_off": 0,     # 当前会话的"回合号偏移" = 该会话建立时的真回合号（回合号重标用）
     "hold": 0,            # 它给 `()` 的次数（= 空过）—— 判"会话是不是变成 HOLD 机器"的关键读数
+    # 2026-10-29（父任务）：`AZAI_ORACLE_SKIP_HOLD=1`（默认 0）⇒ oracle 给 HOLD 时**不注入**、
+    #   只计 `skipped_hold`。用途：给"**真外部动作**"定价——HOLD 的功劳已经由 `AZAI_ALWAYS_HOLD`
+    #   单独控制住（两臂都开），所以两臂之差 = 非 HOLD 外部动作的净价值。
+    "skip_hold": 0, "skipped_hold": 0,
     "ms": [],             # 每次 ask 的墙钟（毫秒）
     "pending_opp": None,  # P1 用：本回合的对手操作块原文
     "last_bundle": None,  # 上一回合注入的 bundle（命中日志用）
@@ -838,11 +842,16 @@ def _oracle_stats_text() -> str:
            f"timeout={st['timeouts']} dead={st['dead']}")
     # 2026-10-29：重建/重启/空过 三个读数（默认全 0 ⇒ 老批次那一行**逐字不变**）
     if int(st.get("rebuilds", 0)) or int(st.get("rebuild_fail", 0)) or int(st.get("restarts", 0)) \
-            or int(st.get("hold", 0)):
+            or int(st.get("hold", 0)) or int(st.get("skipped_hold", 0)):
         txt += (f" rebuild={int(st.get('rebuilds', 0))} rebuild_fail={int(st.get('rebuild_fail', 0))}"
                 f" restart={int(st.get('restarts', 0))} replay_rounds={int(st.get('replay_rounds', 0))}"
                 f" replay_s_max={float(st.get('replay_s_max', 0.0)):.1f}"
                 f" hold={int(st.get('hold', 0))}")
+    if int(st.get("skipped_hold", 0)):
+        # 2026-10-29：`AZAI_ORACLE_SKIP_HOLD=1` ⇒ 它给 HOLD 时**不注入**，只计数。
+        #   `injected_nonhold` = 真注入出去的（= 非 HOLD 动作），是这一臂的"剂量"。
+        txt += (f" skipped_hold={int(st['skipped_hold'])}"
+                f" injected_nonhold={int(st.get('inject', 0))}")
     if st["ms"]:
         txt += (f" avg_ms={sum(st['ms']) / len(st['ms']):.0f} p50_ms={_pct(st['ms'], 0.50):.0f} "
                 f"p95_ms={_pct(st['ms'], 0.95):.0f} max_ms={max(st['ms']):.0f}")
@@ -1500,6 +1509,12 @@ def main() -> int:
             _ORACLE["restart_every"] = max(0, int(_env("AZAI_ORACLE_RESTART_EVERY", "0") or 0))
         except ValueError:
             _ORACLE["restart_every"] = 0
+        # 2026-10-29：oracle 给 HOLD 时**不注入**（默认 0 = 照旧注入 HOLD）。
+        #   用途：给"真外部动作"定价（HOLD 的功劳由 `AZAI_ALWAYS_HOLD` 单独控制住）。
+        try:
+            _ORACLE["skip_hold"] = 1 if int(_env("AZAI_ORACLE_SKIP_HOLD", "0") or 0) else 0
+        except ValueError:
+            _ORACLE["skip_hold"] = 0
         _ORACLE["off"] = True
         # 2026-10-28：**安慰剂臂**（`AZAI_ORACLE_PLACEBO=1`，见 docs/placebo_inject_ab_20261028.md）
         #   = 走**同一条**注入通道，但候选不由亚军给、本地随机抽一个合法 op（**不查 oracle、不起子进程**）。
@@ -1693,6 +1708,18 @@ def main() -> int:
         st["ok"] += 1
         if not ops:
             st["hold"] += 1
+        # 2026-10-29（父任务）：`AZAI_ORACLE_SKIP_HOLD=1` ⇒ 它给 HOLD 时**不注入**，只计数。
+        #   为什么需要：冠军 oracle 恒给 `()`、亚军注入里 84.5% 也是 `()` ⇒ "注入有效"里 HOLD 的
+        #   功劳必须被单独控制住（两臂都开 `AZAI_ALWAYS_HOLD`），两臂之差才是"**非 HOLD 外部动作**"
+        #   的净价值。默认 0 ⇒ 与改动前逐字相同。
+        if (not ops) and int(st.get("skip_hold", 0)):
+            st["skipped_hold"] = int(st.get("skipped_hold", 0)) + 1
+            st["last_bundle"] = None
+            st["round_log"] = None
+            st["round_new"] = st["round_dup"] = None
+            if hasattr(mcts, "set_extra_bundles"):
+                mcts.set_extra_bundles(None)     # 让 `_ahold_step` 只留 HOLD 那一个候选
+            return
         if int(_env("AZAI_ORACLE_VERBOSE", "0")):
             _log(f"[oracle] r{facade.round_index} {dt_ms:.0f}ms -> "
                  f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")
@@ -1811,6 +1838,11 @@ def main() -> int:
                                                   _env("AZAI_ORACLE_RESTART_EVERY", "0")) or 0))
         except ValueError:
             st["restart_every"] = 0
+        try:
+            st["skip_hold"] = 1 if int(_env("AZAI_ORACLE_SKIP_HOLD_B",
+                                            _env("AZAI_ORACLE_SKIP_HOLD", "0")) or 0) else 0
+        except ValueError:
+            st["skip_hold"] = 0
         st["off"] = True
         if not hasattr(mcts, "set_extra_bundles"):
             _log("[oracle-b] ⚠️ 搜索器没有额外候选通道（只有 flat/unified 有）⇒ 不启用 B 会话")
@@ -1923,6 +1955,13 @@ def main() -> int:
         st["ok"] += 1
         if not ops:
             st["hold"] += 1
+        # 2026-10-29：B 会话也吃同一个开关（`AZAI_ORACLE_SKIP_HOLD`；默认 0 ⇒ 行为不变）。
+        #   E4 里 B = 亚军；本开关在 E4 上不要开（那里要的就是"两个外部候选"）。
+        if (not ops) and int(st.get("skip_hold", 0)):
+            st["skipped_hold"] = int(st.get("skipped_hold", 0)) + 1
+            st["last_bundle"] = None
+            st["round_log"] = None
+            return None
         if int(_env("AZAI_ORACLE_VERBOSE", "0")):
             _log(f"[oracle-b] r{facade.round_index} {dt_ms:.0f}ms -> "
                  f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")

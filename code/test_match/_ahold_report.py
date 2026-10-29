@@ -191,6 +191,36 @@ def main() -> int:
     else:
         P("（臂 A 的 stderr 里没有 `[ahold]` 行 —— 检查 `AZAI_ALWAYS_HOLD` 是否真的传进去了）")
 
+    P("\n## 5. 注入内容构成（父任务指标 3；A 臂 = 跳过 HOLD 后只剩非 HOLD）\n")
+    P("| 臂 | asks | 它给 HOLD | skipped_hold | **inject(非HOLD)** | new | dup | hit_new | **非HOLD采纳率** |")
+    P("|---|---|---|---|---|---|---|---|---|")
+    for tag in (args.tag_a, args.tag_b):
+        if tag not in arms:
+            continue
+        tot = {"asks": 0, "hold": 0, "skip": 0, "inject": 0, "new": 0, "dup": 0, "hit_new": 0}
+        n_with = 0
+        for g in arms[tag]["games"]:
+            st = ((g.get("stderr") or {}).get("inj_stats") or {})
+            if not st:
+                continue
+            n_with += 1
+            tot["asks"] += int(st.get("asks", 0))
+            tot["hold"] += int(st.get("hold", 0))
+            tot["skip"] += int(st.get("skipped_hold", 0))
+            tot["inject"] += int(st.get("inject", 0))
+            tot["new"] += int(st.get("new", 0))
+            tot["dup"] += int(st.get("dup", 0))
+            tot["hit_new"] += int(st.get("hit_new", 0))
+        if not n_with:
+            P(f"| {tag} | - | - | - | - | - | - | - | （没有注入，或 stderr 缺 `注入统计`） |")
+            continue
+        inj = max(1, tot["inject"])
+        P(f"| {tag} | {tot['asks']} | {tot['hold']} | {tot['skip']} | **{tot['inject']}** | "
+          f"{tot['new']} | {tot['dup']} | {tot['hit_new']} | "
+          f"**{100.0 * tot['hit_new'] / inj:.1f}%** ({tot['hit_new']}/{tot['inject']}) |")
+    P("\n> `injected_nonhold = inject`（跳掉 HOLD 后每次注入都是非 HOLD）；"
+      "**非HOLD采纳率 = hit_new / inject** —— 这是『真外部动作』的剂量-采纳读数。")
+
     P("\n## 4. 配对（A − B，同 token）\n")
     if args.tag_a in arms and args.tag_b in arms:
         pr = av.paired(arms[args.tag_a], arms[args.tag_b])
@@ -202,6 +232,15 @@ def main() -> int:
           f"{100.0 * (pr['delta_winrate'] or 0):+.1f}pp")
         P(f"- 配对血量差（A − B）= **{hp.get('mean', 0):+.2f}** "
           f"[{(hp.get('lo') or 0):+.2f}, {(hp.get('hi') or 0):+.2f}]（n={hp.get('n', 0)}）")
+        # 2026-10-29：**配对血量差的符号检验**（父任务要的"符号检验 p"；与 McNemar 不是同一个量：
+        #   McNemar 只看胜负翻转，符号检验看"逐 token Δhp 的正负号"）
+        _dh = [r["d_hp"] for r in pr["rows"] if r.get("d_hp") is not None]
+        _pos = sum(1 for x in _dh if x > 0)
+        _neg = sum(1 for x in _dh if x < 0)
+        _zero = len(_dh) - _pos - _neg
+        _sp = av.binom_two_sided(min(_pos, _neg), _pos + _neg) if (_pos + _neg) else 1.0
+        P(f"- 配对 Δhp 符号检验：正 {_pos} / 负 {_neg} / 平 {_zero} ⇒ "
+          f"**符号检验 p = {_sp:.4f}**（只看正负号，不看幅度）")
         P("\n逐 token：\n")
         P("| token | 座位 | A 胜 | B 胜 | A Δhp | B Δhp | Δhp(A−B) |")
         P("|---|---|---|---|---|---|---|")
