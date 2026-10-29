@@ -13664,3 +13664,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261029_075632_us_vs_champion_e1_resume/output.log`
 - **result**: **E1（我们 vs 冠军）16 局补完：1W-15L = 6.2%（Wilson [1.1, 28.3]），血量差 −22.62（t 95%CI [−28.68, −16.57]）；@P0 0/8（−22.50）、@P1 1/8（−22.75）**。16/16 verdict=engine、裁判侧 illegal=0、我方 illegal_total=0、冠军侧 stderr 16/16 留存；每局墙钟 31.6/40.0/46.9 min，整批 110.9 min。上一批 3 个 timeout 的真根因 = 整机进 Modern Standby 被冻 2h06m（Kernel-Power 506@00:10:48 → 507@02:16:47）。见 docs/us_vs_champion_20261029.md。
+
+## 2026-10-29 09:13:42 — us_vs_champion_e2
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 7150s
+- **cmd**:
+  ```bash
+  bash code/test_match/_e2_inject_vs_champion.sh
+  ```
+- **output**: `training_history/runs/20261029_091342_us_vs_champion_e2/output.log`
+- **result**: **E2（注入冠军动作 vs 冠军）16 局：4W-12L = 25.0%（Wilson [10.2, 49.5]），血量差 −17.44（t 95%CI [−24.91, −9.97]）；@P0 1/8（−25.25）、@P1 3/8（−9.62）**。与 E1 配对：McNemar p=0.375、配对 Δhp +5.19 [−14.50, +4.13] ⇒ 方向为正但不显著（预注册判据不满足）。16/16 verdict=engine、illegal=0、冠军侧 stderr 留存。**注入覆盖只有 54.4%**：冠军当 oracle 在第 ~250 回合因 runtime mismatch（coins 字段）→ apply_operations.called_after_terminal abort（exit 0xC0000409），14/16 局会话 dead；oracle 延迟 avg 92.5ms / p95 164.5ms / timeout=0；new-over-asks=31.7%、hit_new-over-new=43.1%。见 docs/us_vs_champion_20261029.md §4。

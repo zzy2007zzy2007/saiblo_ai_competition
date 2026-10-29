@@ -65,6 +65,18 @@ DS_RE = re.compile(r"\[dscore\] round=(\d+) n_extra=(\d+) n_net=(\d+) d=(\S+) dv
 DS_SUM_RE = re.compile(r"\[dscore-sum\] (.*)$")
 
 
+RESULT_ROUNDS_RE = re.compile(r"RESULT seed=\d+.*?rounds=(\d+)")
+
+
+def _rounds_of_log(logdir: Path, tok: str) -> int | None:
+    """从 ladder 日志读该局**引擎记的回合数**（覆盖度的分母）。缺日志 ⇒ None（不猜）。"""
+    f = logdir / f"{tok}.log"
+    if not f.is_file():
+        return None
+    m = RESULT_ROUNDS_RE.search(f.read_text(encoding="utf-8", errors="replace"))
+    return int(m.group(1)) if m else None
+
+
 def _q(xs: list, q: float) -> float | None:
     if not xs:
         return None
@@ -72,8 +84,36 @@ def _q(xs: list, q: float) -> float | None:
     return ys[min(len(ys) - 1, max(0, int(round(q * (len(ys) - 1)))))]
 
 
+def parse_injection(txt: str) -> dict:
+    """解析注入覆盖度（2026-10-29 新增，E2 必需）。
+
+    为什么必须报这个：`[oracle]` 会话**一次读包超时/进程崩掉就永久停用**（读端错位），
+    之后整局的注入静默消失 ⇒ 那一局变成"前半局 E2 + 后半局 E1"。
+    只看 `asks>0` 会把这种局当成有效局 ⇒ 必须报 **覆盖度 = asks / 本局回合数**。
+    典型证据：seed 7 那一局 `asks=261` 而 `rounds=512`、且
+    `dead=1 err=OracleDead: 亚军进程已退出 (exit code 3221226505)`。
+    """
+    out: dict = {"enabled": 0, "asks": None, "ok": None, "inject": None, "new": None,
+                 "dup": None, "dup_hold": None, "hit": None, "hit_new": None,
+                 "timeout": None, "dead": None, "illegal": None,
+                 "p50_ms": None, "p95_ms": None, "max_ms": None, "err": ""}
+    out["enabled"] = txt.count("注入已启用")
+    stats = re.findall(r"注入统计:\s*(.+)", txt)
+    if stats:
+        line = stats[-1]
+        for k in ("asks", "ok", "inject", "new", "dup", "dup_hold", "hit", "hit_new",
+                  "timeout", "dead", "illegal", "p50_ms", "p95_ms", "max_ms"):
+            m = re.search(r"(?<![\w_])" + k + r"=([-\d.]+)", line)
+            if m:
+                out[k] = float(m.group(1))
+        m = re.search(r"err=([^|]+)$", line)
+        if m:
+            out["err"] = m.group(1).strip()[:140]
+    return out
+
+
 def parse_dscore(txt: str) -> dict:
-    """解析 `[dscore]` 逐决策行 → 分差分布 + 三个"有效样本量"分母。
+    """解析 [dscore] 逐决策行 → 分差分布 + 三个「有效样本量」分母。
 
     返回：`n`（有记录决策数）、`n2`（两个额外候选 ⇒ 两臂**才可能**不同）、`n1`（只有一个候选
     ⇒ 两臂**按构造相同**）、`pick_hi/pick_lo/pick_net/pick_na`、`d_*` 与 `dvn_*` 的分位。
@@ -143,6 +183,7 @@ def parse_game(path: Path) -> dict:
         c["ru_hold"] += int(ru == "()")
     rec["recount"] = dict(c)
     rec["dscore"] = parse_dscore(txt)
+    rec["inj"] = parse_injection(txt)
     return rec
 
 
@@ -152,6 +193,8 @@ def main() -> int:
     ap.add_argument("--stderr", required=True, help="归档后的我方 stderr 目录")
     ap.add_argument("--tokens", nargs="*", default=[],
                     help="要解析的 token（默认 = 目录里所有 seed 7..14 × 两座位）")
+    ap.add_argument("--logdir", default="",
+                    help="ladder 日志目录（默认 = match_results/ladder_logs/<tag>；用于覆盖度的分母）")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
 
@@ -160,6 +203,7 @@ def main() -> int:
         print(f"!! 没有 stderr 目录 {sd}", file=sys.stderr)
         return 2
     tokens = args.tokens or [f"{s}{suf}" for s in range(7, 15) for suf in ("", "r")]
+    args.logdir = REPO / (args.logdir or f"match_results/ladder_logs/{args.tag}")
     out_dir = REPO / (args.out or f"match_results/xoracle/{args.tag}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -223,6 +267,42 @@ def main() -> int:
     if npct["agree"]:
         print(f"- 逐局 `agree` 的分布：min/med/max = "
               f"{min(npct['agree']):.1f}%/{statistics.median(npct['agree']):.1f}%/{max(npct['agree']):.1f}%")
+
+    # ── 注入覆盖度（2026-10-29；E2 的"有效样本"分母）──────────────────────────────
+    print("\n### 注入覆盖度（`注入统计` vs 本局回合数）\n")
+    print("| token | 回合数 | asks | 覆盖度 | inject | new | dup(HOLD) | hit | hit_new | timeout | dead | p50/p95/max ms |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for r in rows:
+        if r.get("missing"):
+            print(f"| {r['token']} | **缺 stderr** | - | - | - | - | - | - | - | - | - | - |")
+            continue
+        ij = r.get("inj") or {}
+        rnd = _rounds_of_log(args.logdir, r["token"])
+        asks = ij.get("asks")
+        cov = f"{100.0 * asks / rnd:.1f}%" if (asks and rnd) else "-"
+
+        def _i(k):
+            v = ij.get(k)
+            return "-" if v is None else str(int(v))
+        print(f"| {r['token']} | {rnd if rnd else '-'} | {_i('asks')} | **{cov}** | {_i('inject')} | "
+              f"{_i('new')} | {_i('dup')}({_i('dup_hold')}) | {_i('hit')} | {_i('hit_new')} | "
+              f"{_i('timeout')} | {_i('dead')} | "
+              f"{_i('p50_ms')}/{_i('p95_ms')}/{_i('max_ms')} |")
+        if ij.get("err"):
+            print(f"  - ⚠️ {r['token']} oracle 会话异常：`{ij['err']}`")
+    _covs = []
+    for r in rows:
+        ij = r.get("inj") or {}
+        rnd = _rounds_of_log(args.logdir, r["token"])
+        if ij.get("asks") and rnd:
+            _covs.append(100.0 * float(ij["asks"]) / rnd)
+    if _covs:
+        print(f"\n- 覆盖度 min/med/max = **{min(_covs):.1f}% / {statistics.median(_covs):.1f}% / "
+              f"{max(_covs):.1f}%**（<100% ⇒ 该局后半段退化成基线，读数字段要打折）")
+        _dead = sum(1 for r in rows if (r.get("inj") or {}).get("dead"))
+        _to = sum(1 for r in rows if (r.get("inj") or {}).get("timeout"))
+        print(f"- 会话 dead 的局：{_dead}/{len([r for r in rows if not r.get('missing')])}；"
+              f"有 timeout 的局：{_to}")
 
     # ── 检验力诊断（2026-10-29 用户要求）─────────────────────────────────────────
     #   "E4 ≈ E4-rand" 只有在**两候选真的不同**的决策上才可能是"评估器没用"的证据；
