@@ -1,13 +1,5 @@
 我(用户)是一个大二学生，自学过机器学习，但是没有过专业的训练，有些想法不一定对,或者有些想法可能是我自己想的野路子，如果有错可以纠正一下，或者说我的想法也不一定靠谱
-代码改完之后都用git保存一下
-
-**git 提交身份（重要）**：直接 `git commit`，**不要**用 `-c user.name=agent -c user.email=agent@local` 之类的方式覆盖作者——那样提交在 GitHub/远程上会显示成识别不出来的作者。用仓库已配置的身份（`zzy2007zzy2007 <263590731+zzy2007zzy2007@users.noreply.github.com>`）。需要标注"这次是 agent 做的"时，用 trailer 写在提交信息末尾：
-
-```bash
-git commit -m "<信息>" --trailer "Co-authored-by: dsh-agent <agent@local>"
-```
-
-（历史里已有的 `agent@local` / `dsh-agent@local` 提交**不需要清洗**，保持原样。）
+代码改完之后都用git保存一下, 直接 `git commit`，不要用 `-c user.name=agent -c user.email=agent@local` 之类的方式覆盖作者——那样提交在 GitHub/远程上会显示成识别不出来的作者。用仓库已配置的身份（`zzy2007zzy2007 <263590731+zzy2007zzy2007@users.noreply.github.com>`）。可以标注"这次是 agent 做的"，用 trailer 写在提交信息末尾：`git commit -m "<信息>" --trailer "Co-authored-by: dsh-agent <agent@local>"`
 电脑有 gpu,conda activate pytorch-gpu 激活环境就能用
 电脑cpu16核心，不要同时开多个多进程并行、总进程数大于16的多个程序。单个测试16进程可以。还有秉性数也别太少要不然太慢，8-12进程之间比较合适
 游戏规则在Ant-Game\README.md
