@@ -7,7 +7,8 @@
 **验证工件**：`_tmp_lr_env.sh`（公共 env）· `_tmp_lr_v1.sh` / `_tmp_lr_v2.sh` / `_tmp_lr_v3.sh` /
 `_tmp_lr_v4.sh`（四个场景）· `_tmp_lr_cmp.py`（RESULT 逐字段比对）· `_tmp_lr_pids.py`（进程普查，只读）·
 `_tmp_lr_faultinject/sitecustomize.py`（故障注入）· `_tmp_noopai.py`（空操作假 AI）·
-`_tmp_hangai.py`（`sleep 600` 假 AI）· `_tmp_ladder_head.py`（`git show HEAD:_tmp_ladder.py` 的副本）
+`_tmp_hangai.py`（`sleep 600` 假 AI）· `_tmp_lr_final.sh`（终版整套复跑）·
+`_tmp_ladder_head.py`（`git show HEAD:_tmp_ladder.py` 的副本）
 
 ---
 
@@ -106,6 +107,10 @@ engine 2/2
    不把好局误判成超时；反过来，日志没有 RESULT 行时才用进程内记下的杀因（`timeout_watchdog` / `timeout_hard`）。
 7. **进程内记忆的判词只做兜底**：判"这局有没有效"永远以日志为准（`_MEM_VERDICT` 只在日志没有判词时用）。
 8. 汇总表的中文表头用 `% -Ns` 对不齐（CJK 占 2 列）⇒ 加了个按**显示宽度**补空格的 `_pad()`。
+9. **重跑前再判一次**（`run_batch(..., is_retry=True)`）：重试轮 / final-sweep 真正启动前，
+   对清单里的每个 token 再读一次日志 —— 已经是 `engine` 就跳过并告警
+   （`[retry] <token> 已有 verdict=engine（有效）⇒ 跳过，不覆盖`）。这是"成功局绝不被覆盖"的第二道防线
+   （第一道是重跑清单只由"当前无效局"生成）。正常批次里这个分支不会触发，所以四个验证里都没走到它。
 
 ## 3. 验证（全部 `bash code/run_logged.sh <名字> <命令>` 落盘）
 
@@ -121,14 +126,14 @@ engine 2/2
 
 ### 3.1 验证 1：默认行为不变（`_tmp_lr_v1.sh`）
 
-HEAD 版驱动（`_tmp_ladder_head.py`，358 行）与新驱动（941 行）各跑同一 2 局（token `920` / `920r`）；
+HEAD 版驱动（`_tmp_ladder_head.py`，358 行）与新驱动（960 行）各跑同一 2 局（token `920` / `920r`）；
 HEAD 版**跑两遍**先证明这个对局本身是可复现的（否则"新旧一样"可能只是"两次运行本来就会飘"）。
 
 | 运行 | 命令 | 日志 |
 |---|---|---|
 | V1-old | `python -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=…/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r` | `training_history/runs/20261029_091544_ladder_resilience_v1_old/output.log` |
 | V1-old2 | 同上，`LR_V1_OLD2` | `…/20261029_091701_ladder_resilience_v1_old2/output.log` |
-| V1-new | `python -u _tmp_ladder.py --tag=LR_V1_NEW …`（**不加任何新开关**） | `…/20261029_091825_ladder_resilience_v1_new/output.log` |
+| V1-new | `python -u _tmp_ladder.py --tag=LR_V1_NEW …`（**不加任何新开关**） | `…/20261029_092758_ladder_resilience_v1_new/output.log（终版）` |
 
 `_tmp_lr_cmp.py` 的逐字段输出（(a) 可复现性，(b) 新旧对比）：两份都 `==> RESULT 逐字段相同: True`
 
@@ -147,7 +152,7 @@ HEAD 版**跑两遍**先证明这个对局本身是可复现的（否则"新旧�
   OLD: RESULT seed=920 p0=_tmp_noopai p1=main winner=main winner_side=p1 verdict=engine engine_winner=1 rounds=221 terminal=True base_hp=0,31 coins=570,18 illegal=0
   NEW: RESULT seed=920 p0=_tmp_noopai p1=main winner=main winner_side=p1 verdict=engine engine_winner=1 rounds=221 terminal=True base_hp=0,31 coins=570,18 illegal=0
 
-新版 stdout（20261029_091825_ladder_resilience_v1_new）里的新开关区块: 无
+新版 stdout（20261029_092758_ladder_resilience_v1_new）里的新开关区块: 无
 ==> RESULT 逐字段相同: True
 ```
 
@@ -168,29 +173,29 @@ token  p0         p1         winner     verdict      rounds hp          ill  p0 
 （用 `sitecustomize` 而不是换掉 `az_bridge_ai.py`/换 `--ai0`，是因为前者会污染别人正在跑的批次，
 后者没法让"第 K+1 次"变回一局真对局。）
 
-`training_history/runs/20261029_091943_ladder_resilience_v2_retry/output.log`：
+`training_history/runs/20261029_092913_ladder_resilience_v2_retry/output.log`：
 
 ```
 [ladder] 过夜批次开关: retry_invalid=1  final_sweep=False  watchdog_stall_min=0
 [992] rc=3  0.0 min
 [992]   第 1 次尝试：verdict=no_result  ⇒ 无效，等重试  墙钟累计 0.0 min
-[992r] rc=0  0.6 min
-[992r]   第 1 次尝试：verdict=engine  墙钟累计 0.6 min
+[992r] rc=0  0.5 min
+[992r]   第 1 次尝试：verdict=engine  墙钟累计 0.5 min
 
 === 重试第 1/1 轮：1 局没有 verdict=engine ===
     重跑前 verdict 计数分布: {'no_result': 1}
     待跑 token: 992
 [retry] 992 的失败日志已留档: match_results/ladder_logs/LR_V2_RETRY/_attempts/992.attempt1.log
-[992] rc=0  0.8 min
-[992]   第 2 次尝试：verdict=engine  墙钟累计 0.8 min
+[992] rc=0  0.6 min
+[992]   第 2 次尝试：verdict=engine  墙钟累计 0.6 min
 
-[ladder] 全部结束 wall=80.2s  单局 min/med/max = 0.6/0.8/0.8 min
+[ladder] 全部结束 wall=68.1s  单局 min/med/max = 0.5/0.6/0.6 min
 
 === 收尾汇总（每个 token 一行；判有效 = 日志里 verdict=engine）===
 token   | verdict          | rounds  | 墙钟(min)  | 尝试次数  | 是否有效
 --------------------------------------------------------------------------
-992     | engine           |     178 |        0.8 |         2 | ✓ 有效
-992r    | engine           |     207 |        0.6 |         1 | ✓ 有效
+992     | engine           |     178 |        0.6 |         2 | ✓ 有效
+992r    | engine           |     207 |        0.5 |         1 | ✓ 有效
 
 engine 2/2
 仍无效的 token: 无（全部 engine）
@@ -199,15 +204,15 @@ engine 2/2
 落盘证据（`ls --time-style=full-iso`）：
 
 ```
-match_results/ladder_logs/LR_V2_RETRY/992.log    2026-10-29 09:21:04.314  (83798 B，重跑后)
-match_results/ladder_logs/LR_V2_RETRY/992r.log   2026-10-29 09:20:18.954  (93733 B，**没被动过**)
+match_results/ladder_logs/LR_V2_RETRY/992.log    2026-10-29 09:30:23.458  (83798 B，重跑后)
+match_results/ladder_logs/LR_V2_RETRY/992r.log   2026-10-29 09:29:48.085  (93733 B，**没被动过**)
 match_results/ladder_logs/LR_V2_RETRY/_attempts/992.attempt1.log   64 B
   内容: [faultinject] 第 1/1 次对局进程被注入 ⇒ os._exit(3)
 ```
 
 读数要点：
-1. **只重跑了 1 局**（`待跑 token: 992`），`992r` 的 mtime 停在它自己跑完的时刻（09:20:18）、
-   比 `992.log` 重跑完（09:21:04）早 45s ⇒ **已 engine 的日志没被覆盖**；
+1. **只重跑了 1 局**（`待跑 token: 992`），`992r` 的 mtime 停在它自己跑完的时刻（09:29:48）、
+   比 `992.log` 重跑完（09:30:23）早 35s ⇒ **已 engine 的日志没被覆盖**；
 2. `_attempts/` 里**只有** `992.attempt1.log`（失败那局的空壳日志，64 字节，无 RESULT 行）；
 3. 收尾表里两局 `尝试次数` 分别是 2 / 1 ⇒ 好的那局确实只跑了一次。
 
@@ -216,7 +221,7 @@ match_results/ladder_logs/LR_V2_RETRY/_attempts/992.attempt1.log   64 B
 注入改成"**前 4 个**对局进程立刻退出"：第一批 2 局 + 重试第 1 轮 2 局全废 ⇒ 重试轮数用完、仍 2 局无效
 ⇒ `--final-sweep` 再跑一次（这时注入已用完 ⇒ 真对局 ⇒ engine）。
 
-`training_history/runs/20261029_092105_ladder_resilience_v3_final_sweep/output.log`：
+`training_history/runs/20261029_093024_ladder_resilience_v3_final_sweep/output.log`：
 
 ```
 [ladder] 过夜批次开关: retry_invalid=1  final_sweep=True  watchdog_stall_min=0
@@ -239,12 +244,14 @@ match_results/ladder_logs/LR_V2_RETRY/_attempts/992.attempt1.log   64 B
     （这一轮通常在早上执行：机器夜里休眠导致超时、醒来时重试轮数已用完 ⇒ 把漏的补完；不占 --retry-invalid 的轮数）
 [retry] 994 的失败日志已留档: …/_attempts/994.attempt2.log
 [retry] 994r 的失败日志已留档: …/_attempts/994r.attempt2.log
-[994] rc=0  0.9 min     …  第 3 次尝试：verdict=engine  墙钟累计 1.0 min
-[994r] rc=0  0.7 min    …  第 3 次尝试：verdict=engine  墙钟累计 0.7 min
+[994] rc=0  0.8 min     …  第 3 次尝试：verdict=engine  墙钟累计 0.8 min
+[994r] rc=0  0.6 min    …  第 3 次尝试：verdict=engine  墙钟累计 0.6 min
+
+[ladder] 全部结束 wall=84.9s  单局 min/med/max = 0.6/0.8/0.8 min
 
 === 收尾汇总 …
-994     | engine           |     207 |        1.0 |         3 | ✓ 有效
-994r    | engine           |     228 |        0.7 |         3 | ✓ 有效
+994     | engine           |     207 |        0.8 |         3 | ✓ 有效
+994r    | engine           |     228 |        0.6 |         3 | ✓ 有效
 engine 2/2
 ```
 
@@ -256,19 +263,19 @@ engine 2/2
 卡住的构造：`--ai0=_tmp_hangai.py`（假 AI，`sleep 600`）+ `--ai1=_tmp_noopai.py` ⇒ 该局卡在 round 0，
 progress/日志 mtime 都不再前进。**同时并发**跑一个**对照批次**（真对局、没有任何新开关）⇒ 证明"别的局不受影响"。
 
-`training_history/runs/20261029_092303_ladder_resilience_v4_watchdog/output.log`（节选，逐字）：
+`training_history/runs/20261029_093158_ladder_resilience_v4_watchdog/output.log`（节选，逐字）：
 
 ```
 [ladder] 过夜批次开关: retry_invalid=1  final_sweep=False  watchdog_stall_min=1
 [watchdog] 启动：tag=LR_V4_WD  阈值 1 min（progress/日志 mtime 连续这么久不前进 ⇒ 判卡死）  每 10s 检查一次
 [watchdog] 只按本进程 Popen 的**那一个 PID** 精确杀（taskkill /PID <pid> /T /F）；先停调度再杀，杀完用已死根 PID 复查后代闭包
 [watchdog] 命中 1 局 ⇒ 先停调度（_SCHED_RUN=closed），再逐局精杀
-[watchdog] 995: progress/日志已 1.0 min 没有更新（阈值 1 min） ⇒ 精确 kill PID 54788 及其子进程（taskkill /PID 54788 /T /F，不碰其它进程）
-[watchdog] 995: 杀前闭包 3 个 PID: [50180, 54788, 62712]
-[watchdog] taskkill rc=0: SUCCESS: The process with PID 62712 (child process of PID 54788) has been terminated.
-[watchdog] taskkill rc=0: SUCCESS: The process with PID 50180 (child process of PID 54788) has been terminated.
-[watchdog] taskkill rc=0: SUCCESS: The process with PID 54788 (child process of PID 36300) has been terminated.
-[watchdog] 995: 用已死根 PID 54788 复查后代闭包 ⇒ 0 个存活（干净）
+[watchdog] 995: progress/日志已 1.0 min 没有更新（阈值 1 min） ⇒ 精确 kill PID 67792 及其子进程（taskkill /PID 67792 /T /F，不碰其它进程）
+[watchdog] 995: 杀前闭包 3 个 PID: [12224, 37072, 67792]
+[watchdog] taskkill rc=0: SUCCESS: The process with PID 37072 (child process of PID 67792) has been terminated.
+[watchdog] taskkill rc=0: SUCCESS: The process with PID 12224 (child process of PID 67792) has been terminated.
+[watchdog] taskkill rc=0: SUCCESS: The process with PID 67792 (child process of PID 46396) has been terminated.
+[watchdog] 995: 用已死根 PID 67792 复查后代闭包 ⇒ 0 个存活（干净）
 [watchdog] 恢复调度（_SCHED_RUN=open）
 [995] rc=1  1.2 min
 [995]   第 1 次尝试：verdict=timeout_watchdog  ⇒ 无效，等重试  墙钟累计 1.2 min
@@ -278,18 +285,18 @@ progress/日志 mtime 都不再前进。**同时并发**跑一个**对照批次*
     待跑 token: 995
 [retry] 995 的失败日志已留档: …/_attempts/995.attempt1.log
 [watchdog] 命中 1 局 ⇒ 先停调度（_SCHED_RUN=closed），再逐局精杀
-[watchdog] 995: progress/日志已 1.0 min 没有更新（阈值 1 min） ⇒ 精确 kill PID 43192 及其子进程（taskkill /PID 43192 /T /F，不碰其它进程）
-[watchdog] 995: 杀前闭包 3 个 PID: [14636, 43192, 62552]
+[watchdog] 995: progress/日志已 1.0 min 没有更新（阈值 1 min） ⇒ 精确 kill PID 5768 及其子进程（taskkill /PID 5768 /T /F，不碰其它进程）
+[watchdog] 995: 杀前闭包 3 个 PID: [5768, 20988, 59288]
 … taskkill 三条 SUCCESS …
 [995] rc=1  1.2 min
 [995]   第 2 次尝试：verdict=timeout_watchdog  ⇒ 无效，等重试  墙钟累计 2.4 min
 
 [retry] ⚠️ 已用满 1 轮，仍有 1 局无效: 995(timeout_watchdog)
-[watchdog] 995: 用已死根 PID 43192 复查后代闭包 ⇒ 0 个存活（干净）
+[watchdog] 995: 用已死根 PID 5768 复查后代闭包 ⇒ 0 个存活（干净）
 [watchdog] 恢复调度（_SCHED_RUN=open）
 [watchdog] 停止
 
-[ladder] 全部结束 wall=143.9s  单局 min/med/max = 1.2/1.2/1.2 min
+[ladder] 全部结束 wall=141.9s  单局 min/med/max = 1.2/1.2/1.2 min
 
 === 收尾汇总（每个 token 一行；判有效 = 日志里 verdict=engine）===
 token   | verdict          | rounds  | 墙钟(min)  | 尝试次数  | 是否有效
@@ -300,10 +307,10 @@ engine 0/1
 仍无效的 token（早上人工补跑就照这个列表给命令行）: 995(timeout_watchdog)
 ```
 
-对照批次（同一时刻在跑的真对局，`training_history/runs/20261029_092258_ladder_resilience_v4_ctl/`）：
+对照批次（同一时刻在跑的真对局，`training_history/runs/20261029_093153_ladder_resilience_v4_ctl/`）：
 
 ```
-[run_logged] exit=0  (38s)
+[run_logged] exit=0  (37s)
 RESULT seed=996 p0=main p1=_tmp_noopai winner=main winner_side=p0 verdict=engine engine_winner=0
        rounds=176 terminal=True base_hp=38,0 coins=21,431 illegal=0
 ```
@@ -314,7 +321,7 @@ RESULT seed=996 p0=main p1=_tmp_noopai winner=main winner_side=p0 verdict=engine
    杀前打印了完整闭包、杀后用**已死的根 PID** 复查 ⇒ **0 个存活**；
 2. **先停调度再杀**：日志顺序是 `命中 ⇒ 先停调度` → kill → `复查后代闭包` → `恢复调度`；
 3. 被杀那局标 `verdict=timeout_watchdog`，并按 ① 的规则进入重试（第 2 次尝试同样被杀）；
-4. **同批/同机别的局不受影响**：并发的对照批次在 38s 跑完、`verdict=engine`；
+4. **同批/同机别的局不受影响**：并发的对照批次在 37s 跑完、`verdict=engine`；
 5. 收尾表把这一局报成 `✗ 无效` + `engine 0/1` + 仍无效清单（不会假装成功）。
 
 ### 3.5 进程安全：没有 kill 任何别人的进程
@@ -322,13 +329,13 @@ RESULT seed=996 p0=main p1=_tmp_noopai winner=main winner_side=p0 verdict=engine
 跑前/跑后各查一次别人那批真实对局的主 PID（`_tmp_lr_pids.py`，只读 `CreateToolhelp32Snapshot`）：
 
 ```
-跑前: [census] PID 58044: alive=True  存活后代 6 个: [29748, 31800, 43216, 54480, 58380, 60964]
+跑前: [census] PID 58044: alive=True  存活后代 3 个: [31800, 43216, 60964]
 跑后: [census] PID 58044: alive=True  存活后代 3 个: [31800, 43216, 60964]
 ```
 
-`58044`（`US_VS_CHAMPION_BASE` 的 ladder 进程）**跑前跑后都活着**；后代数变化是**它自己的**两局在这 147s 里
-跑完了（它自己线程结束），不是我杀的——本次全部 kill 只出现在上面的 watchdog 日志里，
-每一条都带精确 PID，且都是我的 ladder 的子进程。
+`58044`（`US_VS_CHAMPION_BASE` 的 ladder 进程）**跑前跑后都活着，连后代 PID 都是同一组**
+（更早那次 09:12 的运行时它是 6 → 3：少掉的是**它自己的**两局在这 147s 里跑完了，不是我杀的）。
+本次全部 kill 只出现在上面的 watchdog 日志里，每一条都带精确 PID，且都是我的 ladder 的子进程。
 （另外：`_tmp_lr_v4.sh` 结尾只对**假 AI 自己写进 pidfile 的 PID** 做兜底清理，两个 PID 都是 `alive=False`
 ⇒ 看门狗没有漏网。）
 
@@ -395,6 +402,7 @@ bash _tmp_lr_v1.sh     # 验证 1（HEAD 副本 ×2 + 新版，逐字段比对�
 bash _tmp_lr_v2.sh     # 验证 2（注入第 1 个对局进程失败 + --retry-invalid 1）
 bash _tmp_lr_v3.sh     # 验证 3（注入前 4 个失败 + --retry-invalid 1 --final-sweep）
 bash _tmp_lr_v4.sh     # 验证 4（假 AI sleep 600 + --watchdog-stall-min 1；并发对照批次 + 进程普查）
+bash _tmp_lr_final.sh  # 终版整套复跑（V1-new + V2 + V3 + V4 一次跑完，上面报告的输出来自这次）
 ```
 
 完整命令与输出在 `training_history/runs/<时间戳>_ladder_resilience_*/{cmd.txt,meta.txt,output.log}`，

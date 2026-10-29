@@ -762,7 +762,26 @@ def main() -> int:
         lock = threading.Lock()
         sem = threading.Semaphore(cfg["jobs"])
 
-        def run_batch(task_tokens: list[str]) -> None:
+        def run_batch(task_tokens: list[str], is_retry: bool = False) -> None:
+            """跑一批 token。`is_retry=True` 用于重试轮/final-sweep：
+
+            **重跑前再判一次**（万一这一瞬间日志已经变成 `verdict=engine`，比如人工补了）
+            ⇒ 有效就跳过并告警。成功局的结果文件**绝不**被重跑覆盖。
+            """
+            if is_retry:
+                keep: list[str] = []
+                for t in task_tokens:
+                    v, ok = _judge_token(t, out_dir)
+                    if ok:
+                        print(f"[retry] {t} 已有 verdict={v}（有效）⇒ 跳过，不覆盖", flush=True)
+                        with lock:
+                            _STATE[t] = {**(_STATE.get(t) or {}), "verdict": v, "valid": True}
+                        continue
+                    keep.append(t)
+                task_tokens = keep
+            if not task_tokens:
+                print("[retry] 待跑清单为空（都已经是 engine）⇒ 不启动任何对局", flush=True)
+                return
             threads = [threading.Thread(target=run_one,
                                         args=(t, out_dir / f"{t}.log", fwd, sem, results, lock,
                                               _labels))
@@ -808,7 +827,7 @@ def main() -> int:
                     print(f"    待跑 token: {', '.join(t for t, _v in bad)}", flush=True)
                     for t, _v in bad:
                         _archive_attempt(t, out_dir)
-                    run_batch([t for t, _v in bad])
+                    run_batch([t for t, _v in bad], is_retry=True)
                 else:
                     left = invalid_tokens()
                     if left:
@@ -828,7 +847,7 @@ def main() -> int:
                           "⇒ 把漏的补完；不占 --retry-invalid 的轮数）", flush=True)
                     for t, _v in bad:
                         _archive_attempt(t, out_dir)
-                    run_batch([t for t, _v in bad])
+                    run_batch([t for t, _v in bad], is_retry=True)
                 else:
                     print("    没有无效局 ⇒ final-sweep 不跑任何对局", flush=True)
         finally:
