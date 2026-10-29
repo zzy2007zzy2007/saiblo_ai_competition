@@ -1,5 +1,6 @@
 我(用户)是一个大二学生，自学过机器学习，但是没有过专业的训练，有些想法不一定对,或者有些想法可能是我自己想的野路子，如果有错可以纠正一下，或者说我的想法也不一定靠谱
-代码改完之后都用git保存一下, 直接 `git commit`，不要用 `-c user.name=agent -c user.email=agent@local` 之类的方式覆盖作者——那样提交在 GitHub/远程上会显示成识别不出来的作者。用仓库已配置的身份（`zzy2007zzy2007 <263590731+zzy2007zzy2007@users.noreply.github.com>`）。可以标注"这次是 agent 做的"，用 trailer 写在提交信息末尾：`git commit -m "<信息>" --trailer "Co-authored-by: dsh-agent <agent@local>"`
+代码改完之后都用git保存一下, 直接 `git commit`，不要用 `-c user.name=agent -c user.email=agent@local` 之类的方式覆盖作者——那样提交在 GitHub/远程上会显示成识别不出来的作者。用仓库已配置的身份（`zzy2007zzy2007 <263590731+zzy2007zzy2007@users.noreply.github.com>`）。可以标注"这次是 agent 做的"，用 trailer 写在提交信息末尾，并且带上当前会话 id（从环境变量读，不要手写死）：`git commit -m "<信息>" --trailer "Co-authored-by: dsh-agent <agent@local>" --trailer "Session-Id: $env:DSH_SESSION_ID"`。几点注意：`--trailer` 可以给多次；bash 里变量写成 `$DSH_SESSION_ID`；subagent 子会话的 id 和父会话不同，各写各的；如果这个变量为空（不是在 DSH 会话里跑的环境）就把 `Session-Id` 那条去掉，不要写空值
+想查某个会话（比如某次自动训练）都改了什么：`git log --format='%h %s %(trailers:key=Session-Id,valueonly)'`
 电脑有 gpu,conda activate pytorch-gpu 激活环境就能用
 电脑cpu16核心，不要同时开多个多进程并行、总进程数大于16的多个程序。单个测试16进程可以。还有秉性数也别太少要不然太慢，8-12进程之间比较合适
 游戏规则在Ant-Game\README.md
