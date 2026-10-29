@@ -96,13 +96,17 @@ def parse_injection(txt: str) -> dict:
     out: dict = {"enabled": 0, "asks": None, "ok": None, "inject": None, "new": None,
                  "dup": None, "dup_hold": None, "hit": None, "hit_new": None,
                  "timeout": None, "dead": None, "illegal": None,
+                 # 2026-10-29：重建/主动重启/空过 三个读数（新增，老日志里没有 ⇒ None）
+                 "rebuild": None, "rebuild_fail": None, "restart": None,
+                 "replay_rounds": None, "replay_s_max": None, "hold": None,
                  "p50_ms": None, "p95_ms": None, "max_ms": None, "err": ""}
     out["enabled"] = txt.count("注入已启用")
     stats = re.findall(r"注入统计:\s*(.+)", txt)
     if stats:
         line = stats[-1]
         for k in ("asks", "ok", "inject", "new", "dup", "dup_hold", "hit", "hit_new",
-                  "timeout", "dead", "illegal", "p50_ms", "p95_ms", "max_ms"):
+                  "timeout", "dead", "illegal", "p50_ms", "p95_ms", "max_ms",
+                  "rebuild", "rebuild_fail", "restart", "replay_rounds", "replay_s_max", "hold"):
             m = re.search(r"(?<![\w_])" + k + r"=([-\d.]+)", line)
             if m:
                 out[k] = float(m.group(1))
@@ -270,39 +274,73 @@ def main() -> int:
 
     # ── 注入覆盖度（2026-10-29；E2 的"有效样本"分母）──────────────────────────────
     print("\n### 注入覆盖度（`注入统计` vs 本局回合数）\n")
-    print("| token | 回合数 | asks | 覆盖度 | inject | new | dup(HOLD) | hit | hit_new | timeout | dead | p50/p95/max ms |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    print("| token | 回合数 | asks | 覆盖度 | **它 HOLD** | inject | new | dup(HOLD) | hit | hit_new | timeout | dead | rebuild/restart | p50/p95/max ms |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         if r.get("missing"):
-            print(f"| {r['token']} | **缺 stderr** | - | - | - | - | - | - | - | - | - | - |")
+            print(f"| {r['token']} | **缺 stderr** | - | - | - | - | - | - | - | - | - | - | - | - |")
             continue
         ij = r.get("inj") or {}
         rnd = _rounds_of_log(args.logdir, r["token"])
         asks = ij.get("asks")
         cov = f"{100.0 * asks / rnd:.1f}%" if (asks and rnd) else "-"
+        hold = ij.get("hold")
+        if hold is None:
+            # 老日志（E2，2026-10-29 之前）的 `注入统计` 里没有 `hold=` ⇒ 用逐回合 `[xor]` 行数
+            # 数出来的 `champ_hold`（A 会话 = 冠军/注入方）兜底，口径一致。
+            hold = (r.get("recount") or {}).get("champ_hold")
+        hold_pct = f"{100.0 * hold / asks:.1f}%" if (hold is not None and asks) else "-"
 
         def _i(k):
             v = ij.get(k)
             return "-" if v is None else str(int(v))
-        print(f"| {r['token']} | {rnd if rnd else '-'} | {_i('asks')} | **{cov}** | {_i('inject')} | "
-              f"{_i('new')} | {_i('dup')}({_i('dup_hold')}) | {_i('hit')} | {_i('hit_new')} | "
-              f"{_i('timeout')} | {_i('dead')} | "
+        _rr = f"{_i('rebuild')}/{_i('restart')}"
+        print(f"| {r['token']} | {rnd if rnd else '-'} | {_i('asks')} | **{cov}** | {hold_pct} | "
+              f"{_i('inject')} | {_i('new')} | {_i('dup')}({_i('dup_hold')}) | {_i('hit')} | "
+              f"{_i('hit_new')} | {_i('timeout')} | {_i('dead')} | {_rr} | "
               f"{_i('p50_ms')}/{_i('p95_ms')}/{_i('max_ms')} |")
         if ij.get("err"):
             print(f"  - ⚠️ {r['token']} oracle 会话异常：`{ij['err']}`")
     _covs = []
+    _holds = []
+    _asks_all = 0
+    _hold_all = 0
+    _xor_rounds_all = 0
+    _rb = _rs = _dead = 0
     for r in rows:
         ij = r.get("inj") or {}
         rnd = _rounds_of_log(args.logdir, r["token"])
         if ij.get("asks") and rnd:
             _covs.append(100.0 * float(ij["asks"]) / rnd)
+        if ij.get("asks"):
+            _asks_all += int(ij["asks"])
+        _rc = r.get("recount") or {}
+        _xor_rounds_all += int(_rc.get("rounds", 0))
+        _hv = ij.get("hold")
+        if _hv is None:
+            _hv = _rc.get("champ_hold")
+        _hold_all += int(_hv or 0)
+        _rb += int(ij.get("rebuild") or 0)
+        _rs += int(ij.get("restart") or 0)
+        _dead += int(ij.get("dead") or 0)
     if _covs:
         print(f"\n- 覆盖度 min/med/max = **{min(_covs):.1f}% / {statistics.median(_covs):.1f}% / "
               f"{max(_covs):.1f}%**（<100% ⇒ 该局后半段退化成基线，读数字段要打折）")
-        _dead = sum(1 for r in rows if (r.get("inj") or {}).get("dead"))
+        _deadn = sum(1 for r in rows if (r.get("inj") or {}).get("dead"))
         _to = sum(1 for r in rows if (r.get("inj") or {}).get("timeout"))
-        print(f"- 会话 dead 的局：{_dead}/{len([r for r in rows if not r.get('missing')])}；"
-              f"有 timeout 的局：{_to}")
+        print(f"- 会话 dead 的局：{_deadn}/{len([r for r in rows if not r.get('missing')])}；"
+              f"有 timeout 的局：{_to}；dead 事件总数={_dead}、成功重建={_rb}、主动重启={_rs}")
+        # 2026-10-29：**它到底给了什么动作** —— 这一列决定"覆盖度"能不能当"注入真的发生了"读。
+        # 2026-10-29：**它到底给了什么动作** —— 这一列决定"覆盖度"能不能当"注入真的发生了"读。
+        if _xor_rounds_all:
+            print(f"- ⚠️ **它 HOLD 的比例 = {_hold_all}/{_xor_rounds_all} = "
+                  f"{100.0 * _hold_all / max(1, _xor_rounds_all):.1f}%**"
+                  f"（分母 = `[xor]` 记录的决策数；覆盖度只说明『它答了』，不说明『它给了真动作』）")
+        _rsmax = [float((r.get("inj") or {}).get("replay_s_max") or 0) for r in rows]
+        if max(_rsmax or [0]) > 0:
+            print(f"- 单次重建最大墙钟 = {max(_rsmax):.1f}s"
+                  f"（验收判据 <60s）；累计回放回合数 = "
+                  f"{sum(int((r.get('inj') or {}).get('replay_rounds') or 0) for r in rows)}")
 
     # ── 检验力诊断（2026-10-29 用户要求）─────────────────────────────────────────
     #   "E4 ≈ E4-rand" 只有在**两候选真的不同**的决策上才可能是"评估器没用"的证据；

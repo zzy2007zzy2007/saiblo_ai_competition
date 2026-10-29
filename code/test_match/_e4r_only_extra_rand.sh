@@ -17,4 +17,12 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 export EXP=E4R
 export OPP="${OPP:-champion}"
+# 2026-10-29：与 `_e4_only_extra.sh` **逐字相同**的两条 oracle 加固 + 过夜三件套
+#   （必须一致，否则 E4 与 E4-rand 的"唯一差别 = 挑法"这句话就不成立）。
+export AZAI_ORACLE_REBUILD_MAX="${AZAI_ORACLE_REBUILD_MAX:-6}"
+export AZAI_ORACLE_RESTART_EVERY="${AZAI_ORACLE_RESTART_EVERY:-150}"
+export AZAI_ORACLE_RESTART_EVERY_B="${AZAI_ORACLE_RESTART_EVERY_B:-0}"
+export LADDER_TIMEOUT="${LADDER_TIMEOUT:-21600}"
+export LADDER_EXTRA_ARGS="${LADDER_EXTRA_ARGS:---retry-invalid 2 --final-sweep --watchdog-stall-min 90}"
+export MVS_TIMEOUT_SECONDS="${MVS_TIMEOUT_SECONDS:-300}"
 exec bash code/test_match/_us_vs_external.sh

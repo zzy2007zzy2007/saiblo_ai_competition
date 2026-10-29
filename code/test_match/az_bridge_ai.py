@@ -513,6 +513,26 @@ _ORACLE: dict = {
     "illegal": 0,         # 因非法操作丢掉整条候选的次数
     "timeouts": 0, "dead": 0,
     "err": "",
+    # ── 2026-10-29：**会话自动重建 + 回放追赶**（E4 的前置条件；默认开，`AZAI_ORACLE_REBUILD_MAX=0` 关）──
+    #   背景（`docs/e4_only_extra_20261029.md` §1）：冠军当 oracle 会在第 ~239-310 回合**自己 abort**
+    #   （`apply_operations.called_after_terminal`）⇒ 旧的"死一次就永久停用"让 E2 的注入覆盖只有 54.4%。
+    #   现在：死 ⇒ 起新进程 + 把本局 0..当前回合的历史回放进去（`RunnerUpOracle.replay`）+ 重试本回合。
+    "mod": None,          # `runnerup_oracle` 模块（重建时要 `RunnerUpOracle(...)`）
+    "rebuild_max": 6,     # 每局最多重建几次（含失败的尝试）⇒ 防无限重启
+    "rebuilds": 0,        # 成功的重建次数
+    "rebuild_fail": 0,    # 失败的重建尝试次数
+    "replay_rounds": 0,   # 累计回放的回合数
+    "replay_s_sum": 0.0,
+    "replay_s_max": 0.0,  # 单次重建的最大墙钟（验收判据：<60s）
+    "hist": [],           # 上一次会话的 history 备份（重建失败时保住，供下一次重试）
+    # 主动重启（`AZAI_ORACLE_RESTART_EVERY=N`，默认 0 = 关）：不等它崩，每 N 回合换一个新进程
+    #   （新进程从 round 0 起、但喂的是**当前局面** ⇒ 读端不错位；它自己的影子局面则从头攒）。
+    #   用途：冠军的影子局面**必然**会与真对局分叉（见 `docs/e4_only_extra_20261029.md` §1.2），
+    #   靠它自己的影子根本撑不到 512 回合；主动重启是唯一能让会话"活着跑完整局"的办法。
+    "restart_every": 0,   # 0 = 关（默认行为与改动前**逐位相同**）
+    "restarts": 0,        # 主动重启次数
+    "relabel_off": 0,     # 当前会话的"回合号偏移" = 该会话建立时的真回合号（回合号重标用）
+    "hold": 0,            # 它给 `()` 的次数（= 空过）—— 判"会话是不是变成 HOLD 机器"的关键读数
     "ms": [],             # 每次 ask 的墙钟（毫秒）
     "pending_opp": None,  # P1 用：本回合的对手操作块原文
     "last_bundle": None,  # 上一回合注入的 bundle（命中日志用）
@@ -587,6 +607,10 @@ _ORACLE_B: dict = {
     "asks": 0, "ok": 0, "inject": 0, "checked": 0, "illegal": 0,
     "timeouts": 0, "dead": 0, "hit": 0, "ms": [], "err": "",
     "pending_opp": None, "last_bundle": None, "round_log": None,
+    # 2026-10-29：与 A 会话同一套"重建 + 回放"机制（字段含义见上面 `_ORACLE` 的注释）
+    "mod": None, "rebuild_max": 6, "rebuilds": 0, "rebuild_fail": 0,
+    "replay_rounds": 0, "replay_s_sum": 0.0, "replay_s_max": 0.0, "hist": [],
+    "restart_every": 0, "restarts": 0, "relabel_off": 0, "hold": 0,
 }
 
 
@@ -613,6 +637,17 @@ _XOR: dict = {
 #   ⇒ 逐决策记下 `|Δscore|`，事后才能按分差分层比较、并报出"有效样本量"。
 _DS: dict = {"rounds": 0, "n2": 0, "n1": 0, "pick_hi": 0, "pick_lo": 0,
              "pick_net": 0, "pick_na": 0, "ds": [], "dvn": [], "err": ""}
+
+# ── HOLD 恒为候选（2026-10-29；`AZAI_ALWAYS_HOLD=1`，**默认 0 = 关**）──────────────────
+#   为什么（父任务的判断，2026-10-29 13:4x）：冠军 oracle 实际上恒给 `()`（`force_pass_` 锁死），
+#   而亚军注入臂 8117 次注入里 **84.5% 也是 HOLD**、`hit_new` 里 70.5% 是 HOLD
+#   ⇒ "注入有效"的 +37pp 很可能只是"**把 HOLD 补进候选集**"这一个效应
+#   （我们自己的 48 条网络候选**并不总含 HOLD**：E2 实测 23.9%~31.7% 的回合不含）。
+#   本开关做一个**不需要任何 oracle** 的消融：把空 bundle `()` 放进额外候选通道
+#   （去重由 `flat_rollout_greedy._collect_extras()` 负责 ⇒ "已存在就不加"）。
+#   两条臂：A = `AZAI_ALWAYS_HOLD=1`，B = 不设（现役）⇒ 差值 = "候选集缺 HOLD" 的效应。
+_AHOLD: dict = {"on": False, "dec": 0, "hold": 0, "added": 0, "chose_after_add": 0,
+                "present_kept": 0, "present_moved": 0, "last_added": 0, "err": ""}
 
 
 def _xor_summary_text() -> str:
@@ -663,11 +698,44 @@ def _dscore_summary_text() -> str:
     return txt
 
 
+def _ahold_stats_text() -> str:
+    """`[ahold]` 一行（`AZAI_ALWAYS_HOLD=1` 的消融臂主读数；默认为 0 ⇒ 不打）。
+
+    字段（父任务要的六项指标里的 2/4 两项）：
+      * `dec` / `hold` —— 决策数 / 其中**最终发出空 op** 的回合数（臂 A 的 HOLD 率）；
+      * `added` —— "候选集里本来没有 HOLD、被本开关补进去"的回合数
+                   （≈"类仲裁把动/不动钉在非 HOLD 类"的那部分，父任务口径 ~22%）；
+      * `chose_after_add` —— 上面这些回合里，强评估器**反而选了 HOLD** 的次数
+                   ⇒ **"被架构剥夺的决策"被拿回来的比例**（★核心读数）；
+      * `present_kept` / `present_moved` —— HOLD **本来就在**候选里的回合中，评估器选 HOLD / 选动。
+    """
+    a = _AHOLD
+    n = max(1, int(a["dec"]))
+    add = max(1, int(a["added"]))
+    pres = int(a["present_kept"]) + int(a["present_moved"])
+    txt = (f"dec={int(a['dec'])} hold={int(a['hold'])}({100.0 * int(a['hold']) / n:.1f}%) "
+           f"added={int(a['added'])}({100.0 * int(a['added']) / n:.1f}%) "
+           f"chose_after_add={int(a['chose_after_add'])}"
+           f"({100.0 * int(a['chose_after_add']) / add:.1f}% of added) "
+           f"present={pres} kept={int(a['present_kept'])}"
+           f"({100.0 * int(a['present_kept']) / max(1, pres):.1f}%) "
+           f"moved={int(a['present_moved'])}")
+    if a.get("err"):
+        txt += f" err={a['err']}"
+    return txt
+
+
 def _oracle_b_stats_text() -> str:
     """B 会话的统计一行（默认零日志；只有 `AZAI_ORACLE_INJECT_B` 才用得上）。"""
     st = _ORACLE_B
     txt = (f"asks={st['asks']} ok={st['ok']} checked={st['checked']} inject={st['inject']} "
            f"hit={st['hit']} illegal={st['illegal']} timeout={st['timeouts']} dead={st['dead']}")
+    if int(st.get("rebuilds", 0)) or int(st.get("rebuild_fail", 0)) or int(st.get("restarts", 0)) \
+            or int(st.get("hold", 0)):
+        txt += (f" rebuild={int(st.get('rebuilds', 0))} rebuild_fail={int(st.get('rebuild_fail', 0))}"
+                f" restart={int(st.get('restarts', 0))} replay_rounds={int(st.get('replay_rounds', 0))}"
+                f" replay_s_max={float(st.get('replay_s_max', 0.0)):.1f}"
+                f" hold={int(st.get('hold', 0))}")
     _ms = st.get("ms") or []
     if _ms:
         txt += (f" avg_ms={sum(_ms) / len(_ms):.0f} p50_ms={_pct(_ms, 0.50):.0f} "
@@ -768,6 +836,13 @@ def _oracle_stats_text() -> str:
            f"hit={st['hit']} hit_new={st['hit_new']} hit_dup={st['hit_dup']} "
            f"hit_sel={st['hit_sel']} illegal={st['illegal']} "
            f"timeout={st['timeouts']} dead={st['dead']}")
+    # 2026-10-29：重建/重启/空过 三个读数（默认全 0 ⇒ 老批次那一行**逐字不变**）
+    if int(st.get("rebuilds", 0)) or int(st.get("rebuild_fail", 0)) or int(st.get("restarts", 0)) \
+            or int(st.get("hold", 0)):
+        txt += (f" rebuild={int(st.get('rebuilds', 0))} rebuild_fail={int(st.get('rebuild_fail', 0))}"
+                f" restart={int(st.get('restarts', 0))} replay_rounds={int(st.get('replay_rounds', 0))}"
+                f" replay_s_max={float(st.get('replay_s_max', 0.0)):.1f}"
+                f" hold={int(st.get('hold', 0))}")
     if st["ms"]:
         txt += (f" avg_ms={sum(st['ms']) / len(st['ms']):.0f} p50_ms={_pct(st['ms'], 0.50):.0f} "
                 f"p95_ms={_pct(st['ms'], 0.95):.0f} max_ms={max(st['ms']):.0f}")
@@ -789,6 +864,143 @@ def _oracle_stats_text() -> str:
     if st["err"]:
         txt += f" err={st['err']}"
     return txt
+
+
+# ── 2026-10-29：oracle 会话的「重建 + 回放追赶」与「主动重启」（E4 的前置条件）──────────
+#   为什么要有这一层（完整证据见 `docs/e4_only_extra_20261029.md` §1）：
+#     * 冠军当 oracle 会在第 ~239-310 回合 abort（`apply_operations.called_after_terminal`），
+#       旧代码"死一次就永久停用" ⇒ E2 的注入覆盖只有 54.4%；
+#     * 更糟的是：它的影子局面**从第 1 个我们不执行的决策起就分叉**（`force_pass_` 一置上就整局 HOLD），
+#       实测 E2 16 局 **4177/4180 = 99.93% 的回合它给的是 `()`**。
+#   ⇒ 重建只能救"会话活着"（覆盖率），救不了"它给出的动作是否是真动作"（内容）。两件事都要报。
+class _RelabelState:
+    """回合号重标壳：属性全透传，只把 `round_index` 换掉（主动重启后新会话的读端从 0 起）。"""
+
+    __slots__ = ("_inner", "round_index")
+
+    def __init__(self, inner, round_index: int):
+        self._inner = inner
+        self.round_index = int(round_index)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def _oracle_stderr_path(tag: str, st: dict, kind: str):
+    """重建/重启出来的会话写**新文件**（旧会话的崩溃日志是证据，绝不能被覆盖）。"""
+    d = Path(MVS.REPO_ROOT) / "match_results" / "oracle_logs"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / (f"{str(tag).replace('-', '_')}_{kind}_seed{int(st['seed'])}"
+                f"_p{int(st['player'])}_{os.getpid()}.stderr.log")
+
+
+def _oracle_state(st: dict, facade):
+    """该会话该看到的"局面对象"：偏移 0 ⇒ 原样（默认，零开销）；否则回合号重标。"""
+    off = int(st.get("relabel_off", 0) or 0)
+    return facade if off == 0 else _RelabelState(facade, int(facade.round_index) - off)
+
+
+def _oracle_rebuild_try(tag: str, st: dict, facade, why: str = "") -> bool:
+    """会话死了 ⇒ 起新进程 + **把本局 0..当前回合的历史回放进去**（追平后调用方可立刻重试本回合）。
+
+    返回 True = 已追平（`st["obj"]` 是新会话，`_next_round` = 当前回合）。
+    次数上限 `AZAI_ORACLE_REBUILD_MAX`（默认 6；`0` = 关闭 = **旧行为"死了就永久停用"**）。
+    """
+    mod = st.get("mod")
+    if st.get("off") or mod is None:
+        return False
+    old = st.get("obj")
+    hist = list(getattr(old, "history", None) or st.get("hist") or [])
+    opp_ops = dict(getattr(old, "_opp_ops", None) or {})
+    off = int(st.get("relabel_off", 0) or 0)
+    rnd = int(facade.round_index) - off          # 它眼里的回合号（重标后从 0 起）
+    used = int(st.get("rebuilds", 0)) + int(st.get("rebuild_fail", 0))
+    if int(st.get("rebuild_max", 0)) <= 0:
+        return False
+    if used >= int(st["rebuild_max"]):
+        _log(f"[{tag}] ⚠️ 第 {int(facade.round_index)} 回合：重建次数已用尽"
+             f"（{used}/{int(st['rebuild_max'])}）⇒ **本局停用注入**（决策照常）")
+        return False
+    if old is not None:
+        try:
+            old.close()
+        except Exception:  # noqa: BLE001
+            pass
+    st["obj"] = None
+    t0 = time.monotonic()
+    new = None
+    kid = used + 1
+    try:
+        new = mod.RunnerUpOracle(
+            seed=int(st["seed"]), player=int(st["player"]), exe=str(st["exe"]),
+            timeout=float(st["timeout"]),
+            stderr_path=_oracle_stderr_path(tag, st, f"rebuild{kid}"),
+            verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+        new._opp_ops.update(opp_ops)
+        n, _dt = new.replay(hist, upto_round=rnd)
+        st["obj"] = new
+        st["hist"] = []
+        st["rebuilds"] = int(st.get("rebuilds", 0)) + 1
+        dt = time.monotonic() - t0
+        st["replay_rounds"] = int(st.get("replay_rounds", 0)) + int(n)
+        st["replay_s_sum"] = float(st.get("replay_s_sum", 0.0)) + dt
+        st["replay_s_max"] = max(float(st.get("replay_s_max", 0.0)), dt)
+        _log(f"[{tag}] 重建会话 #{int(st['rebuilds'])} at round={int(facade.round_index)}"
+             f"（回放 {int(n)} 回合，耗时 {dt:.1f} s）{why}")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        st["rebuild_fail"] = int(st.get("rebuild_fail", 0)) + 1
+        st["hist"] = hist
+        st["err"] = f"rebuild: {type(exc).__name__}: {exc}"
+        dt = time.monotonic() - t0
+        _log(f"[{tag}] ⚠️ 重建会话失败（第 {int(st['rebuild_fail'])} 次，{dt:.1f}s 后放弃）"
+             f"⇒ 本回合不注入: {type(exc).__name__}: {exc}")
+        if new is not None:
+            try:
+                new.close()
+            except Exception:  # noqa: BLE001
+                pass
+        return False
+
+
+def _oracle_restart(tag: str, st: dict, facade) -> bool:
+    """**主动重启**（`AZAI_ORACLE_RESTART_EVERY=N`）：不等它崩，每 N 回合换一个新进程。
+
+    与 `_oracle_rebuild_try` 的差别 = **不重放历史**：新会话从回合 0 起、喂的是**当前局面**
+    （回合号重标 ⇒ 读端不错位），它自己的影子局面则从头攒。
+    为什么需要：冠军的影子局面必然与真对局分叉（它的自己执行的是**它挑的**操作），一旦分叉就整局
+    HOLD、再往后影子里的基地血会归零 ⇒ abort。主动重启把"崩"变成"每 N 回合换一张白纸"。
+    代价：新会话的影子和真局面差得远 ⇒ 它几乎一律 HOLD（冠军本来 99.9% 也是 HOLD，见报告 §1）。
+    """
+    mod = st.get("mod")
+    if st.get("off") or mod is None:
+        return False
+    old = st.get("obj")
+    if old is not None:
+        try:
+            old.close()
+        except Exception:  # noqa: BLE001
+            pass
+    st["obj"] = None
+    kid = int(st.get("restarts", 0)) + 1
+    try:
+        new = mod.RunnerUpOracle(
+            seed=int(st["seed"]), player=int(st["player"]), exe=str(st["exe"]),
+            timeout=float(st["timeout"]),
+            stderr_path=_oracle_stderr_path(tag, st, f"restart{kid}"),
+            verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+        st["obj"] = new
+        st["restarts"] = kid
+        st["relabel_off"] = int(facade.round_index)
+        st["hist"] = []
+        _log(f"[{tag}] 主动重启会话 #{kid} at round={int(facade.round_index)}"
+             f"（回合号重标 off={int(facade.round_index)}；不重放历史）")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        st["err"] = f"restart: {type(exc).__name__}: {exc}"
+        _log(f"[{tag}] ⚠️ 主动重启失败（第 {kid} 次）⇒ 本回合不注入: "
+             f"{type(exc).__name__}: {exc}")
+        return False
 
 
 def _oracle_close_module() -> None:
@@ -860,6 +1072,9 @@ def _report(*_args) -> None:
     if _UPG.get("n", 0) > 0:
         # 2026-10-28：升级候选臂的收尾读数（每 50 决策还会周期打一次，防 bridge 硬杀丢掉）
         _log(f"[upg] 统计: {_upg_stats_text()}")
+    if _AHOLD.get("on"):
+        # 2026-10-29：HOLD 恒为候选（消融臂）的收尾读数
+        _log(f"[ahold] 统计: {_ahold_stats_text()}")
     sys.stderr.flush()
 
 
@@ -1274,6 +1489,17 @@ def main() -> int:
         #   ⇒ 后半局被测臂退化成基准臂，主读数被稀释。10s ≈ 实测 max 的 1.5 倍、p95 的 7 倍，
         #   仍能抓真死；同时 10s 也是**游戏规则的每步上限**（规则内口径的硬边界）。
         _ORACLE["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT", "10"))
+        # 2026-10-29：重建/主动重启的开关（默认：重建 6 次、不主动重启 ⇒ **旧行为之外的唯一差别**就是
+        #   "死了会重建"，而这一点正是 E4 的前置条件；`AZAI_ORACLE_REBUILD_MAX=0` 可退回旧行为）。
+        try:
+            _ORACLE["rebuild_max"] = max(0, int(_env("AZAI_ORACLE_REBUILD_MAX", "6") or 0))
+        except ValueError:
+            _ORACLE["rebuild_max"] = 6
+            _log(f"[oracle] ⚠️ AZAI_ORACLE_REBUILD_MAX={_env('AZAI_ORACLE_REBUILD_MAX', '')!r} 不是整数 ⇒ 按 6")
+        try:
+            _ORACLE["restart_every"] = max(0, int(_env("AZAI_ORACLE_RESTART_EVERY", "0") or 0))
+        except ValueError:
+            _ORACLE["restart_every"] = 0
         _ORACLE["off"] = True
         # 2026-10-28：**安慰剂臂**（`AZAI_ORACLE_PLACEBO=1`，见 docs/placebo_inject_ab_20261028.md）
         #   = 走**同一条**注入通道，但候选不由亚军给、本地随机抽一个合法 op（**不查 oracle、不起子进程**）。
@@ -1327,10 +1553,12 @@ def main() -> int:
                 seed=int(seed), player=int(player), exe=str(_exe),
                 timeout=float(_ORACLE["timeout"]),
                 verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+            _ORACLE["mod"] = _mod            # 2026-10-29：重建时要再 `RunnerUpOracle(...)`
             _ORACLE["exe"] = str(_exe)
             _ORACLE["off"] = False
             _log(f"[oracle] 注入已启用: exe={_exe} seed={seed} player={player} "
-                 f"timeout={_ORACLE['timeout']:g}s（**每回合都要喂**，跳回合会永久错位）")
+                 f"timeout={_ORACLE['timeout']:g}s（**每回合都要喂**，跳回合会永久错位）"
+                 f" 重建上限={_ORACLE['rebuild_max']} 主动重启每={_ORACLE['restart_every'] or '关'}")
         except Exception as exc:  # noqa: BLE001
             _ORACLE["off"] = True
             _ORACLE["obj"] = None
@@ -1346,7 +1574,9 @@ def main() -> int:
         if _ORACLE["off"] or _ORACLE["obj"] is None:
             return
         try:
-            _ORACLE["obj"].set_opponent_ops(int(round_index), list(ops))
+            # 2026-10-29：主动重启后回合号有偏移 ⇒ 按重标后的回合号登记（默认 off=0，逐字不变）
+            _ORACLE["obj"].set_opponent_ops(
+                int(round_index) - int(_ORACLE.get("relabel_off", 0) or 0), list(ops))
         except Exception as exc:  # noqa: BLE001
             _log(f"[oracle] ⚠️ 登记对手操作块失败（忽略，按空过处理）: {type(exc).__name__}: {exc}")
 
@@ -1404,39 +1634,65 @@ def main() -> int:
             return
         if st["off"] or st["obj"] is None:
             return
+        # 2026-10-29：主动重启（`AZAI_ORACLE_RESTART_EVERY=N`；默认 0 ⇒ 这段一行都不进，
+        #   行为与改动前逐位相同）。用 `asks`（= 已问过的回合数）当计数，N 回合换一个新进程。
+        _re = int(st.get("restart_every", 0) or 0)
+        if _re > 0 and int(st["asks"]) > 0 and int(st["asks"]) % _re == 0:
+            _oracle_restart("oracle", st, facade)
+            if st["obj"] is None:
+                return
         st["asks"] += 1
         _opp = st["pending_opp"]
         st["pending_opp"] = None       # 一回合一次，绝不复用上一回合的块
-        t0 = time.monotonic()
-        try:
-            if int(player) == 1:
-                ops = st["obj"].ask(facade, opponent_ops=_opp)
-            else:
-                ops = st["obj"].ask(facade)
-        except Exception as exc:  # noqa: BLE001
-            _dt = (time.monotonic() - t0) * 1000.0
-            st["ms"].append(_dt)
-            name = type(exc).__name__
-            if "Timeout" in name:
-                st["timeouts"] += 1
-            else:
-                st["dead"] += 1
-            st["err"] = f"{name}: {exc}"
-            # 读端已错位 ⇒ 本局**永久停用**（重建必须从 r0 重放，见设计文档 §3.4）
+        rnd = int(facade.round_index)
+        _tries = 0
+        while True:
+            t0 = time.monotonic()
             try:
-                st["obj"].close()
-            except Exception:  # noqa: BLE001
-                pass
-            st["obj"] = None
-            st["last_bundle"] = None
-            if hasattr(mcts, "set_extra_bundles"):
-                mcts.set_extra_bundles(None)
-            _log(f"[oracle] ⚠️ 第 {facade.round_index} 回合查询失败（{_dt:.0f}ms）"
-                 f"⇒ **本局停用注入**，决策照常: {name}: {exc}")
-            return
+                if int(player) == 1:
+                    ops = st["obj"].ask(_oracle_state(st, facade), opponent_ops=_opp)
+                else:
+                    ops = st["obj"].ask(_oracle_state(st, facade))
+                break
+            except Exception as exc:  # noqa: BLE001
+                _dt = (time.monotonic() - t0) * 1000.0
+                st["ms"].append(_dt)
+                name = type(exc).__name__
+                if "Timeout" in name:
+                    st["timeouts"] += 1
+                else:
+                    st["dead"] += 1
+                st["err"] = f"{name}: {exc}"
+                # 读端已错位/影子自认终局 ⇒ 旧行为是**本局永久停用**；2026-10-29 起改成
+                #   "重建会话 + 回放追赶 + 重试本回合"（次数上限 `rebuild_max`）。
+                try:
+                    st["obj"].close()
+                except Exception:  # noqa: BLE001
+                    pass
+                _log(f"[oracle] ⚠️ 第 {rnd} 回合查询失败（{_dt:.0f}ms）"
+                     f"⇒ {'尝试重建会话' if int(st.get('rebuild_max', 0)) > 0 else '本局停用注入'}: "
+                     f"{name}: {exc}")
+                if not _oracle_rebuild_try("oracle", st, facade, why="（崩溃后追赶）"):
+                    st["obj"] = None
+                    st["last_bundle"] = None
+                    if hasattr(mcts, "set_extra_bundles"):
+                        mcts.set_extra_bundles(None)
+                    if int(st.get("rebuild_max", 0)) <= 0:
+                        _log(f"[oracle] ⇒ **本局停用注入**，决策照常（AZAI_ORACLE_REBUILD_MAX=0）")
+                    return
+                _tries += 1
+                if _tries > 2:      # 同一回合最多重试 2 次（防止"崩-重建-崩"死循环）
+                    _log(f"[oracle] ⚠️ 第 {rnd} 回合重试 {_tries - 1} 次仍失败 ⇒ 本回合不注入")
+                    st["last_bundle"] = None
+                    if hasattr(mcts, "set_extra_bundles"):
+                        mcts.set_extra_bundles(None)
+                    return
+                _log(f"[oracle] ↻ 第 {rnd} 回合：会话已重建，重试本回合（第 {_tries} 次）")
         dt_ms = (time.monotonic() - t0) * 1000.0
         st["ms"].append(dt_ms)
         st["ok"] += 1
+        if not ops:
+            st["hold"] += 1
         if int(_env("AZAI_ORACLE_VERBOSE", "0")):
             _log(f"[oracle] r{facade.round_index} {dt_ms:.0f}ms -> "
                  f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")
@@ -1544,6 +1800,17 @@ def main() -> int:
             st["timeout"] = float(_env("AZAI_ORACLE_TIMEOUT_B", _env("AZAI_ORACLE_TIMEOUT", "20")))
         except ValueError:
             st["timeout"] = 20.0
+        # 2026-10-29：B 会话也吃同一套重建/重启开关（各自独立计数）
+        try:
+            st["rebuild_max"] = max(0, int(_env("AZAI_ORACLE_REBUILD_MAX_B",
+                                                _env("AZAI_ORACLE_REBUILD_MAX", "6")) or 0))
+        except ValueError:
+            st["rebuild_max"] = 6
+        try:
+            st["restart_every"] = max(0, int(_env("AZAI_ORACLE_RESTART_EVERY_B",
+                                                  _env("AZAI_ORACLE_RESTART_EVERY", "0")) or 0))
+        except ValueError:
+            st["restart_every"] = 0
         st["off"] = True
         if not hasattr(mcts, "set_extra_bundles"):
             _log("[oracle-b] ⚠️ 搜索器没有额外候选通道（只有 flat/unified 有）⇒ 不启用 B 会话")
@@ -1566,10 +1833,12 @@ def main() -> int:
                 seed=int(seed), player=int(player), exe=str(_exe),
                 timeout=float(st["timeout"]), stderr_path=_stderr,
                 verbose=bool(int(_env("AZAI_ORACLE_DEBUG", "0"))))
+            st["mod"] = _mod            # 2026-10-29：重建用
             st["exe"] = str(_exe)
             st["off"] = False
             _log(f"[oracle-b] B 会话已启用（E4 的第二条外部动作）: exe={_exe} seed={seed} "
-                 f"player={player} timeout={st['timeout']:g}s stderr={_stderr}")
+                 f"player={player} timeout={st['timeout']:g}s stderr={_stderr}"
+                 f" 重建上限={st['rebuild_max']} 主动重启每={st['restart_every'] or '关'}")
         except Exception as exc:  # noqa: BLE001
             st["off"] = True
             st["obj"] = None
@@ -1599,39 +1868,61 @@ def main() -> int:
         return tuple((int(o.op_type), int(o.arg0), int(o.arg1)) for o in accepted)
 
     def _oracle_b_ask():
-        """问 B 会话一次（每回合**必问一次**，跳回合会让它读端永久错位）。失败 ⇒ None。"""
+        """问 B 会话一次（每回合**必问一次**，跳回合会让它读端永久错位）。失败 ⇒ None。
+
+        2026-10-29：失败后不再"本局永久停用"，而是走与 A 相同的**重建 + 回放**（次数上限同源）。
+        """
         st = _ORACLE_B
         if st["off"] or st["obj"] is None:
             return None
+        _re = int(st.get("restart_every", 0) or 0)
+        if _re > 0 and int(st["asks"]) > 0 and int(st["asks"]) % _re == 0:
+            _oracle_restart("oracle-b", st, facade)
+            if st["obj"] is None:
+                return None
         st["asks"] += 1
         _opp = st["pending_opp"]
         st["pending_opp"] = None        # 一回合一次，绝不复用上一回合的块
-        t0 = time.monotonic()
-        try:
-            if int(player) == 1:
-                ops = st["obj"].ask(facade, opponent_ops=_opp)
-            else:
-                ops = st["obj"].ask(facade)
-        except Exception as exc:  # noqa: BLE001
-            _dt = (time.monotonic() - t0) * 1000.0
-            st["ms"].append(_dt)
-            name = type(exc).__name__
-            if "Timeout" in name:
-                st["timeouts"] += 1
-            else:
-                st["dead"] += 1
-            st["err"] = f"{name}: {exc}"
+        rnd = int(facade.round_index)
+        _tries = 0
+        while True:
+            t0 = time.monotonic()
             try:
-                st["obj"].close()
-            except Exception:  # noqa: BLE001
-                pass
-            st["obj"] = None
-            _log(f"[oracle-b] ⚠️ 第 {facade.round_index} 回合 B 查询失败（{_dt:.0f}ms）"
-                 f"⇒ **本局停用 B 会话**，决策照常: {name}: {exc}")
-            return None
+                if int(player) == 1:
+                    ops = st["obj"].ask(_oracle_state(st, facade), opponent_ops=_opp)
+                else:
+                    ops = st["obj"].ask(_oracle_state(st, facade))
+                break
+            except Exception as exc:  # noqa: BLE001
+                _dt = (time.monotonic() - t0) * 1000.0
+                st["ms"].append(_dt)
+                name = type(exc).__name__
+                if "Timeout" in name:
+                    st["timeouts"] += 1
+                else:
+                    st["dead"] += 1
+                st["err"] = f"{name}: {exc}"
+                try:
+                    st["obj"].close()
+                except Exception:  # noqa: BLE001
+                    pass
+                _log(f"[oracle-b] ⚠️ 第 {rnd} 回合 B 查询失败（{_dt:.0f}ms）"
+                     f"⇒ {'尝试重建 B 会话' if int(st.get('rebuild_max', 0)) > 0 else '本局停用 B'}: "
+                     f"{name}: {exc}")
+                if not _oracle_rebuild_try("oracle-b", st, facade, why="（B 崩溃后追赶）"):
+                    st["obj"] = None
+                    st["last_bundle"] = None
+                    return None
+                _tries += 1
+                if _tries > 2:
+                    _log(f"[oracle-b] ⚠️ 第 {rnd} 回合 B 重试 {_tries - 1} 次仍失败 ⇒ 本回合没有 B")
+                    st["last_bundle"] = None
+                    return None
         dt_ms = (time.monotonic() - t0) * 1000.0
         st["ms"].append(dt_ms)
         st["ok"] += 1
+        if not ops:
+            st["hold"] += 1
         if int(_env("AZAI_ORACLE_VERBOSE", "0")):
             _log(f"[oracle-b] r{facade.round_index} {dt_ms:.0f}ms -> "
                  f"{[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in ops]}")
@@ -1667,7 +1958,9 @@ def main() -> int:
         if st["off"] or st["obj"] is None:
             return
         try:
-            st["obj"].set_opponent_ops(int(round_index), list(ops))
+            # 2026-10-29：与 A 同一套回合号偏移（默认 0 ⇒ 逐字不变）
+            st["obj"].set_opponent_ops(
+                int(round_index) - int(st.get("relabel_off", 0) or 0), list(ops))
         except Exception as exc:  # noqa: BLE001
             _log(f"[oracle-b] ⚠️ 登记对手操作块失败（忽略，按空过处理）: {type(exc).__name__}: {exc}")
 
@@ -2081,6 +2374,75 @@ def main() -> int:
     _oracle_b_init()
     _only_extra_enable()
 
+    # ── 2026-10-29：HOLD 恒为候选（`AZAI_ALWAYS_HOLD=1`，**默认关**；消融臂用）────────────
+    #   背景（父任务 2026-10-29）：冠军 oracle 实际恒给 `()`（`force_pass_` 锁死），亚军注入臂
+    #   8117 次注入里 84.5% 也是 HOLD ⇒ "注入有效"很可能只是"把 HOLD 补进候选集"这一个效应。
+    #   本开关把这一个效应**单独**做出来：不需要任何 oracle，候选集里始终有一个空 bundle。
+    #   默认不设 ⇒ `_AHOLD["on"]=False` ⇒ 两个钩子第一行就 return，**行为逐位不变**
+    #   （证据：`_only_extra_zero_impact.sh` 那套 `RESULT` 逐字段比较仍适用）。
+    def _ahold_enable() -> None:
+        raw = _env("AZAI_ALWAYS_HOLD", "0").strip()
+        if raw in ("", "0"):
+            return
+        if not hasattr(mcts, "set_extra_bundles"):
+            _log(f"[ahold] ⚠️ {type(mcts).__name__} 没有额外候选通道 ⇒ 不启用 HOLD 恒为候选")
+            return
+        _AHOLD["on"] = True
+        _log(f"[ahold] HOLD 恒为候选已启用（AZAI_ALWAYS_HOLD={raw!r}）: seed={seed} "
+             f"player={player} search={type(mcts).__name__} K={getattr(mcts, 'k', '?')}"
+             f"（空 bundle 走**已有**的额外候选通道；已存在时由去重跳过）")
+
+    def _ahold_step() -> None:
+        """搜索**前**：把 `()` 放进额外候选通道（与 `AZAI_UPG_BUNDLES`/注入同一条入口）。
+
+        ⚠️ 通道**跨回合保留**（`_UPG` 那边专门有"下回合先摘掉"的处理）⇒ 这里先把上一回合自己放的
+        `()` 摘掉再放，否则"这一回合的 HOLD 在不在候选里"就永远读到上一回合的答案。
+        **判"在不在"不在这里做**（要看去重后的结果，见 `_ahold_after_search` 的 `last_extra`）。
+        """
+        if not _AHOLD["on"]:
+            return
+        try:
+            base = [tuple(tuple(int(x) for x in op) for op in (b or ()))
+                    for b in (getattr(mcts, "extra_bundles", None) or ())]
+            base = [b for b in base if b != ()]        # 摘掉自己上一回合放的那份
+            base.append(())
+            mcts.set_extra_bundles(base)
+        except Exception as exc:  # noqa: BLE001
+            _AHOLD["err"] = f"{type(exc).__name__}: {exc}"
+
+    def _ahold_after_search(res) -> None:
+        """搜索**后**：统计"我们最终 HOLD 的比例"+"被架构剥夺的决策被拿回多少"+ 每 50 决策打一行。
+
+        ⚠️ `added` 的口径必须用 **`mcts.last_extra`**（= 去重后**真的进候选集**的额外候选数）：
+        通道里放没放 `()` 是**输入**，`last_extra` 才是"网络候选里本来有没有 HOLD"的**答案**。
+        （第一版用"通道里原来有没有 `()`"判断，被跨回合保留的通道骗了，实测只有 2% —— 明显偏低。）
+        """
+        if not _AHOLD["on"]:
+            return
+        _AHOLD["dec"] = int(_AHOLD["dec"]) + 1
+        try:
+            added = int(getattr(mcts, "last_extra", 0) or 0) > 0
+        except Exception:  # noqa: BLE001
+            added = False
+        if added:
+            _AHOLD["added"] = int(_AHOLD["added"]) + 1
+        try:
+            is_hold = not (getattr(res, "chosen_bundle", None) or ())
+        except Exception:  # noqa: BLE001
+            is_hold = False
+        if is_hold:
+            _AHOLD["hold"] = int(_AHOLD["hold"]) + 1
+            if added:
+                _AHOLD["chose_after_add"] = int(_AHOLD["chose_after_add"]) + 1
+            else:
+                _AHOLD["present_kept"] = int(_AHOLD["present_kept"]) + 1
+        elif not added:
+            _AHOLD["present_moved"] = int(_AHOLD["present_moved"]) + 1
+        if int(_AHOLD["dec"]) % 50 == 0:
+            _log(f"[ahold] 累计: {_ahold_stats_text()}")
+
+    _ahold_enable()          # 2026-10-29：读 `AZAI_ALWAYS_HOLD`（不设 = 关，零开销）
+
     def _probe_upgrade_once() -> None:
         """🔬 诊断（`AZAI_PROBE_UPG=1`）：**在真实对局的引擎环境里**问清"升级 op 到底能不能生效"。
 
@@ -2162,6 +2524,7 @@ def main() -> int:
         # ⬆️ 升级候选（`AZAI_UPG_BUNDLES=N`；**默认 0 ⇒ 这一行立刻返回、行为逐位不变**）：
         #    必须在 `mcts.search()` **之前**塞进通道（`search()` 才读 `self.extra_bundles`）。
         _upg_step()
+        _ahold_step()          # 2026-10-29：`AZAI_ALWAYS_HOLD=1` ⇒ 候选集里恒有 HOLD（默认 no-op）
         from my_ai.az_intent.timing import T as _T
         with _T("search"):
             res = mcts.search(facade, player, temperature=temperature)
@@ -2170,6 +2533,7 @@ def main() -> int:
         res = _only_extra_pick(res)
         _oracle_after_search()   # 注入统计（去重后是否真的加进去 / 是否被选中）
         _upg_after_search(res)   # 升级候选：有没有被**同一个**评估器选中 + 实测预算
+        _ahold_after_search(res)  # 2026-10-29：HOLD 恒为候选臂的读数（默认 no-op）
         # 显式 op（升级）：class+position 通路表达不了 ⇒ 直接把 MC 选中的那个 op 发出去。
         _expl = getattr(mcts, 'mc_last_explicit', None)
         if _expl is not None:

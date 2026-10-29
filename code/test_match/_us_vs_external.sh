@@ -92,6 +92,16 @@ fi
 export MVS_STDERR_SUFFIX=1
 export DSH_PROGRESS_SUFFIX="_${TAG}"
 
+# 2026-10-29：oracle 的**重建 + 主动重启**开关（`docs/e4_only_extra_20261029.md` §1）。
+# ⚠️ 必须在下面"清空继承的 AZAI_*"之前抓住它们（那些循环会把它们 unset 掉）。
+_ORACLE_REBUILD_MAX="${AZAI_ORACLE_REBUILD_MAX:-}"
+_ORACLE_RESTART_EVERY="${AZAI_ORACLE_RESTART_EVERY:-}"
+_ORACLE_REBUILD_MAX_B="${AZAI_ORACLE_REBUILD_MAX_B:-}"
+_ORACLE_RESTART_EVERY_B="${AZAI_ORACLE_RESTART_EVERY_B:-}"
+# 2026-10-29：HOLD 恒为候选（消融臂 `AZAI_ALWAYS_HOLD=1`）—— 同样必须在这里抓住
+_ALWAYS_HOLD="${AZAI_ALWAYS_HOLD:-}"
+
+
 OUTROOT="match_results/us_vs_external"
 LOGDIR="match_results/ladder_logs/$TAG"
 
@@ -277,6 +287,18 @@ for v in $(env | sed -n 's/^\(AZAI_[A-Za-z_0-9]*\)=.*/\1/p'); do unset "$v"; don
 for kv in $(echo "$export_env" | tr ';' '\n'); do
     [ -n "$kv" ] && export "$kv"
 done
+# 2026-10-29：把上面抓住的 oracle 重建/重启开关放回来（不设 = 各自的默认值）
+for _kv in "AZAI_ORACLE_REBUILD_MAX=$_ORACLE_REBUILD_MAX" \
+           "AZAI_ORACLE_RESTART_EVERY=$_ORACLE_RESTART_EVERY" \
+           "AZAI_ORACLE_REBUILD_MAX_B=$_ORACLE_REBUILD_MAX_B" \
+           "AZAI_ORACLE_RESTART_EVERY_B=$_ORACLE_RESTART_EVERY_B" \
+           "AZAI_ALWAYS_HOLD=$_ALWAYS_HOLD"; do
+    case "$_kv" in
+        *=) ;;                                  # 值为空 ⇒ 不 export（用默认）
+        *)  export "$_kv" ;;
+    esac
+done
+unset _kv
 
 # 每个实验的开关前置断言（少了这些断言，一类"静默失效"就会伪装成"没效果"）
 case "$EXP" in
@@ -324,9 +346,11 @@ while [ "$attempt" -le "$RETRY" ]; do
         cp -f "$LOGDIR/$tok.log" "$LOGDIR/_attempts/$tok.attempt$attempt.log" 2>/dev/null
     done
     t0=$(date +%s)
+    # 2026-10-29：夜间韧性开关从这里透传（`--retry-invalid 2 --final-sweep --watchdog-stall-min 90`），
+    # 默认空 ⇒ 行为与改动前**逐字相同**（老的 E1/E2 批次不受影响）。
     "$P" -u _tmp_ladder.py --tag="$TAG" --jobs="$JOBS" \
         --ai0=code/test_match/az_bridge_ai.py --ai1="$OPP_EXE" \
-        ${ROUNDS:+--rounds="$ROUNDS"} $todo 2>&1 | tee -a "$LOGDIR/_run.log"
+        ${ROUNDS:+--rounds="$ROUNDS"} ${LADDER_EXTRA_ARGS:-} $todo 2>&1 | tee -a "$LOGDIR/_run.log"
     rc=${PIPESTATUS[0]}
     t1=$(date +%s)
     echo "[uvx] [$TAG] 第 $((attempt+1)) 轮结束 rc=$rc  $(( (t1-t0)/60 )) min  $(date '+%H:%M:%S')"

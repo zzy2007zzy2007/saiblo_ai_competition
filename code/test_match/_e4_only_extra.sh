@@ -27,4 +27,22 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 export EXP=E4
 export OPP="${OPP:-champion}"
+# ── 2026-10-29：E4 的两条 oracle 加固（`docs/e4_only_extra_20261029.md` §1）──────────────
+#   A 会话（冠军）：**主动重启**（默认每 150 回合）。为什么必须开：
+#     它的影子局面从第 1 个"我们不执行的决策"起就分叉 ⇒ `force_pass_` 一置上就整局 HOLD、
+#     再往后影子里的基地血归零 ⇒ abort（`apply_operations.called_after_terminal`）。
+#     不重启 ⇒ 第 ~239 回合起 A 就永久消失 ⇒ 候选集塌成 1 个 ⇒ **E4 与 E4-rand 按构造相同**。
+#   B 会话（亚军）：**不重启**（它是无状态查询器，重启只会把回合号搞乱、引入偏差）。
+export AZAI_ORACLE_REBUILD_MAX="${AZAI_ORACLE_REBUILD_MAX:-6}"
+export AZAI_ORACLE_RESTART_EVERY="${AZAI_ORACLE_RESTART_EVERY:-150}"
+export AZAI_ORACLE_RESTART_EVERY_B="${AZAI_ORACLE_RESTART_EVERY_B:-0}"
+# ── 2026-10-29：过夜批次的三件套（`docs/ladder_resilience_20261029.md`）───────────────
+#   ⚠️ 阈值取 90 分钟（不是 1）：1 分钟是验证开关用的，会误杀"单回合很慢"的好局。
+#   ⚠️ 6 小时墙钟（不是 3）：夜里休眠时墙钟会跳，2-3 小时会把好局误杀；靠 retry/sweep 补跑。
+export LADDER_TIMEOUT="${LADDER_TIMEOUT:-21600}"
+export LADDER_EXTRA_ARGS="${LADDER_EXTRA_ARGS:---retry-invalid 2 --final-sweep --watchdog-stall-min 90}"
+# 单次读包超时 = 300s（任务书口径）：300s 只当"真死锁"门限；冠军在 force_pass 状态下单次 ~80ms，
+# 不存在"慢查询被误杀"的风险。
+export MVS_TIMEOUT_SECONDS="${MVS_TIMEOUT_SECONDS:-300}"
 exec bash code/test_match/_us_vs_external.sh
+

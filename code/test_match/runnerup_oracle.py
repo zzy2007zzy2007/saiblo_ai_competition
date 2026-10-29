@@ -125,7 +125,8 @@ class RunnerUpOracle:
 
     def __init__(self, seed: int, player: int = 1, exe: str | None = None,
                  timeout: float = 5.0, stderr_path: str | os.PathLike | None = None,
-                 verbose: bool = False):
+                 verbose: bool = False, keep_history: bool = True,
+                 extra_env: dict | None = None):
         self.seed = int(seed)
         self.player = int(player)
         if self.player not in (0, 1):
@@ -133,12 +134,19 @@ class RunnerUpOracle:
         self.timeout = float(timeout)
         self.verbose = bool(verbose)
         self.exe = Path(exe) if exe else Path(RUNNERUP_EXE)
-
+        # 2026-10-29：**重建 + 回放追赶**（`docs/us_vs_champion_20261029.md` §4.2.1 的坑）。
+        #   `keep_history=True` ⇒ 每次成功 ask 把"真正发出去的那几个帧"存下来（状态文本 + 对手操作块），
+        #   会话死掉时新进程可以从 round 0 把这些帧原样重放一遍，追上当前回合。
+        #   代价：每回合多存 ~1-5 KB 字符串（512 回合 ≈ 1-2 MB/会话）⇒ 默认开，但可关。
+        self.keep_history = bool(keep_history)
+        self.history: list[tuple[int, tuple[tuple[str, str], ...]]] = []   # (回合, ((标签, 文本), ...))
         self._next_round = 0           # 下一个 ask 期望的 state.round_index
         self._closed = False
         self._dead: str | None = None
         self._opp_ops: dict[int, str] = {}    # 回合号 -> 对手操作块原文
-        self.stats = {"asks": 0, "ok": 0, "timeouts": 0, "total_ms": 0.0, "last_ms": 0.0}
+        self.stats = {"asks": 0, "ok": 0, "timeouts": 0, "total_ms": 0.0, "last_ms": 0.0,
+                      "replayed": 0, "replay_s": 0.0}
+
 
         if stderr_path is None:
             log_dir = REPO_ROOT / "match_results" / "oracle_logs"
@@ -150,6 +158,9 @@ class RunnerUpOracle:
         # 与桥接完全相同的 env（ANTGAME_CPP_BASELINE_DEBUG 改它的 stderr 详细度，
         # 默认 summary = 真实对局用的值；MVS_RUNNERUP_DEBUG=plans 可拿候选+打分）
         env = {"ANTGAME_CPP_BASELINE_DEBUG": os.environ.get("MVS_RUNNERUP_DEBUG", "summary")}
+        if extra_env:
+            # 2026-10-29：给"多套配置"场景用（同一个 exe 用不同 AZAI_* 跑两个会话）。
+            env.update({str(k): str(v) for k, v in extra_env.items()})
         self._proc, self._io = start_ai(
             self.exe, self.player, self.seed, self.stderr_path,
             extra_env=env, strip_cr=True, cwd=None,
@@ -227,17 +238,22 @@ class RunnerUpOracle:
             self.set_opponent_ops(rnd, opponent_ops)
 
         t0 = time.monotonic()
+        # 2026-10-29：先把"本回合要发的那几个帧"算出来（顺序 = 协议的确切读序），
+        # 再逐个发出去 —— 这样 `history` 里存的就是**逐字发出去的原文**，重建后能原样重放。
+        frames: list[tuple[str, str]] = []
+        if self.player == 1:
+            # 读序：对手操作块(N) → 自己写 → 局面(N+1)
+            if rnd >= 1:
+                frames.append((f"state(r{rnd})", state_to_text(state)))
+            frames.append((f"opp_ops(r{rnd})", self._opp_text(rnd)))
+        else:
+            # 读序（P0 也一样是「先对手后局面」）：对手操作块(N-1) → 局面(N) → 自己写
+            if rnd >= 1:
+                frames.append((f"opp_ops(r{rnd - 1})", self._opp_text(rnd - 1)))
+                frames.append((f"state(r{rnd})", state_to_text(state)))
         try:
-            if self.player == 1:
-                # 读序：对手操作块(N) → 自己写 → 局面(N+1)
-                if rnd >= 1:
-                    self._send(state_to_text(state), f"state(r{rnd})")
-                self._send(self._opp_text(rnd), f"opp_ops(r{rnd})")
-            else:
-                # 读序（P0 也一样是「先对手后局面」）：对手操作块(N-1) → 局面(N) → 自己写
-                if rnd >= 1:
-                    self._send(self._opp_text(rnd - 1), f"opp_ops(r{rnd - 1})")
-                    self._send(state_to_text(state), f"state(r{rnd})")
+            for what, text in frames:
+                self._send(text, what)
             payload = self._read_packet()
         except OracleError:
             self.stats["asks"] += 1
@@ -250,10 +266,47 @@ class RunnerUpOracle:
         ops = parse_ops_text(payload.decode("utf-8", errors="replace"))
         self.stats["ok"] += 1
         self._next_round = rnd + 1
+        if self.keep_history:
+            # 只记"成功消费掉的"回合：失败那一回合的帧没被它读走，记进来会污染回放。
+            self.history.append((rnd, tuple(frames)))
         if self.verbose:
             self._log(f"r{rnd} {self.stats['last_ms']:.1f}ms -> {len(ops)} ops "
                       f"{[(int(o.op_type), o.arg0, o.arg1) for o in ops]}")
         return ops
+
+    # ── 重建 + 回放追赶（2026-10-29）────────────────────────────────────────
+    def replay(self, history=None, upto_round: int | None = None,
+               deadline_s: float | None = None) -> tuple[int, float]:
+        """把 `history` 里 **0..upto_round-1** 回合的帧逐字重放进**本会话**（新进程），丢弃它的输出。
+
+        为什么只能重放不能"直接告诉它现在几回合"：协议要求从 round 0 起连续喂（跳回合 = 读端错位），
+        而且它的内部影子局面是靠**逐回合推进**攒出来的，没有"从当前局面初始化"的入口。
+
+        返回 `(重放的回合数, 墙钟秒)`；中途失败抛 `OracleError`（会话照样作废，由调用方决定是否再试）。
+        `deadline_s` 给回放本身一个墙钟上限（冠军 O0 一局 512 回合回放 ~40s，给 180s 足够）。
+        """
+        hist = self.history if history is None else history
+        t0 = time.monotonic()
+        n = 0
+        for rnd, frames in hist:
+            if upto_round is not None and int(rnd) >= int(upto_round):
+                break
+            if deadline_s is not None and (time.monotonic() - t0) > float(deadline_s):
+                raise OracleTimeout(f"回放超过 {deadline_s:g}s（已回放 {n} 回合）")
+            for what, text in frames:
+                self._send(text, f"replay.{what}")
+            self._read_packet()                      # ⇐ 丢弃它的答案（回放阶段不需要）
+            self._next_round = int(rnd) + 1
+            if self.keep_history:
+                self.history.append((int(rnd), frames))
+            n += 1
+        dt = time.monotonic() - t0
+        self.stats["replayed"] += n
+        self.stats["replay_s"] += dt
+        if self.verbose:
+            self._log(f"回放 {n} 回合完成（{dt:.1f}s，next_round={self._next_round}）")
+        return n, dt
+
 
     def try_ask(self, state, opponent_ops: str | None = None):
         """失败返回 None 而不是抛（会话照样作废）。"""
@@ -307,6 +360,27 @@ class RunnerUpOracle:
     def __repr__(self) -> str:
         return (f"<RunnerUpOracle seed={self.seed} player={self.player} "
                 f"next_round={self._next_round} stats={self.stats}>")
+
+
+def rebuild_session(old: "RunnerUpOracle", upto_round: int | None = None,
+                    stderr_path: str | os.PathLike | None = None,
+                    deadline_s: float = 180.0) -> tuple["RunnerUpOracle", int, float]:
+    """**会话重建 + 回放追赶**：起一个新进程，把 `old` 记下的 0..upto_round-1 历史原样喂给它。
+
+    返回 `(新会话, 回放的回合数, 回放墙钟秒)`。失败时抛 `OracleError`（新进程由调用方关掉）。
+
+    ⚠️ 2026-10-29 实测（`_champ_oracle_rebuild_probe.py`）：**冠军可以回放到它崩的那一回合之前**，
+    但一到崩点重放又会崩（`apply_operations.called_after_terminal` 由它影子模型里的"终局"决定，
+    与进程活了多久无关）⇒ 这条路对冠军只能救"崩点之前"的会话。细则见
+    `docs/e4_only_extra_20261029.md` §1。`stderr_path=None` ⇒ 默认名含 pid ⇒ 每次重建一个新文件
+    （**旧会话的崩溃日志不会被覆盖**，这是有意为之）。
+    """
+    new = RunnerUpOracle(seed=old.seed, player=old.player, exe=str(old.exe),
+                         timeout=old.timeout, stderr_path=stderr_path,
+                         verbose=old.verbose, keep_history=old.keep_history)
+    new._opp_ops.update(old._opp_ops)      # P0 的 ask(r) 要 r-1 的块（回放后继续用）
+    n, dt = new.replay(old.history, upto_round=upto_round, deadline_s=deadline_s)
+    return new, n, dt
 
 
 def main() -> int:

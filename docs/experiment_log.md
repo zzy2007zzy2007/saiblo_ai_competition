@@ -13675,3 +13675,47 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261029_091342_us_vs_champion_e2/output.log`
 - **result**: **E2（注入冠军动作 vs 冠军）16 局：4W-12L = 25.0%（Wilson [10.2, 49.5]），血量差 −17.44（t 95%CI [−24.91, −9.97]）；@P0 1/8（−25.25）、@P1 3/8（−9.62）**。与 E1 配对：McNemar p=0.375、配对 Δhp +5.19 [−14.50, +4.13] ⇒ 方向为正但不显著（预注册判据不满足）。16/16 verdict=engine、illegal=0、冠军侧 stderr 留存。**注入覆盖只有 54.4%**：冠军当 oracle 在第 ~250 回合因 runtime mismatch（coins 字段）→ apply_operations.called_after_terminal abort（exit 0xC0000409），14/16 局会话 dead；oracle 延迟 avg 92.5ms / p95 164.5ms / timeout=0；new-over-asks=31.7%、hit_new-over-new=43.1%。见 docs/us_vs_champion_20261029.md §4。
+
+## 2026-10-29 11:38:28 — oracle_fix_smoke
+
+- **commit**: `e41a52a` (dirty: 5 files)
+- **exit**: 1，用时 190s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_rebuild_accept.sh
+  ```
+- **output**: `training_history/runs/20261029_113828_oracle_fix_smoke/output.log`
+- **result**: _待填_
+
+## 2026-10-29 11:42:42 — oracle_fix_restart
+
+- **commit**: `e41a52a` (dirty: 6 files)
+- **exit**: 0，用时 1910s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_rebuild_accept.sh
+  ```
+- **output**: `training_history/runs/20261029_114242_oracle_fix_restart/output.log`
+- **result**: _待填_
+
+## 2026-10-29 12:11:10 — oracle_kill_test
+
+- **commit**: `e41a52a` (dirty: 9 files)
+- **exit**: 0，用时 327s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_kill_rebuild_test.sh
+  ```
+- **output**: `training_history/runs/20261029_121110_oracle_kill_test/output.log`
+- **result**: _待填_
+
+## 2026-10-29 11:42:22 — oracle_fix_rebuild
+
+- **commit**: `e41a52a` (dirty: 6 files)
+- **exit**: 0，用时 2446s
+- **cmd**:
+  ```bash
+  bash code/test_match/_oracle_rebuild_accept.sh
+  ```
+- **output**: `training_history/runs/20261029_114222_oracle_fix_rebuild/output.log`
+- **result**: _待填_
