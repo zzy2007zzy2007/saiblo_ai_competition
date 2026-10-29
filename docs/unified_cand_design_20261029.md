@@ -24,15 +24,16 @@
 
 **通道 → 目标 op 枚举规则**：
 
-| 通道 | 产出 op | 枚举规则 |
+| 通道 | 产出 op | 枚举规则（据 `decoder.py` 精确语义）|
 |---|---|---|
-| 0–15 塔型 | 11 BUILD | 该通道分数前 m 个**合法空格**（`can_apply`：够钱、不重叠、空）|
+| 0–15 塔型 | 11 BUILD 或 12 UPGRADE | 该通道前 m 个**合法格**：空格 ⇒ **建 Basic**（任何塔通道在空地都建 Basic，`decoder.py:444-446`）；我方已占格 ⇒ **升级向 `CHANNEL_TO_TOWER_TYPE[class_id]`**（`decoder.py:451-456`）；敌方格 ⇒ 丢弃 |
 | 16 降级 | 13 DOWNGRADE | 我方已建塔格 |
 | 17 闪电 | 21 LIGHTNING | 通道 argmax（闪电合法性几乎与格无关）|
-| 18–20 超级武器 | 22/23/24 | **待核实**（枚举规则需读 decoder）|
-| 21–22 基地升级 | 31/32？ | **待核实**（op 类型需读 decoder）|
+| 18–20 超级武器 | 22/23/24 | `CHANNEL_TO_SUPER_WEAPON[class_id]`（EMP/DEFLECTOR/EVASION）|
+| 21 基地升级 | 31 UP_SPEED | `OperationType.UPGRADE_GENERATION_SPEED`（`decoder.py:370-371`）|
+| 22 基地升级 | 32 UP_ANT | `OperationType.UPGRADE_GENERATED_ANT`（`decoder.py:372-373`）|
 | **23 HOLD** | 空 bundle `()` | 恒含 1 条（或按分数阈值，见 §6 待拍板）|
-| **升级**（无独立通道）| 12 UPGRADE | 显式枚举「我方塔 × 该塔合法升级目标」；`arg0 = tower_id`（**不是坐标**）、`arg1 = target_type`，用 `TOWER_UPGRADE_TREE` + `can_apply` 过滤 |
+| **升级**（由 0–15 通道已占格分支自然产出；另可显式枚举兜底）| 12 UPGRADE | 兜底：显式枚举「我方塔 × 该塔合法升级目标」，`arg0 = tower_id`（**不是坐标**）、`arg1 = target_type`，用 `TOWER_UPGRADE_TREE` + `upgrade_step`（`decoder.py:82-94`）+ `can_apply` 过滤 |
 
 > 升级为什么"无独立通道"：`action_map` 没有 op12 通道，升级是"塔意图通道解码到已占格"的产物（研究结论 ③）。所以必须显式枚举，不能靠通道 argmax。
 
@@ -54,7 +55,7 @@
   2. 选位置：`cursor[c]` 空 ⇒ 位置图 argmax；否则看该类最后一个动作在位置图里排第 k ⇒ 选第 k+1 名；
   3. 对 (c, pos) 做 rollout，回写 `Q[c]` 与 `cursor[c]`。
 
-**多动作组版**：分数仍按每个动作类统计；游标按 `(c1,c2,c3)` 三元组索引；位置分数 = 三个类位置图分数之积（或 log-sum，防 0）；三个类各自独立采样。
+**多动作组版**：分数仍按每个动作类统计；**游标按"动作类的规范多重集"索引，而非有序三元组**——去掉 HOLD、把类排序，`(hold,build,lightning)` 与 `(build,hold,lightning)` 归一到 `(build,lightning)`（它们产出的 bundle 相同，不该拆成两个游标、让预算被重复计算分摊、评估变稀）。位置分数 = 各类位置图分数之积（或 log-sum，防 0）；各类独立采样。
 
 **关键设计判断（已和用户对齐）**：
 - 位置由**静态位置图（先验）**提议，类预算由**学到的 Q[c]**分配 ⇒ 避免"类×位置笛卡尔积"。
@@ -68,6 +69,10 @@
 - 起步 **β=3**，超参扫 [1, 3, 8]；两阶段预算下可偏乐观（bandit 只生成候选、不强求精确）。
 - 备选：**top-m 均值**（m=1 即 max、m=n 即 mean），最简、可解释。
 - **探索项保持标准 UCB**：`+ c·√(log N / n)`（c 另扫，如 [1.0, 2.0]），与利用项解耦、分别调。
+
+**rollout 缓存与两阶段复用**（用户提出，已对齐）：
+- **缓存键 = 规范化后的 bundle**（`(op_type, arg0, arg1)` 元组序列，去掉 HOLD）。不同通道/不同类序列解码出**同一个 bundle** 时只 rollout 一次（例：多个塔通道在空地都解码成同一个 `BUILD_TOWER(x,y)` ⇒ 一次即可）。
+- **两阶段共用 rollout 数据**：bandit 阶段（生成候选）已做的 rollout 结果，直接喂给 flat 强评估器阶段复用，只补足剩余采样数到目标 N，不重复算。⇒ 这降低"两阶段"的额外成本，让"先用 bandit 粗选、再强评估"几乎不亏预算。
 
 ## 3. 与 flat 评估器的衔接
 
