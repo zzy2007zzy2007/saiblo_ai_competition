@@ -1,0 +1,3832 @@
+{
+  "meta": {
+    "generated_at": "2026-10-29T22:50:33",
+    "script": "code/test_match/eval_recall_report.py",
+    "cwd_repo": "D:\\2026智能体大赛_新2_distill",
+    "commit": "d92c1b987c21c0ddf503294813fc07534e566fd4",
+    "dirty": true,
+    "min_cells": 2,
+    "insufficient_n": 20,
+    "ks": [
+      1,
+      4,
+      24
+    ],
+    "ops": {
+      "build": 11,
+      "downgrade": 13,
+      "lightning": 21,
+      "emp": 22,
+      "deflector": 23,
+      "evasion": 24
+    },
+    "nets": [
+      {
+        "name": "posnet_A",
+        "path": "checkpoints/posnet_A_k5_m32.pt"
+      },
+      {
+        "name": "prior_distill_f10",
+        "path": "checkpoints/prior_distill_f10.pt"
+      },
+      {
+        "name": "prior_distill_mcts16",
+        "path": "checkpoints/prior_distill_mcts16.pt"
+      },
+      {
+        "name": "prior_z_full",
+        "path": "checkpoints/prior_z_full.pt"
+      },
+      {
+        "name": "prior_z_60ep",
+        "path": "checkpoints/prior_z_60ep.pt"
+      },
+      {
+        "name": "prior_z_head",
+        "path": "checkpoints/prior_z_head.pt"
+      },
+      {
+        "name": "prior_z_80g",
+        "path": "checkpoints/prior_z_80g.pt"
+      },
+      {
+        "name": "prior_z_80g.best",
+        "path": "checkpoints/prior_z_80g.best.pt"
+      },
+      {
+        "name": "prior_hybrid_z_only",
+        "path": "checkpoints/prior_hybrid_z_only.pt"
+      },
+      {
+        "name": "prior_hybrid_z_ce_w1",
+        "path": "checkpoints/prior_hybrid_z_ce_w1.pt"
+      },
+      {
+        "name": "prior_hybrid_z_ce_w3",
+        "path": "checkpoints/prior_hybrid_z_ce_w3.pt"
+      },
+      {
+        "name": "prior_hard_ce_w1",
+        "path": "checkpoints/prior_hard_ce_w1.pt"
+      },
+      {
+        "name": "prior_hard_ce_w3",
+        "path": "checkpoints/prior_hard_ce_w3.pt"
+      }
+    ],
+    "device": "cpu",
+    "note": "NOTE 降级类（op=13）样本量通常极小，支撑集常常只有 1-3 格 ⇒ @4/@24 接近平凡；n<20 的行标注「样本不足」，比例不可过度解读。"
+  },
+  "calibers": {
+    "A": {
+      "key": "A",
+      "label": "亚军决策点（日志重放）",
+      "semantics": "支撑集=该动作类的合法格数（position mask）；目标=亚军实际走法（仅统计重放后仍合法的决策点）",
+      "source": {
+        "日志目录": "D:\\2026智能体大赛_新2_distill\\match_results\\ladder_logs\\VS_RUNNERUP_cells4",
+        "日志局数": "16 局：10, 10r, 11, 11r, 12, 12r, 13, 13r, 14, 14r, 15, 15r, 16, 16r, 17, 17r"
+      },
+      "min_cells": 2,
+      "decisions_total": 1383,
+      "decisions_kept": 1230,
+      "dropped_by_min_cells_total": 153,
+      "elapsed_sec": 52.2,
+      "ops": {
+        "build": {
+          "op": 11,
+          "name_zh": "建塔",
+          "n": 303,
+          "support_median": 32,
+          "support_min": 31,
+          "support_max": 33,
+          "random": {
+            "1": 0.030855504905329286,
+            "4": 0.12342201962131714,
+            "24": 0.7405321177279012
+          },
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 303,
+              "hit": {
+                "1": 15,
+                "4": 55,
+                "24": 227
+              },
+              "recall": {
+                "1": 0.04950495049504951,
+                "4": 0.18151815181518152,
+                "24": 0.7491749174917491
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 303,
+              "hit": {
+                "1": 19,
+                "4": 50,
+                "24": 227
+              },
+              "recall": {
+                "1": 0.0627062706270627,
+                "4": 0.16501650165016502,
+                "24": 0.7491749174917491
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 303,
+              "hit": {
+                "1": 17,
+                "4": 55,
+                "24": 235
+              },
+              "recall": {
+                "1": 0.056105610561056105,
+                "4": 0.18151815181518152,
+                "24": 0.7755775577557755
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 303,
+              "hit": {
+                "1": 27,
+                "4": 59,
+                "24": 232
+              },
+              "recall": {
+                "1": 0.0891089108910891,
+                "4": 0.19471947194719472,
+                "24": 0.7656765676567657
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 303,
+              "hit": {
+                "1": 25,
+                "4": 66,
+                "24": 232
+              },
+              "recall": {
+                "1": 0.08250825082508251,
+                "4": 0.21782178217821782,
+                "24": 0.7656765676567657
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 303,
+              "hit": {
+                "1": 14,
+                "4": 52,
+                "24": 232
+              },
+              "recall": {
+                "1": 0.0462046204620462,
+                "4": 0.1716171617161716,
+                "24": 0.7656765676567657
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 303,
+              "hit": {
+                "1": 17,
+                "4": 63,
+                "24": 233
+              },
+              "recall": {
+                "1": 0.056105610561056105,
+                "4": 0.2079207920792079,
+                "24": 0.768976897689769
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 303,
+              "hit": {
+                "1": 22,
+                "4": 54,
+                "24": 234
+              },
+              "recall": {
+                "1": 0.07260726072607261,
+                "4": 0.1782178217821782,
+                "24": 0.7722772277227723
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 303,
+              "hit": {
+                "1": 15,
+                "4": 49,
+                "24": 237
+              },
+              "recall": {
+                "1": 0.04950495049504951,
+                "4": 0.1617161716171617,
+                "24": 0.7821782178217822
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 303,
+              "hit": {
+                "1": 19,
+                "4": 49,
+                "24": 233
+              },
+              "recall": {
+                "1": 0.0627062706270627,
+                "4": 0.1617161716171617,
+                "24": 0.768976897689769
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 303,
+              "hit": {
+                "1": 13,
+                "4": 47,
+                "24": 234
+              },
+              "recall": {
+                "1": 0.0429042904290429,
+                "4": 0.1551155115511551,
+                "24": 0.7722772277227723
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 303,
+              "hit": {
+                "1": 26,
+                "4": 65,
+                "24": 233
+              },
+              "recall": {
+                "1": 0.0858085808580858,
+                "4": 0.2145214521452145,
+                "24": 0.768976897689769
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 303,
+              "hit": {
+                "1": 25,
+                "4": 61,
+                "24": 235
+              },
+              "recall": {
+                "1": 0.08250825082508251,
+                "4": 0.20132013201320131,
+                "24": 0.7755775577557755
+              },
+              "support_median": 32,
+              "random": {
+                "1": 0.030855504905329286,
+                "4": 0.12342201962131714,
+                "24": 0.7405321177279012
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "downgrade": {
+          "op": 13,
+          "name_zh": "降级",
+          "n": 866,
+          "support_median": 2.0,
+          "support_min": 2,
+          "support_max": 3,
+          "random": {
+            "1": 0.4649730561970739,
+            "4": 1.0,
+            "24": 1.0
+          },
+          "dropped_by_min_cells": 153,
+          "nets": {
+            "posnet_A": {
+              "n": 866,
+              "hit": {
+                "1": 467,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5392609699769053,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 866,
+              "hit": {
+                "1": 467,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5392609699769053,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 866,
+              "hit": {
+                "1": 467,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5392609699769053,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 866,
+              "hit": {
+                "1": 416,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.48036951501154734,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 866,
+              "hit": {
+                "1": 438,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5057736720554272,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 866,
+              "hit": {
+                "1": 467,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5392609699769053,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 866,
+              "hit": {
+                "1": 433,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 866,
+              "hit": {
+                "1": 468,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5404157043879908,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 866,
+              "hit": {
+                "1": 480,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5542725173210161,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 866,
+              "hit": {
+                "1": 436,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5034642032332564,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 866,
+              "hit": {
+                "1": 412,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.47575057736720555,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 866,
+              "hit": {
+                "1": 471,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5438799076212472,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 866,
+              "hit": {
+                "1": 467,
+                "4": 866,
+                "24": 866
+              },
+              "recall": {
+                "1": 0.5392609699769053,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.4649730561970739,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "lightning": {
+          "op": 21,
+          "name_zh": "闪电",
+          "n": 55,
+          "support_median": 271,
+          "support_min": 271,
+          "support_max": 271,
+          "random": {
+            "1": 0.003690036900369007,
+            "4": 0.014760147601476028,
+            "24": 0.08856088560885607
+          },
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 11,
+                "24": 37
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.2,
+                "24": 0.6727272727272727
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 11,
+                "24": 37
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.2,
+                "24": 0.6727272727272727
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 11,
+                "24": 37
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.2,
+                "24": 0.6727272727272727
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 9,
+                "24": 38
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.16363636363636364,
+                "24": 0.6909090909090909
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 55,
+              "hit": {
+                "1": 5,
+                "4": 11,
+                "24": 36
+              },
+              "recall": {
+                "1": 0.09090909090909091,
+                "4": 0.2,
+                "24": 0.6545454545454545
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 9,
+                "24": 41
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.16363636363636364,
+                "24": 0.7454545454545455
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 55,
+              "hit": {
+                "1": 4,
+                "4": 13,
+                "24": 41
+              },
+              "recall": {
+                "1": 0.07272727272727272,
+                "4": 0.23636363636363636,
+                "24": 0.7454545454545455
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 55,
+              "hit": {
+                "1": 3,
+                "4": 14,
+                "24": 39
+              },
+              "recall": {
+                "1": 0.05454545454545454,
+                "4": 0.2545454545454545,
+                "24": 0.7090909090909091
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 55,
+              "hit": {
+                "1": 4,
+                "4": 9,
+                "24": 40
+              },
+              "recall": {
+                "1": 0.07272727272727272,
+                "4": 0.16363636363636364,
+                "24": 0.7272727272727273
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 55,
+              "hit": {
+                "1": 2,
+                "4": 9,
+                "24": 41
+              },
+              "recall": {
+                "1": 0.03636363636363636,
+                "4": 0.16363636363636364,
+                "24": 0.7454545454545455
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 55,
+              "hit": {
+                "1": 4,
+                "4": 18,
+                "24": 41
+              },
+              "recall": {
+                "1": 0.07272727272727272,
+                "4": 0.32727272727272727,
+                "24": 0.7454545454545455
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 55,
+              "hit": {
+                "1": 4,
+                "4": 15,
+                "24": 43
+              },
+              "recall": {
+                "1": 0.07272727272727272,
+                "4": 0.2727272727272727,
+                "24": 0.7818181818181819
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 55,
+              "hit": {
+                "1": 2,
+                "4": 14,
+                "24": 35
+              },
+              "recall": {
+                "1": 0.03636363636363636,
+                "4": 0.2545454545454545,
+                "24": 0.6363636363636364
+              },
+              "support_median": 271,
+              "random": {
+                "1": 0.003690036900369007,
+                "4": 0.014760147601476028,
+                "24": 0.08856088560885607
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "emp": {
+          "op": 22,
+          "name_zh": "EMP",
+          "n": 0,
+          "support_median": null,
+          "support_min": null,
+          "support_max": null,
+          "random": null,
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            }
+          }
+        },
+        "deflector": {
+          "op": 23,
+          "name_zh": "deflector",
+          "n": 0,
+          "support_median": null,
+          "support_min": null,
+          "support_max": null,
+          "random": null,
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 0,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": null,
+                "4": null,
+                "24": null
+              },
+              "support_median": null,
+              "random": null,
+              "insufficient": false
+            }
+          }
+        },
+        "evasion": {
+          "op": 24,
+          "name_zh": "evasion",
+          "n": 6,
+          "support_median": 271.0,
+          "support_min": 271,
+          "support_max": 271,
+          "random": {
+            "1": 0.0036900369003690036,
+            "4": 0.014760147601476014,
+            "24": 0.0885608856088561
+          },
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_distill_f10": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_distill_mcts16": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_z_full": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_z_60ep": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_z_head": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_z_80g": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_z_80g.best": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_only": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 0
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.0
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_hard_ce_w1": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 1,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.16666666666666666,
+                "24": 0.3333333333333333
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            },
+            "prior_hard_ce_w3": {
+              "n": 6,
+              "hit": {
+                "1": 0,
+                "4": 0,
+                "24": 1
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.0,
+                "24": 0.16666666666666666
+              },
+              "support_median": 271.0,
+              "random": {
+                "1": 0.0036900369003690036,
+                "4": 0.014760147601476014,
+                "24": 0.0885608856088561
+              },
+              "insufficient": true
+            }
+          }
+        }
+      },
+      "overall": {
+        "n": 1230,
+        "support_median": 2.0,
+        "random": {
+          "1": 0.3351552657755308,
+          "4": 0.7352010089015841,
+          "24": 0.8908808501574714
+        },
+        "nets": {
+          "posnet_A": {
+            "n": 1230,
+            "hit": {
+              "1": 485,
+              "4": 932,
+              "24": 1130
+            },
+            "recall": {
+              "1": 0.3943089430894309,
+              "4": 0.7577235772357723,
+              "24": 0.9186991869918699
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_distill_f10": {
+            "n": 1230,
+            "hit": {
+              "1": 489,
+              "4": 927,
+              "24": 1130
+            },
+            "recall": {
+              "1": 0.3975609756097561,
+              "4": 0.7536585365853659,
+              "24": 0.9186991869918699
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_distill_mcts16": {
+            "n": 1230,
+            "hit": {
+              "1": 487,
+              "4": 932,
+              "24": 1138
+            },
+            "recall": {
+              "1": 0.3959349593495935,
+              "4": 0.7577235772357723,
+              "24": 0.9252032520325203
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_z_full": {
+            "n": 1230,
+            "hit": {
+              "1": 446,
+              "4": 934,
+              "24": 1137
+            },
+            "recall": {
+              "1": 0.36260162601626017,
+              "4": 0.759349593495935,
+              "24": 0.9243902439024391
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_z_60ep": {
+            "n": 1230,
+            "hit": {
+              "1": 468,
+              "4": 943,
+              "24": 1135
+            },
+            "recall": {
+              "1": 0.3804878048780488,
+              "4": 0.7666666666666667,
+              "24": 0.9227642276422764
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_z_head": {
+            "n": 1230,
+            "hit": {
+              "1": 484,
+              "4": 927,
+              "24": 1140
+            },
+            "recall": {
+              "1": 0.3934959349593496,
+              "4": 0.7536585365853659,
+              "24": 0.926829268292683
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_z_80g": {
+            "n": 1230,
+            "hit": {
+              "1": 454,
+              "4": 942,
+              "24": 1140
+            },
+            "recall": {
+              "1": 0.36910569105691055,
+              "4": 0.7658536585365854,
+              "24": 0.926829268292683
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_z_80g.best": {
+            "n": 1230,
+            "hit": {
+              "1": 493,
+              "4": 934,
+              "24": 1140
+            },
+            "recall": {
+              "1": 0.4008130081300813,
+              "4": 0.759349593495935,
+              "24": 0.926829268292683
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_only": {
+            "n": 1230,
+            "hit": {
+              "1": 499,
+              "4": 924,
+              "24": 1143
+            },
+            "recall": {
+              "1": 0.4056910569105691,
+              "4": 0.751219512195122,
+              "24": 0.9292682926829269
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_ce_w1": {
+            "n": 1230,
+            "hit": {
+              "1": 457,
+              "4": 924,
+              "24": 1140
+            },
+            "recall": {
+              "1": 0.37154471544715445,
+              "4": 0.751219512195122,
+              "24": 0.926829268292683
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_ce_w3": {
+            "n": 1230,
+            "hit": {
+              "1": 429,
+              "4": 931,
+              "24": 1142
+            },
+            "recall": {
+              "1": 0.348780487804878,
+              "4": 0.7569105691056911,
+              "24": 0.9284552845528455
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_hard_ce_w1": {
+            "n": 1230,
+            "hit": {
+              "1": 501,
+              "4": 947,
+              "24": 1144
+            },
+            "recall": {
+              "1": 0.4073170731707317,
+              "4": 0.7699186991869919,
+              "24": 0.9300813008130081
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          },
+          "prior_hard_ce_w3": {
+            "n": 1230,
+            "hit": {
+              "1": 494,
+              "4": 941,
+              "24": 1137
+            },
+            "recall": {
+              "1": 0.4016260162601626,
+              "4": 0.765040650406504,
+              "24": 0.9243902439024391
+            },
+            "random": {
+              "1": 0.3351552657755308,
+              "4": 0.7352010089015841,
+              "24": 0.8908808501574714
+            },
+            "insufficient": false
+          }
+        }
+      }
+    },
+    "B": {
+      "key": "B",
+      "label": "我们自己的 80 局留出（g9376-g9379）",
+      "semantics": "支撑集=npz 里该动作组出现过的候选格数；目标=教师 argmax 候选（候选内排名，不引入合法掩码）",
+      "source": {
+        "留出目录": "training_history/prior_labels",
+        "留出局": "g9376, g9377, g9378, g9379",
+        "npz 窗口数": "1587",
+        "不支持动作组": "280"
+      },
+      "min_cells": 2,
+      "decisions_total": 4860,
+      "decisions_kept": 4749,
+      "dropped_by_min_cells_total": 111,
+      "elapsed_sec": 189.1,
+      "ops": {
+        "build": {
+          "op": 11,
+          "name_zh": "建塔",
+          "n": 1577,
+          "support_median": 33,
+          "support_min": 6,
+          "support_max": 33,
+          "random": {
+            "1": 0.03176855251828435,
+            "4": 0.1270742100731374,
+            "24": 0.7394847862455534
+          },
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 1577,
+              "hit": {
+                "1": 220,
+                "4": 561,
+                "24": 1442
+              },
+              "recall": {
+                "1": 0.13950538998097653,
+                "4": 0.3557387444514902,
+                "24": 0.9143944197844007
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 1577,
+              "hit": {
+                "1": 191,
+                "4": 481,
+                "24": 1406
+              },
+              "recall": {
+                "1": 0.12111604311984782,
+                "4": 0.30500951173113505,
+                "24": 0.891566265060241
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 1577,
+              "hit": {
+                "1": 224,
+                "4": 530,
+                "24": 1447
+              },
+              "recall": {
+                "1": 0.14204185161699429,
+                "4": 0.33608116677235256,
+                "24": 0.9175649968294229
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 1577,
+              "hit": {
+                "1": 204,
+                "4": 547,
+                "24": 1460
+              },
+              "recall": {
+                "1": 0.1293595434369055,
+                "4": 0.346861128725428,
+                "24": 0.9258084971464806
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 1577,
+              "hit": {
+                "1": 174,
+                "4": 490,
+                "24": 1411
+              },
+              "recall": {
+                "1": 0.11033608116677235,
+                "4": 0.310716550412175,
+                "24": 0.8947368421052632
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 1577,
+              "hit": {
+                "1": 216,
+                "4": 567,
+                "24": 1456
+              },
+              "recall": {
+                "1": 0.13696892834495877,
+                "4": 0.3595434369055168,
+                "24": 0.9232720355104629
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 1577,
+              "hit": {
+                "1": 183,
+                "4": 527,
+                "24": 1446
+              },
+              "recall": {
+                "1": 0.1160431198478123,
+                "4": 0.33417882054533926,
+                "24": 0.9169308814204186
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 1577,
+              "hit": {
+                "1": 201,
+                "4": 571,
+                "24": 1470
+              },
+              "recall": {
+                "1": 0.1274571972098922,
+                "4": 0.36207989854153455,
+                "24": 0.932149651236525
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 1577,
+              "hit": {
+                "1": 192,
+                "4": 547,
+                "24": 1465
+              },
+              "recall": {
+                "1": 0.12175015852885225,
+                "4": 0.346861128725428,
+                "24": 0.9289790741915028
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 1577,
+              "hit": {
+                "1": 178,
+                "4": 557,
+                "24": 1465
+              },
+              "recall": {
+                "1": 0.1128725428027901,
+                "4": 0.3532022828154724,
+                "24": 0.9289790741915028
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 1577,
+              "hit": {
+                "1": 196,
+                "4": 565,
+                "24": 1464
+              },
+              "recall": {
+                "1": 0.12428662016487001,
+                "4": 0.3582752060875079,
+                "24": 0.9283449587824985
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 1577,
+              "hit": {
+                "1": 167,
+                "4": 506,
+                "24": 1447
+              },
+              "recall": {
+                "1": 0.10589727330374128,
+                "4": 0.320862396956246,
+                "24": 0.9175649968294229
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 1577,
+              "hit": {
+                "1": 165,
+                "4": 496,
+                "24": 1422
+              },
+              "recall": {
+                "1": 0.1046290424857324,
+                "4": 0.31452124286620164,
+                "24": 0.901712111604312
+              },
+              "support_median": 33,
+              "random": {
+                "1": 0.03176855251828435,
+                "4": 0.1270742100731374,
+                "24": 0.7394847862455534
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "downgrade": {
+          "op": 13,
+          "name_zh": "降级",
+          "n": 2,
+          "support_median": 2.0,
+          "support_min": 2,
+          "support_max": 2,
+          "random": {
+            "1": 0.5,
+            "4": 1.0,
+            "24": 1.0
+          },
+          "dropped_by_min_cells": 82,
+          "nets": {
+            "posnet_A": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_distill_f10": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_distill_mcts16": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_z_full": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_z_60ep": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_z_head": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_z_80g": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_z_80g.best": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_only": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_hard_ce_w1": {
+              "n": 2,
+              "hit": {
+                "1": 2,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 1.0,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            },
+            "prior_hard_ce_w3": {
+              "n": 2,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 2
+              },
+              "recall": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "support_median": 2.0,
+              "random": {
+                "1": 0.5,
+                "4": 1.0,
+                "24": 1.0
+              },
+              "insufficient": true
+            }
+          }
+        },
+        "lightning": {
+          "op": 21,
+          "name_zh": "闪电",
+          "n": 52,
+          "support_median": 206.5,
+          "support_min": 178,
+          "support_max": 239,
+          "random": {
+            "1": 0.0047737240780279366,
+            "4": 0.019094896312111746,
+            "24": 0.11456937787267044
+          },
+          "dropped_by_min_cells": 0,
+          "nets": {
+            "posnet_A": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 6,
+                "24": 25
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.11538461538461539,
+                "24": 0.4807692307692308
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 6,
+                "24": 25
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.11538461538461539,
+                "24": 0.4807692307692308
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 6,
+                "24": 25
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.11538461538461539,
+                "24": 0.4807692307692308
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 52,
+              "hit": {
+                "1": 0,
+                "4": 5,
+                "24": 21
+              },
+              "recall": {
+                "1": 0.0,
+                "4": 0.09615384615384616,
+                "24": 0.40384615384615385
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 52,
+              "hit": {
+                "1": 2,
+                "4": 5,
+                "24": 17
+              },
+              "recall": {
+                "1": 0.038461538461538464,
+                "4": 0.09615384615384616,
+                "24": 0.3269230769230769
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 8,
+                "24": 27
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.15384615384615385,
+                "24": 0.5192307692307693
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 6,
+                "24": 22
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.11538461538461539,
+                "24": 0.4230769230769231
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 3,
+                "24": 22
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.057692307692307696,
+                "24": 0.4230769230769231
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 5,
+                "24": 29
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.09615384615384616,
+                "24": 0.5576923076923077
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 52,
+              "hit": {
+                "1": 1,
+                "4": 2,
+                "24": 23
+              },
+              "recall": {
+                "1": 0.019230769230769232,
+                "4": 0.038461538461538464,
+                "24": 0.4423076923076923
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 52,
+              "hit": {
+                "1": 2,
+                "4": 5,
+                "24": 22
+              },
+              "recall": {
+                "1": 0.038461538461538464,
+                "4": 0.09615384615384616,
+                "24": 0.4230769230769231
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 52,
+              "hit": {
+                "1": 2,
+                "4": 5,
+                "24": 26
+              },
+              "recall": {
+                "1": 0.038461538461538464,
+                "4": 0.09615384615384616,
+                "24": 0.5
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 52,
+              "hit": {
+                "1": 3,
+                "4": 5,
+                "24": 24
+              },
+              "recall": {
+                "1": 0.057692307692307696,
+                "4": 0.09615384615384616,
+                "24": 0.46153846153846156
+              },
+              "support_median": 206.5,
+              "random": {
+                "1": 0.0047737240780279366,
+                "4": 0.019094896312111746,
+                "24": 0.11456937787267044
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "emp": {
+          "op": 22,
+          "name_zh": "EMP",
+          "n": 526,
+          "support_median": 35.0,
+          "support_min": 2,
+          "support_max": 52,
+          "random": {
+            "1": 0.04001785779993826,
+            "4": 0.13852517010976564,
+            "24": 0.6980711727498464
+          },
+          "dropped_by_min_cells": 9,
+          "nets": {
+            "posnet_A": {
+              "n": 526,
+              "hit": {
+                "1": 34,
+                "4": 106,
+                "24": 399
+              },
+              "recall": {
+                "1": 0.06463878326996197,
+                "4": 0.20152091254752852,
+                "24": 0.7585551330798479
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 526,
+              "hit": {
+                "1": 34,
+                "4": 106,
+                "24": 399
+              },
+              "recall": {
+                "1": 0.06463878326996197,
+                "4": 0.20152091254752852,
+                "24": 0.7585551330798479
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 526,
+              "hit": {
+                "1": 34,
+                "4": 106,
+                "24": 399
+              },
+              "recall": {
+                "1": 0.06463878326996197,
+                "4": 0.20152091254752852,
+                "24": 0.7585551330798479
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 526,
+              "hit": {
+                "1": 28,
+                "4": 91,
+                "24": 384
+              },
+              "recall": {
+                "1": 0.053231939163498096,
+                "4": 0.17300380228136883,
+                "24": 0.7300380228136882
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 526,
+              "hit": {
+                "1": 28,
+                "4": 82,
+                "24": 363
+              },
+              "recall": {
+                "1": 0.053231939163498096,
+                "4": 0.155893536121673,
+                "24": 0.6901140684410646
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 526,
+              "hit": {
+                "1": 19,
+                "4": 76,
+                "24": 391
+              },
+              "recall": {
+                "1": 0.03612167300380228,
+                "4": 0.1444866920152091,
+                "24": 0.7433460076045627
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 526,
+              "hit": {
+                "1": 31,
+                "4": 113,
+                "24": 379
+              },
+              "recall": {
+                "1": 0.058935361216730035,
+                "4": 0.21482889733840305,
+                "24": 0.720532319391635
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 526,
+              "hit": {
+                "1": 34,
+                "4": 94,
+                "24": 390
+              },
+              "recall": {
+                "1": 0.06463878326996197,
+                "4": 0.17870722433460076,
+                "24": 0.7414448669201521
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 526,
+              "hit": {
+                "1": 40,
+                "4": 99,
+                "24": 389
+              },
+              "recall": {
+                "1": 0.07604562737642585,
+                "4": 0.188212927756654,
+                "24": 0.7395437262357415
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 526,
+              "hit": {
+                "1": 34,
+                "4": 96,
+                "24": 392
+              },
+              "recall": {
+                "1": 0.06463878326996197,
+                "4": 0.18250950570342206,
+                "24": 0.7452471482889734
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 526,
+              "hit": {
+                "1": 19,
+                "4": 76,
+                "24": 398
+              },
+              "recall": {
+                "1": 0.03612167300380228,
+                "4": 0.1444866920152091,
+                "24": 0.7566539923954373
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 526,
+              "hit": {
+                "1": 31,
+                "4": 113,
+                "24": 403
+              },
+              "recall": {
+                "1": 0.058935361216730035,
+                "4": 0.21482889733840305,
+                "24": 0.7661596958174905
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 526,
+              "hit": {
+                "1": 36,
+                "4": 110,
+                "24": 407
+              },
+              "recall": {
+                "1": 0.06844106463878327,
+                "4": 0.20912547528517111,
+                "24": 0.7737642585551331
+              },
+              "support_median": 35.0,
+              "random": {
+                "1": 0.04001785779993826,
+                "4": 0.13852517010976564,
+                "24": 0.6980711727498464
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "deflector": {
+          "op": 23,
+          "name_zh": "deflector",
+          "n": 1298,
+          "support_median": 37.0,
+          "support_min": 2,
+          "support_max": 74,
+          "random": {
+            "1": 0.028985340493646768,
+            "4": 0.11363011390062698,
+            "24": 0.6543928772660373
+          },
+          "dropped_by_min_cells": 14,
+          "nets": {
+            "posnet_A": {
+              "n": 1298,
+              "hit": {
+                "1": 48,
+                "4": 165,
+                "24": 818
+              },
+              "recall": {
+                "1": 0.03697996918335902,
+                "4": 0.1271186440677966,
+                "24": 0.6302003081664098
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 1298,
+              "hit": {
+                "1": 48,
+                "4": 165,
+                "24": 818
+              },
+              "recall": {
+                "1": 0.03697996918335902,
+                "4": 0.1271186440677966,
+                "24": 0.6302003081664098
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 1298,
+              "hit": {
+                "1": 48,
+                "4": 165,
+                "24": 818
+              },
+              "recall": {
+                "1": 0.03697996918335902,
+                "4": 0.1271186440677966,
+                "24": 0.6302003081664098
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 1298,
+              "hit": {
+                "1": 51,
+                "4": 175,
+                "24": 892
+              },
+              "recall": {
+                "1": 0.039291217257318954,
+                "4": 0.13482280431432975,
+                "24": 0.687211093990755
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 1298,
+              "hit": {
+                "1": 54,
+                "4": 183,
+                "24": 876
+              },
+              "recall": {
+                "1": 0.04160246533127889,
+                "4": 0.14098613251155623,
+                "24": 0.674884437596302
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 1298,
+              "hit": {
+                "1": 63,
+                "4": 167,
+                "24": 853
+              },
+              "recall": {
+                "1": 0.0485362095531587,
+                "4": 0.12865947611710324,
+                "24": 0.6571648690292758
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 1298,
+              "hit": {
+                "1": 52,
+                "4": 204,
+                "24": 896
+              },
+              "recall": {
+                "1": 0.040061633281972264,
+                "4": 0.15716486902927582,
+                "24": 0.6902927580893683
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 1298,
+              "hit": {
+                "1": 71,
+                "4": 207,
+                "24": 957
+              },
+              "recall": {
+                "1": 0.054699537750385205,
+                "4": 0.15947611710323575,
+                "24": 0.7372881355932204
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 1298,
+              "hit": {
+                "1": 45,
+                "4": 180,
+                "24": 920
+              },
+              "recall": {
+                "1": 0.03466872110939907,
+                "4": 0.1386748844375963,
+                "24": 0.7087827426810478
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 1298,
+              "hit": {
+                "1": 63,
+                "4": 201,
+                "24": 911
+              },
+              "recall": {
+                "1": 0.0485362095531587,
+                "4": 0.15485362095531588,
+                "24": 0.7018489984591679
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 1298,
+              "hit": {
+                "1": 46,
+                "4": 188,
+                "24": 881
+              },
+              "recall": {
+                "1": 0.03543913713405239,
+                "4": 0.1448382126348228,
+                "24": 0.6787365177195686
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 1298,
+              "hit": {
+                "1": 64,
+                "4": 213,
+                "24": 993
+              },
+              "recall": {
+                "1": 0.04930662557781202,
+                "4": 0.16409861325115563,
+                "24": 0.7650231124807396
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 1298,
+              "hit": {
+                "1": 59,
+                "4": 210,
+                "24": 1027
+              },
+              "recall": {
+                "1": 0.045454545454545456,
+                "4": 0.1617873651771957,
+                "24": 0.7912172573189522
+              },
+              "support_median": 37.0,
+              "random": {
+                "1": 0.028985340493646768,
+                "4": 0.11363011390062698,
+                "24": 0.6543928772660373
+              },
+              "insufficient": false
+            }
+          }
+        },
+        "evasion": {
+          "op": 24,
+          "name_zh": "evasion",
+          "n": 1294,
+          "support_median": 26.0,
+          "support_min": 5,
+          "support_max": 50,
+          "random": {
+            "1": 0.04013858305977787,
+            "4": 0.16055433223911147,
+            "24": 0.9012353637456308
+          },
+          "dropped_by_min_cells": 6,
+          "nets": {
+            "posnet_A": {
+              "n": 1294,
+              "hit": {
+                "1": 71,
+                "4": 237,
+                "24": 1173
+              },
+              "recall": {
+                "1": 0.05486862442040186,
+                "4": 0.1831530139103555,
+                "24": 0.9064914992272025
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_distill_f10": {
+              "n": 1294,
+              "hit": {
+                "1": 71,
+                "4": 237,
+                "24": 1173
+              },
+              "recall": {
+                "1": 0.05486862442040186,
+                "4": 0.1831530139103555,
+                "24": 0.9064914992272025
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_distill_mcts16": {
+              "n": 1294,
+              "hit": {
+                "1": 71,
+                "4": 237,
+                "24": 1173
+              },
+              "recall": {
+                "1": 0.05486862442040186,
+                "4": 0.1831530139103555,
+                "24": 0.9064914992272025
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_z_full": {
+              "n": 1294,
+              "hit": {
+                "1": 98,
+                "4": 321,
+                "24": 1184
+              },
+              "recall": {
+                "1": 0.07573415765069552,
+                "4": 0.24806800618238023,
+                "24": 0.9149922720247295
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_z_60ep": {
+              "n": 1294,
+              "hit": {
+                "1": 76,
+                "4": 266,
+                "24": 1174
+              },
+              "recall": {
+                "1": 0.05873261205564142,
+                "4": 0.20556414219474498,
+                "24": 0.9072642967542504
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_z_head": {
+              "n": 1294,
+              "hit": {
+                "1": 66,
+                "4": 221,
+                "24": 1185
+              },
+              "recall": {
+                "1": 0.05100463678516229,
+                "4": 0.17078825347758886,
+                "24": 0.9157650695517774
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_z_80g": {
+              "n": 1294,
+              "hit": {
+                "1": 91,
+                "4": 300,
+                "24": 1163
+              },
+              "recall": {
+                "1": 0.07032457496136012,
+                "4": 0.23183925811437403,
+                "24": 0.8987635239567233
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_z_80g.best": {
+              "n": 1294,
+              "hit": {
+                "1": 115,
+                "4": 338,
+                "24": 1201
+              },
+              "recall": {
+                "1": 0.08887171561051005,
+                "4": 0.26120556414219476,
+                "24": 0.9281298299845441
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_only": {
+              "n": 1294,
+              "hit": {
+                "1": 90,
+                "4": 285,
+                "24": 1182
+              },
+              "recall": {
+                "1": 0.0695517774343122,
+                "4": 0.22024729520865532,
+                "24": 0.9134466769706336
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w1": {
+              "n": 1294,
+              "hit": {
+                "1": 100,
+                "4": 305,
+                "24": 1200
+              },
+              "recall": {
+                "1": 0.07727975270479134,
+                "4": 0.2357032457496136,
+                "24": 0.9273570324574961
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_hybrid_z_ce_w3": {
+              "n": 1294,
+              "hit": {
+                "1": 69,
+                "4": 264,
+                "24": 1202
+              },
+              "recall": {
+                "1": 0.05332302936630603,
+                "4": 0.20401854714064915,
+                "24": 0.9289026275115919
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w1": {
+              "n": 1294,
+              "hit": {
+                "1": 107,
+                "4": 315,
+                "24": 1222
+              },
+              "recall": {
+                "1": 0.08268933539412673,
+                "4": 0.24343122102009274,
+                "24": 0.9443585780525502
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            },
+            "prior_hard_ce_w3": {
+              "n": 1294,
+              "hit": {
+                "1": 125,
+                "4": 343,
+                "24": 1213
+              },
+              "recall": {
+                "1": 0.09659969088098919,
+                "4": 0.2650695517774343,
+                "24": 0.9374034003091191
+              },
+              "support_median": 26.0,
+              "random": {
+                "1": 0.04013858305977787,
+                "4": 0.16055433223911147,
+                "24": 0.9012353637456308
+              },
+              "insufficient": false
+            }
+          }
+        }
+      },
+      "overall": {
+        "n": 4749,
+        "support_median": 33,
+        "random": {
+          "1": 0.034103797139663515,
+          "4": 0.1329758679999404,
+          "24": 0.7489810629191836
+        },
+        "nets": {
+          "posnet_A": {
+            "n": 4749,
+            "hit": {
+              "1": 376,
+              "4": 1077,
+              "24": 3859
+            },
+            "recall": {
+              "1": 0.07917456306590862,
+              "4": 0.22678458622867972,
+              "24": 0.8125921246578227
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_distill_f10": {
+            "n": 4749,
+            "hit": {
+              "1": 347,
+              "4": 997,
+              "24": 3823
+            },
+            "recall": {
+              "1": 0.07306801431880396,
+              "4": 0.20993893451252896,
+              "24": 0.8050115813855548
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_distill_mcts16": {
+            "n": 4749,
+            "hit": {
+              "1": 380,
+              "4": 1046,
+              "24": 3864
+            },
+            "recall": {
+              "1": 0.08001684565171616,
+              "4": 0.2202568961886713,
+              "24": 0.8136449778900822
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_z_full": {
+            "n": 4749,
+            "hit": {
+              "1": 382,
+              "4": 1141,
+              "24": 3943
+            },
+            "recall": {
+              "1": 0.08043798694461991,
+              "4": 0.24026110760160033,
+              "24": 0.830280058959781
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_z_60ep": {
+            "n": 4749,
+            "hit": {
+              "1": 336,
+              "4": 1028,
+              "24": 3843
+            },
+            "recall": {
+              "1": 0.07075173720783323,
+              "4": 0.21646662455253737,
+              "24": 0.8092229943145925
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_z_head": {
+            "n": 4749,
+            "hit": {
+              "1": 367,
+              "4": 1041,
+              "24": 3914
+            },
+            "recall": {
+              "1": 0.07727942724784165,
+              "4": 0.21920404295641188,
+              "24": 0.8241735102126764
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_z_80g": {
+            "n": 4749,
+            "hit": {
+              "1": 359,
+              "4": 1152,
+              "24": 3908
+            },
+            "recall": {
+              "1": 0.07559486207622658,
+              "4": 0.24257738471257106,
+              "24": 0.822910086333965
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_z_80g.best": {
+            "n": 4749,
+            "hit": {
+              "1": 423,
+              "4": 1215,
+              "24": 4042
+            },
+            "recall": {
+              "1": 0.0890713834491472,
+              "4": 0.2558433354390398,
+              "24": 0.8511265529585176
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_only": {
+            "n": 4749,
+            "hit": {
+              "1": 369,
+              "4": 1118,
+              "24": 3987
+            },
+            "recall": {
+              "1": 0.07770056854074542,
+              "4": 0.235417982733207,
+              "24": 0.8395451674036639
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_ce_w1": {
+            "n": 4749,
+            "hit": {
+              "1": 377,
+              "4": 1163,
+              "24": 3993
+            },
+            "recall": {
+              "1": 0.0793851337123605,
+              "4": 0.2448936618235418,
+              "24": 0.8408085912823753
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_hybrid_z_ce_w3": {
+            "n": 4749,
+            "hit": {
+              "1": 333,
+              "4": 1100,
+              "24": 3969
+            },
+            "recall": {
+              "1": 0.07012002526847758,
+              "4": 0.23162771109707306,
+              "24": 0.83575489576753
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_hard_ce_w1": {
+            "n": 4749,
+            "hit": {
+              "1": 373,
+              "4": 1154,
+              "24": 4093
+            },
+            "recall": {
+              "1": 0.07854285112655296,
+              "4": 0.24299852600547484,
+              "24": 0.8618656559275637
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          },
+          "prior_hard_ce_w3": {
+            "n": 4749,
+            "hit": {
+              "1": 389,
+              "4": 1166,
+              "24": 4095
+            },
+            "recall": {
+              "1": 0.08191198146978311,
+              "4": 0.24552537376289746,
+              "24": 0.8622867972204674
+            },
+            "random": {
+              "1": 0.034103797139663515,
+              "4": 0.1329758679999404,
+              "24": 0.7489810629191836
+            },
+            "insufficient": false
+          }
+        }
+      }
+    }
+  }
+}
