@@ -13411,3 +13411,190 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ⇒ 耗时抬的是**中位**（×4.51）不是尾巴（p95 ×1.17、max 反而更低）。
   预注册两条红线（p95 > 3×基线、dec_ge10 > 25%）**都没触发**（但那是 interim 数据）。
   详见 `docs/pin_k2_ab_20261028.md` §3/§4 与交接 `docs/handoff_pin_k2_20261029.md`。
+
+## 2026-10-29 08:44:24 — ladder_resilience_v1_old
+
+- **commit**: `444b08c` (dirty: 6 files)
+- **exit**: 1，用时 1s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 990 990r
+  ```
+- **output**: `training_history/runs/20261029_084424_ladder_resilience_v1_old/output.log`
+- **result**: 作废：HEAD 副本被 PowerShell 重定向写成 UTF-16 ⇒ SyntaxError（见 §3.1 说明；随后用 bash 重新生成副本）
+
+## 2026-10-29 08:44:25 — ladder_resilience_v1_new
+
+- **commit**: `444b08c` (dirty: 7 files)
+- **exit**: 1，用时 162s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V1_NEW --jobs=1 --ai0=code/test_match/az_bridge_ai.py --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 990 990r
+  ```
+- **output**: `training_history/runs/20261029_084425_ladder_resilience_v1_new/output.log`
+- **result**: 作废：对局用的是 FAST bridge 档，双方每回合空过 ⇒ 512 回合僵局/单局 ~34min，人工中止（只 kill 自己那棵树）
+
+## 2026-10-29 08:47:39 — ladder_resilience_v1_old
+
+- **commit**: `444b08c` (dirty: 7 files)
+- **exit**: 1，用时 508s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe --ai1=其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe 920 920r
+  ```
+- **output**: `training_history/runs/20261029_084739_ladder_resilience_v1_old/output.log`
+- **result**: 作废：同上（HEAD 版 + FAST 档僵局），人工中止
+
+## 2026-10-29 09:06:10 — ladder_resilience_v1_old
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 64s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_090610_ladder_resilience_v1_old/output.log`
+- **result**: HEAD 版驱动（默认参数）跑 920/920r：两局 verdict=engine（180/221 回合）；与新版逐字段相同 ⇒ 默认行为不变（docs/ladder_resilience_20261029.md §3.1）
+
+## 2026-10-29 09:07:14 — ladder_resilience_v1_old2
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 72s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD2 --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_090714_ladder_resilience_v1_old2/output.log`
+- **result**: HEAD 版第二次：RESULT 与第一次逐字相同 ⇒ 该对局可复现；新版与它逐字段相同（§3.1）
+
+## 2026-10-29 09:08:27 — ladder_resilience_v1_new
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 69s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V1_NEW --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_090827_ladder_resilience_v1_new/output.log`
+- **result**: 新版驱动默认参数：RESULT 逐字段 = HEAD 版；stdout 无任何新开关区块（§3.1）
+
+## 2026-10-29 09:09:42 — ladder_resilience_v2_retry
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 70s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V2_RETRY --jobs=1 --retry-invalid 1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 992 992r
+  ```
+- **output**: `training_history/runs/20261029_090942_ladder_resilience_v2_retry/output.log`
+- **result**: --retry-invalid 1：注入第 1 个对局进程立刻退出 ⇒ 只重跑该局并转 engine；_attempts 仅 1 份、尝试次数 2/1（§3.2）
+
+## 2026-10-29 09:11:16 — ladder_resilience_v3_final_sweep
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 86s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V3_SWEEP --jobs=1 --retry-invalid 1 --final-sweep --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 994 994r
+  ```
+- **output**: `training_history/runs/20261029_091116_ladder_resilience_v3_final_sweep/output.log`
+- **result**: --retry-invalid 1 --final-sweep：注入前 4 次全废 ⇒ 重试用满仍 2 局无效 ⇒ final-sweep 补跑转 engine（attempts=3，4 份留档）（§3.3）
+
+## 2026-10-29 09:12:53 — ladder_resilience_v4_ctl
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 32s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V4_CTL --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 996
+  ```
+- **output**: `training_history/runs/20261029_091253_ladder_resilience_v4_ctl/output.log`
+- **result**: 看门狗验证的并发对照批次（无新开关）：38s 跑完 verdict=engine ⇒ 别人的局不受影响（§3.4）
+
+## 2026-10-29 09:12:57 — ladder_resilience_v4_watchdog
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 143s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V4_WD --jobs=1 --watchdog-stall-min 1 --retry-invalid 1 --ai0=D:/2026智能体大赛_新2_distill/_tmp_hangai.py --ai1=_tmp_noopai.py 995
+  ```
+- **output**: `training_history/runs/20261029_091257_ladder_resilience_v4_watchdog/output.log`
+- **result**: --watchdog-stall-min 1：60s 判卡死 ⇒ 先停调度 → taskkill /PID 精确杀 3 个 PID → 已死根 PID 闭包复查 0 存活 → 恢复调度；标 timeout_watchdog 并重试（§3.4）
+
+## 2026-10-29 09:15:44 — ladder_resilience_v1_old
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 76s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_091544_ladder_resilience_v1_old/output.log`
+- **result**: 最终代码复跑 HEAD 版（默认参数）：180/221 回合 engine（§3.1）
+
+## 2026-10-29 09:17:01 — ladder_resilience_v1_old2
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 83s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder_head.py --tag=LR_V1_OLD2 --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_091701_ladder_resilience_v1_old2/output.log`
+- **result**: 最终代码复跑 HEAD 版第二次：可复现（§3.1）
+
+## 2026-10-29 09:18:25 — ladder_resilience_v1_new
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 75s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V1_NEW --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r
+  ```
+- **output**: `training_history/runs/20261029_091825_ladder_resilience_v1_new/output.log`
+- **result**: 最终代码：默认参数下 RESULT 与 HEAD 版逐字段相同、无新区块（§3.1）
+
+## 2026-10-29 09:19:43 — ladder_resilience_v2_retry
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 81s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V2_RETRY --jobs=1 --retry-invalid 1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 992 992r
+  ```
+- **output**: `training_history/runs/20261029_091943_ladder_resilience_v2_retry/output.log`
+- **result**: 最终代码：--retry-invalid 1 只重跑失败局并转 engine（§3.2）
+
+## 2026-10-29 09:21:05 — ladder_resilience_v3_final_sweep
+
+- **commit**: `549fba3` (dirty: 7 files)
+- **exit**: 0，用时 103s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V3_SWEEP --jobs=1 --retry-invalid 1 --final-sweep --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 994 994r
+  ```
+- **output**: `training_history/runs/20261029_092105_ladder_resilience_v3_final_sweep/output.log`
+- **result**: 最终代码：final-sweep 在重试用满后补跑成功（§3.3）
+
+## 2026-10-29 09:22:58 — ladder_resilience_v4_ctl
+
+- **commit**: `762f1ea` (dirty: 7 files)
+- **exit**: 0，用时 38s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V4_CTL --jobs=1 --ai0=code/test_match/rv4_pkg/main.py --ai1=_tmp_noopai.py 996
+  ```
+- **output**: `training_history/runs/20261029_092258_ladder_resilience_v4_ctl/output.log`
+- **result**: 最终代码：并发对照批次 38s engine（§3.4）
+
+## 2026-10-29 09:23:03 — ladder_resilience_v4_watchdog
+
+- **commit**: `762f1ea` (dirty: 7 files)
+- **exit**: 0，用时 147s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u _tmp_ladder.py --tag=LR_V4_WD --jobs=1 --watchdog-stall-min 1 --retry-invalid 1 --ai0=D:/2026智能体大赛_新2_distill/_tmp_hangai.py --ai1=_tmp_noopai.py 995
+  ```
+- **output**: `training_history/runs/20261029_092303_ladder_resilience_v4_watchdog/output.log`
+- **result**: 最终代码：看门狗 60s 精确杀 + 闭包复查干净；engine 0/1（§3.4）
