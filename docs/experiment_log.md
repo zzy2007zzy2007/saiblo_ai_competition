@@ -13365,3 +13365,49 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   有候选的决策点占 14.3%）。我方 `UPGRADE_TOWER` **0.0% → 22.8%**，塔等级 **100% 一级 → 58.8/39.8/1.5%**。
   `verdict` 全 `engine`、`illegal=0`、`gate_drop=0`。决策耗时 p50 0.54s / p95 16.80s / max 25.90s（B: 0.56/19.76/28.84）。
   结论：机制成立但**棋力无可测收益**，**不转正**（默认 0 保持）。报告 `docs/upgrade_bundles_20261028.md`。
+
+## 2026-10-28 23:13:48 — only_extra_zero_impact_probe
+
+- **commit**: `dc6f2d4` (dirty: 6 files)
+- **exit**: 0，用时 106s
+- **cmd**:
+  ```bash
+  bash code/test_match/_only_extra_zero_impact.sh
+  ```
+- **output**: `training_history/runs/20261028_231348_only_extra_zero_impact_probe/output.log`
+- **result**: _待填_
+
+## 2026-10-29 00:01:38 — pin_k2_ab
+
+- **commit**: `ae5fd84` (dirty: 7 files)
+- **exit**: **被中止**（进程被杀，run_logged 没走到收尾 ⇒ 无 exit/duration 字段）
+- **cmd**:
+  `ash
+  JOBS=4 bash code/run_logged.sh pin_k2_ab bash code/test_match/_pin_k2_vs_runnerup.sh
+  `
+- **output**: `training_history/runs/20261029_000138_pin_k2_ab/output.log`
+- **result**: **整批作废**。4 局（`7 7r 8 8r`）在 135.1-135.2 min 后落成
+  `verdict=timeout / winner=INVALID / terminal=False`，只跑到 round 40-45。
+  根因**不是** AI 慢也不是死锁，是**整台机器进了 Modern Standby 待机**
+  （系统事件 `2026/10/29 7:52:19 系统已从低功耗状态中恢复`；对手自己日志里
+  `elapsed_us` 从 3.0 s 跳到 235 s、7551 s = 2.10 h）。`--jobs=4` 是因为当时
+  `US_VS_CHAMPION_BASE` 在跑。详见 `docs/pin_k2_ab_20261028.md` §2.1。
+
+## 2026-10-29 07:55:08 — pin_k2_ab
+
+- **commit**: `6e543c2` (dirty: 8 files)
+- **exit**: **被中止**（按用户优先级调整，08:19 按 PID 精确清场；run_logged 没走到收尾）
+- **cmd**:
+  `ash
+  JOBS=8 bash code/run_logged.sh pin_k2_ab bash code/test_match/_pin_k2_vs_runnerup.sh
+  `
+- **output**: `training_history/runs/20261029_075508_pin_k2_ab/output.log`
+- **result**: **暂停，读数不完整，不得用于任何棋力结论**。加了 `_keepawake.ps1` 保活后
+  8 局跑满 160-214 回合 / 1325 个决策、**0 次 timeout、0 次卡死**、
+  **8.19 回合/min ≈ 491 回合/小时**（⇒ 512 回合约 62.5 min，16 局 @ jobs=8 约 2.2 h）。
+  全 16 局里 **0 局**有 `verdict=engine` ⇒ `配对 ΔHP` 算不出来、四档判读一档都不能填。
+  interim 耗时（8 局 1325 决策）：p50 **2.53 s** / p95 **23.14 s** / max **36.02 s** /
+  `dec_ge10` **12.30 %**（基线 16 局 7675 决策：0.56 / 19.76 / 42.22 / 10.49 %）。
+  ⇒ 耗时抬的是**中位**（×4.51）不是尾巴（p95 ×1.17、max 反而更低）。
+  预注册两条红线（p95 > 3×基线、dec_ge10 > 25%）**都没触发**（但那是 interim 数据）。
+  详见 `docs/pin_k2_ab_20261028.md` §3/§4 与交接 `docs/handoff_pin_k2_20261029.md`。

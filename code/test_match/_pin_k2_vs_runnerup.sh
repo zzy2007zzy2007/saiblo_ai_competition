@@ -45,10 +45,15 @@ PIN_K="${PIN_K:-2}"
 SEEDS="${SEEDS:-7 7r 8 8r 9 9r 10 10r 11 11r 12 12r 13 13r 14 14r}"
 ROUNDS="${ROUNDS:-}"                       # 冒烟/截断用；空 = 完整对局（512 回合上限）
 FLAT_VERBOSE="${FLAT_VERBOSE:-0}"          # 1 ⇒ 每决策打一行 `[flat] 候选 N 个`（只进日志，零影响）
-# 单局墙钟上限（秒）。完整局实测 31-46 min（jobs=8）；PIN_K=2 会变慢 ⇒ 放宽到 3 小时，
-#   只用来"别把慢但没死的局掐断"，**不是**每步预算（我们的搜索是预算制）。
+# ⚠️ 这两个是**harness 的"多久判死"参数，不是搜索配置**（我们的搜索是预算制，不吃墙钟），
+#   所以两臂允许不同；它们只决定"一局/一次读包最多等多久"，不影响任一对局的走法。
+#   · `LADDER_TIMEOUT`：单局墙钟上限。B 臂用默认 7200s（实测 31-46 min，从未触发）；
+#     本臂放宽到 10800s，因为 PIN_K=2 的决策更贵（p50 0.56→~2.9 s），且多局并行时会互相挤。
+#   · `MVS_TIMEOUT_SECONDS`：**单次读包**上限（卡死检测）。**与 B 臂同为默认 300 s**
+#     （B 臂那批 `_inject_vs_runnerup.sh` 没设这个变量 ⇒ 默认值）——两臂口径一致。
+#     实测本臂最慢单决策 37 s（冒烟/首轮），300 s 有 8 倍余量。
 export LADDER_TIMEOUT="${LADDER_TIMEOUT:-10800}"
-export MVS_TIMEOUT_SECONDS="${MVS_TIMEOUT_SECONDS:-1800}"
+export MVS_TIMEOUT_SECONDS="${MVS_TIMEOUT_SECONDS:-300}"
 
 RU_REL="其他版本ai/saiblo-30th-AI/Game1/antgame_ai_cpp/cpp_lure_v4/build/ai_cpp_lure_v4.exe"
 ROOT_W="$(pwd -W | sed 's#/$##')"
