@@ -247,10 +247,31 @@ terminate called after throwing an instance of 'std::runtime_error'
   而不是"整局注入"的效果（§4.4 会据此写结论）。
 - **对 E4 的直接影响（必读）**：E4 的候选集 = {冠军那一手, 亚军那一手}，冠军会话在第 ~250 回合崩掉后
   候选集就只剩亚军那一手 ⇒ **后半局退化成 E4-only-runnerup**。⇒ 跑 E4 之前必须先解决：
-  ① 每 ~100 回合**重启** oracle 会话（kill + 重新 `ReadInit` + 用当前局面继续），或
+  ① 每 ~100–150 回合**重启** oracle 会话（kill + 重新 `ReadInit` + 用当前局面继续），或
   ② 只在前 200 回合记 E4 的读数（把"局"截成 200 回合），或
   ③ 换一个**不会崩**的冠军实现（`main.cpp` 重编译、修掉影子模型对账）。
   ⚠️ 不建议"就这么跑"：那样 E4 与 E4-rand 的差别会被稀释到无法判读。
+
+#### 4.2.2 探针复现：**单进程也会崩**，且冠军对自己的同一局面只有 ~61% 自洽
+
+`code/test_match/_champ_oracle_replay_probe.py`（本批新增）把 **E1 的真实对局**（`11.log`：双方真实操作
+逐回合重放，局面用 pybind C++ 引擎重建）喂给**一个**冠军 oracle，只读它的答案：
+
+| 量 | 读数 |
+|---|---|
+| 重放保真度（先验证，否则后面全是错的） | 探针的 HP 轨迹 `r0=50,50 / r25=49,50 / r100=40,48 / r200=34,35 / r225=33,34` **与真实 progress 文件逐回合相同** ✅ |
+| 结果 | **第 239 次 ask 崩**（`exited (code 3221226505)`，与 E2 里一模一样） |
+| 单次延迟 | avg 70ms、max 453ms（r0 首次含 init） |
+| **与它真实那一手的相同率** | **146/239 = 61.1%** |
+
+两个结论：
+
+1. **崩溃与"两个实例抢资源"无关** ⇒ 是冠军自己的**影子模型对账**在真实局面下走到自认终局
+   （`apply_operations.called_after_terminal`）。修法只能是"重启会话"或"重编译"。
+2. **冠军对同一局面只有 61.1% 自洽**（状态序列已证明是真实的那一份）⇒
+   `docs/us_vs_champion_20261028.md` §0.3 里"同 seed 胜负翻转"的怀疑有了直接证据：
+   **它是随机的**（至少 ~39% 的决策会给出不同的手）。这条对读所有"vs 冠军"的读数都重要：
+   16 局的方差里有一部分是**对手自身的随机性**，不是我们的。
 
 ### 4.3 结果
 
@@ -371,6 +392,11 @@ E2 只是"多一个候选"；E4 是**把我们的网络候选整个拿掉**，�
 
 ### 5.4 一键复现（本会话留给下一轮，脚本与判据都已就位）
 
+> ⚠️ **前置条件（先做，再跑 E4）**：修掉"冠军 oracle 第 ~250 回合 abort"（§4.2.1 / §4.2.2）。
+> 最省力的修法是给 `RunnerUpOracle` 加"每 N 回合重启会话"（`kill → 新进程 → ReadInit → 用当前局面继续`），
+> 由 `az_bridge_ai.py` 的 `_oracle_*_step()` 每 100–150 回合调一次。
+> 验收：`analyze_xoracle.py` 的覆盖度表里 16/16 都 ≥95%、`dead=0`。**没到这个数就别跑 E4**。
+
 ```bash
 P="D:/anaconda3/envs/pytorch-gpu/python.exe"
 # 4 个 tag，各 16 局；jobs=6，MVS_TIMEOUT_SECONDS=300，LADDER_TIMEOUT=10800（驱动内默认）
@@ -454,6 +480,19 @@ $P -u _tmp_ladder.py --tag US_VS_CHAMPION_BASE --reanalyze \
 JOBS=6 MVS_TIMEOUT_SECONDS=300 bash code/run_logged.sh us_vs_champion_e2 bash code/test_match/_e2_inject_vs_champion.sh
 JOBS=6 MVS_TIMEOUT_SECONDS=300 bash code/run_logged.sh only_extra_vs_champion bash code/test_match/_e4_only_extra.sh
 JOBS=6 MVS_TIMEOUT_SECONDS=300 bash code/run_logged.sh only_extra_rand_vs_champion bash code/test_match/_e4r_only_extra_rand.sh
+
+# 6) 冠军 oracle 自杀的复现探针（§4.2.2；单进程、只读，~25s）
+$P -u code/test_match/_champ_oracle_replay_probe.py \
+    --log match_results/ladder_logs/US_VS_CHAMPION_BASE/11.log --max-rounds 512
+
+# 7) E2 的注入覆盖度 + 分差诊断（§4.2 / §5.2）
+$P -u code/test_match/analyze_xoracle.py --tag US_VS_CHAMPION_INJ \
+    --stderr match_results/us_vs_external/US_VS_CHAMPION_INJ/stderr
+#    与 E1 的配对检验（McNemar + 配对 Δhp）：
+$P -u code/test_match/analyze_inject_vs_runnerup.py \
+    --arm E1=match_results/ladder_logs/US_VS_CHAMPION_BASE --stderr E1=match_results/champion_e1/stderr \
+    --arm E2=match_results/ladder_logs/US_VS_CHAMPION_INJ  --stderr E2=match_results/us_vs_external/US_VS_CHAMPION_INJ/stderr \
+    --pair E1 E2
 ```
 
 ---
@@ -472,6 +511,8 @@ JOBS=6 MVS_TIMEOUT_SECONDS=300 bash code/run_logged.sh only_extra_rand_vs_champi
 5. **我们自己的 stderr 归档少 2 处**：`11`/`13` 两局的 oracle 会话在崩溃前被硬杀，
    `注入统计` 收尾行没写出来（所以覆盖度表里那两行是 `-`）。逐回合 `[xor]`/`[dscore]` 行是完整的。
 6. 冠军**不是确定性对手**（§0.3）：同 seed 重跑不保证同样结果，本批只能做"批内"比较。
+   §4.2.2 的探针给出了直接证据：**同一局面下它只有 61.1% 自洽**（146/239）⇒ 16 局方差里有一部分
+   是**对手自身的随机性**；这也意味着"同 seed 重跑应逐位相同"这条 harness 校验对冠军侧**不适用**。
 7. `ANTWAR_MAGICA_LOG_LEVEL` 在 O0 版里无效（`docs/us_vs_champion_20261028.md` §1.2），
    所以它一局仍然写 100+ MB stderr；归档一律 gzip（本批 32 个文件共 ~400 MB）。
 8. 保活/看门狗是**本次才补起来的**（08:23 / 08:31 起）；07:56–08:24 那 28 分钟只有
