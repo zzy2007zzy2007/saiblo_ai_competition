@@ -8,7 +8,7 @@
 `_tmp_lr_v4.sh`（四个场景）· `_tmp_lr_cmp.py`（RESULT 逐字段比对）· `_tmp_lr_pids.py`（进程普查，只读）·
 `_tmp_lr_faultinject/sitecustomize.py`（故障注入）· `_tmp_noopai.py`（空操作假 AI）·
 `_tmp_hangai.py`（`sleep 600` 假 AI）· `_tmp_lr_final.sh`（终版整套复跑）·
-`_tmp_ladder_head.py`（`git show HEAD:_tmp_ladder.py` 的副本）
+`_tmp_ladder_head.py`（**改动前** HEAD 的 `_tmp_ladder.py` 副本；现在 HEAD 已含改动，复现直接用这个文件）
 
 ---
 
@@ -133,9 +133,10 @@ HEAD 版**跑两遍**先证明这个对局本身是可复现的（否则"新旧�
 |---|---|---|
 | V1-old | `python -u _tmp_ladder_head.py --tag=LR_V1_OLD --jobs=1 --ai0=…/rv4_pkg/main.py --ai1=_tmp_noopai.py 920 920r` | `training_history/runs/20261029_091544_ladder_resilience_v1_old/output.log` |
 | V1-old2 | 同上，`LR_V1_OLD2` | `…/20261029_091701_ladder_resilience_v1_old2/output.log` |
-| V1-new | `python -u _tmp_ladder.py --tag=LR_V1_NEW …`（**不加任何新开关**） | `…/20261029_092758_ladder_resilience_v1_new/output.log（终版）` |
+| V1-new | `python -u _tmp_ladder.py --tag=LR_V1_NEW …`（**不加任何新开关**） | `…/20261029_092758_ladder_resilience_v1_new/output.log`（终版） |
 
-`_tmp_lr_cmp.py` 的逐字段输出（(a) 可复现性，(b) 新旧对比）：两份都 `==> RESULT 逐字段相同: True`
+`_tmp_lr_cmp.py` 的判据：(a) **可复现性** = HEAD 版两次逐字相同；(b) **新旧对比** = HEAD 版 vs 新版逐字段相同
+（下面贴的是终版跑 (b) 时的输出；两次都打印 `==> RESULT 逐字段相同: True`）
 
 ```
 === token 920 ===
