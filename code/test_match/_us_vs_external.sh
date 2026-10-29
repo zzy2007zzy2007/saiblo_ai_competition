@@ -90,9 +90,13 @@ esac
 if [ "$EXP" = "E2" ] && [ "$OPP" != "champion" ]; then
     echo "[uvx] !! E2 的对手必须是冠军（注入的是冠军的动作）" >&2; exit 2
 fi
-# E3 的对手只能是亚军（"注入亚军动作 vs 亚军"）
-if [ "$EXP" = "E3" ] && [ "$OPP" != "runnerup" ]; then
-    echo "[uvx] !! E3 的对手必须是亚军（注入的是亚军的动作）" >&2; exit 2
+# E3 的对手：亚军（价值定价）或**冠军**（对手无关性实验，2026-10-29）
+if [ "$EXP" = "E3" ]; then
+    case "$OPP" in
+        runnerup) ;;
+        champion) echo "[uvx] E3 + 对手=冠军 ⇒ 注入亚军动作去打冠军（对手无关性实验）" ;;
+        *) echo "[uvx] !! E3 的对手只能是 runnerup|champion（收到 $OPP）" >&2; exit 2 ;;
+    esac
 fi
 
 # stderr / 进度文件名加后缀：2026-10-28 机器上**同时**有别的实验在跑，而
@@ -164,7 +168,8 @@ stash_stderr() {
     local why="$1" dest f
     dest="$OUTROOT/_stale/$why"
     mkdir -p "$dest"
-    for f in match_results/ai?_*_seed{7,8,9,10,11,12,13,14}*.stderr.log; do
+    # ⚠️ 2026-10-29：不要把 seed 写死（原来写的是 7..14）——本批跑 7..18，写死会让 15..18 的 stderr 永远不入归档 ⇒ 分析端静默少算 8 局。
+for f in match_results/ai?_*_seed*.stderr.log; do
         [ -f "$f" ] || continue
         # 只挪**本脚本自己**的后缀（别的实验的文件绝不能动）
         case "$f" in
@@ -181,7 +186,8 @@ stash_stderr() {
 archive_stderr() {
     local dir="$OUTROOT/$TAG/stderr" f base raw_mb
     mkdir -p "$dir"
-    for f in match_results/ai?_*_seed{7,8,9,10,11,12,13,14}*.stderr.log; do
+    # ⚠️ 2026-10-29：不要把 seed 写死（原来写的是 7..14）——本批跑 7..18，写死会让 15..18 的 stderr 永远不入归档 ⇒ 分析端静默少算 8 局。
+for f in match_results/ai?_*_seed*.stderr.log; do
         [ -f "$f" ] || continue
         case "$f" in
             *"_${TAG}"*) ;;
