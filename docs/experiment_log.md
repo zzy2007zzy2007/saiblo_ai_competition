@@ -13696,7 +13696,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_oracle_rebuild_accept.sh
   ```
 - **output**: `training_history/runs/20261029_114242_oracle_fix_restart/output.log`
-- **result**: _待填_
+- **result**: 3 局 (seeds 7/8/9, P0) 全 verdict=engine/illegal=0; 覆盖度 512/324/453 = 100.0%/100.0%/100.0%; dead=0; 主动重启 8 次; 它 HOLD 99.8% (1257/1259) => 覆盖度修好了, 但内容仍是 HOLD.
 
 ## 2026-10-29 12:11:10 — oracle_kill_test
 
@@ -13707,7 +13707,7 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_oracle_kill_rebuild_test.sh
   ```
 - **output**: `training_history/runs/20261029_121110_oracle_kill_test/output.log`
-- **result**: _待填_
+- **result**: 按 PID 精确杀 oracle 子进程 => 桥接第 41 回合报 OracleDead, 重建 + 回放 41 回合 3.2s, 重试本回合成功; 该局 asks=90/90 = 覆盖 100% (机制验证通过).
 
 ## 2026-10-29 11:42:22 — oracle_fix_rebuild
 
@@ -13718,4 +13718,15 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   bash code/test_match/_oracle_rebuild_accept.sh
   ```
 - **output**: `training_history/runs/20261029_114222_oracle_fix_rebuild/output.log`
-- **result**: _待填_
+- **result**: 1 局 (seed 7 P0, 512 回合): 第 ~283 回合自然崩 => 6 次重建回放全部成功 (最长 20.9s) 但每次重试都在同一回合再崩 => 按上限停用; 覆盖度 283/512 = 55.3% (与 E2 的 54.4% 一样, 回放治不了自然崩); 它 HOLD 100% (273/273).
+
+## 2026-10-29 13:46:38 — always_hold_ab
+
+- **commit**: `e41a52a` (dirty: 9 files)
+- **exit**: 0，用时 9738s
+- **cmd**:
+  ```bash
+  bash code/test_match/_always_hold_ab.sh
+  ```
+- **output**: `training_history/runs/20261029_134638_always_hold_ab/output.log`
+- **result**: A (AZAI_ALWAYS_HOLD=1) 4W-12L = 25.0% [10.2,49.5], hp -13.44 [-22.54,-4.33]; B (关) 2W-14L = 12.5% [3.5,36.0], hp -18.44 [-26.41,-10.47]. 配对 +12.5pp, McNemar p=0.625, dHp +5.00 [-5.82,+15.82] => 预注册第 2 档 (HOLD 只是部分原因). HOLD 率 87.5% vs 75.7%, 降级占比 40.5% vs 46.0%; 26.8% 的回合候选里本来没有 HOLD, 补进去后 52.2% 的回合选了它. 零影响: 开关关时同 seed 与历史逐字节相同 (13/16 局).

@@ -45,30 +45,42 @@ def _load(name: str, path: Path):
 
 
 def _ahold_counters(stderr_dir: Path) -> dict:
-    """从臂 A 的 stderr 里取最后一条 `[ahold]` 行（周期行 + 收尾行取最全的那条）。"""
-    best: dict = {}
+    """从臂 A 的 stderr 里取**每局最后一条** `[ahold]` 行，再跨局相加。
+
+    ⚠️ 必须"每局只取最后一条"：`[ahold] 累计:` 每 50 决策打一次，是**累计值**，
+    把多条加起来会得到几万这种离谱数字（第一版就踩了：hold=36262 > dec=500）。
+    """
+    tot: dict = {}
+    pct: dict = {}
+    n_games = 0
     for f in sorted(stderr_dir.glob("ai?_az_bridge_ai_seed*.stderr.log")):
         txt = f.read_text(encoding="utf-8", errors="replace")
+        last = None
         for ln in txt.splitlines():
-            if "[ahold]" not in ln or "=" not in ln:
-                continue
-            d: dict = {}
-            for k, v in re.findall(r"([a-z_]+)=([-\d.]+)", ln):
-                d[k] = float(v)
-            # `chose_after_add=1(11.1% of added)` 这种括号里的百分比也抓一下
-            m = re.search(r"chose_after_add=\d+\(([\d.]+)% of added\)", ln)
-            if m:
-                d["chose_after_add_pct"] = float(m.group(1))
-            m = re.search(r"kept=\d+\(([\d.]+)%\)", ln)
-            if m:
-                d["kept_pct"] = float(m.group(1))
-            for k in ("dec", "hold", "added", "chose_after_add", "kept", "moved"):
-                if k in d:
-                    best[k] = best.get(k, 0.0) + d[k] if k in ("hold", "added", "chose_after_add",
-                                                               "kept", "moved") else max(best.get(k, 0.0), d[k])
-            if "chose_after_add_pct" in d:
-                best["chose_after_add_pct"] = d["chose_after_add_pct"]
-    return best
+            if "[ahold]" in ln and "dec=" in ln:
+                last = ln
+        if not last:
+            continue
+        n_games += 1
+        d: dict = {}
+        for k, v in re.findall(r"([a-z_]+)=([-\d.]+)", last):
+            d[k] = float(v)
+        m = re.search(r"chose_after_add=\d+\(([\d.]+)% of added\)", last)
+        if m:
+            pct["chose_after_add_pct"] = float(m.group(1))
+        m = re.search(r"kept=\d+\(([\d.]+)%\)", last)
+        if m:
+            pct["kept_pct"] = float(m.group(1))
+        for k in ("dec", "hold", "added", "chose_after_add", "kept", "moved"):
+            if k in d:
+                tot[k] = tot.get(k, 0.0) + d[k]
+    out = dict(tot)
+    out["n_games"] = n_games
+    if tot.get("added"):
+        out["chose_after_add_pct"] = 100.0 * tot.get("chose_after_add", 0.0) / tot["added"]
+    if tot.get("kept", 0) + tot.get("moved", 0):
+        out["kept_pct"] = 100.0 * tot.get("kept", 0.0) / (tot["kept"] + tot.get("moved", 0))
+    return out
 
 
 def main() -> int:
@@ -102,11 +114,12 @@ def main() -> int:
         for g in arm["games"]:
             if g.get("seat") is None or not g.get("rounds"):
                 continue
-            who = f"p{g['seat']}"
             rnd = int(g["rounds"])
-            act = int(g["act"].get(who, 0))
-            ops = int(g["ops"].get(who, 0))
-            hist = g["hist"].get(who, {})
+            # ⚠️ `read_arm` 已经把"我方"的计数摊平成 `our_act / our_ops / our_hist`
+            #    （原始 dict 的 `act`/`ops`/`hist` 不再挂在 rec 上）。
+            act = int(g.get("our_act") or 0)
+            ops = int(g.get("our_ops") or 0)
+            hist = g.get("our_hist") or {}
             down = int(hist.get("DOWNGRADE_TOWER", 0))
             rows.append({"token": g["token"], "rounds": rnd, "act": act, "hold": rnd - act,
                          "ops": ops, "down": down,
