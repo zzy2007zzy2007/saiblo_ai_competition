@@ -55,6 +55,11 @@ echo "[run_logged] name=$NAME  commit=$COMMIT  dirty_tracked=$DIRTY_N  untracked
 echo "[run_logged] cmd: $*"
 echo "[run_logged] log: $RUN_DIR/output.log"
 
+# 2026-10-30（用户要求）：让进度目录名带上本次批次的开始时间
+#   `training_history/progress/<tag>_<时间戳>/`，同一个 tag 反复续跑时也能一眼找到"正在跑的那批"。
+#   只在外面没显式指定时设，方便手工覆盖。
+export DSH_PROGRESS_DIR_STAMP="${DSH_PROGRESS_DIR_STAMP:-$TS}"
+
 t0=$(date +%s)
 "$@" > "$RUN_DIR/output.log" 2>&1
 RC=$?

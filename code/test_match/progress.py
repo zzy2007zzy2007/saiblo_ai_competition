@@ -43,9 +43,18 @@ _OP_NAME = {
 
 def _ensure_dir(tag: str | None = None) -> Path:
     """**每条实验一个子目录**（2026-10-23 用户要求）：
-    `training_history/progress/<tag>/`，避免所有实验的进度文件混在一个目录里。"""
+    `training_history/progress/<tag>/`，避免所有实验的进度文件混在一个目录里。
+
+    2026-10-30（用户要求）：目录名后面补**本次批次开始时间**，否则同一个 tag 反复续跑时
+    分不清哪份进度是"正在跑的这一批"。批次开始时间由驱动脚本一次性写进环境变量
+    `DSH_PROGRESS_DIR_STAMP`（`code/run_logged.sh` 启动时会自动设成它自己的时间戳），
+    所有子进程共享同一个值 ⇒ 同一批次的局都落在同一个目录里。
+    未设该环境变量时行为与旧版逐字相同（目录名 = tag）。
+    """
     if tag:
-        d = PROGRESS_DIR / str(tag)
+        stamp = os.environ.get("DSH_PROGRESS_DIR_STAMP", "").strip()
+        name = f"{tag}_{stamp}" if stamp else str(tag)
+        d = PROGRESS_DIR / name
         d.mkdir(parents=True, exist_ok=True)
         return d
     PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
