@@ -617,6 +617,14 @@ class UnifiedCandidateGen:
             # `q_entries` = Σ_c |Q[c]|：缓存命中**也**计入 Q ⇒ 这个数远大于池大小（命中语义的读数）
             "q_entries": int(sum(len(v) for v in self.Q.values())),
             "keys": keys, "scores": [s for (_k, _b, s) in picked_out[:k]],
+            # 2026-10-31（用户要求的可解释性埋点）：把进 top-k 的**真实 bundle**（下发顺序）
+            #   与生成器内部状态一起交给 `search()` 打 `[candq]`。只在 verbose 时会被打印，
+            #   但列表本身**总是**填（48 个小元组，零成本）—— 免得"verbose 与非 verbose 走不同分支"。
+            "bundles": [tuple(tuple(int(x) for x in op) for op in b) for b in bundles],
+            "Q": {int(c): float(self._q_util(c)) for c in self.legal},
+            "Nmap": {int(c): int(self.N.get(c, 0)) for c in self.legal},
+            "N_total": int(self.N_total),
+            "beta": float(self.beta), "ucb_c": float(self.ucb_c),
         }
         if self.verbose:
             print(f"[cand] gen 池={len(picked_out)} 取={len(bundles)} 缓存命中={n_dup} "
@@ -709,6 +717,78 @@ def make_unified_searcher_class():
         def _p2_signature(self) -> tuple:
             return (str(self.rollout_mode), int(self.horizon), bool(self._rng_on))
 
+        # ── 决策内可解释性日志（`AZAI_CAND_VERBOSE=1` 才打；用户 2026-10-31 要求）──────
+        @staticmethod
+        def _cat(bundle) -> str:
+            """候选/选中项的类别标签（可多标，用 `+` 连）。"""
+            ts = [int(o[0]) for o in (bundle or ())]
+            if not ts:
+                return "HOLD"
+            tags = []
+            if 12 in ts:
+                tags.append("升级")
+            if 11 in ts:
+                tags.append("建塔")
+            if 13 in ts:
+                tags.append("降级")
+            if len(ts) >= 2:
+                tags.append("多op")
+            if not tags:
+                tags.append("其它")
+            return "+".join(tags)
+
+        def _emit_candq(self, st: dict, res, n_cand: int) -> None:
+            """打 `[candq]` 三行：阶段 1 的 Q[c]/N[c]、进 top-k 的候选+阶段 1 分、最终选中。
+
+            ⚠️ 只读 `st`（生成器给的读数）与 `res`（父类 search 的结果）⇒ 不改任何决策。
+            """
+            beta, cc = st.get("beta"), st.get("ucb_c")
+            Q = st.get("Q") or {}
+            N = st.get("Nmap") or {}
+            n_tot = int(st.get("N_total", 0))
+            order = sorted(Q, key=lambda c: (-Q[c], -N.get(c, 0)))
+            qs = " | ".join(f"{c}:Q{Q[c]:+.3f}/N{N.get(c, 0)}" for c in order)
+            print(f"[candq] 阶段1结束 β={beta} c={cc} N_total={n_tot} "
+                  f"合规类={len(Q)} | Q/N（按 Q 降序）: {qs}",
+                  file=sys.stderr, flush=True)
+            bundles = st.get("bundles") or []
+            sc1 = st.get("scores") or []
+            pairs = list(zip(bundles, sc1))[:n_cand]
+            from collections import Counter
+            cnt = Counter()
+            for b, _s in pairs:
+                for tag in self._cat(b).split("+"):
+                    cnt[tag] += 1
+            top = " ".join(f"[{b},{s:+.3f}]" for b, s in pairs[:8])
+            print(f"[candq] topk n={len(pairs)} 构成=dict({dict(cnt)}) 前8={top}",
+                  file=sys.stderr, flush=True)
+            scores = getattr(self, "last_scores", None)
+            ch = res.chosen_bundle or ()
+            deg = False
+            if scores is not None and len(scores) == len(res.bundles) and len(scores):
+                mx, mn = float(np.nanmax(scores)), float(np.nanmin(scores))
+                deg = (not np.isfinite(scores).any()) or (mx - mn < 1e-9)
+            s_ch = (float(scores[res.chosen_index])
+                    if scores is not None and len(scores) > res.chosen_index else float("nan"))
+            # 非 HOLD 里阶段 2 分最高的那条（用来回答"选 HOLD 时是不是有更好的非 HOLD"）
+            best_nh, best_nh_s, best_nh_cat = None, -math.inf, "-"
+            s_hold = None
+            if scores is not None:
+                for b, s in zip(res.bundles, np.asarray(scores).tolist()):
+                    if len(b or ()) == 0:
+                        s_hold = float(s)
+                        continue
+                    if float(s) > best_nh_s:
+                        best_nh, best_nh_s, best_nh_cat = b, float(s), self._cat(b)
+            gap = (best_nh_s - (s_hold if s_hold is not None else float("nan"))
+                   if best_nh is not None and s_hold is not None else float("nan"))
+            print(f"[candq] chosen {tuple(ch)} 类别={self._cat(ch)} 阶段2={s_ch:+.4f} "
+                  f"回退={'是(全等/全NaN)' if deg else '否'} | "
+                  f"非HOLD最高={best_nh_s:+.4f}({best_nh_cat}) {tuple(best_nh) if best_nh else ()} "
+                  f"| HOLD阶段2={'n/a' if s_hold is None else f'{s_hold:+.4f}'} "
+                  f"| 非HOLD最高−HOLD={gap:+.4f}",
+                  file=sys.stderr, flush=True)
+
         # ── search：父类一字不动，只在外面包日志 ──────────────────────────────
         def search(self, state, player: int, *, temperature: float = 0.0,
                    extra_bundles=None):
@@ -744,6 +824,7 @@ def make_unified_searcher_class():
                     print(f"[cand] 重复类形状样例={st['rep_examples'][:4]} "
                           f"同类型多op样例={st.get('multi_same_examples', [])[:3]}",
                           file=sys.stderr, flush=True)
+                self._emit_candq(st, res, n_cand)
             return res
 
     return UnifiedCandFlatSearch
