@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import multiprocessing as mp
 import pickle
+import time
 from pathlib import Path
 
 import numpy as np
@@ -346,6 +347,75 @@ def _example_legal_bundle(state, player, feat):
     return ops or None
 
 
+def _lightning_ops(state, player: int, feat) -> list[tuple] | None:
+    """给"强制放闪电"找一个**合法**的落点，返回 ops 元组列表（`(op_type, x, y)`）。
+
+    两条路（先精确、后兜底）：
+      1. 直接问 `ActionCatalog`：它已经在 `_superweapon_candidates` 里做了
+         "敌方蚂蚁/塔为圆心 + `_storm_value` 打分 + `can_apply_operation` 校验"
+         （`SDK/utils/actions.py:158-176`）。命中就用它的落点（= 最划算那一手）。
+      2. 兜底：目录里的 storm 被 `value > 1.5` 的门槛挡掉时（例如只有一只残血蚂蚁），
+         自己按"半径内敌方单位最多"挑一格，再用 `can_apply_operation` 校验。
+    都拿不到就返回 None（规则这一步不注入，让 AI 自己走）—— **绝不发非法 op**。
+    """
+    from SDK.backend.model import Operation
+    from SDK.utils.actions import ActionCatalog
+    from SDK.utils.constants import OperationType, SUPER_WEAPON_STATS, SuperWeaponType
+    from SDK.utils.features import FeatureExtractor
+    from SDK.utils.geometry import hex_distance
+
+    cat = ActionCatalog(max_actions=96, feature_extractor=feat or FeatureExtractor(max_actions=96))
+    for b in cat.build(state, player):
+        if "storm" in getattr(b, "tags", ()):
+            ops = [(int(o.op_type), int(o.arg0), int(o.arg1)) for o in b.operations]
+            if ops:
+                return ops
+    # 兜底：自己挑落点
+    radius = int(SUPER_WEAPON_STATS[SuperWeaponType.LIGHTNING_STORM].attack_range)
+    enemy = 1 - player
+    units = [(int(a.x), int(a.y)) for a in state.ants_of(enemy)]
+    units += [(int(t.x), int(t.y)) for t in state.towers_of(enemy)]
+    if not units:
+        return None
+    best = None
+    for (x, y) in set(units):
+        hits = sum(1 for (ux, uy) in units if hex_distance(x, y, ux, uy) <= radius)
+        if best is None or hits > best[0]:
+            best = (hits, x, y)
+    op = Operation(OperationType.USE_LIGHTNING_STORM, best[1], best[2])
+    if state.can_apply_operation(player, op):
+        return [(int(op.op_type), int(op.arg0), int(op.arg1))]
+    return None
+
+
+def _coin_rule_decision(state, player: int, feat, cd_near: int = 5,
+                        hold_lo: int = 60) -> tuple[str, list[tuple]] | None:
+    """「金币 × 冷却」手写规则的**唯一决策点**（`--inject-coin-rule`）。
+
+    条件与动作（`docs/value_net_retrain_collection_plan_20261031.md` §2）：
+
+    | 条件 | 覆盖动作 | 目的 |
+    |---|---|---|
+    | `coins ≥ 90` 且 闪电 `cd == 0` | **LIGHTNING_STORM**（落点见 `_lightning_ops`）| 造"放闪电"的正例 |
+    | `coins ∈ [hold_lo, 90)` 且 `cd ≤ cd_near` | **HOLD**（空 bundle，攒钱）| 造"攒到 90"的正例 |
+
+    返回 `(kind, ops)`，kind ∈ {"lightning", "hold"}；`None` = 本条规则不适用。
+    ⚠️ 只**读** state（金币/冷却），不写；不消耗任何 RNG（概率由调用方抽）。
+    """
+    from SDK.utils.constants import SUPER_WEAPON_STATS, SuperWeaponType
+
+    st = SUPER_WEAPON_STATS[SuperWeaponType.LIGHTNING_STORM]
+    cost = int(st.cost)
+    cd = int(state.weapon_cooldowns[player][int(SuperWeaponType.LIGHTNING_STORM)])
+    coins = int(state.coins[player])
+    if coins >= cost and cd == 0:
+        ops = _lightning_ops(state, player, feat)
+        return ("lightning", ops) if ops else None
+    if hold_lo <= coins < cost and cd <= cd_near:
+        return ("hold", [])
+    return None
+
+
 def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  max_rounds: int = 512, temp_rounds: int = 30,
                  progress_path: str | None = None,
@@ -353,6 +423,11 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  random_action_prob: float = 0.0,
                  inject_example_prob: float = 0.0,
                  skip_hold_search: bool = False,
+                 inject_coin_rule: bool = False,
+                 inject_coin_rule_p: float = 0.5,
+                 inject_coin_rule_cd: int = 5,
+                 inject_coin_rule_hold_lo: int = 60,
+                 stats_out: dict | None = None,
                  mc_horizon: int = 100, mc_every: int = 1,
                  mc_root_only: int = 0, mc_bidir: int = 0) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
@@ -378,6 +453,13 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
     state = make_initial_state(seed, native_engine)
     samples: list[dict] = []
     pfile = open(progress_path, "w", encoding="utf-8") if progress_path else None
+    # 「金币×冷却」规则注入的计数器 + **独立随机流**：不消耗 `mcts.rng` ⇒
+    # 开关关着时对搜索的随机序列零影响；开着时注入率也不被搜索抽随机干扰。
+    coin_rule_rng = np.random.default_rng(int(seed) ^ 0x5EEDC01E) if inject_coin_rule else None
+    st = {"decisions": 0, "elig_hold": 0, "fire_hold": 0, "elig_lightning": 0,
+          "fire_lightning": 0, "light_total": 0, "light_injected": 0, "light_ai": 0,
+          # 每决策墙钟（秒）：采集规模的唯一成本口径（`--search unified` 的 p50/p95 决定采多少局）
+          "times": [], "coins_ge90": 0, "rounds": 0}
 
     for round_idx in range(max_rounds):
         if state.terminal:
@@ -387,6 +469,10 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         for player in (0, 1):
             if state.terminal:
                 break
+            _t_dec = time.time()
+            # 采集成本读数：本决策时刻我方金币是否 ≥90（"够买闪电"的状态占比）
+            if int(state.coins[player]) >= 90:
+                st["coins_ge90"] += 1
             # recorded policy outputs (anchor) + masks (training denominators)
             obs = feature_extractor.encode_observation(state, player, np.zeros(96))
             with torch.no_grad():
@@ -429,6 +515,31 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     rb = _random_legal_bundle(model, out, state, player, mcts.rng, pm, cm)
                 if rb:
                     chosen = rb
+
+            # ── 「金币 × 冷却」规则注入（2026-10-31，`--inject-coin-rule`）─────────────
+            # 放在**所有选择之后**：它覆盖 search/example/random 的任何结果（含 skip 分支——
+            # 我们 AI 在"钱够 90 且 cd 已好"时大概率本来就选 HOLD，若只在 search 分支注入，
+            # 最该注入的那类决策反而永远注入不到）。
+            # ⚠️ 开关关着时**整段不执行**（不读 state、不建 catalog、不抽随机数）⇒ 逐位零影响。
+            inject_src = 0
+            if inject_coin_rule:
+                rule = _coin_rule_decision(state, player, feature_extractor,
+                                           cd_near=inject_coin_rule_cd,
+                                           hold_lo=inject_coin_rule_hold_lo)
+                if rule is not None:
+                    kind, rule_ops = rule
+                    st["elig_" + kind] += 1
+                    if coin_rule_rng.random() < inject_coin_rule_p:
+                        chosen = rule_ops if kind == "lightning" else ()
+                        inject_src = 1
+                        st["fire_" + kind] += 1
+            # 统计：本决策最终是不是"放闪电"（注入的 / AI 自己的分开计）
+            n_light = sum(1 for k in chosen if int(k[0]) == int(OperationType.USE_LIGHTNING_STORM))
+            if n_light:
+                st["light_total"] += n_light
+                st["light_injected" if inject_src else "light_ai"] += n_light
+            st["decisions"] += 1
+            st["times"].append(time.time() - _t_dec)
             samples.append(
                 {
                     "board": obs["board"].astype(np.float16),
@@ -442,6 +553,8 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     "recorded_action_map": recorded_am,
                     "recorded_head_logits": recorded_hl,
                     "search_skipped": skip,
+                    # 0 = AI 自己的选择；1 = 「金币×冷却」规则注入的（供按来源分层）
+                    "inject_src": int(inject_src),
                     # ── 完整局面字段（按决策快照，供"一一对应"重建 + 实体模型）──
                     "towers": [[int(t.tower_id), int(t.player), int(t.x), int(t.y),
                                 int(t.tower_type), int(t.hp)] for t in state.towers],
@@ -491,6 +604,9 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         pfile.write(f"terminal winner={state.winner} hp={[b.hp for b in state.bases]} "
                     f"rounds={state.round_index}\n")
         pfile.close()
+    if stats_out is not None:
+        st["rounds"] = int(state.round_index)
+        stats_out.update(st)
     return samples
 
 
@@ -506,6 +622,12 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       class_pin_random_prob: float = 0.0,
                       reserve_coins: int = 180,
                       skip_single_candidate: bool = False,
+                      inject_coin_rule: bool = False,
+                      inject_coin_rule_p: float = 0.5,
+                      inject_coin_rule_cd: int = 5,
+                      inject_coin_rule_hold_lo: int = 60,
+                      search: str = "bundle",
+                      search_total_rounds: int = 0,
                     mc_horizon: int = 100, mc_every: int = 1,
                     mc_root_only: int = 0, mc_bidir: int = 0) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
@@ -514,22 +636,51 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
 
     feat = FeatureExtractor(max_actions=96)
     model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
-    mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
-                      k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
-                      c_puct=c_puct, seed=seed, search_mode=search_mode,
-                      pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
-                      reserve_coins=reserve_coins,
-                      # ⚠️ 部署配置必须一起传：否则 mc_quiet 会在**每个节点**仲裁（~20 min/局）
-                      mc_horizon=mc_horizon, mc_every=mc_every,
-                      mc_root_only=mc_root_only, mc_bidir=mc_bidir,
-                      skip_single_candidate=skip_single_candidate)
+    # 2026-10-31：`--search flat|unified` 用**部署那条搜索**采集（两者都是 BundleMCTS 的子类，
+    # `search()` 签名/返回结构相同）。默认 `bundle` = 旧行为（逐位不变）。
+    #   ⚠️ `AZAI_CAND_MODE=unified` 是 `FlatRolloutGreedy.__init__` 读的（`flat_rollout_greedy.py:130-135`）
+    #      ⇒ 想采"统一候选"的对局要 `--search unified` **且** 带这个环境变量。
+    if search in ("flat", "unified"):
+        from my_ai.az_intent.unified_action_search import UnifiedActionSearch
+        # ⚠️ flat/unified 的 `_leaf_values` 要一个**真的 torch 模块**（`.parameters()`），
+        #    而 `make_net_fn_from_ckpt` 返回的 `model` 是 `ThreeNetPolicy` 门面（没有 parameters）
+        #    ⇒ 这里单独把 value 网 load 出来（6.5 MB、一次性，别省）。
+        _cm, _pm, _vm = load_three_models(ckpt_path)
+        _kw = dict(iterations=iterations, max_depth_rounds=max_depth_rounds,
+                   k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
+                   c_puct=c_puct, seed=seed, search_mode=search_mode,
+                   pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
+                   reserve_coins=reserve_coins,
+                   mc_horizon=mc_horizon, mc_every=mc_every,
+                   mc_root_only=mc_root_only, mc_bidir=mc_bidir,
+                   skip_single_candidate=skip_single_candidate,
+                   value_model=_vm, feature_extractor=feat, eval_mode="net")
+        if search_total_rounds > 0:
+            _kw["total_rounds"] = int(search_total_rounds)
+        mcts = UnifiedActionSearch(net_fn, **_kw)
+    else:
+        mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
+                          k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
+                          c_puct=c_puct, seed=seed, search_mode=search_mode,
+                          pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
+                          reserve_coins=reserve_coins,
+                          # ⚠️ 部署配置必须一起传：否则 mc_quiet 会在**每个节点**仲裁（~20 min/局）
+                          mc_horizon=mc_horizon, mc_every=mc_every,
+                          mc_root_only=mc_root_only, mc_bidir=mc_bidir,
+                          skip_single_candidate=skip_single_candidate)
+    gst: dict = {}
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
                            progress_path=str(Path(out_dir) / f"az_progress_seed{seed:05d}.txt"),
                            native_engine=native_engine,
                            random_action_prob=random_action_prob,
                            inject_example_prob=inject_example_prob,
-                           skip_hold_search=skip_hold_search)
+                           skip_hold_search=skip_hold_search,
+                           inject_coin_rule=inject_coin_rule,
+                           inject_coin_rule_p=inject_coin_rule_p,
+                           inject_coin_rule_cd=inject_coin_rule_cd,
+                           inject_coin_rule_hold_lo=inject_coin_rule_hold_lo,
+                           stats_out=gst)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
     if write_npz:
@@ -548,12 +699,14 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                 head_logits=_np.stack([s["recorded_head_logits"] for s in samples], axis=0),
                 player=_np.asarray([s["player"] for s in samples], dtype=_np.int8),
                 value_target=_np.asarray([s["value_target"] for s in samples], dtype=_np.float32),
+                inject_src=_np.asarray([s.get("inject_src", 0) for s in samples], dtype=_np.int8),
             )
             # 完整局面字段另存 JSONL（与 npz 逐条同序；含塔/蚁/效果/武器/金币/HP/死伤/回合）
             import json as _json
             ents_path = npz.with_suffix(".ents.jsonl")
             _keys = ("round", "player", "towers", "ants", "effects", "weapon_cd",
-                     "weapon_usage", "coins", "hp_us", "hp_opp", "die", "old", "value_target")
+                     "weapon_usage", "coins", "hp_us", "hp_opp", "die", "old", "value_target",
+                     "inject_src")
             with open(ents_path, "w", encoding="utf-8") as _fh:
                 for _s in samples:
                     _fh.write(_json.dumps({_k: _s.get(_k) for _k in _keys},
@@ -563,7 +716,31 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
         with open(path, "wb") as f:
             pickle.dump({"seed": seed, "samples": samples}, f)
     print(f"  [collect] seed={seed} samples={len(samples)} -> {path.name}", flush=True)
-    return {"seed": seed, "samples": len(samples)}
+    _t = [float(x) for x in gst.get("times", [])]
+    if _t:
+        import statistics as _stat
+        _t_sorted = sorted(_t)
+        _p = lambda q: _t_sorted[min(len(_t_sorted) - 1, int(q * len(_t_sorted)))]  # noqa: E731
+        _dec = max(gst.get("decisions", 1), 1)
+        print(f"  [cost] seed={seed} 回合={gst.get('rounds',0)} 决策={_dec} "
+              f"总={sum(_t)/60:.1f} min | 每决策 中位 {_stat.median(_t)*1000:.0f} ms "
+              f"p95 {_p(0.95)*1000:.0f} ms 均值 {sum(_t)/_dec*1000:.0f} ms", flush=True)
+    if inject_coin_rule or gst.get("light_total") or gst.get("coins_ge90"):
+        _dec = max(gst.get("decisions", 1), 1)
+        print(f"  [inject] seed={seed} 决策={_dec} "
+              f"| 规则放闪电: 可注入 {gst.get('elig_lightning',0)} 次 → 命中 {gst.get('fire_lightning',0)}"
+              f" | 规则攒钱(HOLD): 可注入 {gst.get('elig_hold',0)} 次 → 命中 {gst.get('fire_hold',0)}"
+              f" | 闪电 op 总数 {gst.get('light_total',0)}（注入 {gst.get('light_injected',0)}"
+              f" / AI 自己 {gst.get('light_ai',0)}）"
+              f" | coins≥90 决策 {gst.get('coins_ge90',0)}/{_dec}"
+              f"（{100.0*gst.get('coins_ge90',0)/_dec:.1f}%）", flush=True)
+    out = {"seed": seed, "samples": len(samples)}
+    # 只把**标量**统计带回去（`times` 是 list，逐局已打印 p50/p95，不必回传）
+    for _k, _v in gst.items():
+        if isinstance(_v, bool) or not isinstance(_v, (int, float)):
+            continue
+        out[f"inj_{_k}"] = int(_v)
+    return out
 
 
 def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, workers: int,
@@ -579,6 +756,12 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            class_pin_random_prob: float = 0.0,
                            reserve_coins: int = 180,
                            skip_single_candidate: bool = False,
+                           inject_coin_rule: bool = False,
+                           inject_coin_rule_p: float = 0.5,
+                           inject_coin_rule_cd: int = 5,
+                           inject_coin_rule_hold_lo: int = 60,
+                           search: str = "bundle",
+                           search_total_rounds: int = 0,
                            # ⚠️ 2026-10-07：mc_* 必须一路透传到 BundleMCTS，否则 mc_quiet 会在**每个节点**仲裁
                            mc_horizon: int = 100, mc_every: int = 1,
                            mc_root_only: int = 0, mc_bidir: int = 0) -> list[Path]:
@@ -590,6 +773,8 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
              class_pin_random_prob,
              reserve_coins,
              skip_single_candidate,
+             inject_coin_rule, inject_coin_rule_p, inject_coin_rule_cd,
+             inject_coin_rule_hold_lo, search, search_total_rounds,
              mc_horizon, mc_every, mc_root_only, mc_bidir) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -598,6 +783,16 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
         results = [_collect_and_save(*j) for j in jobs]
     total = sum(r["samples"] for r in results)
     print(f"[selfplay] collected {total} samples from {len(results)} games", flush=True)
+    if any("inj_decisions" in r for r in results):
+        keys = ("inj_decisions", "inj_elig_lightning", "inj_fire_lightning", "inj_elig_hold",
+                "inj_fire_hold", "inj_light_total", "inj_light_injected", "inj_light_ai")
+        agg = {k: sum(int(r.get(k, 0)) for r in results) for k in keys}
+        print(f"[selfplay] 注入汇总：决策 {agg['inj_decisions']} | "
+              f"放闪电 可注入 {agg['inj_elig_lightning']} → 命中 {agg['inj_fire_lightning']} | "
+              f"攒钱 可注入 {agg['inj_elig_hold']} → 命中 {agg['inj_fire_hold']} | "
+              f"闪电 op 总 {agg['inj_light_total']}（注入 {agg['inj_light_injected']}"
+              f" / AI {agg['inj_light_ai']}）| 每局 {agg['inj_light_total']/max(len(results),1):.1f} 次",
+              flush=True)
     return [Path(out_dir) / f"az_selfplay_seed{s:05d}.pkl" for s in seeds]
 
 
@@ -686,6 +881,26 @@ def main() -> None:
     parser.add_argument("--reserve-coins", type=int, default=180,
                         help="pos_pin=reserve/reserve_up 时的闪电储备门槛（金币）。"
                              "用途：采集「带储备规则的类策略」数据（蒸馏用），部署侧不要开。")
+    # ── 「金币 × 冷却」规则注入（2026-10-31，`docs/value_net_retrain_collection_plan_20261031.md`）──
+    parser.add_argument("--inject-coin-rule", action="store_true",
+                        help="按**手写规则**覆盖动作（造'花 vs 攒'的分叉对照；只用于值网数据采集）：\n"
+                             "  · coins ≥ 90 且 闪电 cd == 0 ⇒ 强制放 LIGHTNING_STORM\n"
+                             "  · coins ∈ [hold_lo, 90) 且 cd ≤ --inject-coin-rule-cd ⇒ 强制 HOLD（攒钱）\n"
+                             "以概率 p 覆盖（--inject-coin-rule-p）。默认关 ⇒ 行为与旧版逐位相同。")
+    parser.add_argument("--inject-coin-rule-p", type=float, default=0.5,
+                        help="规则命中的决策里，真的覆盖动作的概率。0.5 = 保留一半'AI 乱花钱'的负例。")
+    parser.add_argument("--inject-coin-rule-cd", type=int, default=5,
+                        help="'闪电 cd 将好'的阈值（回合）：cd ≤ 该值才触发'攒钱'规则。0 = 只在已好时攒。")
+    parser.add_argument("--inject-coin-rule-hold-lo", type=int, default=60,
+                        help="'攒钱'规则的下界（金币）：coins ∈ [lo, 90) 才触发。")
+    parser.add_argument("--search", type=str, default="bundle",
+                        choices=["bundle", "flat", "unified"],
+                        help="用哪种搜索采集（默认 bundle = 旧行为/逐位不变）。\n"
+                             "  unified = 部署那条统一候选搜索（FlatRolloutGreedy 子类）；\n"
+                             "  ⚠️ 要配合 `AZAI_CAND_MODE=unified` 才会启用统一候选生成。")
+    parser.add_argument("--search-total-rounds", type=int, default=0,
+                        help="flat/unified 搜索的**每决策** rollout 回合预算（0 = 用类默认 39000≈2.45s/决策）。"
+                             "冒烟可设 2000~4000 换速度。")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -693,7 +908,10 @@ def main() -> None:
           f"{args.iterations} iters / depth {args.max_depth_rounds}) "
           f"[engine={'C++' if args.native_engine else 'python'}, c_puct={args.c_puct}, "
           f"random_action_prob={args.random_action_prob}, "
-          f"inject_example_prob={args.inject_example_prob}]...", flush=True)
+          f"inject_example_prob={args.inject_example_prob}, "
+          f"search={args.search}, inject_coin_rule={args.inject_coin_rule}"
+          f"(p={args.inject_coin_rule_p}, cd≤{args.inject_coin_rule_cd}, "
+          f"hold_lo={args.inject_coin_rule_hold_lo})]...", flush=True)
     paths = collect_games_parallel(
         args.checkpoint, seeds, args.out_dir, args.workers,
         args.iterations, args.max_depth_rounds, args.t_class, args.t_pos,
@@ -710,6 +928,12 @@ def main() -> None:
         class_pin_random_prob=args.class_pin_random_prob,
         reserve_coins=args.reserve_coins,
         skip_single_candidate=args.skip_single_candidate,
+        inject_coin_rule=args.inject_coin_rule,
+        inject_coin_rule_p=args.inject_coin_rule_p,
+        inject_coin_rule_cd=args.inject_coin_rule_cd,
+        inject_coin_rule_hold_lo=args.inject_coin_rule_hold_lo,
+        search=args.search,
+        search_total_rounds=args.search_total_rounds,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 
