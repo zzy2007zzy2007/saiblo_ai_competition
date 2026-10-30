@@ -38,11 +38,14 @@
 - 样本记录 `inject_src`（0=AI 自己 / 1=规则注入），便于后续按来源分层分析。
 - **存完整 board + stats**（训练要用；progress trace 只有 HP/金币/op，不能当训练数据）。
 
-## 3. 标签
+## 3. 标签（用户定夺，2026-10-31）
 
-- 逐帧 **kgeo / abs**（`tau=50`），复用 `build_rel_labels.py` 的现成实现。
+- **主力 = `kgeo tau=50`**。
+- **同族 tau 扫**：`kgeo tau=10 / 25 / 100`。
+- **其他标签类型**：`rel`、`abs`、`geo`（各 tau=50）也试，作对照。
 - 正确的 `--label-scale`：kgeo50 ≈ 1.5、rel50 ≈ 4.0（否则值网输出小 2.6–3.4 倍，`docs/value_net_label_pipeline_survey_20261031.md` §4）。
-- 先跑 P1 四臂小规模对照（各 ~25 min）：terminal / abs+kgeo τ50 s1.5 / rel+kgeo τ50 s4.0 / abs+geo τ10。
+- 复用 `build_rel_labels.py` / `az_train.py:119-129`，不改。
+- ⏳ **standing instruction（用户）**：采集完成后若没有新指令，直接开始训值网（kgeo tau=50 为主 + 上述扫/对照），验收用 P0-2/P0-3。
 
 ## 4. 验收（现成探针，不新写）
 
