@@ -1337,6 +1337,8 @@ def build_engine(seed: int, player: int):
             _log("[cand] ⚠️ AZAI_ONLY_EXTRA 会**丢掉** unified 候选（候选集=只有额外候选）⇒ 两者别同时用")
         _log(f"[cand] mode=unified k={_env('AZAI_K', '48')} beta={_env('AZAI_CAND_BETA','3.0')} "
              f"ucb_c={_env('AZAI_CAND_UCBC','1.0')} pool={_env('AZAI_CAND_POOL','1.5')} "
+             f"tau={_env('AZAI_CAND_TAU','1.0')} steps={_env('AZAI_CAND_STEPS','12')} "
+             f"steps_total={_env('AZAI_CAND_STEPS_TOTAL','0')} "
              f"force_hold={_env('AZAI_CAND_FORCE_HOLD','1')} verbose={_env('AZAI_CAND_VERBOSE','0')}")
     if _search_kind == "flat":
         from my_ai.az_intent.az_selfplay import load_three_models

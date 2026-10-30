@@ -13752,3 +13752,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `match_results/unified_cand/UNIFIED_CAND_FULL_seed8.log` + `match_results/ai0_az_bridge_ai_seed8_UC.stderr.log`
 - **result**: 统一候选生成（方案 D，`AZAI_CAND_MODE=unified`）1 局冒烟 vs 亚军（seed 8、P0、跑满到引擎终局）：verdict=engine / illegal=0 / 346 回合 / 34 分钟 / 0-32 负。每决策 `n_cand` 中位 4（p95 48、max 48），`n_cand==1` = 0.0%（pin 口径 82.3%）；候选含 HOLD 99.1%、含升级 3.8%（13/346）；升级被选中 6 次且真的发出 6 次 `UPGRADE_TOWER`；选中 HOLD 78.9%。决策耗时 p50 1519 / p95 23761 / max 41694 ms，阶段 1（候选生成 + 确定性 idle rollout）只占 2.4%。中位 `n_cand` 只有 4 是**金币长期 13-56**（买不起建塔/升级/超武/闪电），不是生成器问题。零影响：pin 模式搜索器逐位（8 个真实局面 0 不一致）+ 对局级 `RESULT`/op 序列逐字节相同（op sha256 `e336bd304bbbde2a`）。报告 `docs/unified_cand_impl_20261029.md`。
+
+## 2026-10-30 11:42:00 - unified_cand_fix_smoke
+
+- **commit**: `59eb622` (dirty: 5 files)
+- **exit**: 0, 用时 3240s
+- **cmd**:
+  ```bash
+  ROUNDS=512 TAG=UNIFIED_CAND_FIX bash code/test_match/_unified_cand_smoke.sh
+  ```
+- **output**: `match_results/unified_cand/UNIFIED_CAND_FIX_seed8.log` + `match_results/ai0_az_bridge_ai_seed8_UC.stderr.log`
+- **result**: 统一候选生成按最新设计口径修正后的 1 局冒烟（打满到终局）：verdict=engine / illegal=0 / 400 回合 / 54 分钟 / 0-33 负。每决策 n_cand 中位 7（p95 46、max 48），n_cand==1 = 0.0%；含 HOLD 100%、含升级 6.5%（26/400），升级被选中且真的发出 3 次；**同 op 类型多 op**（[build,build]/[downgrade,downgrade]）候选占 77.2%（1504 条），并且真的打出去 25 个回合（round 0 两手建塔、round 20 两手降级）。缓存命中中位 12/p95 997，"池<=7 且命中>=400" 式塌缩 = 0。决策耗时 p50 3361/p95 20600/max 24763 ms，阶段 1 占 2.1%。塌缩真因已用单变量对照证实：同一牌面把金币推到 ~600，n_cand 4/25/33/25 -> 48/48/48/48（oracle 单 op 空间 3-855 -> 1120）=> 经济限制为主因，多重集索引不塌；第二位限制是步数预算（1024 步 vs mid-coin 空间 558-855）。零影响：pin 搜索器逐位（6 局面 0 不一致）+ 对局级 RESULT/op 序列逐字节相同（sha256 e336bd304bbbde2a，与修正前同一哈希）。报告 `docs/unified_cand_fix_20261029.md`。

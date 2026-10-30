@@ -12,20 +12,28 @@
    `Q[c] = (1/β)·log( (1/n)·Σ exp(β·x) )`（β=3，`AZAI_CAND_BETA`）；
    探索项 = `c·√(log N / n)`（c=1.0，`AZAI_CAND_UCBC`）。`Q[c]` 初始全相等（均匀），
    **类网先验接口预留但暂不用**（类网现在基本不可用，要用得先重训）。
-2. **位置游标**：`cursor[规范多重集]` = 该组已提议过的位置组合列表。
-   空 ⇒ 各通道位置图 argmax；否则看**最后一个动作在该通道位置图里排第 k** ⇒ 取第 k+1 名
-   （`np.argpartition` 只用来定"第 k 大"的边界 + 并列按 (x,y) 字典序，**不做全排序**）。
-3. **游标键 = 动作类的规范多重集**：去掉 HOLD(23)、排序。
-   `(hold,build,lightning)` 与 `(build,hold,lightning)` 归一到 `(build,lightning)`
-   —— 它们产出**同一个** bundle，不该拆成两个游标。
-4. **无位置的类**（HOLD=23、基地升级=21/22）是**单位置臂**，游标恒指向那一个动作。
+2. **位置游标 = 按"带重数的规范多重集（= bundle 形状）"索引，每个形状独立推进**：
+   `cursor[形状] = {"t": 已推进步数, "pos": [已提议过的位置组合, ...]}`；第 t 步的位置 =
+   各槽位名次按**混合进制（槽 0 变化最快）**展开 `rank_i = (t // Π_{j<i} n_j) % n_i`
+   ⇒ 步 0 = 全体 argmax，之后逐格推进、穷尽全部组合（`np.argpartition` 只取"第 k 名"，
+   并列按 (x,y) 字典序，**不做全排序**）。
+   ⚠️ **不能按类共享游标**：那会让"一个位置被某一个 bundle 形状独占" —— `[build]` 把 build
+   游标从 A 推到 C 之后，`[build(A), lightning(B)]` 这种组合就**永远构造不出**。
+3. **候选键 = 带重数的规范多重集**：去掉 HOLD(23)、排序、**保留重复**。
+   `[build] ≠ [build,build]`；`[build,lightning] == [lightning,build]`。
+   ⇒ **同一束内允许重复同一个非 HOLD 类**（能生成 `[build,build]`、`[downgrade,downgrade]`）。
+4. **无位置的类**（HOLD=23、基地升级=21/22）是**单位置臂**：槽位恒为 `NO_POSITION`，
+   多重集里出现几次就占几个槽（名次数 = 1 ⇒ 该槽不随步数变化）。
 5. **通道 → op 精确映射**：照 `code/my_ai/decoder.py`（`_decode_tower_action` /
    `CHANNEL_TO_SUPER_WEAPON` / `decoder.py:369-373` 的基地升级），**不自己发明**。
 6. **每个候选逐条 `can_apply` 过滤**（严格模式一条非法 = 判负，绝不能漏）。
 7. **阶段 1 = 确定性 idle rollout（双方不出招）×1**，分数用于 **top-k 选择**（λ=0：位置图
    分只参与"游标提议顺序"，不参与"选择权重"）。**阶段 2 = 现役 flat 随机化 rollout 完全不动**
    （在 `UnifiedCandFlatSearch` 里由父类 `search()` 原样执行）。
-8. **缓存/两阶段复用**：缓存键 = 规范化 bundle（`(op_type,arg0,arg1)` 排序元组，去 HOLD）。
+8. **缓存命中 ≠ 跳过**：缓存键 = 规范化 bundle（`(op_type,arg0,arg1)` 排序元组，去 HOLD），
+   **跨形状共享**。命中时**复用缓存分数并计入对应类的 `Q[c]`**（等于已经 rollout 过），
+   再**把该形状游标推进一格**继续试下一个位置，直到解出新 bundle 或该形状位置穷尽。
+   LogSumExp 对"重复同值"不敏感（`LSE([x,x]) == x`）⇒ 重复计分不会撑虚 `Q[c]`。
 
 ## 为什么位置由**静态位置图**提议、类预算由**学到的 Q[c]** 分配
 
@@ -175,6 +183,10 @@ class UnifiedCandidateGen:
                  pool_mult: float = 1.5,
                  attempts_mult: int = 6,
                  force_hold: bool = True,
+                 tau: float = 1.0,
+                 steps_per_shape: int = 12,
+                 steps_total: int = 0,
+                 seed: int = 0,
                  verbose: bool = False) -> None:
         self.k = max(1, int(k))
         self.beta = float(beta)
@@ -186,10 +198,24 @@ class UnifiedCandidateGen:
         # 去重后仍凑不满 ⇒ 最多再试 k×attempts_mult 次
         self.attempts_mult = max(1, int(attempts_mult))
         self.force_hold = bool(force_hold)
+        # 2026-10-29 修正 ①：**束内允许重复类**（`[build,build]` 要能生成）⇒ 头 0 用 UCB argmax
+        #   （exploit），头 1..n-1 用 `softmax(UCB/τ)` **采样**（设计 §方案 D 步骤 1 原话：
+        #   "按 Q[c] 的分布随机选类 c（UCB1 或 softmax）"）。τ→∞ 均匀；τ→0 退化成全取 argmax
+        #   （= 每束 `[c,c,c]`，会把 `[build,lightning]` 这类互异组合挤掉）。
+        self.tau = max(1e-6, float(tau))
+        # 2026-10-29 修正 ④：命中缓存 ⇒ 复用分数 + **推进游标一格**继续试 ⇒ 每个形状一次最多走几格
+        self.steps_per_shape = max(1, int(steps_per_shape))
+        # 每次决策的**位置推进总步数**上限（0 ⇒ max(1024, 16k)）；防止"形状多 × 步数多"拖慢决策。
+        #   实测代价 ≈ 0.3 ms/步（纯解码+can_apply，无 rollout）⇒ 1024 步 ≈ 0.3 s，相对阶段 2 可忽略；
+        #   而步数不足会让"可达空间没枚举完"被误读成"候选塌缩"（`collapse_probe_p0_bigbudget.log`）。
+        self.steps_total = (max(1024, 16 * self.k) if int(steps_total) <= 0
+                            else max(1, int(steps_total)))
+        # 类采样的随机流种子（默认 0；实际种子 = 本值 ⊕ **状态指纹** ⇒ 同局面结果可复现）
+        self.cand_seed = int(seed)
         self.verbose = bool(verbose)
         # 阶段 1 的 rollout 函数（由搜索器注入：`(state, player, bundles) -> np.ndarray`）
         self.rollout_fn = None
-        # 缓存：规范化 bundle → [value]（同一 bundle 只算一次；也给阶段 2 复用）
+        # 缓存：规范化 bundle → [value]（同一 bundle 只算一次；也给阶段 2 复用；**跨形状共享**）
         self.cache: dict = {}
         # 最近一次决策的读数（给日志/报告用）
         self.last_stats: dict = {}
@@ -207,8 +233,11 @@ class UnifiedCandidateGen:
         self.Q: dict = {}          # 类 → 已观测分数列表（LogSumExp 的原料）
         self.N: dict = {}          # 类 → 被选中次数（UCB 的 n）
         self.N_total = 0
-        self.cursor: dict = {}     # 规范多重集 → [位置组合, ...]（设计里的"游标"，留档/日志）
-        self.last_cell: dict = {}  # **类 → 该类上一次被提议的格子**（"该类最后那个动作"，见 §偏差）
+        # 2026-10-29 修正 ③：游标**按带重数的规范多重集（= bundle 形状）索引，每形状独立推进**。
+        #   `cursor[形状] = {"t": 已推进步数, "pos": [已提议过的位置组合, ...]}`
+        self.cursor: dict = {}
+        self.dead: set = set()     # 该局面下位置组合已穷尽的形状（避免重复空转）
+        self._rng = None           # 决策内类采样随机流（由状态指纹种子化）
         self.cache = {}
 
     def _reset_decision(self, state, player: int, net_out: dict) -> None:
@@ -234,6 +263,18 @@ class UnifiedCandidateGen:
         self.Q = {c: [] for c in self.legal}
         self.N = {c: 0 for c in self.legal}
         self.N_total = 0
+
+    def _seed_of(self, net_out: dict) -> int:
+        """类采样随机流的种子 = `AZAI_CAND_SEED` ⊕ **状态指纹**（action_map + 玩家号）。
+
+        有意**不含**"决策序号 / 时间 / 调用顺序" ⇒ 同一局面 ⇒ 同一候选集合（可复现），
+        也让"改一个超参前后对比"是干净的同分布比较。
+        """
+        import hashlib
+        fp = (np.ascontiguousarray(self.AM, dtype=np.float32).tobytes()
+              + bytes([int(self.player) & 0xFF]))
+        h = int.from_bytes(hashlib.blake2b(fp, digest_size=8).digest(), "little")
+        return int(h ^ (int(self.cand_seed) * 1000003)) & ((1 << 63) - 1)
 
     # ── ① 类选择：UCB（LogSumExp 利用项 + 标准探索项）───────────────────────
     def _lse(self, ch: int) -> float:
@@ -263,34 +304,75 @@ class UnifiedCandidateGen:
                 best, best_v = int(c), v
         return best
 
-    # ── ② 位置游标 ────────────────────────────────────────────────────────
-    def _next_cell(self, ch: int) -> tuple:
-        """**该类**的下一个提议位置：空 ⇒ 位置图 argmax；否则看该类**最后一个动作**排第 k ⇒ 第 k+1 名。
+    def _sample_ucb(self, rng) -> int | None:
+        """按 `softmax(UCB/τ)` **采样**一个类（允许与同束已选的类重复）。"""
+        if not self.legal:
+            return None
+        vals = [self._ucb(c) for c in self.legal]
+        inf_c = [c for c, v in zip(self.legal, vals) if v == math.inf]
+        if inf_c:
+            # 未试过的臂（UCB=+inf）优先，在它们之间均匀取（= UCB1 的"先各试一遍"）
+            return int(inf_c[int(rng.integers(len(inf_c)))])
+        arr = np.asarray(vals, dtype=np.float64)
+        z = (arr - float(arr.max())) / self.tau
+        p = np.exp(z)
+        tot = float(p.sum())
+        if not np.isfinite(tot) or tot <= 0.0:
+            return int(self.legal[int(rng.integers(len(self.legal)))])
+        return int(self.legal[int(rng.choice(len(self.legal), p=p / tot))])
 
-        ⚠️ 设计里同时写了"每类一个 `cursor[c]`"（单动作版）和"游标按**规范多重集**索引"
-        （多动作组版），两者对多 op 束是**冲突**的：若按多重集重启，则每个新键都从 argmax 开始，
-        而**塔通道在空格上解码结果与类无关**（都解成同一个 `BUILD_TOWER(x,y)`）⇒ 大量键
-        解出同一个 bundle ⇒ 去重后候选数塌到个位数（实测 7 条 / 426 次重复）。
-        ⇒ 本实现取**按类**跟踪"最后那个位置"（= 单动作版的规则，设计原话"该类最后那个动作在
-        位置图里排第 k ⇒ 选第 k+1 名"），多重集 `cursor[key]` 仍保留作提议记录/日志。
+    def _pick_group(self, rng) -> tuple:
+        """选一束的类（**允许重复**）⇒ `(形状, 被选类列表)`，并做 `N[c]` 记账。
+
+        形状 = 去 HOLD、排序、**保留重复**（带重数的规范多重集）：
+        `[build,build]` 与 `[build]` 是两个不同形状；`[build,lightning] == [lightning,build]`。
+        头 0 = UCB argmax（exploit 主导）；头 1..n-1 = `softmax(UCB/τ)` 采样 ⇒ 同束既能出
+        `[build,lightning]`（互异）也能出 `[build,build]`（重复）。
         """
-        cc = self.cells.get(ch)
-        if cc is None:
-            return NO_POSITION                     # 21/22/23：**单位置臂**（位置无意义）
-        prev = self.last_cell.get(ch)
-        if prev is None:
-            cell = cc.argmax_cell()
-        else:
-            r = cc.rank_of(prev)
-            cell = cc.kth_cell(r + 1) if r >= 0 else cc.argmax_cell()
-        self.last_cell[ch] = cell
-        return cell
+        picked: list = []
+        for h in range(self.n_heads):
+            c = self._ucb_pick() if h == 0 else self._sample_ucb(rng)
+            if c is None:
+                break
+            picked.append(int(c))
+        for c in picked:                       # N 记账：被选中就算（含 HOLD 当"填充位"）
+            self.N[c] = int(self.N.get(c, 0)) + 1
+            self.N_total += 1
+        return tuple(sorted(c for c in picked if c != HOLD)), tuple(picked)
 
-    def _positions_for(self, key: tuple) -> tuple:
-        """给规范多重集 `key` 提议下一组位置（各类**独立**推进；多重集游标留档）。"""
-        pos = tuple(self._next_cell(c) for c in key)
-        self.cursor.setdefault(tuple(key), []).append(pos)
-        return pos
+    # ── ② 位置游标（按**形状** = 带重数规范多重集索引，每形状独立推进）──────────
+    def _positions_for(self, shape: tuple):
+        """给形状 `shape` 提议**下一组**位置；该形状的位置组合已穷尽 ⇒ `None`。
+
+        第 t 步：各槽位名次按**混合进制**展开（槽 0 变化最快）
+        `rank_i = (t // Π_{j<i} n_j) % n_i`，`n_i` = 该类位置图合法格数（无位置类 = 1）。
+        ⇒ 步 0 = 全体 argmax；之后逐格推进、**穷尽全部组合**。不同形状**互不干扰**（这正是
+        "按多重集而不是按类"的理由：按类共享会让某位置被某个形状独占，`[build(A),lightning(B)]`
+        永远构造不出）。同一形状里两个同类槽位（`[build,build]`）也会拿到**不同**格子。
+        """
+        shape = tuple(shape)
+        st = self.cursor.get(shape)
+        if st is None:
+            st = {"t": 0, "pos": []}
+            self.cursor[shape] = st
+        t = int(st["t"])
+        cells = [self.cells.get(c) for c in shape]
+        ns = [len(cc) if cc is not None else 1 for cc in cells]
+        total = 1
+        for n in ns:
+            total *= int(n)
+        if t >= total:
+            return None                        # 该形状位置已穷尽
+        r = t
+        pos: list = []
+        for cc, n in zip(cells, ns):
+            k = r % int(n)
+            r //= int(n)
+            pos.append(cc.kth_cell(k) if cc is not None else NO_POSITION)
+        pos_t = tuple(pos)
+        st["t"] = t + 1
+        st["pos"].append(pos_t)
+        return pos_t
 
     # ── ③ 解码 + 逐条 can_apply ───────────────────────────────────────────
     def _decode_group(self, group: tuple, positions: tuple) -> tuple:
@@ -328,109 +410,144 @@ class UnifiedCandidateGen:
         if not self.legal or self.rollout_fn is None:
             self.last_stats = {"n_pool": 0, "n_cand": 0, "n_dup": 0, "attempts": 0,
                                "has_hold": 0, "hold_forced": 0, "n_upg": 0,
-                               "sizes": {}, "p1_ms": 0.0}
+                               "sizes": {}, "p1_ms": 0.0, "steps": 0, "shapes": 0,
+                               "n_rep": 0, "rep_examples": [], "dead_shapes": 0}
             return {"bundles": [], "stats": dict(self.last_stats)}
 
         import time as _time
         t0 = _time.perf_counter()
         pool_target = max(k, int(round(k * self.pool_mult)))
         max_attempts = max(pool_target * self.attempts_mult, 32)
+        steps_total = int(self.steps_total)
+        # 类采样的随机流：**由状态指纹种子化** ⇒ 同局面同结果（可复现，且不依赖调用顺序/时间）
+        self._rng = np.random.default_rng(self._seed_of(net_out))
+        rng = self._rng
         picked_out: list = []          # [(key, bundle, score, pos_score_text)]
-        seen: set = set()
-        n_dup = 0
+        n_dup = 0                      # **缓存命中次数**（复用分数 + 推进游标，不 rollout）
         n_attempts = 0
+        n_steps = 0                    # 位置组合推进总步数
         hold_forced = 0
-        score_of: dict = {}
+        n_rep = 0                      # 形状**含重复类**的候选条数（如 [build,build]）
+        rep_examples: list = []
 
-        def _emit(group: tuple, positions: tuple, pos_text: str = "") -> bool:
-            """生成一条候选（去重 + 阶段 1 rollout + 回写 Q）。返回是否**新增**。"""
-            nonlocal n_dup
-            bundle = self._decode_group(group, positions)
-            key = canon_ops(bundle)
-            if key in seen:
-                n_dup += 1
-                return False
-            seen.add(key)
-            vals = self.cache.get(key)
-            if vals is None:
-                vals = list(np.asarray(self.rollout_fn(self.state, self.player, [bundle]),
-                                       dtype=np.float64).tolist())
-                self.cache[key] = vals
-            score = float(np.mean(vals)) if vals else 0.0
-            score_of[key] = score
-            # 回写：**贡献了 op 的类**（HOLD 只在空束时算它的功劳）
-            for c in group:
+        def _credit(shape: tuple, score: float) -> None:
+            """回写 `Q[c]`：形状里的每个类各记一次（重复类记多次；LSE 对重复同值不敏感）。"""
+            for c in shape:
                 if c in self.Q:
-                    self.Q[c].append(score)
-            if not group and HOLD in self.Q:
-                self.Q[HOLD].append(score)
-            picked_out.append((key, bundle, score, pos_text))
+                    self.Q[c].append(float(score))
+            if not shape and HOLD in self.Q:
+                self.Q[HOLD].append(float(score))
+
+        def _emit(bundle: tuple, shape: tuple) -> bool:
+            """缓存未命中 ⇒ rollout 收下（True）；命中 ⇒ 复用分数 + 计入 Q（False）。"""
+            nonlocal n_dup
+            key = canon_ops(bundle)
+            vals = self.cache.get(key)
+            if vals is not None:
+                n_dup += 1
+                _credit(shape, float(np.mean(vals)) if vals else 0.0)
+                return False
+            vals = list(np.asarray(self.rollout_fn(self.state, self.player, [bundle]),
+                                   dtype=np.float64).tolist())
+            self.cache[key] = vals
+            score = float(np.mean(vals)) if vals else 0.0
+            _credit(shape, score)
+            picked_out.append((key, bundle, score))
             return True
 
-        # ① HOLD（类 23 = 单位置臂）：**恒含 1 条**（设计 §6 第 3 问未拍板 ⇒ 取保守选项，
-        #    与"注入 HOLD ⇒ +29.2pp"的证据口径一致）。bandit 之后仍会自然再抽到它（会被去重）。
+        def _advance_shape(shape: tuple) -> bool:
+            """给形状推进游标，直到解出**新** bundle（True）或位置穷尽/步数用尽（False）。
+
+            修正 ④：命中缓存时**不是跳过** —— 复用分数计入 Q[c]，再推进一格继续试下一个位置。
+            """
+            nonlocal n_steps
+            for _ in range(self.steps_per_shape):
+                if n_steps >= steps_total:
+                    return False
+                pos = self._positions_for(shape)
+                if pos is None:
+                    self.dead.add(shape)       # 该形状位置已穷尽
+                    return False
+                n_steps += 1
+                bundle = self._decode_group(shape, pos)
+                if _emit(bundle, shape):
+                    return True
+            return False
+
+        # ① HOLD（类 23 = 单位置臂）：**恒含 1 条进池**（设计 §6 第 3 问未拍板 ⇒ 取保守选项，
+        #    与"注入 HOLD ⇒ +29.2pp"的证据口径一致）。top-k 仍按阶段 1 分决定它留不留。
         if self.force_hold and HOLD in self.legal:
             if _emit((), ()):
                 hold_forced = 1
             self.N[HOLD] = int(self.N.get(HOLD, 0)) + 1
             self.N_total += 1
-            self.cursor.setdefault((), []).append(())
-        # ② bandit 主循环：按 UCB 选类（**同一束内类不重复**；HOLD 可重复 ⇒ 决定束的长度）
-        #    "dry" 早停：连续 dry_limit 次尝试都只解出**已见过**的 bundle ⇒ 说明该局面的可达
-        #    候选空间已被枚举完（例：金币=0 时只剩降级 + HOLD）⇒ 立刻停，别空转到 attempts 上限。
-        dry_limit = max(32, 2 * k)
+        # ② bandit 主循环：选一束的类（**允许同束内重复**）⇒ 该形状游标推进
+        #    "dry" 早停：连续 dry_limit 次尝试都没解出新 bundle ⇒ 可达候选空间已枚举完
+        #    （例：金币不足时只剩降级 + HOLD）⇒ 立刻停，别空转到 attempts 上限。
+        dry_limit = max(32, k)
         n_dry = 0
-        while len(picked_out) < pool_target and n_attempts < max_attempts:
+        while (len(picked_out) < pool_target and n_attempts < max_attempts
+               and n_steps < steps_total):
             n_attempts += 1
-            picked: list = []
-            for _h in range(self.n_heads):
-                c = self._ucb_pick(exclude={x for x in picked if x != HOLD})
-                if c is None:
-                    break
-                picked.append(int(c))
+            shape, picked = self._pick_group(rng)
             if not picked:
                 break
-            for c in picked:                       # N 记账：被选中就算（含 HOLD 当"填充位"）
-                self.N[c] = int(self.N.get(c, 0)) + 1
-                self.N_total += 1
-            group = tuple(sorted({c for c in picked if c != HOLD}))
-            positions = self._positions_for(group)
-            # 位置分 = 各类位置图分数之积（只用于日志/读数；λ=0 ⇒ 不参与选择权重）
-            _pv = 1.0
-            for c, cell in zip(group, positions):
-                cc = self.cells.get(c)
-                _pv *= (cc.value_at(cell) if (cc is not None and cell != NO_POSITION) else 1.0)
-            if _emit(group, positions, f"{_pv:.4g}"):
+            if shape in self.dead:             # 该形状位置已穷尽 ⇒ 换形状（记一次 dry）
+                n_dry += 1
+                if n_dry >= dry_limit:
+                    break
+                continue
+            got = _advance_shape(shape)
+            if got:
                 n_dry = 0
+                if len(set(shape)) < len(shape):      # 形状含重复类（含重数的多重集）
+                    n_rep += 1
+                    if len(rep_examples) < 8:
+                        rep_examples.append(list(shape))
             else:
                 n_dry += 1
                 if n_dry >= dry_limit:
-                    # 连续 dry_limit 次都只解出"已见过"的 bundle ⇒ 该局面的可达候选空间
-                    # 已枚举完（早期金币不足以建塔/升级、或只剩降级）⇒ 立刻停，别空转。
                     if self.verbose:
-                        print(f"[cand] 早停：连续 {n_dry} 次无新候选（可达空间已枚举完）",
-                              file=sys.stderr, flush=True)
+                        print(f"[cand] 早停：连续 {n_dry} 次尝试无新候选"
+                              f"（可达空间已枚举完：steps={n_steps} 形状={len(self.cursor)}"
+                              f" 穷尽={len(self.dead)}）", file=sys.stderr, flush=True)
                     break
 
         # ③ 按阶段 1 分数取 top-k（设计 §2 阶段 1：确定性 idle rollout 分）
         picked_out.sort(key=lambda x: (-x[2], x[0]))
-        bundles = [b for (_k, b, _s, _p) in picked_out[:k]]
-        keys = [kk for (kk, _b, _s, _p) in picked_out[:k]]
+        bundles = [b for (_k, b, _s) in picked_out[:k]]
+        keys = [kk for (kk, _b, _s) in picked_out[:k]]
         n_upg = sum(1 for b in bundles if any(int(o[0]) == 12 for o in b))
         has_hold = int(any(len(b) == 0 for b in bundles))
         sizes: dict = {}
         for b in bundles:
             sizes[len(b)] = sizes.get(len(b), 0) + 1
+        # 束内**同类重复**的候选（如 [build,build]）：按 op 三元组恢复不出类，改看"同 op 类型重复"
+        n_multi_same = 0
+        multi_same_examples: list = []
+        for b in bundles:
+            ts = [int(o[0]) for o in b]
+            if len(ts) >= 2 and len(set(ts)) < len(ts):
+                n_multi_same += 1
+                if len(multi_same_examples) < 8:
+                    multi_same_examples.append([tuple(int(x) for x in o) for o in b])
         p1_ms = (_time.perf_counter() - t0) * 1000.0
         self.last_stats = {
             "n_pool": len(picked_out), "n_cand": len(bundles), "n_dup": int(n_dup),
             "attempts": int(n_attempts), "has_hold": int(has_hold),
             "hold_forced": int(hold_forced), "n_upg": int(n_upg),
-            "sizes": sizes, "p1_ms": p1_ms,
-            "keys": keys, "scores": [s for (_k, _b, s, _p) in picked_out[:k]],
+            "sizes": sizes, "p1_ms": p1_ms, "steps": int(n_steps),
+            "shapes": len(self.cursor), "dead_shapes": len(self.dead),
+            "n_rep": int(n_rep), "rep_examples": rep_examples,
+            "n_multi_same": int(n_multi_same), "multi_same_examples": multi_same_examples,
+            # `q_entries` = Σ_c |Q[c]|：缓存命中**也**计入 Q ⇒ 这个数远大于池大小（命中语义的读数）
+            "q_entries": int(sum(len(v) for v in self.Q.values())),
+            "keys": keys, "scores": [s for (_k, _b, s) in picked_out[:k]],
         }
         if self.verbose:
-            print(f"[cand] gen 池={len(picked_out)} 取={len(bundles)} 重复={n_dup} "
+            print(f"[cand] gen 池={len(picked_out)} 取={len(bundles)} 缓存命中={n_dup} "
+                  f"步数={n_steps} 形状={len(self.cursor)}(穷尽{len(self.dead)}) "
+                  f"重复类形状={n_rep} 同类型多op={n_multi_same} Q条目={self.last_stats['q_entries']} "
                   f"HOLD={has_hold}(兜底{hold_forced}) 升级={n_upg} 长度分布={sizes} "
                   f"{p1_ms:.0f} ms", file=sys.stderr, flush=True)
         return {"bundles": bundles, "stats": dict(self.last_stats)}
@@ -461,6 +578,10 @@ def make_unified_searcher_class():
                 pool_mult=float(_env("AZAI_CAND_POOL", "1.5")),
                 attempts_mult=int(_env("AZAI_CAND_ATTEMPTS", "6")),
                 force_hold=_env("AZAI_CAND_FORCE_HOLD", "1") == "1",
+                tau=float(_env("AZAI_CAND_TAU", "1.0")),
+                steps_per_shape=int(_env("AZAI_CAND_STEPS", "12")),
+                steps_total=int(_env("AZAI_CAND_STEPS_TOTAL", "0")),
+                seed=int(_env("AZAI_CAND_SEED", "0")),
                 verbose=self.cand_verbose,
             )
             self.cand_gen.k = int(self.k)
@@ -535,11 +656,18 @@ def make_unified_searcher_class():
                                          "decide_ms": dt_ms})
             if self.cand_verbose:
                 print(f"[cand] mode=unified n_cand={n_cand} 含HOLD={has_hold} 含升级={n_upg} "
-                      f"池={st.get('n_pool', 0)} 重复={st.get('n_dup', 0)} "
+                      f"池={st.get('n_pool', 0)} 缓存命中={st.get('n_dup', 0)} "
+                      f"步数={st.get('steps', 0)} 形状={st.get('shapes', 0)}"
+                      f"(穷尽{st.get('dead_shapes', 0)}) 重复类形状={st.get('n_rep', 0)} "
+                      f"同类型多op={st.get('n_multi_same', 0)} "
                       f"长度分布={st.get('sizes', {})} "
                       f"p1_ms={st.get('p1_ms', 0.0):.1f} 决策_ms={dt_ms:.1f} "
                       f"选中={'HOLD' if chosen_hold else ('升级' if chosen_upg else '其它')}",
                       file=sys.stderr, flush=True)
+                if st.get("rep_examples"):
+                    print(f"[cand] 重复类形状样例={st['rep_examples'][:4]} "
+                          f"同类型多op样例={st.get('multi_same_examples', [])[:3]}",
+                          file=sys.stderr, flush=True)
             return res
 
     return UnifiedCandFlatSearch
