@@ -99,8 +99,12 @@ def collect_trajectory(feat: FeatureExtractor, seeds=(7, 11), every: int = 25,
     return out
 
 
-def parse_tags(spec: str, default_seed: int) -> list[tuple[str, int]]:
-    """`A:8,B:10` → [("A", 8), ("B", 10)]；没写 seed 的用 default_seed。"""
+def parse_tags(spec: str, default_seed) -> list[tuple[str, str]]:
+    """`A:8,B:10` → [("A","8"), ("B","10")]；没写 seed 的用 default_seed。
+
+    seed 一律当**字符串**传下去：日志文件名可能是 `10r.log` 这种重跑档，
+    真正喂给引擎的整数 seed 在 `collect_log` 里剥数字得到。
+    """
     out = []
     for tok in (spec or "").split(","):
         tok = tok.strip()
@@ -108,19 +112,26 @@ def parse_tags(spec: str, default_seed: int) -> list[tuple[str, int]]:
             continue
         if ":" in tok:
             t, s = tok.rsplit(":", 1)
-            out.append((t.strip(), int(s)))
+            out.append((t.strip(), s.strip()))
         else:
-            out.append((tok, default_seed))
+            out.append((tok, str(default_seed)))
     return out
 
 
-def collect_log(tag: str, seed: int, feat: FeatureExtractor, every: int = 10,
+def collect_log(tag: str, seed, feat: FeatureExtractor, every: int = 10,
                 min_round: int = 20, max_round: int = 400) -> list:
-    """**有塔局面**：按 ladder 日志逐 op `apply_operation_list` 复现真实对局。"""
+    """**有塔局面**：按 ladder 日志逐 op `apply_operation_list` 复现真实对局。
+
+    `seed` 可以是 int 或字符串：整串当日志文件名，其中数字当引擎 seed。
+    """
+    import re as _re
+
     from SDK.backend.model import Operation
     from SDK.utils.constants import OperationType
 
-    log = REPO / "match_results" / "ladder_logs" / tag / f"{seed}.log"
+    stem = str(seed)
+    engine_seed = int(_re.sub(r"[^0-9]", "", stem) or 0)
+    log = REPO / "match_results" / "ladder_logs" / tag / f"{stem}.log"
     if not log.exists():
         print(f"[复现] ⚠️ 跳过：日志不存在 {log}")
         return []
@@ -130,11 +141,11 @@ def collect_log(tag: str, seed: int, feat: FeatureExtractor, every: int = 10,
         rounds.setdefault(int(m.group(1)), {})[int(m.group(2)[1])] = [
             (int(o.group(2)), int(o.group(3)), int(o.group(4))) for o in OP.finditer(m.group(5))]
     if not rounds:
-        print(f"[复现] ⚠️ 跳过 {tag}/{seed}：日志里解析不出 op 行"
+        print(f"[复现] ⚠️ 跳过 {tag}/{stem}：日志里解析不出 op 行"
               f"（旧 tag 的中文标签是乱码，`原文` 被写成 `鍘熸枃`）")
         return []
 
-    st = GameStateFacade.initial(seed=seed, cold_handle_rule_illegal=True)
+    st = GameStateFacade.initial(seed=engine_seed, cold_handle_rule_illegal=True)
     out, bad = [], 0
     for r in range(0, max_round):
         for p in (0, 1):
@@ -148,13 +159,13 @@ def collect_log(tag: str, seed: int, feat: FeatureExtractor, every: int = 10,
         if st.terminal:
             break
         if r >= min_round and r % every == 0:
-            out.append(_snap(st, feat, r, tag=tag, seed=seed))
-    print(f"[复现] {tag}/{seed}.log：合法 op 全部 apply（跳过 {bad} 个非法），"
+            out.append(_snap(st, feat, r, tag=tag, seed=stem))
+    print(f"[复现] {tag}/{stem}.log：合法 op 全部 apply（跳过 {bad} 个非法），"
           f"取到 {len(out)} 个局面（round {min_round}..{out[-1]['round'] if out else '-'}，每 {every} 轮）")
     return out
 
 
-def collect_logs(spec: str, default_seed: int, feat: FeatureExtractor, every: int = 10,
+def collect_logs(spec: str, default_seed, feat: FeatureExtractor, every: int = 10,
                  min_round: int = 20) -> list:
     """按 `tag:seed` 列表复现多局。**自动去重**：金币轨迹完全相同的两局视为同一局（日志重复存档）。"""
     out: list = []
