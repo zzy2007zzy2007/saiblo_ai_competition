@@ -55,8 +55,10 @@ import numpy as np
 
 from my_ai.decoder import (
     CHANNEL_TO_SUPER_WEAPON,
+    CHANNEL_TO_TOWER_TYPE,
     SUPER_WEAPON_TO_OP_TYPE,
     _decode_tower_action,
+    upgrade_step,
 )
 
 # 通道语义（照 `decoder.py`：0-15 塔型 / 16 降级 / 17-20 超武 / 21-22 基地升级 / 23 HOLD）
@@ -82,12 +84,20 @@ def canon_ops(ops) -> tuple:
     return tuple(sorted((int(o[0]), int(o[1]), int(o[2])) for o in (ops or ())))
 
 
-def decode_channel_op(state, player: int, ch: int, x: int, y: int):
+def decode_channel_op(state, player: int, ch: int, x: int, y: int,
+                      decode_mode: str = "legacy"):
     """**通道 + 位置 → Operation**（逐条照 `decoder.py`，不发明语义）。
 
-    * `0-15`：`_decode_tower_action`（`decoder.py:433-456`）—— 空格 ⇒ `BUILD_TOWER(x,y)`
-      （**建 Basic，忽略 target_type**）；我方塔 ⇒ `UPGRADE_TOWER(tower_id, step)`
+    * `0-15`（`decode_mode="legacy"`，默认）：`_decode_tower_action`（`decoder.py:433-456`）——
+      空格 ⇒ `BUILD_TOWER(x,y)`（**建 Basic，忽略 target_type**）；我方塔 ⇒ `UPGRADE_TOWER(tower_id, step)`
       （step 由 `upgrade_step`，`decoder.py:82-94`）；敌方塔 ⇒ `None`。
+    * `0-15`（`decode_mode="split"`，2026-10-31 新增，`AZAI_CAND_DECODE=split`）：
+      **通道 0 = 只在空格建 Basic**（我方塔/敌方塔 ⇒ `None`）；
+      **通道 1-15 = 只在"我方塔格"上升级**（空格 ⇒ `None`），目标类型照旧由
+      `upgrade_step(tower_type, CHANNEL_TO_TOWER_TYPE[ch])` 决定。
+      动机：16 个塔通道在空格**都建 Basic** ⇒ 16→1 的别名冗余，且升级只能靠"游标碰巧落到已占格"，
+      位置网又把空格排前面 ⇒ 升级几乎搜不到（`3b306b5` 冒烟：含升级只有 5.6%）。
+      split 后：① 别名塌缩消失 ② 升级变成 bandit 的**正常臂**（合法格 = 我方塔格）。
     * `16`：我方塔格 ⇒ `DOWNGRADE_TOWER(tower_id)`（`decoder.py:426-428`）。
     * `17-20`：`CHANNEL_TO_SUPER_WEAPON` → `SUPER_WEAPON_TO_OP_TYPE`，位置即 (x,y)。
     * `21/22`：`UPGRADE_GENERATION_SPEED(31)` / `UPGRADE_GENERATED_ANT(32)`（无位置）。
@@ -98,7 +108,21 @@ def decode_channel_op(state, player: int, ch: int, x: int, y: int):
 
     ch = int(ch)
     if 0 <= ch <= 15:
-        return _decode_tower_action(state, int(player), ch, int(x), int(y))
+        if decode_mode != "split":
+            return _decode_tower_action(state, int(player), ch, int(x), int(y))
+        # ── split：通道 0 只建 Basic；通道 1-15 只升级 ─────────────────────────
+        tower = state.tower_at(int(x), int(y))
+        if ch == 0:
+            # 空格才建（敌方占格/我方塔格都不建）
+            if tower is None:
+                return Operation(OperationType.BUILD_TOWER, int(x), int(y))
+            return None
+        if tower is None or int(tower.player) != int(player):
+            return None                      # 升级只能在**我方塔格**
+        step = upgrade_step(tower.tower_type, CHANNEL_TO_TOWER_TYPE[ch])
+        if step is None:
+            return None                      # 已到目标 / 到不了
+        return Operation(OperationType.UPGRADE_TOWER, int(tower.tower_id), int(step))
     if ch == DOWNGRADE:
         tower = state.tower_at(int(x), int(y))
         if tower is not None and int(tower.player) == int(player):
@@ -192,10 +216,17 @@ class UnifiedCandidateGen:
                  steps_per_shape: int = 12,
                  steps_total: int = 0,
                  seed: int = 0,
+                 decode_mode: str = "legacy",
                  verbose: bool = False) -> None:
         self.k = max(1, int(k))
         self.beta = float(beta)
         self.ucb_c = float(ucb_c)
+        # 2026-10-31（`AZAI_CAND_DECODE`）：塔通道的解码模式。
+        #   `legacy`（默认）= 0-15 全走 `_decode_tower_action`（空格建 Basic / 我方塔升级）；
+        #   `split`  = 通道 0 只建 Basic、通道 1-15 只在我方塔格升级（消掉 16→1 的别名冗余，
+        #              并让"升级"成为 bandit 的正常臂）。**默认 legacy ⇒ 行为与 3b306b5 逐位相同**。
+        assert decode_mode in ("legacy", "split"), decode_mode
+        self.decode_mode = str(decode_mode)
         # 一个 bundle 最多几个 op：与网络头数一致（3）。HOLD 占一个头 ⇒ 自然产生 1/2 op 的束。
         self.n_heads = max(1, int(n_heads))
         # 生成的**候选池** = k × pool_mult（多生成一些，再按阶段 1 分数取 top-k）
@@ -255,6 +286,17 @@ class UnifiedCandidateGen:
         # `intent_decoding=False`：**连金币一起查**（建塔/升级/超武买不起就不进位置掩码）
         #   ⇒ 位置枚举天然"买得起"，后面的 `can_apply` 只是**兜底**，不是唯一防线。
         self.pmask = make_position_masks(state, self.player, intent_decoding=False)
+        if self.decode_mode == "split":
+            # 2026-10-31（`AZAI_CAND_DECODE=split`）：把塔通道的合法位置**按角色切开** ——
+            #   通道 0（建 Basic）只在**空格**；通道 1-15（高级塔）只在**我方塔格**。
+            #   复用 `make_position_masks` 的代价逻辑（空格=建塔费、我方塔=升级费），只是加掩码约束
+            #   ⇒ 金币门槛语义不变，变的只是"哪个通道能在哪类格子上出手"。
+            my_cell = np.zeros_like(self.pmask[0], dtype=bool)
+            for _t in state.towers_of(self.player):
+                my_cell[int(_t.x), int(_t.y)] = True
+            self.pmask[0] = self.pmask[0] & (~my_cell)      # 只建（空格）
+            for _ch in range(1, 16):
+                self.pmask[_ch] = self.pmask[_ch] & my_cell  # 只升级（我方塔格）
         self.cmask = make_class_mask(state, self.player, position_mask=self.pmask,
                                      intent_decoding=False)
         for ch in range(min(N_CHANNELS, int(self.AM.shape[0]))):
@@ -416,7 +458,8 @@ class UnifiedCandidateGen:
         pending: list = []
         seen: set = set()
         for ch, cell in zip(group, positions):
-            op = decode_channel_op(self.state, self.player, ch, cell[0], cell[1])
+            op = decode_channel_op(self.state, self.player, ch, cell[0], cell[1],
+                                   decode_mode=self.decode_mode)
             if op is None:
                 continue
             t = (int(op.op_type), int(op.arg0), int(op.arg1))
@@ -613,6 +656,7 @@ def make_unified_searcher_class():
                 steps_per_shape=int(_env("AZAI_CAND_STEPS", "12")),
                 steps_total=int(_env("AZAI_CAND_STEPS_TOTAL", "0")),
                 seed=int(_env("AZAI_CAND_SEED", "0")),
+                decode_mode=_env("AZAI_CAND_DECODE", "legacy").strip().lower(),
                 verbose=self.cand_verbose,
             )
             self.cand_gen.k = int(self.k)
@@ -687,6 +731,7 @@ def make_unified_searcher_class():
                                          "decide_ms": dt_ms})
             if self.cand_verbose:
                 print(f"[cand] mode=unified n_cand={n_cand} 含HOLD={has_hold} 含升级={n_upg} "
+                      f"decode={self.cand_gen.decode_mode} "
                       f"池={st.get('n_pool', 0)} 缓存命中={st.get('n_dup', 0)} "
                       f"步数={st.get('steps', 0)} 形状={st.get('shapes', 0)}"
                       f"(穷尽{st.get('dead_shapes', 0)}) 重复类形状={st.get('n_rep', 0)} "
