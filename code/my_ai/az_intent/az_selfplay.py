@@ -628,6 +628,12 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       inject_coin_rule_hold_lo: int = 60,
                       search: str = "bundle",
                       search_total_rounds: int = 0,
+                      cand_k: int = 48,
+                      flat_rollouts: int = 16,
+                      flat_horizon: int = 64,
+                      flat_batch: int = 32,
+                      flat_act_prob: float = 0.5,
+                      flat_build_ratio: float = 0.7,
                     mc_horizon: int = 100, mc_every: int = 1,
                     mc_root_only: int = 0, mc_bidir: int = 0) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
@@ -636,18 +642,25 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
 
     feat = FeatureExtractor(max_actions=96)
     model, net_fn = make_net_fn_from_ckpt(ckpt_path, feat)
-    # 2026-10-31：`--search flat|unified` 用**部署那条搜索**采集（两者都是 BundleMCTS 的子类，
-    # `search()` 签名/返回结构相同）。默认 `bundle` = 旧行为（逐位不变）。
-    #   ⚠️ `AZAI_CAND_MODE=unified` 是 `FlatRolloutGreedy.__init__` 读的（`flat_rollout_greedy.py:130-135`）
-    #      ⇒ 想采"统一候选"的对局要 `--search unified` **且** 带这个环境变量。
-    if search in ("flat", "unified"):
-        from my_ai.az_intent.unified_action_search import UnifiedActionSearch
-        # ⚠️ flat/unified 的 `_leaf_values` 要一个**真的 torch 模块**（`.parameters()`），
-        #    而 `make_net_fn_from_ckpt` 返回的 `model` 是 `ThreeNetPolicy` 门面（没有 parameters）
-        #    ⇒ 这里单独把 value 网 load 出来（6.5 MB、一次性，别省）。
+    # ── 搜索器选择（2026-10-31；2026-11-01 修正）────────────────────────────────────
+    #   bundle          = BundleMCTS（旧行为，逐位不变）
+    #   flat            = FlatRolloutGreedy（部署的 pin 候选 flat 搜索）
+    #   **unified       = 新版统一候选 `unified_cand.make_unified_searcher_class()`
+    #                     （`UnifiedCandFlatSearch`：候选 = 类 UCB bandit + 位置游标，
+    #                      评估 = flat 随机化 rollout）—— **这就是 `AZAI_CAND_MODE=unified`
+    #                      在 `az_bridge_ai.py:1359-1361` 用的同一个入口**。
+    #   unified-legacy  = 老版 `UnifiedActionSearch`（`unified_action_search.py`，
+    #                     2026-10-31 之前的"统一动作搜索"；**不是**部署用的那个新版）
+    #   ⚠️ flat/unified* 都要一个**真 torch 模块**当 value_model（`_leaf_values` 会调
+    #      `.parameters()`），而 `make_net_fn_from_ckpt` 返回的 `ThreeNetPolicy` 门面没有
+    #      ⇒ 这里单独把 value 网 load 出来（6.5 MB、一次性）。
+    _cls_name = "BundleMCTS"
+    if search in ("flat", "unified", "unified-legacy"):
         _cm, _pm, _vm = load_three_models(ckpt_path)
+        _vm.eval()
+        # BundleMCTS 的那批公共参数（flat/unified 继承它；pin/unified 只用到其中一部分）
         _kw = dict(iterations=iterations, max_depth_rounds=max_depth_rounds,
-                   k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
+                   sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
                    c_puct=c_puct, seed=seed, search_mode=search_mode,
                    pos_pin=pos_pin, class_pin_random_prob=class_pin_random_prob,
                    reserve_coins=reserve_coins,
@@ -655,10 +668,51 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                    mc_root_only=mc_root_only, mc_bidir=mc_bidir,
                    skip_single_candidate=skip_single_candidate,
                    value_model=_vm, feature_extractor=feat, eval_mode="net")
-        if search_total_rounds > 0:
-            _kw["total_rounds"] = int(search_total_rounds)
-        mcts = UnifiedActionSearch(net_fn, **_kw)
-    else:
+        if search == "unified-legacy":
+            from my_ai.az_intent.unified_action_search import UnifiedActionSearch
+            _cls_name = "UnifiedActionSearch(legacy)"
+            _k = dict(_kw)
+            if search_total_rounds > 0:
+                _k["total_rounds"] = int(search_total_rounds)   # 老版：total_rounds = 每决策预算
+            mcts = UnifiedActionSearch(net_fn, k=k, **_k)
+        else:
+            from my_ai.az_intent.flat_rollout_greedy import FlatRolloutGreedy
+            if search == "unified":
+                from my_ai.az_intent.unified_cand import make_unified_searcher_class
+                _cls = make_unified_searcher_class()
+                _cls_name = "UnifiedCandFlatSearch(unified_cand)"
+            else:
+                _cls = FlatRolloutGreedy
+                _cls_name = "FlatRolloutGreedy(pin)"
+            # flat 家族参数：**照抄 `az_bridge_ai.py:1362-1384` 的部署取值**
+            #   （rollouts=16 / horizon=64 / batch=32 / rounds=39000 / rollout_mode=idle）
+            #   `k` 在 unified 下 = **候选条数**（bridge 默认 48）⇒ 用 cand_k，不沿用 bundle 的 k。
+            mcts = _cls(
+                net_fn,
+                k=int(cand_k),
+                rollouts_per_candidate=int(flat_rollouts),
+                horizon=int(flat_horizon),
+                value_batch=int(flat_batch),
+                max_total_rounds=int(search_total_rounds if search_total_rounds > 0 else 39000),
+                verbose=False,
+                rollout_mode="idle",
+                rollout_act_prob=float(flat_act_prob),
+                rollout_build_ratio=float(flat_build_ratio),
+                rollout_seed=0,
+                rollout_random_side="opponent",
+                rollout_prob_mode="const",
+                rollout_decay_c=0.6,
+                rollout_decay_k=3.0,
+                rollout_share_prefix=False,
+                rollout_dedupe_weight=False,
+                **_kw)
+        print(f"  [search] seed={seed} cls={_cls_name} k={cand_k} "
+              f"rollouts={flat_rollouts} horizon={flat_horizon} batch={flat_batch} "
+              f"rounds={search_total_rounds if search_total_rounds > 0 else 39000} "
+              f"cand_mode_env={__import__('os').environ.get('AZAI_CAND_MODE', '')!r} "
+              f"cand_verbose={__import__('os').environ.get('AZAI_CAND_VERBOSE', '0')!r}",
+              flush=True)
+    elif search == "bundle":
         mcts = BundleMCTS(net_fn, iterations=iterations, max_depth_rounds=max_depth_rounds,
                           k=k, sample_mult=sample_mult, t_class=t_class, t_pos=t_pos,
                           c_puct=c_puct, seed=seed, search_mode=search_mode,
@@ -668,6 +722,8 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                           mc_horizon=mc_horizon, mc_every=mc_every,
                           mc_root_only=mc_root_only, mc_bidir=mc_bidir,
                           skip_single_candidate=skip_single_candidate)
+    else:
+        raise SystemExit(f"--search {search!r} 不认识（bundle|flat|unified|unified-legacy）")
     gst: dict = {}
     samples = collect_game(net_fn, model, feat, mcts, seed,
                            max_rounds=max_rounds, temp_rounds=temp_rounds,
@@ -762,6 +818,12 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            inject_coin_rule_hold_lo: int = 60,
                            search: str = "bundle",
                            search_total_rounds: int = 0,
+                           cand_k: int = 48,
+                           flat_rollouts: int = 16,
+                           flat_horizon: int = 64,
+                           flat_batch: int = 32,
+                           flat_act_prob: float = 0.5,
+                           flat_build_ratio: float = 0.7,
                            # ⚠️ 2026-10-07：mc_* 必须一路透传到 BundleMCTS，否则 mc_quiet 会在**每个节点**仲裁
                            mc_horizon: int = 100, mc_every: int = 1,
                            mc_root_only: int = 0, mc_bidir: int = 0) -> list[Path]:
@@ -775,6 +837,7 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
              skip_single_candidate,
              inject_coin_rule, inject_coin_rule_p, inject_coin_rule_cd,
              inject_coin_rule_hold_lo, search, search_total_rounds,
+             cand_k, flat_rollouts, flat_horizon, flat_batch, flat_act_prob, flat_build_ratio,
              mc_horizon, mc_every, mc_root_only, mc_bidir) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -894,13 +957,27 @@ def main() -> None:
     parser.add_argument("--inject-coin-rule-hold-lo", type=int, default=60,
                         help="'攒钱'规则的下界（金币）：coins ∈ [lo, 90) 才触发。")
     parser.add_argument("--search", type=str, default="bundle",
-                        choices=["bundle", "flat", "unified"],
+                        choices=["bundle", "flat", "unified", "unified-legacy"],
                         help="用哪种搜索采集（默认 bundle = 旧行为/逐位不变）。\n"
-                             "  unified = 部署那条统一候选搜索（FlatRolloutGreedy 子类）；\n"
-                             "  ⚠️ 要配合 `AZAI_CAND_MODE=unified` 才会启用统一候选生成。")
+                             "  **unified** = 新版统一候选 `unified_cand.make_unified_searcher_class()`\n"
+                             "   （= `AZAI_CAND_MODE=unified` 在 bridge 里用的同一个类；阶段 2 是 flat rollout）；\n"
+                             "  flat = FlatRolloutGreedy（pin 候选）；\n"
+                             "  unified-legacy = 老版 `UnifiedActionSearch`（2026-10-31 之前那个，**不是**部署用的）。")
     parser.add_argument("--search-total-rounds", type=int, default=0,
-                        help="flat/unified 搜索的**每决策** rollout 回合预算（0 = 用类默认 39000≈2.45s/决策）。"
-                             "冒烟可设 2000~4000 换速度。")
+                        help="flat/unified：每决策 rollout 回合预算（0 = 部署默认 39000 ≈ 2.45 s/决策）；"
+                             "unified-legacy：每决策总回合预算（0 = 类默认）。冒烟可设 2000~4000 换速度。")
+    parser.add_argument("--cand-k", type=int, default=48,
+                        help="unified 的**候选条数** k（bridge 默认 48；**不是** bundle 的束长 --k）。")
+    parser.add_argument("--flat-rollouts", type=int, default=16,
+                        help="flat/unified 的每候选 rollout 次数（部署 16）")
+    parser.add_argument("--flat-horizon", type=int, default=64,
+                        help="flat/unified 的 rollout 视界（部署 64）")
+    parser.add_argument("--flat-batch", type=int, default=32,
+                        help="flat/unified 的叶值网批大小（部署 32）")
+    parser.add_argument("--flat-act-prob", type=float, default=0.5,
+                        help="rollout 里每回合每方出招概率（部署 0.5；rollout_mode=idle 时不用）")
+    parser.add_argument("--flat-build-ratio", type=float, default=0.7,
+                        help="rollout 出招时选建塔的比例（部署 0.7；rollout_mode=idle 时不用）")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -934,6 +1011,12 @@ def main() -> None:
         inject_coin_rule_hold_lo=args.inject_coin_rule_hold_lo,
         search=args.search,
         search_total_rounds=args.search_total_rounds,
+        cand_k=args.cand_k,
+        flat_rollouts=args.flat_rollouts,
+        flat_horizon=args.flat_horizon,
+        flat_batch=args.flat_batch,
+        flat_act_prob=args.flat_act_prob,
+        flat_build_ratio=args.flat_build_ratio,
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 
