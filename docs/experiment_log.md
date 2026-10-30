@@ -13741,3 +13741,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261029_165926_nonhold_inject_ab/output.log`
 - **result**: 非HOLD 外部动作定价 A/B (每臂 24 局, seeds 7..18x2): A=ALWAYS_HOLD+注入(跳过HOLD) 11W-13L=45.8% [27.9,64.9], hp -0.04 [-7.78,+7.69]; B=ALWAYS_HOLD 4W-20L=16.7% [6.7,35.9], hp -14.62 [-20.88,-8.37]. 配对: 只A赢8/只B赢1, McNemar p=0.0391, dHp +14.58 [+6.88,+22.28], 符号检验 17正/6负/1平 p=0.0347 => 预注册第 1 档 (非HOLD外部动作有独立价值, +29.2pp). 剂量: inject(非HOLD)=1596/8180=19.5% of asks, 采纳 407/1596=25.5%; skipped_hold=6584. HOLD 率 84.1% vs 87.5%; 升级 126 vs 0; 降级每回合 0.102 vs 0.083; 两臂 24/24 engine, illegal=0. 零影响: SKIP_HOLD=0 时同 seed 与 INJECT_VS_RU_A 逐字节相同 (双方 512 回合 op 全同).
+
+## 2026-10-30 09:56:15 - unified_cand_smoke
+
+- **commit**: `dd260d6` (dirty: 8 files)
+- **exit**: 0, 用时 2057s
+- **cmd**:
+  ```bash
+  ROUNDS=512 TAG=UNIFIED_CAND_FULL bash code/test_match/_unified_cand_smoke.sh
+  ```
+- **output**: `match_results/unified_cand/UNIFIED_CAND_FULL_seed8.log` + `match_results/ai0_az_bridge_ai_seed8_UC.stderr.log`
+- **result**: 统一候选生成（方案 D，`AZAI_CAND_MODE=unified`）1 局冒烟 vs 亚军（seed 8、P0、跑满到引擎终局）：verdict=engine / illegal=0 / 346 回合 / 34 分钟 / 0-32 负。每决策 `n_cand` 中位 4（p95 48、max 48），`n_cand==1` = 0.0%（pin 口径 82.3%）；候选含 HOLD 99.1%、含升级 3.8%（13/346）；升级被选中 6 次且真的发出 6 次 `UPGRADE_TOWER`；选中 HOLD 78.9%。决策耗时 p50 1519 / p95 23761 / max 41694 ms，阶段 1（候选生成 + 确定性 idle rollout）只占 2.4%。中位 `n_cand` 只有 4 是**金币长期 13-56**（买不起建塔/升级/超武/闪电），不是生成器问题。零影响：pin 模式搜索器逐位（8 个真实局面 0 不一致）+ 对局级 `RESULT`/op 序列逐字节相同（op sha256 `e336bd304bbbde2a`）。报告 `docs/unified_cand_impl_20261029.md`。

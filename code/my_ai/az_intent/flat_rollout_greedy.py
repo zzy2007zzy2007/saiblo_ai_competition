@@ -127,6 +127,14 @@ class FlatRolloutGreedy(BundleMCTS):
         self.last_effective_samples = None
         self.max_total_rounds = int(max_total_rounds)
         self.verbose = bool(verbose)
+        # ── 统一候选生成（2026-10-29，`AZAI_CAND_MODE`；**默认 "pin" ⇒ 下面两处钩子恒不执行**）──
+        #   `cand_mode` 只在 `unified_cand.UnifiedCandFlatSearch` 里被显式设成 "unified"；
+        #   `pin` 时它的**唯一**后果是 `search()` 里一个 `is not None` 判空（见 §"阶段 2 复用"），
+        #   赋值路径（预算公式 / rollout / 叶值网 / 选择规则）逐字不变。
+        self.cand_mode = "pin"
+        self.cand_verbose = _os.environ.get("AZAI_CAND_VERBOSE", "0") == "1"
+        self.last_cand_stats = {}
+        self.last_reused = 0          # 阶段 1 样本被阶段 2 复用的条数（诊断）
         # ── 额外候选注入（2026-10-26，开关式）：见 docs/oracle_inject_design.md ──────────
         #   动机：把"亚军（cpp_lure_v4）在这个局面会怎么走"并进候选，由**我们自己的**
         #   rollout+值网 给它打分（不信任它的分数）。
@@ -420,6 +428,40 @@ class FlatRolloutGreedy(BundleMCTS):
         return values
 
     # ── 额外候选注入（默认关）─────────────────────────────────────────────────
+    def idle_rollout_values(self, state, player: int, bundles: list, horizon: int | None = None):
+        """**确定性 idle rollout**（双方都不出招）：每条 bundle 各 1 次，返回 np.ndarray。
+
+        2026-10-29：给统一候选生成的**阶段 1** 用（`AZAI_CAND_MODE=unified`）。
+        语义与 `search()` 里 `rollout_mode="idle"` 的那条路径**逐位一致**：
+        `clone → apply(ops) → (P1 才 advance_round) → horizon 次 advance_round → 叶值网`。
+        ⇒ 阶段 1 的分数与"把该候选交给 idle 评估器"得到的是同一个数。
+
+        ⚠️ 本方法**不改变任何状态**、不被 `pin` 路径调用（只在统一生成器里当 `rollout_fn`）⇒
+        默认配置下它对既有读数零影响。`AZAI_FLAT_RNG_PERTURB=1` 时 idle **不再是确定性的**
+        （引擎 RNG 会被消费）⇒ 这里显式**不消费**（阶段 1 要的就是"确定性"；签名里带上
+        `_rng_on` 让阶段 2 拒绝复用，见 `unified_cand.UnifiedCandFlatSearch._p1_signature`）。
+        """
+        from SDK.backend.model import Operation
+        from SDK.utils.constants import OperationType
+
+        h = int(self.horizon if horizon is None else horizon)
+        leaves = []
+        for key in bundles:
+            ops = [Operation(OperationType(int(x[0])), int(x[1]), int(x[2])) for x in (key or ())]
+            sim = state.clone()
+            if ops:
+                sim.apply_operation_list(int(player), ops)
+            if int(player) == 1:
+                sim.advance_round()
+            for _ in range(h):
+                if sim.terminal:
+                    break
+                sim.advance_round()
+            leaves.append(sim)
+        if not leaves:
+            return np.zeros(0, dtype=np.float64)
+        return self._leaf_values(leaves, int(player))
+
     def set_extra_bundles(self, bundles=None) -> None:
         """设置**下一次**决策要注入的额外候选（`[( (op,arg0,arg1), ... ), ...]`；HOLD = `()`）。
 
@@ -557,6 +599,16 @@ class FlatRolloutGreedy(BundleMCTS):
         scores = np.zeros(n_cand, dtype=np.float64)
         _samples_buf = [None] * n_cand if _REC_SAMPLES else None
         total_rounds = 0
+        # ── 两阶段复用（2026-10-29，`AZAI_CAND_MODE=unified` 专用；**pin 时恒 None**）──────
+        #   设计 `docs/unified_cand_design_20261029.md` §"rollout 缓存与两阶段复用"：阶段 1
+        #   （bandit 生成候选时的 rollout）已经算过的结果，直接当阶段 2 的样本，只补足采样数。
+        #   ⚠️ 只有**两个阶段的估计器完全一致**才允许（`UnifiedCandFlatSearch._p1_signature`
+        #   == `_p2_signature`）。默认阶段 1 = idle（确定性）、阶段 2 = random ⇒ 不一致 ⇒
+        #   不复用（把 idle 的分混进 random 的样本均值是错的）。`AZAI_FLAT_ROLLOUT_MODE=idle`
+        #   时两者一致 ⇒ 复用生效（phase 2 的 N 次全是同一个确定性值 ⇒ 省 N-1 次）。
+        _reuse = None
+        if getattr(self, "cand_mode", "pin") == "unified":
+            _reuse = getattr(self, "_phase2_cache", None)
         for index, child in enumerate(children):
             # 2026-10-23：前缀树记忆化（随机 rollout 专用）。
             #   随机 rollout 要大 N 才抹得平噪声，而朴素实现成本 ∝ N×H；
@@ -579,8 +631,13 @@ class FlatRolloutGreedy(BundleMCTS):
                 scores[index] = self._tree_rollout_value(child, player, _rngs)
                 total_rounds += self.horizon * n_rollouts
                 continue
+            # 阶段 1 已有的样本（`_reuse` 非 None ⇒ 估计器一致 ⇒ 直接当阶段 2 的样本用）
+            _pre: list = []
+            if _reuse is not None:
+                from my_ai.az_intent.unified_cand import canon_ops as _canon
+                _pre = list(_reuse.get(_canon(bundles[index]), ()))[:n_rollouts]
             leaves = []
-            for _k in range(n_rollouts):
+            for _k in range(len(_pre), n_rollouts):
                 sim = child.clone()
                 _rng = None
                 _rng_p = None
@@ -607,6 +664,9 @@ class FlatRolloutGreedy(BundleMCTS):
                     total_rounds += 1
                 leaves.append(sim)
             _lv = self._leaf_values(leaves, player)
+            if _pre:
+                _lv = np.concatenate([np.asarray(_pre, dtype=np.float64), _lv])
+                self.last_reused = int(getattr(self, "last_reused", 0)) + len(_pre)
             if _REC_SAMPLES:
                 _samples_buf[index] = [float(v) for v in _lv]
             scores[index] = float(_lv.mean())
