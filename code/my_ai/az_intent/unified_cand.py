@@ -653,6 +653,12 @@ def make_unified_searcher_class():
             super().__init__(*args, **kwargs)
             self.cand_mode = str(cand_mode)
             self.last_cand_stats: dict = {}
+            # 2026-11-01（用户要求）：**游标推进深度**的跨决策累计（`AZAI_CAND_VERBOSE=1` 才填）。
+            #   `cursor_agg[shape_str] = {"n_trials": 该形状累计被提议的步数,
+            #                             "n_dec": 出现过该形状的决策数,
+            #                             "t": [每决策的 t（推进步数）, ...]}`
+            #   用途：回答"被选得多的形状，游标推到几格？是卡在 steps_per_shape 还是更浅？"
+            self.cursor_agg: dict = {}
             self.cand_gen = cand_gen if cand_gen is not None else UnifiedCandidateGen(
                 k=self.k,
                 beta=float(_env("AZAI_CAND_BETA", "3.0")),
@@ -825,7 +831,41 @@ def make_unified_searcher_class():
                           f"同类型多op样例={st.get('multi_same_examples', [])[:3]}",
                           file=sys.stderr, flush=True)
                 self._emit_candq(st, res, n_cand)
+                self._emit_candcursor()
             return res
+
+        # ── 游标推进深度（`AZAI_CAND_VERBOSE=1` 才打；只读 `cand_gen.cursor`，不改任何决策）──
+        _CH_NAME = {0: "建塔", 12: "升级", 13: "降级", 16: "降级", 17: "闪电", 18: "EMP",
+                    19: "偏转", 20: "闪避", 21: "升速", 22: "升蚁", 23: "HOLD"}
+
+        @classmethod
+        def _shape_str(cls, shape) -> str:
+            return "+".join(cls._CH_NAME.get(int(c), f"c{int(c)}") for c in shape) or "空"
+
+        def _emit_candcursor(self) -> None:
+            """每决策一行 `[candcursor]`：本决策各形状的游标推进步数 t（按 t 降序取前 8）。
+
+            并把 (形状 → 每决策 t) 累计进 `self.cursor_agg`，供整局结束后算"被选得多的形状推多深"。
+            """
+            cur = getattr(self.cand_gen, "cursor", None) or {}
+            if not cur:
+                return
+            rows = []
+            for shape, stt in cur.items():
+                t = int(stt.get("t", 0))
+                key = self._shape_str(shape)
+                agg = self.cursor_agg.get(key)
+                if agg is None:
+                    agg = {"n_trials": 0, "n_dec": 0, "t": []}
+                    self.cursor_agg[key] = agg
+                agg["n_trials"] += t
+                agg["n_dec"] += 1
+                agg["t"].append(t)
+                rows.append((t, key))
+            rows.sort(reverse=True)
+            top = " ".join(f"{k}:t={t}" for t, k in rows[:8])
+            print(f"[candcursor] shapes={len(rows)} 本决策 t 合计={sum(r[0] for r in rows)} "
+                  f"t={max(r[0] for r in rows)} 前8={top}", file=sys.stderr, flush=True)
 
     return UnifiedCandFlatSearch
 

@@ -428,6 +428,7 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                  inject_coin_rule_cd: int = 5,
                  inject_coin_rule_hold_lo: int = 60,
                  stats_out: dict | None = None,
+                 dump_cand: bool = False,
                  mc_horizon: int = 100, mc_every: int = 1,
                  mc_root_only: int = 0, mc_bidir: int = 0) -> list[dict]:
     """Play one self-play game (both sides = bundle MCTS), record training samples.
@@ -459,8 +460,9 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
     st = {"decisions": 0, "elig_hold": 0, "fire_hold": 0, "elig_lightning": 0,
           "fire_lightning": 0, "light_total": 0, "light_injected": 0, "light_ai": 0,
           # 每决策墙钟（秒）：采集规模的唯一成本口径（`--search unified` 的 p50/p95 决定采多少局）
-          "times": [], "coins_ge90": 0, "rounds": 0}
-
+          "times": [], "coins_ge90": 0, "rounds": 0,
+          # B：官方 replay 用的**每回合双方完整 op 序列**（种子 + 它 ⇒ 可逐位重建任意时刻）
+          "replay_steps": []}
     for round_idx in range(max_rounds):
         if state.terminal:
             break
@@ -540,6 +542,36 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                 st["light_injected" if inject_src else "light_ai"] += n_light
             st["decisions"] += 1
             st["times"].append(time.time() - _t_dec)
+            # ── A：本决策的"候选 + 两阶段打分"快照（只有 unified/flat 搜索有；BundleMCTS 没有）──
+            cand_rec = None
+            if dump_cand and res is not None and hasattr(mcts, "last_cand_stats"):
+                _cs = dict(getattr(mcts, "last_cand_stats", None) or {})
+                _s1 = list(_cs.get("scores") or [])
+                _s2 = getattr(mcts, "last_scores", None)
+                _nc = len(bundles)
+                _s2l = None
+                if _s2 is not None:
+                    _s2l = [float(x) for x in np.asarray(_s2, dtype=np.float64).reshape(-1).tolist()]
+                    if len(_s2l) != _nc:      # 长度对不上就不硬塞（宁缺勿错）
+                        _s2l = None
+                cand_rec = {
+                    "n_cand": int(_nc),
+                    # 进阶段 2 的 top-k 候选（每个 bundle 是 op 三元组的列表；HOLD = []）
+                    "cand": [[[int(t[0]), int(t[1]), int(t[2])] for t in (b or ())] for b in bundles],
+                    # 阶段 1（idle rollout）分数，与 cand 逐条对齐
+                    "s1": [float(x) for x in _s1[:_nc]] if _s1 else None,
+                    # 阶段 2（flat 随机化 rollout）分数，与 cand 逐条对齐
+                    "s2": _s2l,
+                    "chosen_idx": int(res.chosen_index),
+                    "chosen": [[int(t[0]), int(t[1]), int(t[2])] for t in (chosen or ())],
+                    "root_value": float(res.root_value),
+                    # 阶段 1 结束时的每类 Q[c]/N[c]（"合规类"可能 <24）
+                    "Q": {str(k): round(float(v), 5) for k, v in (_cs.get("Q") or {}).items()},
+                    "N": {str(k): int(v) for k, v in (_cs.get("Nmap") or {}).items()},
+                    "N_total": int(_cs.get("N_total", 0)),
+                    "has_hold": int(any(len(b or ()) == 0 for b in bundles)),
+                    "n_upg": int(sum(1 for b in bundles if any(int(t[0]) == 12 for t in (b or ())))),
+                }
             samples.append(
                 {
                     "board": obs["board"].astype(np.float16),
@@ -555,6 +587,8 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
                     "search_skipped": skip,
                     # 0 = AI 自己的选择；1 = 「金币×冷却」规则注入的（供按来源分层）
                     "inject_src": int(inject_src),
+                    # A：候选 + 两阶段打分（None = 该决策没走搜索 / 不是 flat 家族搜索）
+                    "cand_rec": cand_rec,
                     # ── 完整局面字段（按决策快照，供"一一对应"重建 + 实体模型）──
                     "towers": [[int(t.tower_id), int(t.player), int(t.x), int(t.y),
                                 int(t.tower_type), int(t.hp)] for t in state.towers],
@@ -581,6 +615,13 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
             state.apply_operation_list(player, ops)
         if player == 1 and not state.terminal:
             state.advance_round()
+        # B：官方 replay 的每回合记录（完整 op 参数；空列表 = HOLD）。
+        #   写的是**实际被执行**的 ops（含规则注入/随机注入的结果），所以重放出来的就是这一局。
+        st["replay_steps"].append({
+            "round": int(round_idx),
+            "op0": [[int(t), int(a0), int(a1)] for (t, a0, a1) in round_ops[0]],
+            "op1": [[int(t), int(a0), int(a1)] for (t, a0, a1) in round_ops[1]],
+        })
         if pfile is not None:
             hp0 = state.bases[0].hp
             hp1 = state.bases[1].hp
@@ -606,6 +647,14 @@ def collect_game(net_fn, model, feature_extractor, mcts, seed, *,
         pfile.close()
     if stats_out is not None:
         st["rounds"] = int(state.round_index)
+        # replay 的终局信息（官方 replay 语义里的 result 段）
+        st["replay_result"] = {
+            "winner": (None if state.winner is None else int(state.winner)),
+            "hp": [int(state.bases[0].hp), int(state.bases[1].hp)],
+            "rounds": int(state.round_index),
+            "terminal": bool(state.terminal),
+            "value_target_p0": float(v_p0),
+        }
         stats_out.update(st)
     return samples
 
@@ -629,11 +678,20 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                       search: str = "bundle",
                       search_total_rounds: int = 0,
                       cand_k: int = 48,
-                      flat_rollouts: int = 16,
-                      flat_horizon: int = 64,
+                      flat_rollouts: int = 64,
+                      flat_horizon: int = 16,
                       flat_batch: int = 32,
                       flat_act_prob: float = 0.5,
                       flat_build_ratio: float = 0.7,
+                      flat_mode: str = "random",
+                      flat_random_side: str = "opponent",
+                      flat_prob_mode: str = "decay",
+                      flat_decay_c: float = 1.0,
+                      flat_decay_k: float = 3.0,
+                      flat_share_prefix: bool = True,
+                      flat_seed: int = 53,
+                      dump_cand: bool = True,
+                      dump_replay: bool = True,
                     mc_horizon: int = 100, mc_every: int = 1,
                     mc_root_only: int = 0, mc_bidir: int = 0) -> dict:
     torch.set_num_threads(1)  # avoid thread thrash across parallel workers
@@ -655,6 +713,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
     #      `.parameters()`），而 `make_net_fn_from_ckpt` 返回的 `ThreeNetPolicy` 门面没有
     #      ⇒ 这里单独把 value 网 load 出来（6.5 MB、一次性）。
     _cls_name = "BundleMCTS"
+    _rounds = int(search_total_rounds if search_total_rounds > 0 else 49152)   # 部署 BASE: AZAI_FLAT_ROUNDS
     if search in ("flat", "unified", "unified-legacy"):
         _cm, _pm, _vm = load_three_models(ckpt_path)
         _vm.eval()
@@ -684,31 +743,40 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
             else:
                 _cls = FlatRolloutGreedy
                 _cls_name = "FlatRolloutGreedy(pin)"
-            # flat 家族参数：**照抄 `az_bridge_ai.py:1362-1384` 的部署取值**
-            #   （rollouts=16 / horizon=64 / batch=32 / rounds=39000 / rollout_mode=idle）
-            #   `k` 在 unified 下 = **候选条数**（bridge 默认 48）⇒ 用 cand_k，不沿用 bundle 的 k。
+            # flat 家族参数：**逐项对齐部署 BASE**（`_us_vs_external.sh:68` 的 `BASE` 字符串）：
+            #   AZAI_FLAT_BATCH=32 / AZAI_FLAT_HORIZON=16 / AZAI_FLAT_SHARE_PREFIX=1 /
+            #   AZAI_K=48 / AZAI_FLAT_ROLLOUTS=64 / AZAI_FLAT_ROLLOUT_MODE=random /
+            #   AZAI_FLAT_RANDOM_SIDE=opponent / AZAI_FLAT_PROB_MODE=decay /
+            #   AZAI_FLAT_DECAY_C=1.0 / AZAI_FLAT_DECAY_K=3.0 / AZAI_FLAT_ROUNDS=49152 /
+            #   AZAI_FLAT_SEED=53
+            #   ⚠️ 阶段 2 **必须是 random（对手随机出招）+ opponent-side + decay(1.0,3.0)**；
+            #      `idle` 只是 `unified_cand` **阶段 1** 的候选打分方式（在 `cand_gen.rollout_fn` 里写死），
+            #      与这里的 `rollout_mode` 无关。用错（idle/const/16 rollouts）会让评估器偏"少动"⇒ 对局失真。
+            #   `k` 在 unified 下 = **候选条数**（AZAI_K=48）⇒ 用 cand_k，不沿用 bundle 的 k。
             mcts = _cls(
                 net_fn,
                 k=int(cand_k),
                 rollouts_per_candidate=int(flat_rollouts),
                 horizon=int(flat_horizon),
                 value_batch=int(flat_batch),
-                max_total_rounds=int(search_total_rounds if search_total_rounds > 0 else 39000),
+                max_total_rounds=_rounds,
                 verbose=False,
-                rollout_mode="idle",
+                rollout_mode=str(flat_mode),
                 rollout_act_prob=float(flat_act_prob),
                 rollout_build_ratio=float(flat_build_ratio),
-                rollout_seed=0,
-                rollout_random_side="opponent",
-                rollout_prob_mode="const",
-                rollout_decay_c=0.6,
-                rollout_decay_k=3.0,
-                rollout_share_prefix=False,
+                rollout_seed=int(flat_seed),
+                rollout_random_side=str(flat_random_side),
+                rollout_prob_mode=str(flat_prob_mode),
+                rollout_decay_c=float(flat_decay_c),
+                rollout_decay_k=float(flat_decay_k),
+                rollout_share_prefix=bool(flat_share_prefix),
                 rollout_dedupe_weight=False,
                 **_kw)
         print(f"  [search] seed={seed} cls={_cls_name} k={cand_k} "
               f"rollouts={flat_rollouts} horizon={flat_horizon} batch={flat_batch} "
-              f"rounds={search_total_rounds if search_total_rounds > 0 else 39000} "
+              f"rounds={_rounds if search != 'unified-legacy' else search_total_rounds} "
+              f"mode={flat_mode} side={flat_random_side} prob={flat_prob_mode}"
+              f"({flat_decay_c:g},{flat_decay_k:g}) seed={flat_seed} share_prefix={int(flat_share_prefix)} "
               f"cand_mode_env={__import__('os').environ.get('AZAI_CAND_MODE', '')!r} "
               f"cand_verbose={__import__('os').environ.get('AZAI_CAND_VERBOSE', '0')!r}",
               flush=True)
@@ -736,6 +804,7 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                            inject_coin_rule_p=inject_coin_rule_p,
                            inject_coin_rule_cd=inject_coin_rule_cd,
                            inject_coin_rule_hold_lo=inject_coin_rule_hold_lo,
+                           dump_cand=dump_cand,
                            stats_out=gst)
     path = Path(out_dir) / f"az_selfplay_seed{seed:05d}.pkl"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -747,6 +816,23 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
         import numpy as _np
         npz = path.with_suffix(".npz")
         if samples:
+            # A：紧凑字段（完整候选列表在 `.cand.jsonl`；这里只放便于快速过滤的标量）
+            _crecs = [s.get("cand_rec") for s in samples]
+            _n_cand = _np.asarray([(c or {}).get("n_cand", -1) for c in _crecs], dtype=_np.int16)
+            _ch_idx = _np.asarray([(c or {}).get("chosen_idx", -1) for c in _crecs], dtype=_np.int16)
+            _ch_s1 = _np.full(len(samples), _np.nan, dtype=_np.float32)
+            _ch_s2 = _np.full(len(samples), _np.nan, dtype=_np.float32)
+            _root_v = _np.full(len(samples), _np.nan, dtype=_np.float32)
+            for _i, _c in enumerate(_crecs):
+                if not _c:
+                    continue
+                _root_v[_i] = _c.get("root_value", _np.nan)
+                _k = _c.get("chosen_idx", -1)
+                _s1, _s2 = _c.get("s1"), _c.get("s2")
+                if _s1 is not None and 0 <= _k < len(_s1):
+                    _ch_s1[_i] = _s1[_k]
+                if _s2 is not None and 0 <= _k < len(_s2):
+                    _ch_s2[_i] = _s2[_k]
             _np.savez_compressed(
                 npz,
                 board=_np.stack([s["board"] for s in samples], axis=0),
@@ -756,6 +842,10 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                 player=_np.asarray([s["player"] for s in samples], dtype=_np.int8),
                 value_target=_np.asarray([s["value_target"] for s in samples], dtype=_np.float32),
                 inject_src=_np.asarray([s.get("inject_src", 0) for s in samples], dtype=_np.int8),
+                search_skipped=_np.asarray([int(s.get("search_skipped", False)) for s in samples],
+                                           dtype=_np.int8),
+                n_cand=_n_cand, chosen_idx=_ch_idx,
+                chosen_s1=_ch_s1, chosen_s2=_ch_s2, root_value=_root_v,
             )
             # 完整局面字段另存 JSONL（与 npz 逐条同序；含塔/蚁/效果/武器/金币/HP/死伤/回合）
             import json as _json
@@ -767,7 +857,41 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
                 for _s in samples:
                     _fh.write(_json.dumps({_k: _s.get(_k) for _k in _keys},
                                           ensure_ascii=False) + "\n")
+            # A：候选 + 两阶段打分（与 npz 行 1:1 同序；变长所以用 JSONL 而不是 npz 数组）
+            if dump_cand:
+                cand_path = npz.with_suffix(".cand.jsonl")
+                with open(cand_path, "w", encoding="utf-8") as _fh:
+                    for _s in samples:
+                        _rec = {"round": _s.get("round"), "player": _s.get("player"),
+                                "skipped": int(bool(_s.get("search_skipped"))),
+                                "inject_src": int(_s.get("inject_src", 0))}
+                        _rec.update(_s.get("cand_rec") or {})
+                        _fh.write(_json.dumps(_rec, ensure_ascii=False) + "\n")
         path = npz
+        # B：官方 replay（seed + 每回合双方完整 ops + 终局）⇒ 可用引擎逐位重建任意时刻
+        if dump_replay:
+            import json as _json
+            rp = Path(out_dir) / f"az_selfplay_seed{seed:05d}.replay.json"
+            _cfg = {"search": search, "cand_k": cand_k, "flat_rollouts": flat_rollouts,
+                    "flat_horizon": flat_horizon, "flat_batch": flat_batch,
+                    "flat_mode": flat_mode, "flat_random_side": flat_random_side,
+                    "flat_prob_mode": flat_prob_mode, "flat_decay_c": flat_decay_c,
+                    "flat_decay_k": flat_decay_k, "flat_share_prefix": bool(flat_share_prefix),
+                    "flat_seed": flat_seed,
+                    "rounds_budget": int(search_total_rounds if search_total_rounds > 0 else 49152),
+                    "iterations": iterations, "max_depth_rounds": max_depth_rounds,
+                    "native_engine": bool(native_engine), "max_rounds": max_rounds,
+                    "temp_rounds": temp_rounds, "inject_coin_rule": bool(inject_coin_rule),
+                    "inject_coin_rule_p": inject_coin_rule_p,
+                    "inject_coin_rule_cd": inject_coin_rule_cd,
+                    "inject_coin_rule_hold_lo": inject_coin_rule_hold_lo,
+                    "skip_single_candidate": bool(skip_single_candidate),
+                    "ckpt": str(ckpt_path)}
+            _payload = {"format": "antwar2-replay/1", "engine": "cpp_native" if native_engine else "py_sdk",
+                        "collector": "az_selfplay", "seed": int(seed),
+                        "config": _cfg, "steps": gst.get("replay_steps", []),
+                        "result": gst.get("replay_result", {})}
+            rp.write_text(_json.dumps(_payload, ensure_ascii=False), encoding="utf-8")
     else:
         with open(path, "wb") as f:
             pickle.dump({"seed": seed, "samples": samples}, f)
@@ -790,6 +914,35 @@ def _collect_and_save(seed: int, out_dir: str, ckpt_path: str, iterations: int,
               f" / AI 自己 {gst.get('light_ai',0)}）"
               f" | coins≥90 决策 {gst.get('coins_ge90',0)}/{_dec}"
               f"（{100.0*gst.get('coins_ge90',0)/_dec:.1f}%）", flush=True)
+    # ── 游标推进深度汇总（`AZAI_CAND_VERBOSE=1` 时搜索器才累计；默认空 ⇒ 不打）──
+    _agg = getattr(mcts, "cursor_agg", None) or {}
+    if _agg:
+        _steps_cap = int(getattr(getattr(mcts, "cand_gen", None), "steps_per_shape", 0) or 0)
+        _rows = []
+        for k, v in _agg.items():
+            ts = [int(x) for x in v.get("t", [])]
+            if not ts:
+                continue
+            ts_sorted = sorted(ts)
+            med = ts_sorted[len(ts_sorted) // 2]
+            p90 = ts_sorted[min(len(ts_sorted) - 1, int(0.9 * len(ts_sorted)))]
+            at_cap = (sum(1 for x in ts if _steps_cap and x >= _steps_cap) / len(ts))
+            _rows.append((v.get("n_trials", 0), k, v.get("n_dec", 0), med,
+                          max(ts), p90, at_cap, len(ts)))
+        _rows.sort(reverse=True)
+        _hot = [r for r in _rows if r[0] >= 5]
+        print(f"  [candcursor-agg] seed={seed} steps_per_shape={_steps_cap} "
+              f"形状数={len(_rows)} 被选>=5步的形状={len(_hot)}", flush=True)
+        print(f"    {'形状':<14} {'累计步':>7} {'决策数':>6} {'t中位':>6} {'t最大':>6} "
+              f"{'t_p90':>6} {'卡满占比':>8}", flush=True)
+        for n_tr, k, n_dec, med, mx, p90, at_cap, n in _rows[:20]:
+            print(f"    {k:<14} {n_tr:>7} {n_dec:>6} {med:>6} {mx:>6} {p90:>6} {at_cap:>8.0%}",
+                  flush=True)
+        if _hot:
+            _med_hot = sorted(r[3] for r in _hot)
+            _at_cap_hot = sum(r[6] * r[7] for r in _hot) / max(sum(r[7] for r in _hot), 1)
+            print(f"    ⇒ 被选>=5步的形状：t 中位={_med_hot[len(_med_hot)//2]} "
+                  f"（t 的样本加权「卡满 steps_per_shape」占比={_at_cap_hot:.0%}）", flush=True)
     out = {"seed": seed, "samples": len(samples)}
     # 只把**标量**统计带回去（`times` 是 list，逐局已打印 p50/p95，不必回传）
     for _k, _v in gst.items():
@@ -819,11 +972,20 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
                            search: str = "bundle",
                            search_total_rounds: int = 0,
                            cand_k: int = 48,
-                           flat_rollouts: int = 16,
-                           flat_horizon: int = 64,
+                           flat_rollouts: int = 64,
+                           flat_horizon: int = 16,
                            flat_batch: int = 32,
                            flat_act_prob: float = 0.5,
                            flat_build_ratio: float = 0.7,
+                           flat_mode: str = "random",
+                           flat_random_side: str = "opponent",
+                           flat_prob_mode: str = "decay",
+                           flat_decay_c: float = 1.0,
+                           flat_decay_k: float = 3.0,
+                           flat_share_prefix: bool = True,
+                           flat_seed: int = 53,
+                           dump_cand: bool = True,
+                           dump_replay: bool = True,
                            # ⚠️ 2026-10-07：mc_* 必须一路透传到 BundleMCTS，否则 mc_quiet 会在**每个节点**仲裁
                            mc_horizon: int = 100, mc_every: int = 1,
                            mc_root_only: int = 0, mc_bidir: int = 0) -> list[Path]:
@@ -838,6 +1000,8 @@ def collect_games_parallel(ckpt_path: str, seeds: list[int], out_dir: str, worke
              inject_coin_rule, inject_coin_rule_p, inject_coin_rule_cd,
              inject_coin_rule_hold_lo, search, search_total_rounds,
              cand_k, flat_rollouts, flat_horizon, flat_batch, flat_act_prob, flat_build_ratio,
+             flat_mode, flat_random_side, flat_prob_mode, flat_decay_c, flat_decay_k,
+             flat_share_prefix, flat_seed, dump_cand, dump_replay,
              mc_horizon, mc_every, mc_root_only, mc_bidir) for s in seeds]
     if workers > 1:
         with mp.Pool(workers) as pool:
@@ -968,16 +1132,41 @@ def main() -> None:
                              "unified-legacy：每决策总回合预算（0 = 类默认）。冒烟可设 2000~4000 换速度。")
     parser.add_argument("--cand-k", type=int, default=48,
                         help="unified 的**候选条数** k（bridge 默认 48；**不是** bundle 的束长 --k）。")
-    parser.add_argument("--flat-rollouts", type=int, default=16,
-                        help="flat/unified 的每候选 rollout 次数（部署 16）")
-    parser.add_argument("--flat-horizon", type=int, default=64,
-                        help="flat/unified 的 rollout 视界（部署 64）")
+    parser.add_argument("--flat-rollouts", type=int, default=64,
+                        help="flat/unified 的每候选 rollout 次数（部署 BASE: AZAI_FLAT_ROLLOUTS=64）")
+    parser.add_argument("--flat-horizon", type=int, default=16,
+                        help="flat/unified 的 rollout 视界（部署 BASE: AZAI_FLAT_HORIZON=16）")
     parser.add_argument("--flat-batch", type=int, default=32,
-                        help="flat/unified 的叶值网批大小（部署 32）")
+                        help="flat/unified 的叶值网批大小（部署 BASE: AZAI_FLAT_BATCH=32）")
     parser.add_argument("--flat-act-prob", type=float, default=0.5,
-                        help="rollout 里每回合每方出招概率（部署 0.5；rollout_mode=idle 时不用）")
+                        help="rollout 里每回合每方出招概率（部署默认 0.5；prob_mode=const 时才用）")
     parser.add_argument("--flat-build-ratio", type=float, default=0.7,
-                        help="rollout 出招时选建塔的比例（部署 0.7；rollout_mode=idle 时不用）")
+                        help="rollout 出招时选建塔的比例（部署默认 0.7）")
+    parser.add_argument("--flat-mode", type=str, default="random", choices=["idle", "random"],
+                        help="阶段 2 rollout 的出招模式（部署 BASE: AZAI_FLAT_ROLLOUT_MODE=**random**）。\n"
+                             "⚠️ idle 只是 unified_cand **阶段 1** 的候选打分方式（写死在 cand_gen 里），\n"
+                             "   阶段 2 用 idle 会让评估器偏'不动' ⇒ 对局失真。")
+    parser.add_argument("--flat-random-side", type=str, default="opponent", choices=["opponent", "both"],
+                        help="random 模式下谁随机出招（部署 BASE: AZAI_FLAT_RANDOM_SIDE=opponent）")
+    parser.add_argument("--flat-prob-mode", type=str, default="decay",
+                        choices=["const", "decay", "first", "reverse"],
+                        help="出招概率随回合的衰减方式（部署 BASE: AZAI_FLAT_PROB_MODE=decay）")
+    parser.add_argument("--flat-decay-c", type=float, default=1.0,
+                        help="decay 的首回合概率 C（部署 BASE: AZAI_FLAT_DECAY_C=1.0）")
+    parser.add_argument("--flat-decay-k", type=float, default=3.0,
+                        help="decay 的常数 k：p(r)=C·exp(-r/k)（部署 BASE: AZAI_FLAT_DECAY_K=3.0）")
+    parser.add_argument("--flat-share-prefix", type=int, default=1, choices=[0, 1],
+                        help="rollout 前缀树共享（部署 BASE: AZAI_FLAT_SHARE_PREFIX=1）")
+    parser.add_argument("--flat-seed", type=int, default=53,
+                        help="rollout 随机种子（部署 BASE: AZAI_FLAT_SEED=53）")
+    # ── A：每决策的候选 + 两阶段打分落盘（默认开；只在 unified/flat 下有内容）──
+    parser.add_argument("--dump-cand", type=int, default=1, choices=[0, 1],
+                        help="1（默认）= 每局额外写 `.cand.jsonl`（候选 + 阶段1/阶段2 分 + Q/N + chosen），"
+                             "并在 npz 里加 n_cand / chosen_idx / chosen_s1 / chosen_s2 / root_value 紧凑字段")
+    # ── B：官方 replay（seed + 每回合双方 ops）落盘（默认开）──
+    parser.add_argument("--dump-replay", type=int, default=1, choices=[0, 1],
+                        help="1（默认）= 每局写 `az_selfplay_seedNNNNN.replay.json`（官方 replay 语义："
+                             "seed + 每回合双方完整 op 序列 + 终局），可用 code/test_match/verify_replay.py 逐位重放校验")
     args = parser.parse_args()
 
     seeds = [args.seed * 10000 + g for g in range(args.games)]
@@ -1017,6 +1206,15 @@ def main() -> None:
         flat_batch=args.flat_batch,
         flat_act_prob=args.flat_act_prob,
         flat_build_ratio=args.flat_build_ratio,
+        flat_mode=args.flat_mode,
+        flat_random_side=args.flat_random_side,
+        flat_prob_mode=args.flat_prob_mode,
+        flat_decay_c=args.flat_decay_c,
+        flat_decay_k=args.flat_decay_k,
+        flat_share_prefix=bool(args.flat_share_prefix),
+        flat_seed=args.flat_seed,
+        dump_cand=bool(args.dump_cand),
+        dump_replay=bool(args.dump_replay),
     )
     print(f"[selfplay] done -> {len(paths)} files", flush=True)
 
