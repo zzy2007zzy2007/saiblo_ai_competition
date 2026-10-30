@@ -200,14 +200,17 @@ def main() -> int:
                 gen.rollout_fn = searcher.idle_rollout_values
                 st = GameStateFacade.initial(seed=args.seed, cold_handle_rule_illegal=True)
                 me = int(args.player)
-                cand_light = []      # 每决策：(coins, n_cand, n_light_cand)
+                from SDK.utils.constants import SuperWeaponType
+                cand_light = []      # 每决策：(coins, n_cand, n_light_cand, 我方闪电冷却)
                 for r in range(0, max(rounds) + 1):
                     coins = int(st.coins[me])
+                    # 2026-10-31（P0-4）：我方闪电冷却（0 = 已好；放电后从 35 起每回合 −1）
+                    cd_light = int(st.weapon_cooldowns[me, SuperWeaponType.LIGHTNING_STORM])
                     net_out = searcher.net_fn(st.clone(), me)
                     res = gen.generate(st.clone(), me, net_out, k=gen.k)
                     nb = res["bundles"]
                     nl = sum(1 for b in nb if any(int(o[0]) == LIGHTNING for o in b))
-                    cand_light.append((coins, len(nb), nl))
+                    cand_light.append((coins, len(nb), nl, cd_light))
                     for pl in (0, 1):
                         ops = rounds.get(r, {}).get(pl, [])
                         if ops:
@@ -215,18 +218,40 @@ def main() -> int:
                                                          for (t, a0, a1) in ops])
                     st.advance_round()
                 tot = len(cand_light)
-                withl = sum(1 for (_c, _n, nl) in cand_light if nl > 0)
+                withl = sum(1 for (_c, _n, nl, _cd) in cand_light if nl > 0)
                 emit("")
                 emit("## 2. **候选里含闪电**（离线复算同一局的生成器，精确值）")
                 emit(f"  含至少 1 条闪电候选的决策：{withl}/{tot} = {pct(withl, tot)}")
-                emit(f"  闪电候选条数合计：{sum(nl for (_c, _n, nl) in cand_light)} / "
-                     f"候选总条数 {sum(n for (_c, n, _nl) in cand_light)} = "
-                     f"{pct(sum(nl for (_c, _n, nl) in cand_light), sum(n for (_c, n, _nl) in cand_light))}")
-                c90 = [(c, nl) for (c, _n, nl) in cand_light if c >= 90]
+                emit(f"  闪电候选条数合计：{sum(nl for (_c, _n, nl, _cd) in cand_light)} / "
+                     f"候选总条数 {sum(n for (_c, n, _nl, _cd) in cand_light)} = "
+                     f"{pct(sum(nl for (_c, _n, nl, _cd) in cand_light), sum(n for (_c, n, _nl, _cd) in cand_light))}")
+                c90 = [(c, nl, cd) for (c, _n, nl, cd) in cand_light if c >= 90]
                 emit(f"  金币 ≥90 的决策里，含闪电候选的："
-                     f"{sum(1 for (_c, nl) in c90 if nl > 0)}/{len(c90)}")
+                     f"{sum(1 for (_c, nl, _cd) in c90 if nl > 0)}/{len(c90)}")
+                # 冷却分层：候选含闪电 vs 冷却
+                def _bucket(cd: int) -> str:
+                    return "cd==0（已好）" if cd == 0 else ("0<cd<=8（快好）" if cd <= 8
+                                                           else "cd>8（还早）")
+                from collections import Counter as _C
+                agg = {k: [0, 0] for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）")}
+                for (_c, _n, nl, cd) in cand_light:
+                    b = _bucket(cd)
+                    agg[b][0] += 1
+                    agg[b][1] += int(nl > 0)
+                emit("  按**冷却**分层看『候选里有没有闪电』：")
+                for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）"):
+                    n_b, n_l = agg[k]
+                    emit(f"    {k:<14} 决策 {n_b:>4}  含闪电候选 {n_l:>3} = {pct(n_l, n_b)}")
+                emit(f"  冷却分布（我方闪电 cd）：{dict(_C(cd for (_c, _n, _nl, cd) in cand_light))}")
+                cd_by_idx = [cd for (_c, _n, _nl, cd) in cand_light]
+                coins_by_idx = [c for (c, _n, _nl, _cd) in cand_light]
         except Exception as exc:      # noqa: BLE001
             emit(f"  ⚠️ 离线复算失败（不影响日志部分）：{type(exc).__name__}: {exc}")
+            cd_by_idx = None
+            coins_by_idx = None
+    else:
+        cd_by_idx = None
+        coins_by_idx = None
 
     # ── C. 临界金币定价（70–89）─────────────────────────────────────────────
     emit("")
@@ -270,6 +295,126 @@ def main() -> int:
         emit(f"  选中类别：{dict(Counter(d['chosen']['cat'] for d in rich if d.get('chosen')))}")
         n_light_c = sum(1 for d in rich if (d.get("comp") or "").find("'其它'") >= 0)
         emit(f"  候选里含『其它』(闪电/超武/基地升级) 的：{n_light_c}/{len(rich)}")
+
+    # ── D. P0-4：把"临界金币"按**闪电冷却**三档重切（2026-10-31 用户要求）──────────
+    emit("")
+    emit("## 4. P0-4：临界金币（70–89）**按我方闪电冷却三档重切**")
+    emit("    判据（用户模型的可证伪预测）：错判应集中在 cd==0（冷却已好、该攒钱）那一档；")
+    emit("    若三档 gap 分布**无差异** ⇒ 评估器完全不看冷却。")
+    if cd_by_idx is None:
+        emit("  ⚠️ 需要离线复算拿冷却（不要加 --no-offline；且 tag/seed 的 --trace-ops 日志要在）")
+    else:
+        # 用**金币序列**对齐：日志里的决策顺序 == 离线复算的回合顺序；金币必须逐位一致
+        n_cmp = min(len(decs), len(coins_by_idx))
+        mism = sum(1 for i in range(n_cmp)
+                   if decs[i]["coins"] is not None and int(decs[i]["coins"]) != int(coins_by_idx[i]))
+        emit(f"  对齐检查：日志决策 {len(decs)} / 离线回合 {len(coins_by_idx)}；"
+             f"前 {n_cmp} 个的金币不一致 = {mism}（应为 0）")
+        if len(decs) > len(coins_by_idx):
+            emit(f"  ⚠️ 日志比离线复算多 {len(decs)-len(coins_by_idx)} 个决策 ⇒ 只对齐前 "
+                 f"{len(coins_by_idx)} 个（游戏结束/日志截断差异）")
+
+        def _bucket(cd: int) -> str:
+            return "cd==0（已好）" if cd == 0 else ("0<cd<=8（快好）" if cd <= 8 else "cd>8（还早）")
+
+        buckets = {k: [] for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）")}
+        for i in range(n_cmp):
+            d = decs[i]
+            if d["coins"] is None or not (70 <= int(d["coins"]) < 90):
+                continue
+            c = d.get("chosen")
+            if not c:
+                continue
+            buckets[_bucket(int(cd_by_idx[i]))].append((d, c))
+        emit("")
+        emit(f"  {'档':<14} {'决策':>4} {'最好的非HOLD是建塔/升级':>22} "
+             f"{'其中 gap>0（乱花）':>18} {'gap 中位':>10} {'chosen 分布'}")
+        for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）"):
+            items = buckets[k]
+            wins = [c["gap"] for (_d, c) in items
+                    if ("建塔" in c["best_nh_cat"] or "升级" in c["best_nh_cat"])
+                    and c["gap"] == c["gap"]]
+            n_beat = sum(1 for g in wins if g > 0)
+            ch = Counter(c["cat"] for (_d, c) in items)
+            emit(f"  {k:<14} {len(items):>4} {len(wins):>22} "
+                 f"{(pct(n_beat, len(wins)) if wins else 'n/a'):>18} "
+                 f"{(_f(stats.median(wins)) if wins else 'n/a'):>10} {dict(ch)}")
+        # 三档之间的"正比例"差异（Fisher 精确检验，2x2：cd==0 vs cd>8）
+        b0 = buckets["cd==0（已好）"]
+        b2 = buckets["cd>8（还早）"]
+        w0 = [c["gap"] for (_d, c) in b0 if ("建塔" in c["best_nh_cat"] or "升级" in c["best_nh_cat"])
+              and c["gap"] == c["gap"]]
+        w2 = [c["gap"] for (_d, c) in b2 if ("建塔" in c["best_nh_cat"] or "升级" in c["best_nh_cat"])
+              and c["gap"] == c["gap"]]
+        k0 = sum(1 for g in w0 if g > 0)
+        k2 = sum(1 for g in w2 if g > 0)
+        # 两比例差的 Fisher 精确双侧 p（超几何直接算）
+        if len(w0) and len(w2):
+            n1, n2 = len(w0), len(w2)
+            K, N = k0 + k2, n1 + n2
+            import math as _math
+
+            def _hg(x: int) -> float:
+                return (_math.comb(K, x) * _math.comb(N - K, n1 - x) / _math.comb(N, n1)
+                        if 0 <= x <= K and 0 <= n1 - x <= N - K else 0.0)
+            p_obs = _hg(k0)
+            p = sum(_hg(x) for x in range(max(0, n1 - (N - K)), min(n1, K) + 1)
+                    if _hg(x) <= p_obs + 1e-12)
+            emit("")
+            emit(f"  cd==0 vs cd>8 的『乱花比例』：{k0}/{n1} = {pct(k0, n1)} vs "
+                 f"{k2}/{n2} = {pct(k2, n2)}；Fisher 精确双侧 p = {p:.3f}")
+            g0 = [g for g in w0]
+            g2 = [g for g in w2]
+            if g0 and g2:
+                emit(f"  gap 中位：cd==0 → {_f(stats.median(g0))}（n={len(g0)}）；"
+                     f"cd>8 → {_f(stats.median(g2))}（n={len(g2)}）")
+        else:
+            emit("  ⚠️ 某一档样本为 0 ⇒ 无法做组间检验（如实报告样本量）")
+        # 附：三档里"候选有没有闪电/建塔/升级"的供给，避免把"没候选"误读成"不选"
+        emit("")
+        emit("  三档的**候选供给**（避免把'没候选'误读成'不选'）：")
+        for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）"):
+            items = buckets[k]
+            if not items:
+                emit(f"    {k:<14} 0 个决策")
+                continue
+
+            def _has(tag: str, d) -> bool:
+                c = d.get("comp") or ""
+                m = re.search(re.escape("'" + tag + "'") + r": (\d+)", c)
+                return bool(m and int(m.group(1)) > 0)
+            nb = sum(1 for (d, _c) in items if _has("建塔", d))
+            nu = sum(1 for (d, _c) in items if _has("升级", d))
+            nh = sum(1 for (d, _c) in items if _has("HOLD", d))
+            no = sum(1 for (d, _c) in items if _has("其它", d))
+            emit(f"    {k:<14} n={len(items):<3} 含建塔 {nb} / 含升级 {nu} / 含HOLD {nh} / 含其它 {no}")
+
+        # ── 4b. 主检验**功效不足**（n=0 / n=2）⇒ 加一个更宽的辅助对照 ─────────────
+        #   金币 40–89（**买不起闪电**）+ 按冷却分档：若评估器看冷却，应该在 cd 大时**更敢花钱**
+        #   （没有攒钱的必要）、cd==0 时**更省**。这是一个描述性对照（不分回合/塔数，样本更大）。
+        emit("")
+        emit("## 4b. 辅助对照（主检验功效不足）：金币 40–89（买不起闪电）按冷却分档")
+        widths = {k: [0, 0, 0] for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）")}
+        for i in range(n_cmp):
+            d = decs[i]
+            if d["coins"] is None or not (40 <= int(d["coins"]) < 90):
+                continue
+            c = d.get("chosen")
+            if not c:
+                continue
+            b = _bucket(int(cd_by_idx[i]))
+            widths[b][0] += 1
+            cat = c["cat"]
+            widths[b][1] += int(("建塔" in cat) or ("升级" in cat))
+            # 若最好非 HOLD 是建塔/升级，且 gap>0 ⇒ 花钱压过 HOLD
+            if ("建塔" in c["best_nh_cat"] or "升级" in c["best_nh_cat"]) and c["gap"] == c["gap"]:
+                widths[b][2] += int(c["gap"] > 0)
+        emit(f"  {'档':<14} {'决策':>4} {'选中建塔/升级':>14} {'其中 gap>0':>12}")
+        for k in ("cd==0（已好）", "0<cd<=8（快好）", "cd>8（还早）"):
+            n_b, n_sp, n_g = widths[k]
+            emit(f"  {k:<14} {n_b:>4} {(pct(n_sp, n_b) if n_b else 'n/a'):>14} "
+                 f"{(pct(n_g, n_sp) if n_sp else 'n/a'):>12}")
+        emit("  ⚠️ 描述性：不分回合/塔数/血量，只用来在**主检验样本不足**时给一个方向")
 
     if args.out:
         p = Path(args.out)
