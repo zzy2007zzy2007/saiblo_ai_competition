@@ -21,6 +21,9 @@ ROUNDS="${ROUNDS:-512}"
 TAG="${TAG:-UNIFIED_CAND_SMOKE}"
 MODE="${MODE:-unified}"          # unified | pin
 VERBOSE="${VERBOSE:-1}"
+# 额外的臂开关（`;` 分隔，如 `AZAI_CAND_DECODE=split`）；**默认空** ⇒ 与历史冒烟逐字相同
+EXTRA="${EXTRA:-}"
+STDERR_SUF="${STDERR_SUF:-_UC}"   # stderr 文件名后缀（不同臂用不同后缀，互不覆盖）
 OUTDIR="match_results/unified_cand"
 mkdir -p "$OUTDIR"
 
@@ -30,16 +33,16 @@ RU="$(pwd -W | sed 's#/$##')/$RU_REL"
 
 BASE="$(sed -n 's/^BASE="\(.*\)"$/\1/p' code/test_match/_inject_vs_runnerup.sh)"
 [ -n "$BASE" ] || { echo "[uc] !! 读不到 BASE" >&2; exit 2; }
-ENV0="$BASE;AZAI_CAND_MODE=$MODE;AZAI_CAND_VERBOSE=$VERBOSE"
+ENV0="$BASE;AZAI_CAND_MODE=$MODE;AZAI_CAND_VERBOSE=$VERBOSE${EXTRA}"
 
 export MVS_STDERR_SUFFIX=1
-export DSH_PROGRESS_SUFFIX="_UC"
+export DSH_PROGRESS_SUFFIX="$STDERR_SUF"
 export DSH_PROGRESS_TAG="$TAG"
 
 LOG="$OUTDIR/${TAG}_seed${SEED}.log"
-echo "[uc] tag=$TAG seed=$SEED rounds=$ROUNDS mode=$MODE verbose=$VERBOSE"
+echo "[uc] tag=$TAG seed=$SEED rounds=$ROUNDS mode=$MODE verbose=$VERBOSE extra=${EXTRA:-<无>}"
 echo "[uc] ai0=code/test_match/az_bridge_ai.py  ai1=$RU"
-echo "[uc] stdout -> $LOG ；AI stderr -> match_results/ai0_*_seed${SEED}_UC.stderr.log"
+echo "[uc] stdout -> $LOG ；AI stderr -> match_results/ai0_*_seed${SEED}${STDERR_SUF}.stderr.log"
 echo "[uc] $(date '+%Y-%m-%d %H:%M:%S')"
 "$P" -u code/test_match/match_via_sdk.py --rounds="$ROUNDS" --trace-ops \
     --ai0=code/test_match/az_bridge_ai.py --ai1="$RU" \

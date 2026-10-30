@@ -427,6 +427,15 @@ class FlatRolloutGreedy(BundleMCTS):
                 values[pending_index[start + offset]] = float(value)
         return values
 
+    @staticmethod
+    def _size_hist(bundles) -> dict:
+        """候选长度直方图（只给 `AZAI_CAND_VERBOSE` 的日志用，纯只读）。"""
+        out: dict = {}
+        for b in (bundles or ()):
+            n = len(b or ())
+            out[n] = out.get(n, 0) + 1
+        return dict(sorted(out.items()))
+
     # ── 额外候选注入（默认关）─────────────────────────────────────────────────
     def idle_rollout_values(self, state, player: int, bundles: list, horizon: int | None = None):
         """**确定性 idle rollout**（双方都不出招）：每条 bundle 各 1 次，返回 np.ndarray。
@@ -679,6 +688,14 @@ class FlatRolloutGreedy(BundleMCTS):
             self.last_samples = _samples_buf
         self.last_rollouts = n_rollouts
         self.last_rounds = total_rounds
+        # 2026-10-31：`AZAI_CAND_VERBOSE=1` 时**pin 臂也打一行**同格式的读数
+        #   （`AZAI_CAND_MODE` 的 A/B 要对比 n_cand：unified 侧由 `UnifiedCandFlatSearch.search`
+        #   自己打 `mode=unified`，这里补 `mode=pin`）。**纯日志、默认关**（`cand_verbose`
+        #   由 `AZAI_CAND_VERBOSE` 决定，不设 ⇒ 一个字节都不多打 ⇒ 既有读数逐位不变）。
+        if getattr(self, "cand_verbose", False) and self.cand_mode != "unified":
+            print(f"[cand] mode=pin n_cand={n_cand} n_rollouts={n_rollouts} "
+                  f"决定_ms=0 长度分布={self._size_hist(bundles)}",
+                  file=sys.stderr, flush=True)
         if self.verbose:
             print(f"[flat] 候选 {n_cand} 个 × {n_rollouts} 次 × {self.horizon} 回合 "
                   f"= {total_rounds} 回合（约 {total_rounds * 62.7 / 1e6:.2f} s）", flush=True)

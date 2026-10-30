@@ -317,6 +317,9 @@ STATS = {"rounds": 0, "mismatch": 0, "illegal": 0, "dec_max_s": 0.0, "dec_slow":
 # 不随环境变量漂移的读数，否则两臂配置一改就不可比。⇒ 这里写死三条线，日志里常驻
 # `dec_ge10=… dec_ge20=… dec_ge30=…`（含义 = 该局**决策墙钟** ≥ 该秒数的决策条数）。
 _DEC_THRESHOLDS = (10, 20, 30)
+# 2026-10-31：`AZAI_CAND_VERBOSE=1` ⇒ 逐回合把**真的发出去的 op** 打一行 `[act] ...`
+#   （统一候选 A/B 的"行为差异"读数靠它；本批 ladder 不透传 `--trace-ops`）。默认关 ⇒ 零日志。
+_CAND_VERBOSE = [os.environ.get("AZAI_CAND_VERBOSE", "0") == "1"]
 
 # ── 非法操作自检（2026-10-27）──────────────────────────────────────────────────────
 # 为什么需要它：`GameStateFacade.apply_operation_list` 返回 **None**
@@ -1339,6 +1342,7 @@ def build_engine(seed: int, player: int):
              f"ucb_c={_env('AZAI_CAND_UCBC','1.0')} pool={_env('AZAI_CAND_POOL','1.5')} "
              f"tau={_env('AZAI_CAND_TAU','1.0')} steps={_env('AZAI_CAND_STEPS','12')} "
              f"steps_total={_env('AZAI_CAND_STEPS_TOTAL','0')} "
+             f"decode={_env('AZAI_CAND_DECODE','legacy')} "
              f"force_hold={_env('AZAI_CAND_FORCE_HOLD','1')} verbose={_env('AZAI_CAND_VERBOSE','0')}")
     if _search_kind == "flat":
         from my_ai.az_intent.az_selfplay import load_three_models
@@ -2743,6 +2747,13 @@ def main() -> int:
                 _ops = decide()
                 _dt = time.monotonic() - _t
             T.finish()
+            # 2026-10-31（`AZAI_CAND_VERBOSE=1`，**纯日志、默认关**）：把**真的发出去的**那串 op
+            #   逐回合落盘。动机：统一候选 A/B 要报"行为差异"（HOLD 率 / 降级 churn / 升级次数 /
+            #   同 op 类型多 op），而这些**只能**从实际 op 算；本批的 `_tmp_ladder` 不透传
+            #   `--trace-ops`（对局日志里没有 op 轨迹）。不设该变量 ⇒ 一个字节都不多打。
+            if _CAND_VERBOSE[0]:
+                _log(f"[act] round={int(STATS.get('rounds', 0))} n={len(_ops)} "
+                     f"ops={[(int(o.op_type), int(o.arg0), int(o.arg1)) for o in _ops]}")
             # 2026-10-28：**每决策一条**注入明细（`[oracle] inject round=… action=… dup=… new=…
             # chosen=… hit=…`）。放在这里而不是 `decide()` 里面：这里的 `_ops` 是**最终真的发出去的**
             # 那串 op（已过执行层过滤/闸门），所以 `hit` 才是"我们改没改亚军那一手"。
