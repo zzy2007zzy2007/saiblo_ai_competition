@@ -8,10 +8,14 @@
 把"候选束"的来源从 **先钉一个类**（`bundle_mcts._expand` 里 `pinned=[_ccls]*3`）
 换成 **从 `action_map` 全图跨类 × 位置取候选**：
 
-1. **类选择**：UCB。利用项 = LogSumExp 软最大
-   `Q[c] = (1/β)·log( (1/n)·Σ exp(β·x) )`（β=3，`AZAI_CAND_BETA`）；
+1. **类选择**：UCB。利用项 = **玻尔兹曼加权平均**
+   `Q[c] = Σᵢ wᵢ·xᵢ`，`wᵢ = exp(β·xᵢ)/Σⱼexp(β·xⱼ)`（β=3，`AZAI_CAND_BETA`）；
    探索项 = `c·√(log N / n)`（c=1.0，`AZAI_CAND_UCBC`）。`Q[c]` 初始全相等（均匀），
    **类网先验接口预留但暂不用**（类网现在基本不可用，要用得先重训）。
+   （2026-10-30 从 mellowmax/LogSumExp 换过来：后者带 `log(n)/β` 折扣，且折扣最大恰在
+   "一个神手 + 一堆垃圾"，与"突出神手"的意图相反；见 `_q_util` 的注释与调研
+   `docs/prior_art_unified_search_20261030.md`。）
+   信用分配：束分**完整**回写束内每个类（不按 |束长| 折扣 —— 语义 = "含 c 的组最好能有多好"）。
 2. **位置游标 = 按"带重数的规范多重集（= bundle 形状）"索引，每个形状独立推进**：
    `cursor[形状] = {"t": 已推进步数, "pos": [已提议过的位置组合, ...]}`；第 t 步的位置 =
    各槽位名次按**混合进制（槽 0 变化最快）**展开 `rank_i = (t // Π_{j<i} n_j) % n_i`
@@ -33,7 +37,8 @@
 8. **缓存命中 ≠ 跳过**：缓存键 = 规范化 bundle（`(op_type,arg0,arg1)` 排序元组，去 HOLD），
    **跨形状共享**。命中时**复用缓存分数并计入对应类的 `Q[c]`**（等于已经 rollout 过），
    再**把该形状游标推进一格**继续试下一个位置，直到解出新 bundle 或该形状位置穷尽。
-   LogSumExp 对"重复同值"不敏感（`LSE([x,x]) == x`）⇒ 重复计分不会撑虚 `Q[c]`。
+   玻尔兹曼加权对"重复同值"同样不敏感（`Σwᵢxᵢ` 里两个同值只把权重挪给该值）
+   ⇒ 重复计分不会撑虚 `Q[c]`。
 
 ## 为什么位置由**静态位置图**提议、类预算由**学到的 Q[c]** 分配
 
@@ -230,7 +235,7 @@ class UnifiedCandidateGen:
         self.cmask = None
         self.cells: dict = {}
         self.legal: list = []
-        self.Q: dict = {}          # 类 → 已观测分数列表（LogSumExp 的原料）
+        self.Q: dict = {}          # 类 → 已观测分数列表（玻尔兹曼加权利用项的原料）
         self.N: dict = {}          # 类 → 被选中次数（UCB 的 n）
         self.N_total = 0
         # 2026-10-29 修正 ③：游标**按带重数的规范多重集（= bundle 形状）索引，每形状独立推进**。
@@ -276,23 +281,53 @@ class UnifiedCandidateGen:
         h = int.from_bytes(hashlib.blake2b(fp, digest_size=8).digest(), "little")
         return int(h ^ (int(self.cand_seed) * 1000003)) & ((1 << 63) - 1)
 
-    # ── ① 类选择：UCB（LogSumExp 利用项 + 标准探索项）───────────────────────
-    def _lse(self, ch: int) -> float:
-        """利用项：`(1/β)·log((1/n)Σ exp(β·x))`（软最大；对负数成立，β→0 退化为均值）。"""
+    # ── ① 类选择：UCB（玻尔兹曼加权利用项 + 标准探索项）──────────────────────
+    def _q_util(self, ch: int) -> float:
+        """利用项 = **玻尔兹曼加权平均**：`Q[c] = Σᵢ wᵢ·xᵢ`，`wᵢ = exp(βxᵢ)/Σⱼexp(βxⱼ)`。
+
+        2026-10-30 改（设计 §"Q[c] 利用项"）：原来是 `(1/β)log((1/n)Σexp(βx))`（mellowmax），
+        它带折扣 `log(n)/β`，而折扣**最大恰在"一个神手 + 一堆垃圾"**的情形
+        （β=3、n=10、x=[1,−1×9] 时 mellowmax≈0.244 vs 真值 1.0），与"想突出神手"的意图相反。
+        玻尔兹曼加权没有 `log(n)` 项，同一组数 β=3 时 ≈0.957（天然贴近最大值）。
+        β→0 ⇒ 退化成均值；β→+∞ ⇒ 退化成 max；权重恒正 ⇒ 对负数成立。
+        数值稳定：先减 max 再 exp（`w ∝ exp(β(x−m))`），归一化后再加权求和。
+        """
         xs = self.Q.get(int(ch)) or []
         if not xs:
             return 0.0                      # 无观测 ⇒ 均匀先验（Q 全相等）
         arr = np.asarray(xs, dtype=np.float64)
-        m = float(arr.max())
-        b = self.beta
-        return float(m + math.log(float(np.mean(np.exp(b * (arr - m))))) / b)
+        z = self.beta * (arr - float(arr.max()))
+        w = np.exp(z)
+        tot = float(w.sum())
+        if not np.isfinite(tot) or tot <= 0.0:
+            return float(arr.mean())        # 安全阀（理论上到不了）
+        w /= tot
+        return float(np.dot(w, arr))
 
     def _ucb(self, ch: int) -> float:
         n = int(self.N.get(int(ch), 0))
         if n <= 0:
             return math.inf                 # 未试过的臂优先（标准 UCB1 初始化）
         log_n = math.log(max(1, int(self.N_total)))
-        return self._lse(ch) + self.ucb_c * math.sqrt(log_n / n)
+        return self._q_util(ch) + self.ucb_c * math.sqrt(log_n / n)
+
+    def _credit(self, shape: tuple, score: float) -> None:
+        """回写 `Q[c]`：束分**完整**写给束内每个类（**不打 `1/|束长|` 折扣**）。
+
+        语义（用户定夺，2026-10-30）：`Q[c]` = "**含 c 的动作组最好能有多好**"。
+        例：`[build,lightning]=1.2` ⇒ "含 build 的最好的组"和"含 lightning 的最好的组"**都**是 1.2；
+        若按 `1/|束长|` 折扣成 0.6，就退化成"c 的平均边际贡献"，与这个语义矛盾，
+        还会把"只靠组合才强的类"压下去、漏掉好组合 ⇒ **不做折扣**。
+        （曾短暂实现过折扣，已按用户定夺回滚；`Q[c]` 只影响探索分配，最终 top-k 仍按阶段 1
+        rollout 分选，软最大天然容忍少量虚高分 ⇒ 完整回写不会扭曲选择。）
+        重复类记多次；玻尔兹曼加权对重复同值不敏感（不会超过 max）。
+        """
+        score = float(score)
+        for c in shape:
+            if c in self.Q:
+                self.Q[c].append(score)
+        if not shape and HOLD in self.Q:
+            self.Q[HOLD].append(score)
 
     def _ucb_pick(self, exclude=()) -> int | None:
         best, best_v = None, -math.inf
@@ -431,12 +466,8 @@ class UnifiedCandidateGen:
         rep_examples: list = []
 
         def _credit(shape: tuple, score: float) -> None:
-            """回写 `Q[c]`：形状里的每个类各记一次（重复类记多次；LSE 对重复同值不敏感）。"""
-            for c in shape:
-                if c in self.Q:
-                    self.Q[c].append(float(score))
-            if not shape and HOLD in self.Q:
-                self.Q[HOLD].append(float(score))
+            """（转调外层方法，便于单测；语义见 `UnifiedCandidateGen._credit`。）"""
+            self._credit(shape, score)
 
         def _emit(bundle: tuple, shape: tuple) -> bool:
             """缓存未命中 ⇒ rollout 收下（True）；命中 ⇒ 复用分数 + 计入 Q（False）。"""
