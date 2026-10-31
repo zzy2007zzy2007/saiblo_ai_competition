@@ -42,7 +42,24 @@ RE_KINK_AT = re.compile(r"各层突变点落到的 coins（币）：(.*)")
 RE_Y90 = re.compile(r"90 币左/右斜率比（11 层）：(.*)")
 RE_S0 = re.compile(r"cd=0\s+的斜率\s*([+-][\d.]+)")
 RE_SLATE = re.compile(r"cd≥0\.6 的均值斜率\s*([+-][\d.]+)")
-RE_VR2 = re.compile(r"线性 R².*?([\d.]+)")
+RE_P03 = re.compile(r"\*\*P0-3 (过线|不过线)\*\*")
+
+
+def judge_p03(s_cd0, s_late) -> dict:
+    """**带符号、带方向**的 P0-3（2026-11-01 用户口径）。
+
+    假说："冷却好（cd=0）时金币更值钱" ⇒ 需要
+      ① `s_cd0 > 0`（金币对价值是正的）
+      ② `s_cd0 > s_late`（冷却好时比冷却久时更值钱）
+    ⚠️ 旧的 `|s_cd0| / |s_late| ≥ 2` 会被**负斜率**骗过线（relk50 就是这样"假过线"），已废。
+    """
+    if s_cd0 is None or s_late is None:
+        return {"sign_ok": None, "dir_ok": None, "p03_ok": None}
+    sign_ok = bool(s_cd0 > 0)
+    dir_ok = bool(s_cd0 > s_late)
+    return {"sign_ok": sign_ok, "dir_ok": dir_ok, "p03_ok": bool(sign_ok and dir_ok),
+            "diff": float(s_cd0 - s_late),
+            "old_abs_ratio": (abs(s_cd0) / max(abs(s_late), 1e-12))}
 
 
 def parse(txt: str) -> dict:
@@ -54,6 +71,10 @@ def parse(txt: str) -> dict:
         return cast(m[-1])
     out = {"ratio": last(RE_RATIO), "kink_pct": last(RE_KINK),
            "s_cd0": last(RE_S0), "s_late": last(RE_SLATE)}
+    out.update(judge_p03(out["s_cd0"], out["s_late"]))
+    m = RE_P03.findall(txt)
+    if m:
+        out["p03_text"] = m[-1]
     m = RE_Y90.findall(txt)
     if m:
         vals = [float(x) for x in re.findall(r"[\d.]+", m[-1])]
@@ -74,12 +95,23 @@ def main() -> int:
     ap.add_argument("--ckpt", nargs="*", default=None)
     ap.add_argument("--names", nargs="*", default=None)
     ap.add_argument("--tag", default="UNIFIED_SPLIT_VERBOSE:8,UNIFIED_AB_A:10,UNIFIED_AB_A:11")
+    ap.add_argument("--from-json", default="", help="不跑探针，直接用已有 summary.json 重算（P0-3 口径改了就用它）")
     a = ap.parse_args()
+    OUTD.mkdir(parents=True, exist_ok=True)
+    if a.from_json:
+        src = Path(a.from_json) if Path(a.from_json).is_absolute() else REPO / a.from_json
+        rows = json.loads(src.read_text(encoding="utf-8"))
+        for r in rows:                       # 用原始斜率重算带符号判据
+            r.update(judge_p03(r.get("s_cd0"), r.get("s_late")))
+        print_table(rows)
+        (OUTD / "summary_signed.json").write_text(
+            json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"\n[json] {OUTD / 'summary_signed.json'}（源 {src}）")
+        return 0
     if a.ckpt:
         arms = list(zip(a.names or [Path(p).stem for p in a.ckpt], a.ckpt))
     else:
         arms = DEFAULT_ARMS
-    OUTD.mkdir(parents=True, exist_ok=True)
     rows = []
     for name, rel in arms:
         ck = Path(rel) if Path(rel).is_absolute() else REPO / rel
@@ -96,30 +128,37 @@ def main() -> int:
         p = parse(txt)
         p.update({"name": name, "ckpt": str(ck), "rc": r.returncode})
         rows.append(p)
-        print(f"        折点={p.get('kink_pct')}% 条件斜率比={p.get('ratio')}× "
-              f"(cd0={p.get('s_cd0')}, cd≥0.6={p.get('s_late')})", flush=True)
+        print(f"        折点={p.get('kink_pct')}% | cd0斜率={p.get('s_cd0')} "
+              f"cd≥0.6={p.get('s_late')} ⇒ 符号{'✓' if p.get('sign_ok') else '✗'} "
+              f"方向{'✓' if p.get('dir_ok') else '✗'} ⇒ P0-3 "
+              f"{'过线' if p.get('p03_ok') else '不过线'}", flush=True)
 
-    # 汇总表
-    print("\n" + "=" * 100)
-    print(f"{'臂':<18}{'P0-2 折点%':>11}{'P0-3 比值×':>11}{'∂V/∂coins|cd=0':>16}"
-          f"{'|cd≥0.6':>12}{'90币左/右比':>14}")
-    print("-" * 100)
-    for r in rows:
-        if r.get("missing"):
-            print(f"{r['name']:<18}{'(缺 ckpt)':>11}")
-            continue
-        yr = (f"{r.get('y90_ratio_min'):.2f}–{r.get('y90_ratio_max'):.2f}"
-              if "y90_ratio_min" in r else "—")
-        print(f"{r['name']:<18}{(r.get('kink_pct') if r.get('kink_pct') is not None else float('nan')):>11.1f}"
-              f"{(r.get('ratio') if r.get('ratio') is not None else float('nan')):>11.2f}"
-              f"{(r.get('s_cd0') if r.get('s_cd0') is not None else float('nan')):>+16.5f}"
-              f"{(r.get('s_late') if r.get('s_late') is not None else float('nan')):>+12.5f}"
-              f"{yr:>14}")
+    print_table(rows)
     out = OUTD / "summary.json"
     out.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n[json] {out}")
-    print("判据：P0-2 折点 ≥20%（现役 3.0%）；P0-3 比值 ≥2（现役 0.99×）")
     return 0
+
+
+def print_table(rows: list) -> None:
+    """汇总表（2026-11-01 新口径：P0-3 带符号 + 带方向）。"""
+    print("\n" + "=" * 108)
+    print(f"{'臂':<18}{'P0-2 折点%':>10}{'slope|cd=0':>12}{'slope|cd≥0.6':>14}"
+          f"{'符号(>0)':>10}{'方向(cd0>late)':>15}{'P0-3':>8}{'(旧|比|)':>9}")
+    print("-" * 108)
+    for r in rows:
+        if r.get("missing"):
+            print(f"{r['name']:<18}{'(缺 ckpt)':>10}")
+            continue
+        f = lambda k, w, p=".5f": (f"{r[k]:+{w}{p}}" if r.get(k) is not None else "—")  # noqa: E731
+        mark = lambda b: ("✓" if b else "✗") if b is not None else "—"                  # noqa: E731
+        print(f"{r['name']:<18}{(r.get('kink_pct') if r.get('kink_pct') is not None else float('nan')):>10.1f}"
+              f"{f('s_cd0', 12)}{f('s_late', 14)}"
+              f"{mark(r.get('sign_ok')):>10}{mark(r.get('dir_ok')):>15}"
+              f"{('过线' if r.get('p03_ok') else '不过线'):>8}"
+              f"{(r.get('old_abs_ratio') if r.get('old_abs_ratio') is not None else float('nan')):>9.2f}")
+    print("\n判据：P0-2 折点 ≥20%（现役 3.0–4.3%）｜P0-3 = **cd=0 斜率为正 且 cd=0 > cd≥0.6**"
+          "（旧 |比|≥2 会被负斜率假通过，仅列作对照）")
 
 
 if __name__ == "__main__":

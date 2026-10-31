@@ -350,21 +350,27 @@ def surface_report(name: str, grp: list, value_model, xs: np.ndarray, cds: np.nd
               f" | {(y[i90] - y[0]) * HP_SCALE:+8.4f} {(y[-1] - y[i90]) * HP_SCALE:+9.4f}"
               f" | {r2:7.4f}")
 
-    # ---- 判据 1：条件斜率比 cd=0 vs cd≥0.6 ---------------------------------- #
+    # ---- 判据 1：条件斜率（**带符号、带方向**；2026-11-01 用户改口径） -------- #
+    # ⚠️ 旧口径用 |s_cd0|/|s_late| 取绝对值 ⇒ 负斜率也会"过线"（relk50 就是这样被假通过的）。
+    #    新口径要求：冷却好（cd=0）时金币**更值钱**，即 s_cd0 > 0 **且** s_cd0 > s_late。
     s_cd0 = prof[0]["s_all"]
     late = [p for p in prof if p["cd"] >= 0.6 - 1e-9]
     s_late = float(np.mean([p["s_all"] for p in late]))
     ratio = abs(s_cd0) / max(abs(s_late), 1e-12)
-    print(f"\n  [判据1] 条件斜率比：|∂V/∂coins | cd=0| / |∂V/∂coins | cd≥0.6|")
+    sign_ok = bool(s_cd0 > 0)
+    dir_ok = bool(s_cd0 > s_late)
+    print(f"\n  [判据1] 条件斜率（带符号）：∂V/∂coins | cd=0  vs  | cd≥0.6")
     print(f"          cd=0   的斜率 {s_cd0:+.6f}"
-          f"（每 100 币 {(s_cd0 / 3) * HP_SCALE:+.4f} HP）")
+          f"（每 100 币 {(s_cd0 / 3) * HP_SCALE:+.4f} HP）"
+          f" ⇒ 符号 {'✓ 正（金币有正价值）' if sign_ok else '✗ **负**（金币反而不值钱）'}")
     print(f"          cd≥0.6 的均值斜率 {s_late:+.6f}"
           f"（每 100 币 {(s_late / 3) * HP_SCALE:+.4f} HP）；"
           f"逐层 = " + ", ".join(f"{p['s_all']:+.6f}" for p in late))
-    verdict1 = ("几乎不分层（<1.5 ⇒ 没学到「该攒钱的时机」）" if ratio < 1.5
-                else "明显分层（≥2 ⇒ 学到了分段）" if ratio >= 2.0
-                else "弱分层（1.5–2，灰区）")
-    print(f"          ⇒ 比值 {ratio:.2f}× ⇒ **{verdict1}**")
+    print(f"          方向 cd=0 {'>' if dir_ok else '≤'} cd≥0.6 ⇒ "
+          f"{'✓ 冷却好时更值钱' if dir_ok else '✗ 没学到「该攒钱的时机」'}"
+          f"（差 {s_cd0 - s_late:+.6f}）")
+    print(f"          ⇒ **P0-3 {'过线' if (sign_ok and dir_ok) else '不过线'}**"
+          f"（旧口径 |比值| {ratio:.2f}×，仅供对照，**不再作判据**）")
 
     # ---- 判据 2：coins=0.30（90 币）处有没有折点 ---------------------------- #
     print(f"\n  [判据2] coins=0.30（=90 币）处有没有折点？")
