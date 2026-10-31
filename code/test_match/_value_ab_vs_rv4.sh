@@ -40,6 +40,8 @@ arm_ckpt() {
     rel50)     echo "training_history/value_retrain_v1/arm_rel50.pt" ;;
     terminal)  echo "training_history/value_retrain_v1/arm_terminal.pt" ;;
     aux2)      echo "training_history/value_retrain_v1/arm_aux2_kgeo50.pt" ;;
+    # 实验 B：只改候选游标深度（值网 = 现役）
+    steps24|steps48|steps6) echo "checkpoints/posnet_A_k5_m32.pt" ;;
     *)         echo "" ;;
   esac
 }
@@ -47,6 +49,9 @@ arm_extra() {
   case "$1" in
     relk50) echo ";AZAI_VALUE_TANH=0;AZAI_REL2ABS=3.4" ;;
     rel50)  echo ";AZAI_VALUE_TANH=0;AZAI_REL2ABS=4.0" ;;
+    steps24) echo ";AZAI_CAND_STEPS=24" ;;
+    steps48) echo ";AZAI_CAND_STEPS=48" ;;
+    steps6)  echo ";AZAI_CAND_STEPS=6" ;;
     *)      echo "" ;;
   esac
 }
@@ -64,12 +69,21 @@ run_one() {
   # ⚠️ 必须显式给 `AZAI_CAND_MODE=unified`：BASE（`_us_vs_external.sh:68`）里**没有**这个键，
   #    缺了它 bridge 会退化成 pin+flat（老的 FlatRolloutGreedy），跑的不是"统一候选 + flat 阶段 2"。
   env0="AZAI_CAND_MODE=unified;AZAI_CKPT=$ck;$BASE_NOCK$(arm_extra "$arm")"
+  # 每个进程的 stderr 单独命名（默认名只含 seat/label/seed ⇒ 4 臂同 seed 并发会互相覆盖，
+  # 而 `[cand] mode=unified` 那行证据就在这个文件里）
+  export MVS_STDERR_SUFFIX=1
+  export DSH_PROGRESS_SUFFIX="${arm}_${tok}"
+  local t0 t1
+  t0=$(date +%s)
   "$P" -u code/test_match/match_via_sdk.py \
       --rounds=512 \
       --ai0=code/test_match/az_bridge_ai.py --ai1="$RV4" \
       --ai0-env="$env0" "$tok" > "$log" 2>&1
   local rc=$?
-  echo "[ab4] $arm/$tok rc=$rc $(date '+%H:%M:%S')"
+  t1=$(date +%s)
+  # 每局墙钟（实验 B 要比 steps=12/24/48 的耗时）
+  printf "%s\t%s\t%s\t%s\n" "$arm" "$tok" "$((t1 - t0))" "$rc" >> "$OUTD/_times.tsv"
+  echo "[ab4] $arm/$tok rc=$rc $(( (t1 - t0) / 60 )) min $(date '+%H:%M:%S')"
 }
 
 export -f run_one arm_ckpt arm_extra
