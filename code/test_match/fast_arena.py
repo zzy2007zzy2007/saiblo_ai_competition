@@ -96,26 +96,39 @@ class RulePolicy:
     def __init__(self,
                  n_towers: int = 3,
                  target: str = "sniper",
-                 upg: str = "always",       # always | never | rich
+                 upg: str = "always",       # always | lvl2 | never
                  slots: list | None = None,  # 建塔优先顺序（None = 官方顺序）
                  weapons: tuple = ("light",),
                  base_upg: tuple = (),       # () | ("speed",) | ("hp",) | ("speed","hp")
                  relocate: bool = False,     # 塔"够不到蚂蚁"时拆掉挪位
-                 reserve: int = 0,           # 建塔前保留的金币
+                 reserve: int = 0,           # 建塔前保留的金币（= build_reserve）
+                 build_reserve: int = None,
+                 upg_reserve: int = 0,
                  light_min_ants: int = 3,    # 闪电最少覆盖蚂蚁数
+                 light_max_dist: int = 99,   # 只打离我方基地 <= 这个距离的集群
+                 light_mode: str = "cluster",  # cluster(防) | towers(拆塔) | nearbase(就近)
                  slot_mode: str = "fixed",   # fixed | nearest_front
                  max_ops: int = 3):
         self.p = dict(n_towers=n_towers, target=target, upg=upg, slots=slots,
                       weapons=tuple(weapons), base_upg=tuple(base_upg),
-                      relocate=relocate, reserve=reserve,
-                      light_min_ants=light_min_ants, slot_mode=slot_mode,
-                      max_ops=max_ops)
+                      relocate=relocate,
+                      build_reserve=(reserve if build_reserve is None else build_reserve),
+                      upg_reserve=upg_reserve,
+                      light_min_ants=light_min_ants, light_max_dist=light_max_dist,
+                      light_mode=light_mode,
+                      slot_mode=slot_mode, max_ops=max_ops)
 
     # ---- 小工具 ----
     def _cells(self, state, player):
-        if self.p["slots"] is not None:
-            return [tuple(c) for c in self.p["slots"]]
-        return default_slots(player)
+        """建塔优先顺序。`slots` 里若给的是**整数**，表示 STRATEGIC_BUILD_ORDER[player]
+        的下标（座位无关，两个座位都能用）；若是元组则按坐标原样用（只对 P0 有效）。"""
+        sl = self.p["slots"]
+        base = default_slots(player)
+        if sl is None:
+            return base
+        if sl and isinstance(sl[0], int):
+            return [base[i] for i in sl if 0 <= i < len(base)]
+        return [tuple(c) for c in sl]
 
     def _apply(self, state, player, ops, out):
         from SDK.backend.model import Operation
@@ -135,17 +148,38 @@ class RulePolicy:
         enemy_ants = [(a.x, a.y) for a in ants if a.player != player and a.is_alive()]
         own_ants = [(a.x, a.y) for a in ants if a.player == player and a.is_alive()]
         if kind == "light":
+            mode = self.p.get("light_mode", "cluster")
+            from SDK.utils.constants import PLAYER_BASES
+            myb = PLAYER_BASES[player]
+            if mode == "towers":
+                # 进攻型：风暴中心放在敌方塔最密处（第 5/10/15 回合各对范围内塔 3 点伤害）
+                e_towers = [(t.x, t.y) for t in state.towers if t.player != player]
+                if not e_towers:
+                    return None
+                best, cnt = None, 0
+                for (x, y) in e_towers:
+                    c = sum(1 for (tx, ty) in e_towers if _hexd((x, y), (tx, ty)) <= 3)
+                    if c > cnt:
+                        best, cnt = (x, y), c
+                if best is None or cnt < self.p["light_min_ants"]:
+                    return None
+                return (OP_LIGHT, best[0], best[1])
             if len(enemy_ants) < self.p["light_min_ants"]:
                 return None
-            best, cnt = None, 0
-            # 只在敌方蚂蚁位置（+ 附近）里找中心
+            best_cell, best_key = None, None
             for (x, y) in enemy_ants:
+                d = _hexd((x, y), myb)
+                if d > self.p["light_max_dist"]:
+                    continue
                 c = sum(1 for (ax, ay) in enemy_ants if _hexd((x, y), (ax, ay)) <= 3)
-                if c > cnt:
-                    best, cnt = (x, y), c
-            if best is None or cnt < self.p["light_min_ants"]:
+                if c < self.p["light_min_ants"]:
+                    continue
+                key = (-d, c) if mode == "nearbase" else (c, -d)
+                if best_key is None or key > best_key:
+                    best_key, best_cell = key, (x, y)
+            if best_cell is None:
                 return None
-            return (OP_LIGHT, best[0], best[1])
+            return (OP_LIGHT, best_cell[0], best_cell[1])
         if kind == "emp":
             enemy_towers = [(t.x, t.y) for t in state.towers if t.player != player]
             if not enemy_towers or not own_ants:
@@ -207,7 +241,22 @@ class RulePolicy:
                 self._apply(state, player, [(OP_BASE_SPEED, -1, -1)], out)
             if "hp" in p["base_upg"] and alv < 2:
                 self._apply(state, player, [(OP_BASE_HP, -1, -1)], out)
-        # 3. 升级已有塔（朝目标塔型）
+        # 3. 造塔（**先造塔再升级**：否则升级会吃掉建塔的钱，把塔数锁死在 1）
+        cells = self._cells(state, player)
+        for _ in range(p["max_ops"]):
+            if len(out) >= p["max_ops"]:
+                break
+            n = len(state.towers_of(player))
+            if n >= p["n_towers"]:
+                break
+            cost = state.build_tower_cost(n)
+            if state.coins[player] < cost + p["build_reserve"]:
+                break
+            cell = self._pick_build_cell(state, player, cells)
+            if cell is None:
+                break
+            self._apply(state, player, [(OP_BUILD, cell[0], cell[1])], out)
+        # 4. 升级已有塔（朝目标塔型）
         chain = TARGET_CHAIN.get(p["target"], [])
         if p["upg"] != "never" and chain:
             for tower in sorted(state.towers_of(player), key=lambda t: t.tower_id):
@@ -221,26 +270,12 @@ class RulePolicy:
                     nxt = chain[chain.index(cur) + 1]
                 if nxt is None:
                     continue
+                if p["upg"] == "lvl2" and nxt >= 10:
+                    continue
                 cost = 60 if nxt < 10 else 200
-                need = cost + (0 if p["upg"] == "always" else 120)
-                if state.coins[player] < need:
+                if state.coins[player] < cost + p["upg_reserve"]:
                     continue
                 self._apply(state, player, [(OP_UPG, tower.tower_id, nxt)], out)
-        # 4. 造塔
-        cells = self._cells(state, player)
-        for _ in range(p["max_ops"]):
-            if len(out) >= p["max_ops"]:
-                break
-            n = len(state.towers_of(player))
-            if n >= p["n_towers"]:
-                break
-            cost = state.build_tower_cost(n)
-            if state.coins[player] < cost + p["reserve"]:
-                break
-            cell = self._pick_build_cell(state, player, cells)
-            if cell is None:
-                break
-            self._apply(state, player, [(OP_BUILD, cell[0], cell[1])], out)
         # 5. 迁塔（把完全没用的塔拆掉，下一回合会重新建）
         if p["relocate"]:
             for tower in state.towers_of(player):
@@ -284,6 +319,8 @@ class GameOut:
     ms: float = 0.0
     coins: tuple = (0, 0)
     towers: tuple = (0, 0)
+    opmix_a: dict = field(default_factory=dict)
+    opmix_b: dict = field(default_factory=dict)
 
 
 def play_game(spec_a: str, spec_b: str, seed: int) -> GameOut:
@@ -292,6 +329,7 @@ def play_game(spec_a: str, spec_b: str, seed: int) -> GameOut:
     pa, pb = make_policy(spec_a), make_policy(spec_b)
     pol = {a_seat: pa, 1 - a_seat: pb}
     st = _new_state(seed)
+    mix = {0: {}, 1: {}}
     rnd = 0
     for rnd in range(1, MAX_ROUNDS + 1):
         if st.terminal:
@@ -302,6 +340,10 @@ def play_game(spec_a: str, spec_b: str, seed: int) -> GameOut:
             ops = pol[player].act(st, player)
             if ops:
                 st.apply_operation_list(player, ops)
+                m = mix[player]
+                for op in ops:
+                    k = int(op.op_type)
+                    m[k] = m.get(k, 0) + 1
         if st.terminal:
             break
         st.advance_round()
@@ -311,7 +353,8 @@ def play_game(spec_a: str, spec_b: str, seed: int) -> GameOut:
                    margin_a=hp[a_seat] - hp[1 - a_seat],
                    ms=(time.perf_counter() - t0) * 1000.0,
                    coins=(int(st.coins[0]), int(st.coins[1])),
-                   towers=(len(st.towers_of(0)), len(st.towers_of(1))))
+                   towers=(len(st.towers_of(0)), len(st.towers_of(1))),
+                   opmix_a=mix[a_seat], opmix_b=mix[1 - a_seat])
 
 
 def _worker(args):
