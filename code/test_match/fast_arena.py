@@ -98,6 +98,7 @@ class RulePolicy:
                  target: str = "sniper",
                  upg: str = "always",       # always | lvl2 | never | damaged
                  upg_hp_thr: float = 0.6,   # upg="damaged" 时：只在塔血量比 <= 这个阈值时升级（=修理）
+                 repair_cycle: bool = False,  # 升级回满血后**下一回合降级退回**（净花 ~6 币修一次）
                  slots: list | None = None,  # 建塔优先顺序（None = 官方顺序）
                  weapons: tuple = ("light",),
                  base_upg: tuple = (),       # () | ("speed",) | ("hp",) | ("speed","hp")
@@ -115,6 +116,7 @@ class RulePolicy:
                       relocate=relocate,
                       build_reserve=(reserve if build_reserve is None else build_reserve),
                       upg_reserve=upg_reserve, upg_hp_thr=upg_hp_thr,
+                      repair_cycle=bool(repair_cycle),
                       light_min_ants=light_min_ants, light_max_dist=light_max_dist,
                       light_mode=light_mode,
                       slot_mode=slot_mode, max_ops=max_ops)
@@ -228,6 +230,16 @@ class RulePolicy:
     def act(self, state, player):
         out = []
         p = self.p
+        # 0. 修理循环的"退回"半步：上回合为修理而升级的塔，这回合血量已满 ⇒ 降级把钱拿回来
+        if p.get("repair_cycle"):
+            for tid, orig in list(getattr(self, "_rep", {}).items()):
+                tw = state.tower_by_id(tid)
+                if tw is None or int(tw.tower_type) == orig:
+                    self._rep.pop(tid, None)
+                    continue
+                if tw.hp >= tw.max_hp and tw.max_hp > 0:
+                    self._apply(state, player, [(OP_DOWN, tid, -1)], out)
+                    self._rep.pop(tid, None)
         # 1. 武器
         for kind in p["weapons"]:
             w = self._weapon(state, player, kind)
@@ -280,7 +292,13 @@ class RulePolicy:
                 cost = 60 if nxt < 10 else 200
                 if state.coins[player] < cost + p["upg_reserve"]:
                     continue
+                before_type = cur
+                n0 = len(out)
                 self._apply(state, player, [(OP_UPG, tower.tower_id, nxt)], out)
+                if p.get("repair_cycle") and len(out) > n0:
+                    if not hasattr(self, "_rep"):
+                        self._rep = {}
+                    self._rep[tower.tower_id] = before_type
         # 5. 迁塔（把完全没用的塔拆掉，下一回合会重新建）
         if p["relocate"]:
             for tower in state.towers_of(player):
@@ -312,6 +330,11 @@ def make_policy(spec: str):
         # 策略轴扫描出来的最优规则配置（见 docs/free_exploration_strategy_arena_20261102.md §4）
         return RulePolicy(n_towers=2, target="sniper", upg="always", weapons=("light",),
                           build_reserve=300, upg_reserve=0, light_min_ants=3)
+    if spec == "bestv2":
+        # 联合网格最优（§5b）：修理循环 + 留 100 + 2 塔  ⇒ N=192 时 +5.88 / 75.0%
+        return RulePolicy(n_towers=2, target="sniper", upg="damaged", upg_hp_thr=0.6,
+                          repair_cycle=True, weapons=("light",),
+                          build_reserve=100, upg_reserve=0, light_min_ants=3)
     if spec == "ref2":
         return RulePolicy(n_towers=2, target="sniper", upg="always", weapons=("light",),
                           build_reserve=100, upg_reserve=0, light_min_ants=3)

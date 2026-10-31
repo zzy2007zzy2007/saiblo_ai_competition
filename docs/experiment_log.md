@@ -13906,3 +13906,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261101_011830_repair_mechanic_n96/output.log`
 - **result**: 8 臂 × 96 局 = 768 局 / 17 s。**升级的时机比升级本身重要：`upg=damaged`（塔血量比 ≤ 阈值才升级 = 用「升级回满血」当修理）damaged40/60/80 = +5.79/+5.00/+5.67（胜率 67-73%，闪电 10.1-10.6/局）；`upg=never` +3.16；`upg=always`（参照）−0.31；`build_reserve=300` +7.44。** ⇒ 无条件升级是负的、修理式升级是正的，且不牺牲闪电次数。见 `docs/free_exploration_strategy_arena_20261102.md` §5b。
+
+## 2026-11-01 01:31:36 — repair_cycle_n96
+
+- **commit**: `f973933` (dirty: 5 files)
+- **exit**: 0，用时 20s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_repair_mechanic.py
+  ```
+- **output**: `training_history/runs/20261101_013136_repair_cycle_n96/output.log`
+- **result**: 12 臂 × 96 局（含修理循环 rc60/rc40）：**repair_cycle60（打残才升级 + 下一回合降级退回）margin +5.72 ±1.06、胜率 77.1%、闪电 10.85/局、终局金币 267（对照 damaged60 +5.00/66.7%/191）；ref（有钱就升）−0.31、upg=never +3.16。** 引擎实测净成本 6 币/次（升级 60 → 降级退 54，血量回满）。见 `docs/free_exploration_strategy_arena_20261102.md` §5b。

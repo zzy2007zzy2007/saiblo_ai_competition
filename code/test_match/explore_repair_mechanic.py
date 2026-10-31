@@ -36,8 +36,18 @@ def main():
         ("damaged80", sw.spec(upg="damaged", upg_hp_thr=0.8), sw.REF),
         ("damaged60_br300", sw.spec(upg="damaged", upg_hp_thr=0.6, build_reserve=300), sw.REF),
         ("damaged60_n4", sw.spec(upg="damaged", upg_hp_thr=0.6, n_towers=4), sw.REF),
+        ("repair_cycle40", sw.spec(upg="damaged", upg_hp_thr=0.4, repair_cycle=True), sw.REF),
+        ("repair_cycle60", sw.spec(upg="damaged", upg_hp_thr=0.6, repair_cycle=True), sw.REF),
         ("always_br300(best)", sw.spec(build_reserve=300, upg="always"), sw.REF),
     ]
+    # 联合网格：修理循环 × 攒钱 × 塔数（找"最好的可交付配置"）
+    for br in (0, 100, 300):
+        for nt in (1, 2, 3):
+            arms.append((f"rc60_br{br}_n{nt}",
+                         sw.spec(upg="damaged", upg_hp_thr=0.6, repair_cycle=True,
+                                 build_reserve=br, n_towers=nt), sw.REF))
+    if os.environ.get("GRID_ONLY"):
+        arms = [("ref", sw.REF, sw.REF)] + [a for a in arms if a[0].startswith("rc60_")]
     seeds = int(os.environ.get("SEEDS", "96"))
     workers = int(os.environ.get("WORKERS", "6"))
     rows = sw.run_arms(arms, seeds, workers)
