@@ -28,7 +28,7 @@ PROGRESS = "training_history/progress"
 
 RE_RESULT = re.compile(r"RESULT seed=(\d+) .*?winner=(\S+) .*?base_hp=(\d+),(\d+)")
 RE_PROG = re.compile(r"round=(\d+) HP0=(\d+) HP1=(\d+) G0=(\d+) G1=(\d+) P0=\[(.*?)\]\s+P1=\[(.*?)\]")
-RE_OP = re.compile(r"([A-Z_]+)\((-?\d+),(-?\d+)\)")
+RE_OP = re.compile(r"([A-Z_]+)\(")
 
 
 def parse_result(log_path):
@@ -79,7 +79,7 @@ def op_profile(token, arm):
         if hp_first_bleed is None and hp[p] < 50:
             hp_first_bleed = n_rounds
         ops = m.group(6) if p == 0 else m.group(7)
-        for name, a0, a1 in RE_OP.findall(ops):
+        for name in RE_OP.findall(ops):
             cnt[name] += 1
     return dict(rounds=n_rounds, n_ops=sum(cnt.values()), ops=dict(cnt),
                 first_bleed=hp_first_bleed)
@@ -120,8 +120,8 @@ def summarize(tag, arms, tokens):
             return statistics.mean(p["ops"].get(k, 0) for p in profs) if profs else float("nan")
         print(f"{arm:6s} {len(rws):2d} {w}-{len(rws)-w} "
               f"{statistics.mean(r['margin'] for r in rws):+8.2f} "
-              f"{avg('LIGHTNING_STORM'):7.2f} {avg('BUILD_TOWER'):7.1f} "
-              f"{avg('UPGRADE_TOWER'):7.1f} {avg('DOWNGRADE_TOWER'):7.1f} "
+              f"{avg('LIGHTNING'):7.2f} {avg('BUILD'):7.1f} "
+              f"{avg('UPGRADE'):7.1f} {avg('DOWNGRADE'):7.1f} "
               f"{(statistics.mean(p['n_ops'] for p in profs) if profs else float('nan')):6.1f} "
               f"{(statistics.mean(p['first_bleed'] for p in profs if p['first_bleed']) if any(p['first_bleed'] for p in profs) else float('nan')):6.1f}")
     # 配对对比
