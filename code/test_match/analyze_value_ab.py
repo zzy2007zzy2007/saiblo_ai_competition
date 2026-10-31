@@ -49,11 +49,47 @@ def summarize(rows: list[dict]) -> dict:
     d = sum(1 for r in rows if r["draw"])
     l = n - w - d
     margin = [r["our_hp"] - r["opp_hp"] for r in rows]
-    return {"n": n, "W": w, "D": d, "L": l,
-            "winrate": (w + 0.5 * d) / n,
-            "margin_mean": sum(margin) / n,
-            "margin_list": margin,
-            "illegal": sum(1 for r in rows if r["verdict"] != "engine")}
+    out = {"n": n, "W": w, "D": d, "L": l,
+           "winrate": (w + 0.5 * d) / n,
+           "margin_mean": sum(margin) / n,
+           "margin_list": margin,
+           "illegal": sum(1 for r in rows if r["verdict"] != "engine")}
+    out["wilson"] = _wilson(w + 0.5 * d, n)                 # 胜率（和棋算半胜）的 Wilson 95% CI
+    out["wilson_decided"] = _wilson(w, w + l) if (w + l) else (float("nan"), float("nan"))
+    out["margin_t"] = _mean_t_ci(margin)                     # 血量差的 t 95% CI
+    return out
+
+
+def _wilson(k: float, n: int, z: float = 1.959963985) -> tuple:
+    """Wilson 二项比例 95% CI（`k` 允许是 W+0.5D 这种"有效胜场"）。"""
+    if n <= 0:
+        return (float("nan"), float("nan"))
+    p = k / n
+    den = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / den
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def _tq(n: int) -> float:
+    """t_{0.975, n−1}；没有 scipy 就退化成正态 1.96。"""
+    if n < 2:
+        return float("nan")
+    try:
+        from scipy.stats import t as _t
+        return float(_t.ppf(0.975, n - 1))
+    except Exception:                                          # noqa: BLE001
+        return 1.959963985
+
+
+def _mean_t_ci(xs: list[float]) -> tuple:
+    n = len(xs)
+    if n < 2:
+        return (float("nan"), float("nan"))
+    m = sum(xs) / n
+    sd = (sum((x - m) ** 2 for x in xs) / (n - 1)) ** 0.5
+    half = _tq(n) * sd / (n ** 0.5)
+    return (m - half, m + half)
 
 
 def main() -> int:
@@ -63,7 +99,8 @@ def main() -> int:
     a = ap.parse_args()
     names = a.name or [Path(d).name for d in a.dir]
     all_rows = {}
-    print(f"{'臂':<18}{'n':>4}{'W':>4}{'D':>4}{'L':>4}{'胜率':>8}{'均值血差':>10}{'非法':>6}")
+    print(f"{'臂':<18}{'n':>4}{'W':>4}{'D':>4}{'L':>4}{'胜率':>8}{'Wilson95':>16}"
+          f"{'均值血差':>10}{'t95':>17}{'非法':>6}")
     for nm, d in zip(names, a.dir):
         rows = parse_dir(Path(d))
         all_rows[nm] = rows
@@ -71,24 +108,30 @@ def main() -> int:
         if not s:
             print(f"{nm:<18}{'(空)':>4}")
             continue
+        wi = s["wilson"]; mt = s["margin_t"]
         print(f"{nm:<18}{s['n']:>4}{s['W']:>4}{s['D']:>4}{s['L']:>4}"
-              f"{s['winrate']*100:>7.1f}%{s['margin_mean']:>+10.2f}{s['illegal']:>6}")
-    # 配对比较（前两个臂）
+              f"{s['winrate']*100:>7.1f}%"
+              f"{f'[{wi[0]*100:.0f}%,{wi[1]*100:.0f}%]':>16}"
+              f"{s['margin_mean']:>+10.2f}"
+              f"{f'[{mt[0]:+.1f},{mt[1]:+.1f}]':>17}{s['illegal']:>6}")
+    # 配对比较（每对臂 vs 第一个臂）
     if len(all_rows) >= 2:
-        (na, ra), (nb, rb) = list(all_rows.items())[:2]
-        ka = {(r["seed"], r["seat"]): r for r in ra}
-        kb = {(r["seed"], r["seat"]): r for r in rb}
-        common = sorted(set(ka) & set(kb))
-        if common:
+        base_name, base_rows = list(all_rows.items())[0]
+        for nb, rb in list(all_rows.items())[1:]:
+            ka = {(r["seed"], r["seat"]): r for r in base_rows}
+            kb = {(r["seed"], r["seat"]): r for r in rb}
+            common = sorted(set(ka) & set(kb))
+            if not common:
+                continue
             dw = sum(1 for k in common if kb[k]["win"] and not ka[k]["win"])
             dl = sum(1 for k in common if ka[k]["win"] and not kb[k]["win"])
             dm = [kb[k]["our_hp"] - kb[k]["opp_hp"] - (ka[k]["our_hp"] - ka[k]["opp_hp"])
                   for k in common]
-            print(f"\n[配对] {len(common)} 对（同 seed 同座位）")
-            print(f"  {nb} 赢 而 {na} 没赢：{dw} 对；反之 {dl} 对")
-            print(f"  血差差（{nb} − {na}）均值 = {sum(dm)/len(dm):+.2f} HP"
-                  f"（中位 {sorted(dm)[len(dm)//2]:+.1f}）")
-    out = REPO / "match_results/value_ab" / "summary.json"
+            ci = _mean_t_ci(dm)
+            print(f"\n[配对] {nb} − {base_name}：{len(common)} 对（同 seed 同座位）"
+                  f"｜{nb} 独赢 {dw} 对 / {base_name} 独赢 {dl} 对"
+                  f"｜血差差 {sum(dm)/len(dm):+.2f} HP（t95 [{ci[0]:+.1f},{ci[1]:+.1f}]）")
+    out = (Path(a.dir[0]).resolve().parent / "summary.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({k: summarize(v) for k, v in all_rows.items()},
                              ensure_ascii=False, indent=1), encoding="utf-8")
