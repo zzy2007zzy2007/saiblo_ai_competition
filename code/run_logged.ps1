@@ -35,6 +35,9 @@ Set-Location $Repo
 $env:PYTHONIOENCODING = 'utf-8'   # 与 run_logged.sh 一致
 
 $ts = Get-Date -Format 'yyyyMMdd_HHmmss'
+# 2026-10-31（Bug ① 修复）：进度目录名带本批开始时间（与 run_logged.sh 一致）。
+#   只在外面没显式指定时设，方便手工覆盖。
+if (-not $env:DSH_PROGRESS_DIR_STAMP) { $env:DSH_PROGRESS_DIR_STAMP = $ts }
 $humanTs = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
 $commit = (& git rev-parse --short HEAD 2>$null); if (-not $commit) { $commit = 'none' }
 $porcelain = @(& git status --porcelain)

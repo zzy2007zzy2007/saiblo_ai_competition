@@ -228,6 +228,9 @@ def main() -> int:
 
     out_dir = REPO / args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    # 2026-10-31（Bug ① 修复）：本批共享目录时间戳。必须在 `env_base = os.environ.copy()` 之前设，
+    #   否则子进程拿不到 stamp、会各算各的（目录反而拆得更碎）。外层 run_logged 设了就沿用。
+    os.environ.setdefault("DSH_PROGRESS_DIR_STAMP", time.strftime("%Y%m%d_%H%M%S"))
     env_base = os.environ.copy()
     env_base["PYTHONIOENCODING"] = "utf-8"
     # 2026-10-23（用户要求）：逐回合进度文件用这个 tag（match_via_sdk 会写
@@ -352,13 +355,14 @@ def main() -> int:
                 f"hp={v.get('hp')} ({v.get('rounds')} 回合)"
                 for k, v in list(results.items())[-6:]]
             _inflight = []
-            for f in (REPO / "training_history/progress" / TAG).glob("az_progress_seed*.txt"):
-                try:
-                    last = f.read_text(encoding="utf-8").strip().splitlines()[-1]
-                    if last.startswith("round="):
-                        _inflight.append(int(last.split("=")[1].split()[0]))
-                except Exception:      # noqa: BLE001
-                    pass
+            for _d in _progress.progress_scan_dirs(TAG):
+                for f in _d.glob("az_progress_seed*.txt"):
+                    try:
+                        last = f.read_text(encoding="utf-8").strip().splitlines()[-1]
+                        if last.startswith("round="):
+                            _inflight.append(int(last.split("=")[1].split()[0]))
+                    except Exception:      # noqa: BLE001
+                        pass
             _progress.write_status(
                 TAG, total=total, done=done, wins=_w, losses=_l,
                 invalid=invalid_count_for_summary(),

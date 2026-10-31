@@ -22,9 +22,9 @@
 #   # 到阈值就精确清掉那一局（会重启该 token 由 `--resume` 语义补跑）
 #   ... -Tag PIN_K2_VS_RU -StallMinutes 10 -Kill
 #
-# 判据：`training_history/progress/<Tag>/az_progress_seed<N>_<Tag>.txt` 的 **LastWriteTime**
-#   距今 > `StallMinutes` ⇒ 判该 seed 卡住。用 mtime 而不是解析 `round=`：
-#   mtime 与内容格式无关，且 bridge 每回合都写，语义稳定。
+# 判据：`training_history/progress/<Tag>_<stamp>/az_progress_seed<N>[r][_p0|_p1].txt` 的
+#   **LastWriteTime** 距今 > `StallMinutes` ⇒ 判该 seed 卡住（旧无后缀目录 `<Tag>` 也一并扫）。
+#   用 mtime 而不是解析 `round=`：mtime 与内容格式无关，且 bridge 每回合都写，语义稳定。
 
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
@@ -37,7 +37,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path "$PSScriptRoot\..\..").Path
-$progDir = Join-Path $repo "training_history\progress\$Tag"
+$progRoot = Join-Path $repo "training_history\progress"
 
 function Get-Descendants {
     param([int[]]$RootIds)
@@ -101,45 +101,51 @@ Write-Output ("[wd] tag={0}  stall>{1} min  interval={2}s  kill={3}  whatif={4} 
 $iter = 0
 while ($true) {
     $iter++
-    if (-not (Test-Path $progDir)) {
-        Write-Output ("[wd] {0}  progress 目录还不存在（还没开跑？）: {1}" -f (Get-Date -Format 'HH:mm:ss'), $progDir)
+    # 2026-10-31（Bug ① 修复）：进度目录名从 `<Tag>` 变成 `<Tag>_<stamp>`；
+    #   每轮重扫，新旧两种都看（旧无后缀目录向后兼容）。
+    $progDirs = @(Get-ChildItem $progRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq $Tag -or $_.Name.StartsWith("${Tag}_") })
+    if ($progDirs.Count -eq 0) {
+        Write-Output ("[wd] {0}  progress 目录还不存在（还没开跑？）: {1}" -f (Get-Date -Format 'HH:mm:ss'), $progRoot)
     } else {
         $now = Get-Date
-        foreach ($f in Get-ChildItem $progDir -Filter "az_progress_seed*_$Tag.txt" -ErrorAction SilentlyContinue) {
-            $idleMin = [math]::Round(($now - $f.LastWriteTime).TotalMinutes, 1)
-            $seed = ($f.Name -replace '^az_progress_seed', '' -replace "_$Tag\.txt$", '')
-            $last = (Get-Content $f.FullName -Tail 1 -ErrorAction SilentlyContinue)
-            # ⚠️ 已终局的局**不更新** progress 文件 ⇒ mtime 会一直变老，会被误判成 STALL。
-            #   bridge 终局时写的第一行是 `terminal …`，见到它就跳过（否则会对已完成的局狂报警）。
-            if ($last -match '^\s*terminal') {
-                Write-Output ("[wd] {0} done  seed={1,-4} （已终局，不判卡死）" -f (Get-Date -Format 'HH:mm:ss'), $seed)
-                continue
-            }
-            $tagTxt = if ($idleMin -gt $StallMinutes) { 'STALL' } else { 'ok   ' }
-            Write-Output ("[wd] {0} {1} seed={2,-4} idle={3,6} min  last={4}" -f `
-                (Get-Date -Format 'HH:mm:ss'), $tagTxt, $seed, $idleMin, $last)
-            if ($idleMin -le $StallMinutes) { continue }
-            # ── 卡住了：找到这一局的进程树 ──
-            # progress 文件名里的 seed 是数字，但 token 可能是 `7` 或 `7r`（镜像）；
-            # 两种都要试（同一 seed 只有一局在跑，除非两个 token 并发 —— 那就是两棵树，分别报）。
-            foreach ($tok in @("$seed", "${seed}r")) {
-                $bridges = Get-BridgeForToken -Token $tok -Tag $Tag
-                if (-not $bridges) { continue }
-                $tree = Get-Descendants -RootIds ($bridges | ForEach-Object { [int]$_.ProcessId })
-                Write-Output ("[wd]   !! token={0} 疑似卡住 {1} min ⇒ 进程树 {2} 个:" -f `
-                    $tok, $idleMin, ($tree | Measure-Object).Count)
-                $tree | Select-Object ProcessId, ParentProcessId, Name | ForEach-Object {
-                    Write-Output ("[wd]      {0,-7} parent={1,-7} {2}" -f $_.ProcessId, $_.ParentProcessId, $_.Name)
+        foreach ($d in $progDirs) {
+            foreach ($f in Get-ChildItem $d.FullName -Filter "az_progress_seed*.txt" -ErrorAction SilentlyContinue) {
+                $idleMin = [math]::Round(($now - $f.LastWriteTime).TotalMinutes, 1)
+                $seed = ($f.Name -replace '^az_progress_seed(\d+).*$', '$1')
+                $last = (Get-Content $f.FullName -Tail 1 -ErrorAction SilentlyContinue)
+                # ⚠️ 已终局的局**不更新** progress 文件 ⇒ mtime 会一直变老，会被误判成 STALL。
+                #   bridge 终局时写的第一行是 `terminal …`，见到它就跳过（否则会对已完成的局狂报警）。
+                if ($last -match '^\s*terminal') {
+                    Write-Output ("[wd] {0} done  seed={1,-4} （已终局，不判卡死）" -f (Get-Date -Format 'HH:mm:ss'), $seed)
+                    continue
                 }
-                if ($Kill -and -not $WhatIf) {
-                    foreach ($p in $tree) {
-                        try { Stop-Process -Id ([int]$p.ProcessId) -Force -ErrorAction Stop
-                              Write-Output ("[wd]      killed {0} ({1})" -f $p.ProcessId, $p.Name) }
-                        catch { Write-Output ("[wd]      FAILED {0}: {1}" -f $p.ProcessId, $_.Exception.Message) }
+                $tagTxt = if ($idleMin -gt $StallMinutes) { 'STALL' } else { 'ok   ' }
+                Write-Output ("[wd] {0} {1} seed={2,-4} idle={3,6} min  last={4}" -f `
+                    (Get-Date -Format 'HH:mm:ss'), $tagTxt, $seed, $idleMin, $last)
+                if ($idleMin -le $StallMinutes) { continue }
+                # ── 卡住了：找到这一局的进程树 ──
+                # progress 文件名里的 seed 是数字，但 token 可能是 `7` 或 `7r`（镜像）；
+                # 两种都要试（同一 seed 只有一局在跑，除非两个 token 并发 —— 那就是两棵树，分别报）。
+                foreach ($tok in @("$seed", "${seed}r")) {
+                    $bridges = Get-BridgeForToken -Token $tok -Tag $Tag
+                    if (-not $bridges) { continue }
+                    $tree = Get-Descendants -RootIds ($bridges | ForEach-Object { [int]$_.ProcessId })
+                    Write-Output ("[wd]   !! token={0} 疑似卡住 {1} min ⇒ 进程树 {2} 个:" -f `
+                        $tok, $idleMin, ($tree | Measure-Object).Count)
+                    $tree | Select-Object ProcessId, ParentProcessId, Name | ForEach-Object {
+                        Write-Output ("[wd]      {0,-7} parent={1,-7} {2}" -f $_.ProcessId, $_.ParentProcessId, $_.Name)
                     }
-                    Write-Output ("[wd]   ⇒ token={0} 已清掉；该局会由 --resume 语义在下一轮补跑" -f $tok)
-                } elseif ($Kill -and $WhatIf) {
-                    Write-Output ("[wd]   (WhatIf) 本应清掉 token={0} 的 {1} 个进程" -f $tok, ($tree | Measure-Object).Count)
+                    if ($Kill -and -not $WhatIf) {
+                        foreach ($p in $tree) {
+                            try { Stop-Process -Id ([int]$p.ProcessId) -Force -ErrorAction Stop
+                                  Write-Output ("[wd]      killed {0} ({1})" -f $p.ProcessId, $p.Name) }
+                            catch { Write-Output ("[wd]      FAILED {0}: {1}" -f $p.ProcessId, $_.Exception.Message) }
+                        }
+                        Write-Output ("[wd]   ⇒ token={0} 已清掉；该局会由 --resume 语义在下一轮补跑" -f $tok)
+                    } elseif ($Kill -and $WhatIf) {
+                        Write-Output ("[wd]   (WhatIf) 本应清掉 token={0} 的 {1} 个进程" -f $tok, ($tree | Measure-Object).Count)
+                    }
                 }
             }
         }

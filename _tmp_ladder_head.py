@@ -140,7 +140,7 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                 _total = len(_tok_list)
                 _d = REPO / "match_results/ladder_logs" / _tag
                 _w = _l = _inv = 0
-                _recent = []
+                _recs = []   # (完成时间 mtime, 文本)
                 for _tok in _tok_list:
                     _lg = _d / f"{_tok}.log"
                     if not _lg.exists():
@@ -161,18 +161,21 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                         _w += 1
                     else:
                         _l += 1
-                    if len(_recent) < 6:
-                        _recent.append(f"{_tok} {'胜' if _won else '负'} "
-                                       f"hp={_g.get('hp')} ({_g.get('rounds')} 回合)")
+                    # 2026-10-31（Bug ② 修复）：按【完成时间】（日志 mtime）降序取前 6。
+                    _recs.append((_lg.stat().st_mtime,
+                                  f"{_tok} {'胜' if _won else '负'} "
+                                  f"hp={_g.get('hp')} ({_g.get('rounds')} 回合)"))
+                _recent = [t for _, t in sorted(_recs, reverse=True)[:6]]
                 _done = _w + _l
                 _inflight = []
-                for _f in (REPO / "training_history/progress" / _tag).glob("az_progress_seed*.txt"):
-                    try:
-                        _last = _f.read_text(encoding="utf-8").strip().splitlines()[-1]
-                        if _last.startswith("round="):
-                            _inflight.append(int(_last.split("=")[1].split()[0]))
-                    except Exception:
-                        pass
+                for _d in _pg.progress_scan_dirs(_tag):
+                    for _f in _d.glob("az_progress_seed*.txt"):
+                        try:
+                            _last = _f.read_text(encoding="utf-8").strip().splitlines()[-1]
+                            if _last.startswith("round="):
+                                _inflight.append(int(_last.split("=")[1].split()[0]))
+                        except Exception:
+                            pass
                 _pg.write_status(_tag, total=_total, done=_done, wins=_w, losses=_l,
                                  invalid=_inv, started=_T0, inflight_rounds=_inflight,
                                  recent=_recent)
@@ -236,6 +239,8 @@ def main() -> int:
     print(f"[ladder] ai0={cfg['ai0']}", flush=True)
     print(f"[ladder] ai1={cfg['ai1']}", flush=True)
     print(f"[ladder] tokens={tokens}  logs={out_dir}", flush=True)
+    # 2026-10-31（Bug ① 修复）：本批共享目录时间戳（外层 run_logged 设了就沿用，否则兜底生成一次）。
+    os.environ.setdefault("DSH_PROGRESS_DIR_STAMP", time.strftime("%Y%m%d_%H%M%S"))
     global _T0, _TAG
     _TAG = str(cfg.get("tag", "ladder"))
     _TOKENS.clear(); _TOKENS.append(list(tokens))

@@ -65,6 +65,11 @@ VALID_VERDICT = "engine"
 # 逐回合进度文件根（`code/test_match/progress.py` 写的）。
 PROGRESS_ROOT = REPO / "training_history" / "progress"
 
+# 2026-10-31（Bug ① 修复）：进度目录解析统一走 progress.progress_scan_dirs()（含 stamp + 旧目录回退）。
+#   顶层 import（不再在 run_one 里延迟 import），这样看门狗 `_progress_candidates` 也能用同一个解析。
+sys.path.insert(0, str(REPO / "code/test_match"))
+import progress as _pg  # noqa: E402
+
 # 本脚本自己的 stdout/stderr 会被 run_logged 重定向进文件，此时 Python 用 **cp936** ⇒
 # 中文变乱码、emoji 直接 UnicodeEncodeError 崩掉（实测踩到：打印 "⚠️" 时异常退出，
 # 把整个汇总吃掉）。强制 UTF-8 + replace，任何字符都不会再让脚本死。
@@ -178,26 +183,27 @@ _WD_STOP = threading.Event()
 
 # ───────────────────────── 日志 / 进度文件判定 ─────────────────────────
 def _progress_candidates(tag: str, token: str) -> list[Path]:
-    """该 token 的逐回合进度文件：`<progress>/<tag>/az_progress_*<token>*.txt` 的**精确**版本。
+    """该 token 的逐回合进度文件：`<progress>/<tag>_<stamp>/az_progress_*<token>*.txt` 的**精确**版本
+    （含旧无后缀目录 `<tag>` 的回退，向后兼容）。
 
     ⚠️ 不能直接 `glob("az_progress_*10*.txt")`：token `10` 会把镜像局 `10r` 的文件一起捞进来
     （`10` 是 `10r` 的前缀）⇒ 会拿**别人那局**的 mtime 判断卡死。这里的判据是
     "seed 段以 token 开头，且 token 之后紧跟的东西**不是字母/数字**"。
     """
-    d = PROGRESS_ROOT / str(tag)
-    if not d.is_dir():
-        return []
     out: list[Path] = []
-    for f in d.glob("az_progress_*.txt"):
-        stem = f.stem
-        if not stem.startswith("az_progress_seed"):
+    for d in _pg.progress_scan_dirs(tag):
+        if not d.is_dir():
             continue
-        rest = stem[len("az_progress_seed"):]
-        if not rest.startswith(token):
-            continue
-        tail = rest[len(token):]
-        if tail == "" or not tail[0].isalnum():   # `10` 后面只能是 `_`/结尾，`10r` 的 `r` 不算
-            out.append(f)
+        for f in d.glob("az_progress_*.txt"):
+            stem = f.stem
+            if not stem.startswith("az_progress_seed"):
+                continue
+            rest = stem[len("az_progress_seed"):]
+            if not rest.startswith(token):
+                continue
+            tail = rest[len(token):]
+            if tail == "" or not tail[0].isalnum():   # `10` 后面只能是 `_`/结尾，`10r` 的 `r` 不算
+                out.append(f)
     return out
 
 
@@ -565,15 +571,12 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                       f"  墙钟累计 {_WALL_MIN[token]:.1f} min", flush=True)
             # 2026-10-23（用户要求）：整批进度文件 training_history/progress/<tag>/status.txt
             try:
-                import sys as _sys
-                _sys.path.insert(0, str(REPO / "code/test_match"))
-                import progress as _pg
                 _tag = str(_TAG)
                 _tok_list = _TOKENS[0] if _TOKENS else []
                 _total = len(_tok_list)
                 _d = REPO / "match_results/ladder_logs" / _tag
                 _w = _l = _inv = 0
-                _recent = []
+                _recs = []   # (完成时间 mtime, 文本)
                 for _tok in _tok_list:
                     _lg = _d / f"{_tok}.log"
                     if not _lg.exists():
@@ -594,18 +597,22 @@ def run_one(token: str, log_path: Path, fwd: list[str], sem: threading.Semaphore
                         _w += 1
                     else:
                         _l += 1
-                    if len(_recent) < 6:
-                        _recent.append(f"{_tok} {'胜' if _won else '负'} "
-                                       f"hp={_g.get('hp')} ({_g.get('rounds')} 回合)")
+                    # 2026-10-31（Bug ② 修复）：按【完成时间】（日志 mtime）降序取前 6，
+                    #   而不是按 token 顺序取前 6（原来把"最先完成"当成了"最近完成"）。
+                    _recs.append((_lg.stat().st_mtime,
+                                  f"{_tok} {'胜' if _won else '负'} "
+                                  f"hp={_g.get('hp')} ({_g.get('rounds')} 回合)"))
+                _recent = [t for _, t in sorted(_recs, reverse=True)[:6]]
                 _done = _w + _l
                 _inflight = []
-                for _f in (REPO / "training_history/progress" / _tag).glob("az_progress_seed*.txt"):
-                    try:
-                        _last = _f.read_text(encoding="utf-8").strip().splitlines()[-1]
-                        if _last.startswith("round="):
-                            _inflight.append(int(_last.split("=")[1].split()[0]))
-                    except Exception:
-                        pass
+                for _d in _pg.progress_scan_dirs(_tag):
+                    for _f in _d.glob("az_progress_seed*.txt"):
+                        try:
+                            _last = _f.read_text(encoding="utf-8").strip().splitlines()[-1]
+                            if _last.startswith("round="):
+                                _inflight.append(int(_last.split("=")[1].split()[0]))
+                        except Exception:
+                            pass
                 _pg.write_status(_tag, total=_total, done=_done, wins=_w, losses=_l,
                                  invalid=_inv, started=_T0, inflight_rounds=_inflight,
                                  recent=_recent)
@@ -742,6 +749,9 @@ def main() -> int:
     print(f"[ladder] ai0={cfg['ai0']}", flush=True)
     print(f"[ladder] ai1={cfg['ai1']}", flush=True)
     print(f"[ladder] tokens={tokens}  logs={out_dir}", flush=True)
+    # 2026-10-31（Bug ① 修复）：本批共享一个目录时间戳。外层 run_logged 设了就沿用；
+    #   没设（直接跑）就由本驱动兜底生成一次，随 env 传进每个 match_via_sdk 子进程 ⇒ 整批同目录。
+    os.environ.setdefault("DSH_PROGRESS_DIR_STAMP", time.strftime("%Y%m%d_%H%M%S"))
     global _T0, _TAG, _FEATURES_ON
     _TAG = str(cfg.get("tag", "ladder"))
     _TOKENS.clear(); _TOKENS.append(list(tokens))

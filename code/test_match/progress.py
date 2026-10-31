@@ -41,24 +41,63 @@ _OP_NAME = {
 }
 
 
+# 目录名时间戳：**进程内只算一次**（2026-10-31 修复 Bug ①）。
+#   外层 `code/run_logged.sh`/`run_logged.ps1` 或批次驱动入口会
+#   `os.environ.setdefault("DSH_PROGRESS_DIR_STAMP", ...)`；没设时在这里**懒算一次**兜底。
+#   懒算（而非 import 时算）是为了兼容"先 import progress、后 setdefault"的调用顺序
+#   （例如 `_tmp_ladder.py` 顶层 import 后再在 main() 里 setdefault）。
+#   ⚠️ 绝不能每次调用 `_ensure_dir` 都 `time.strftime` 重算 —— 那样同一 tag 的每局会各进一个目录。
+_dir_stamp_cache: str | None = None
+
+
+def _dir_stamp() -> str:
+    global _dir_stamp_cache
+    if _dir_stamp_cache is None:
+        _dir_stamp_cache = os.environ.get("DSH_PROGRESS_DIR_STAMP", "").strip() \
+            or time.strftime("%Y%m%d_%H%M%S")
+    return _dir_stamp_cache
+
+
 def _ensure_dir(tag: str | None = None) -> Path:
     """**每条实验一个子目录**（2026-10-23 用户要求）：
-    `training_history/progress/<tag>/`，避免所有实验的进度文件混在一个目录里。
+    `training_history/progress/<tag>_<stamp>/`，避免所有实验的进度文件混在一个目录里。
 
-    2026-10-30（用户要求）：目录名后面补**本次批次开始时间**，否则同一个 tag 反复续跑时
-    分不清哪份进度是"正在跑的这一批"。批次开始时间由驱动脚本一次性写进环境变量
-    `DSH_PROGRESS_DIR_STAMP`（`code/run_logged.sh` 启动时会自动设成它自己的时间戳），
-    所有子进程共享同一个值 ⇒ 同一批次的局都落在同一个目录里。
-    未设该环境变量时行为与旧版逐字相同（目录名 = tag）。
+    2026-10-31（修复 Bug ①）：目录名**必带时间戳后缀**（`<tag>_<stamp>`）。stamp 由
+    `DSH_PROGRESS_DIR_STAMP` 提供（外层 run_logged / 驱动入口 setdefault），否则 `_dir_stamp()`
+    兜底懒算一次；整批共享同一个值 ⇒ 同一 tag 反复续跑各落各的目录，不再堆一起。
     """
     if tag:
-        stamp = os.environ.get("DSH_PROGRESS_DIR_STAMP", "").strip()
-        name = f"{tag}_{stamp}" if stamp else str(tag)
+        name = f"{tag}_{_dir_stamp()}"
         d = PROGRESS_DIR / name
         d.mkdir(parents=True, exist_ok=True)
         return d
     PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
     return PROGRESS_DIR
+
+
+def progress_dir(tag: str | None = None) -> Path:
+    """当前批次该 tag 的进度目录（= `_ensure_dir` 的返回）。消费者统一调这个，别各自手拼路径。"""
+    return _ensure_dir(tag)
+
+
+def progress_scan_dirs(tag: str | None = None) -> list[Path]:
+    """该 tag **可能存在的所有**进度目录，**新目录在前**（向后兼容旧无后缀目录）：
+
+    1. `<tag>_<stamp>`（新规则，本进程/本批共享的 stamp）
+    2. `<tag>`（旧批次的无后缀目录，若存在）
+
+    消费者扫进度文件时按此顺序取并集：新批次自然进新目录，旧目录仍能被 glob 到。
+    """
+    if not tag:
+        return [PROGRESS_DIR]
+    out: list[Path] = []
+    new = _ensure_dir(tag)
+    if new not in out:
+        out.append(new)
+    old = PROGRESS_DIR / str(tag)
+    if old != new and old.is_dir() and old not in out:
+        out.append(old)
+    return out
 
 
 def fmt_op(t: int, a0: int, a1: int) -> str:
