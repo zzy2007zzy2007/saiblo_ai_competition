@@ -469,13 +469,16 @@ Policy = callable(state, player) -> list[Operation]
 （unified 候选 + flat 阶段 2，金币更低），所以值得复现。
 
 - 驱动：`code/test_match/_explore_coin_gate_ab.sh`（**只跑新臂**，对照臂复用
-  `match_results/value_ab_rv4/AB_RV4_FULL/incumbent/` 的同 seeds 结果——那批是 8 局、6W-2L、血差 +3.5）。
+  `match_results/value_ab_rv4/AB_RV4_FULL/incumbent/` 的同 seeds 结果——那批是 **8 局、6W-2L、
+  平均血差 +0.25**（两场输是 −13/−16，六场赢是 +1~+11））。
+  分析器：`code/test_match/analyze_coin_gate_ab.py`（胜负/血差 + 从 progress 文件统计我们这侧的
+  闪电/建塔/升级/降级次数，用来验证"机制真的发生了"）。
 - 臂：`g60`（`AZAI_BUILD_MIN_COINS=60`）、`g90`；seeds `100 100r 101 101r 102 102r 103 103r`（配对）；
   `JOBS=2`（机器上还有采集在跑，不超载）。单局实测 ~5.5 s/回合 × ~350 回合 ≈ 30-35 min。
 - 状态：**01:25 启动；写这份文档时（约 03:00）第 1 批（seed 100 两臂）尚未收尾**，
   所以**本文档不含它的结论**。落盘后有 `match_results/explore_20261102/coin_gate/EXPLORE_COIN_GATE/`：
   `_times.tsv`（每局墙钟）+ `<arm>/<token>.log`（含 `RESULT` 行）。
-  判据（先登记）：**g60/g90 的配对胜局数与血差要同时不低于 incumbent（6/8、+3.5）**，
+  判据（先登记）：**g60/g90 的配对胜局数与血差要同时不低于 incumbent（6/8、平均血差 +0.25）**，
   且日志里 `build_gated` 计数 > 0、`闪电次数/局` 上升。
 
 > 这条实验是**侦察**不是判决：8 局只能看见 ≥25pp 的效应（Wilson 95%CI）。真正该做的是把它搬进
