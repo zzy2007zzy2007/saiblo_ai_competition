@@ -99,7 +99,17 @@ def report(arm_dir, arm_name, tokens, baseline=False):
     return rows
 
 
+def report_multi(tags, arm, tokens):
+    """把多个 TAG 目录里的同名 arm 合起来（分批跑的时候用）。"""
+    out = {}
+    for tag in tags:
+        for r in report(os.path.join(COIN_GATE, tag, arm), arm, tokens):
+            out[r["token"]] = r
+    return list(out.values())
+
+
 def summarize(tag, arms, tokens):
+    tags = tag.split(",")
     base_rows = {r["token"]: r for r in report(BASELINE, "incumbent", tokens, baseline=True)}
     print(f"# 金币门控 A/B（TAG={tag}）  基线 = {BASELINE}")
     print(f"{'arm':6s} {'n':>2s} {'W-L':>5s} {'margin':>8s} {'闪电/局':>7s} {'建塔/局':>7s} "
@@ -110,7 +120,7 @@ def summarize(tag, arms, tokens):
               f"{sum(1 for r in rws if r['margin']>0)}-{sum(1 for r in rws if r['margin']<=0)} "
               f"{statistics.mean(r['margin'] for r in rws):+8.2f}")
     for arm in arms:
-        rws = report(os.path.join(COIN_GATE, tag, arm), arm, tokens)
+        rws = report_multi(tags, arm, tokens)
         if not rws:
             print(f"{arm:6s}  0  （还没有完赛的对局）")
             continue
@@ -127,7 +137,7 @@ def summarize(tag, arms, tokens):
     # 配对对比
     print("\n## 配对（同 token）")
     for arm in arms:
-        rws = report(os.path.join(COIN_GATE, tag, arm), arm, tokens)
+        rws = report_multi(tags, arm, tokens)
         if not rws:
             continue
         deltas = [r["margin"] - base_rows[r["token"]]["margin"]
