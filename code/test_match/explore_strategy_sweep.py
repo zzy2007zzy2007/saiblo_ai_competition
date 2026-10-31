@@ -251,8 +251,9 @@ def stage_grid(seeds, workers):
     rows = run_arms(arms, seeds, workers)
     print_rows(rows)
     save_rows(rows, f"grid_n{seeds}.tsv")
-    best = rows[0]
-    print(f"[grid] best = {best['name']} margin={best['margin']:+.2f} ±{best['se']:.2f}")
+    best = max(rows, key=lambda r: r["margin"])
+    print(f"[grid] best = {best['name']} margin={best['margin']:+.2f} ±{best['se']:.2f} "
+          f"win={best['win']/best['n']:.1%}")
     with open(os.path.join(OUT_DIR, "best_policy.json"), "w", encoding="utf-8") as f:
         json.dump(json.loads(best["a"]), f, sort_keys=True)
 
@@ -275,9 +276,13 @@ def stage_final(seeds, workers):
         print(f"[final] + greedy 建塔顺序 idx={rank[:5]}...")
     arms = [
         ("best_vs_ref", best_spec, REF),
-        ("best_vs_basic", best_spec, spec(target="basic", upg="never", weapons=())),
+        ("best_vs_basic(no-wpn)", best_spec, spec(target="basic", upg="never", weapons=())),
         ("best_vs_lightonly", best_spec, spec(n_towers=0, upg="never", weapons=("light",),
                                              build_reserve=0)),
+        ("best_vs_upgheavy", best_spec, spec(n_towers=3, target="sniper", upg="always",
+                                             build_reserve=0, weapons=("light",))),
+        ("best_vs_noop", best_spec, "noop"),
+        ("best_vs_best", best_spec, best_spec),
     ]
     rows = run_arms(arms, seeds, workers)
     print_rows(rows, sort=False)

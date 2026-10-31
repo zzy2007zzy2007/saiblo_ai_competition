@@ -13785,3 +13785,124 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `match_results/unified_cand/UNIFIED_CAND_BOLTZ3_seed8.log` + `match_results/ai0_az_bridge_ai_seed8_UC.stderr.log`
 - **result**: Q[c] 利用项 mellowmax -> 玻尔兹曼加权后的 1 局冒烟（打满）：verdict=engine / illegal=0 / 356 回合 / 30 分钟 / 0-39 负。与 23d1490(mellowmax) 逐项对比**无退化**：n_cand 中位 7(持平)、p95 46->33(p95 略降，因 Q 抬高后 softmax(UCB/tau) 更集中)、max 48 持平、n_cand==1 0%、含HOLD 100%、含升级 5.6%、升级被选中/发出 4 次(旧 3)、同类型多op 候选 81.5%(1024 条)、真的打出去 22 回合(旧 25)、缓存命中中位 12/p95 997、塌缩签名(池<=7 且命中>=400)=0、耗时 p50 2527/p95 11681/max 21725 ms(旧 3361/20600/24763)、阶段1 占 2.0%。单元断言：mellowmax 0.2398 -> 玻尔兹曼 0.9564（判据 0.24/0.96 全中）。信用分配按用户定夺**保持完整回写**（1/|束长| 折扣已回滚）。零影响：pin 搜索器逐位(6 局面 0 不一致) + 对局级 RESULT/op 序列逐字节相同（sha256 e336bd304bbbde2a，与 23d1490 同一哈希）。报告 `docs/unified_cand_fix_20261029.md` §7。
+
+## 2026-11-01 00:41:44 — sweep_axes_n192
+
+- **commit**: `68a1fb7` (dirty: 2 files)
+- **exit**: 0，用时 142s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py axes --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_004144_sweep_axes_n192/output.log`
+- **result**: 第一版（旧 ref：3 塔/升 Sniper/不预留）：34 臂 × 192 局 = 8448 局、140 s。reserve=200/100 分别 +22.3/+19.0（SE~1）。**但发现「upg 先于 build」会把塔数锁死在 1**，臂之间被混淆 ⇒ 重写策略顺序后重跑（见 sweep_axes2_n192）。
+
+## 2026-11-01 00:52:06 — sweep_axes2_n192
+
+- **commit**: `68a1fb7` (dirty: 5 files)
+- **exit**: 0，用时 135s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py axes --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_005206_sweep_axes2_n192/output.log`
+- **result**: **47 臂 × 192 局 = 9792 局 / 134 s。闪电是主效应：weapons=none −21.9 HP、胜率 7.3%；build_reserve=300 +7.7/68.8%、upg_reserve=120 +5.9/74.0%；upg=never +3.5；三级塔 −5.6~−6.0；n_towers 0/1/3/4/5 = −0.7/−0.6/−1.5/−1.8/−1.8。** 读法见 `docs/free_exploration_strategy_arena_20261102.md` §3。
+
+## 2026-11-01 00:54:44 — sweep_greedy_cells
+
+- **commit**: `68a1fb7` (dirty: 5 files)
+- **exit**: 0，用时 151s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py greedy --seeds 96 --workers 6 --k 3
+  ```
+- **output**: `training_history/runs/20261101_005444_sweep_greedy_cells/output.log`
+- **result**: 第一版候选集错了（idx 0/1 = 基地格与其邻格，不可建 ⇒ 多个臂完全相同）。已修（只留两座位都可建的 idx 1..33），见 sweep_greedy_cells2。
+
+## 2026-11-01 00:57:44 — sweep_greedy_cells2
+
+- **commit**: `68a1fb7` (dirty: 5 files)
+- **exit**: 0，用时 150s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py greedy --seeds 96 --workers 6 --k 3
+  ```
+- **output**: `training_history/runs/20261101_005744_sweep_greedy_cells2/output.log`
+- **result**: 33 臂 × 96 局 × 3 步 ≈ 9400 局 / 150 s。**首塔 idx=1（(4,9)/(14,9)）最好，任何别的位置 −2.4~−4.8；第 2 位 idx=2 最好；第 3 步无差别（n_towers=2 只建 2 座塔）。⇒ 默认 STRATEGIC_BUILD_ORDER（去掉不可建项）= 最优，贪心 3 步没能改进。**
+
+## 2026-11-01 01:00:29 — sweep_grid_n192
+
+- **commit**: `68a1fb7` (dirty: 5 files)
+- **exit**: 0，用时 62s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py grid --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_010029_sweep_grid_n192/output.log`
+- **result**: 22 臂 × 192 局：**最优 = build_reserve=300 + upg=always + n_towers=2（+7.72 ±0.99, 68.8%）；upg=never 家族 +0.4~+2.6 但胜率 55-67%；`br200_upnever_n1` 胜率 66.7% 而 margin 仅 +2.55（hp 判胜局里胜率与血差不单调）。**
+
+## 2026-11-01 01:02:29 — sweep_final_n192
+
+- **commit**: `5908646` (dirty: 4 files)
+- **exit**: 0，用时 24s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py final --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_010229_sweep_final_n192/output.log`
+- **result**: 作废：此批 `best_policy.json` 被 grid 阶段的排序 bug 写成了 ref（当时比的是 ref 而不是 best）。重跑见 sweep_final2_n192 / sweep_final2b_n192。
+
+## 2026-11-01 01:04:46 — sweep_final2_n192
+
+- **commit**: `5908646` (dirty: 4 files)
+- **exit**: 0，用时 62s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py grid --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_010446_sweep_final2_n192/output.log`
+- **result**: grid 重跑（修 best 选择）：best = br300_upalways_n2，+7.72。
+
+## 2026-11-01 01:05:49 — sweep_final2b_n192
+
+- **commit**: `5908646` (dirty: 4 files)
+- **exit**: 0，用时 18s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_strategy_sweep.py final --seeds 192 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_010549_sweep_final2b_n192/output.log`
+- **result**: **迁移检验，192 局/项：best vs ref +7.72（68.8%）；vs 不放武器 +29.0（100%）；vs 只放闪电不建塔 +7.55（71.4%）；vs 旧风格（3 塔+猛升级）+22.95（95.3%）；vs noop +30.7（100%）；vs 自己 −1.22（48.4%，镜像 sanity）。**
+
+## 2026-11-01 01:11:24 — arena_net_vs_rule
+
+- **commit**: `5908646` (dirty: 4 files)
+- **exit**: 1，用时 17s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/arena_net_policy.py --duel net:checkpoints/posnet_A_k5_m32.pt {build_reserve: 300, light_max_dist: 99, light_min_ants: 3, light_mode: cluster, max_ops: 3, n_towers: 2, relocate: false, slot_mode: fixed, target: sniper, upg: always, upg_reserve: 0, weapons: [light], base_upg: []} --seeds 32 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_011124_arena_net_vs_rule/output.log`
+- **result**: 作废：bash 把 JSON 策略串的引号吃掉了（`--duel ... {build_reserve: 300, ...}` 不是合法 spec），进程 17 s 后 exit=1。改用命名预设 `best` 重跑（见 arena_net_vs_best）。
+
+## 2026-11-01 01:12:19 — arena_net_vs_best
+
+- **commit**: `5908646` (dirty: 5 files)
+- **exit**: 0，用时 39s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/arena_net_policy.py --duel net:checkpoints/posnet_A_k5_m32.pt best --seeds 32 --workers 6
+  ```
+- **output**: `training_history/runs/20261101_011219_arena_net_vs_best/output.log`
+- **result**: **网络裸策略（3 网 ckpt + decode_network_output argmax，无搜索）在竞技场里 32 局：vs `best` 规则策略 margin −1.53 ±1.84（13W-19L，40.6%），双方终局合计塔数 0.28 ⇒ 网络裸策略基本「不造塔、攒钱放闪电」，只差调优规则策略 1.5 HP。** 结合 `why_no_upgrade_20261028.md`（类头永远 argmax 到 17）⇒ 现役的「升级吃掉 69% 收入」不是先验的主意，是评估器改坏的。见 free_exploration 文档 §6.3。
+
+## 2026-11-01 01:18:30 — repair_mechanic_n96
+
+- **commit**: `5908646` (dirty: 5 files)
+- **exit**: 0，用时 19s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe code/test_match/explore_repair_mechanic.py
+  ```
+- **output**: `training_history/runs/20261101_011830_repair_mechanic_n96/output.log`
+- **result**: 8 臂 × 96 局 = 768 局 / 17 s。**升级的时机比升级本身重要：`upg=damaged`（塔血量比 ≤ 阈值才升级 = 用「升级回满血」当修理）damaged40/60/80 = +5.79/+5.00/+5.67（胜率 67-73%，闪电 10.1-10.6/局）；`upg=never` +3.16；`upg=always`（参照）−0.31；`build_reserve=300` +7.44。** ⇒ 无条件升级是负的、修理式升级是正的，且不牺牲闪电次数。见 `docs/free_exploration_strategy_arena_20261102.md` §5b。

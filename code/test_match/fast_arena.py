@@ -96,7 +96,8 @@ class RulePolicy:
     def __init__(self,
                  n_towers: int = 3,
                  target: str = "sniper",
-                 upg: str = "always",       # always | lvl2 | never
+                 upg: str = "always",       # always | lvl2 | never | damaged
+                 upg_hp_thr: float = 0.6,   # upg="damaged" 时：只在塔血量比 <= 这个阈值时升级（=修理）
                  slots: list | None = None,  # 建塔优先顺序（None = 官方顺序）
                  weapons: tuple = ("light",),
                  base_upg: tuple = (),       # () | ("speed",) | ("hp",) | ("speed","hp")
@@ -113,7 +114,7 @@ class RulePolicy:
                       weapons=tuple(weapons), base_upg=tuple(base_upg),
                       relocate=relocate,
                       build_reserve=(reserve if build_reserve is None else build_reserve),
-                      upg_reserve=upg_reserve,
+                      upg_reserve=upg_reserve, upg_hp_thr=upg_hp_thr,
                       light_min_ants=light_min_ants, light_max_dist=light_max_dist,
                       light_mode=light_mode,
                       slot_mode=slot_mode, max_ops=max_ops)
@@ -272,6 +273,10 @@ class RulePolicy:
                     continue
                 if p["upg"] == "lvl2" and nxt >= 10:
                     continue
+                if p["upg"] == "damaged":
+                    # 只在塔被打残时升级（利用"升级回满血"= 廉价修理）
+                    if tower.max_hp <= 0 or tower.hp / tower.max_hp > p["upg_hp_thr"]:
+                        continue
                 cost = 60 if nxt < 10 else 200
                 if state.coins[player] < cost + p["upg_reserve"]:
                     continue
@@ -303,6 +308,13 @@ def make_policy(spec: str):
         return RulePolicy()
     if spec == "basic":
         return RulePolicy(target="basic", upg="never")
+    if spec == "best":
+        # 策略轴扫描出来的最优规则配置（见 docs/free_exploration_strategy_arena_20261102.md §4）
+        return RulePolicy(n_towers=2, target="sniper", upg="always", weapons=("light",),
+                          build_reserve=300, upg_reserve=0, light_min_ants=3)
+    if spec == "ref2":
+        return RulePolicy(n_towers=2, target="sniper", upg="always", weapons=("light",),
+                          build_reserve=100, upg_reserve=0, light_min_ants=3)
     raise SystemExit(f"unknown policy spec: {spec}")
 
 
