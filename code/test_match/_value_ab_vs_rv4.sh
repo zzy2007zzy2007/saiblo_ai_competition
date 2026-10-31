@@ -61,7 +61,9 @@ run_one() {
   if [ -s "$log" ] && grep -q "^ *RESULT" "$log" 2>/dev/null; then
     return 0
   fi
-  env0="AZAI_CKPT=$ck;$BASE_NOCK$(arm_extra "$arm")"
+  # ⚠️ 必须显式给 `AZAI_CAND_MODE=unified`：BASE（`_us_vs_external.sh:68`）里**没有**这个键，
+  #    缺了它 bridge 会退化成 pin+flat（老的 FlatRolloutGreedy），跑的不是"统一候选 + flat 阶段 2"。
+  env0="AZAI_CAND_MODE=unified;AZAI_CKPT=$ck;$BASE_NOCK$(arm_extra "$arm")"
   "$P" -u code/test_match/match_via_sdk.py \
       --rounds=512 \
       --ai0=code/test_match/az_bridge_ai.py --ai1="$RV4" \

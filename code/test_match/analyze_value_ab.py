@@ -57,6 +57,16 @@ def summarize(rows: list[dict]) -> dict:
     out["wilson"] = _wilson(w + 0.5 * d, n)                 # 胜率（和棋算半胜）的 Wilson 95% CI
     out["wilson_decided"] = _wilson(w, w + l) if (w + l) else (float("nan"), float("nan"))
     out["margin_t"] = _mean_t_ci(margin)                     # 血量差的 t 95% CI
+    # 按座位拆（这个游戏先手优势极大 ⇒ 不分座位会看到"50% 胜率"的假象）
+    for seat, nm_s in ((0, "p0"), (1, "p1")):
+        sub = [r for r in rows if r["seat"] == seat]
+        if sub:
+            out[f"seat_{nm_s}"] = {
+                "n": len(sub),
+                "W": sum(1 for r in sub if r["win"]),
+                "L": sum(1 for r in sub if not r["win"] and not r["draw"]),
+                "margin_mean": sum(r["our_hp"] - r["opp_hp"] for r in sub) / len(sub),
+            }
     return out
 
 
