@@ -13917,3 +13917,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261101_013136_repair_cycle_n96/output.log`
 - **result**: 12 臂 × 96 局（含修理循环 rc60/rc40）：**repair_cycle60（打残才升级 + 下一回合降级退回）margin +5.72 ±1.06、胜率 77.1%、闪电 10.85/局、终局金币 267（对照 damaged60 +5.00/66.7%/191）；ref（有钱就升）−0.31、upg=never +3.16。** 引擎实测净成本 6 币/次（升级 60 → 降级退 54，血量回满）。见 `docs/free_exploration_strategy_arena_20261102.md` §5b。
+
+## 2026-10-30 23:17:53 — collect_v2_s1_full
+
+- **commit**: `e811555` (dirty: 3 files)
+- **exit**: 0，用时 96680s
+- **cmd**:
+  ```bash
+  D:/anaconda3/envs/pytorch-gpu/python.exe -u code/my_ai/az_intent/az_selfplay.py --checkpoint checkpoints/posnet_A_k5_m32.pt --games 256 --workers 12 --seed 900 --max-rounds 512 --iterations 256 --max-depth-rounds 4 --k 24 --native-engine --skip-single-candidate --search unified --write-npz --cand-k 48 --flat-rollouts 64 --flat-horizon 16 --flat-batch 32 --flat-mode random --flat-random-side opponent --flat-prob-mode decay --flat-decay-c 1.0 --flat-decay-k 3.0 --flat-share-prefix 1 --flat-seed 53 --search-total-rounds 49152 --dump-cand 1 --dump-replay 1 --out-dir training_history/collect_v2_s1
+  ```
+- **output**: `training_history/runs/20261030_231753_collect_v2_s1_full/output.log`
+- **result**: _待填_
