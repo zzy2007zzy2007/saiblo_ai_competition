@@ -259,3 +259,5 @@
 | `code/run_logged.sh` | 36 / 61 | TS / `DSH_PROGRESS_DIR_STAMP` 唯一设置点 |
 | `code/my_ai/az_intent/az_selfplay.py` | 798 | 自对弈 progress（不在 progress/ 下） |
 | `code/my_ai/az_intent/collect_value_prior.py` | 95 | 采集 progress（不在 progress/ 下） |
+
+> 已实施（commit 1a8d63c）：Bug① 目录名统一加时间戳后缀 + 回退扫描（`progress_dir`/`progress_scan_dirs`）；Bug② status"最近完成"改为按日志 mtime 降序取前 6。
