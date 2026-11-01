@@ -101,6 +101,12 @@ class FlatRolloutGreedy(BundleMCTS):
                  rollout_rng_key: str = "state",
                  max_total_rounds: int = DEFAULT_MAX_TOTAL_ROUNDS,
                  verbose: bool = False,
+                 # ── 叶子金币项（2026-11-02）：leaf_value = V(leaf) + α × (my_coins/300) ──
+                 #   `AZAI_LEAF_COIN_ALPHA`（默认 0 ⇒ 与现役逐字一致，零影响）。
+                 #   "己方金币"用归一化 `coins/300`（与值网输入 stats[22] 同尺度，
+                 #   见 `Ant-Game/SDK/utils/features.py:227`），故 α 的量纲 = 每单位
+                 #   coins/300 的 V 增量（V 单位 = 1，×20 = HP）。正值 ⇒ 让金币更值钱。
+                 leaf_coin_alpha: float = None,
                  **kwargs):
         super().__init__(*args, **kwargs)
         assert eval_mode in ("net", "hand"), eval_mode
@@ -178,6 +184,12 @@ class FlatRolloutGreedy(BundleMCTS):
             from my_ai.az_intent import rng_engine as _rng_engine
             self._rng_enabled_engine = _rng_engine.enable(verbose=self.verbose or True)
             self._rng_on = bool(self._rng_enabled_engine)
+        # ── 叶子金币项（2026-11-02）：`AZAI_LEAF_COIN_ALPHA`（默认 0 ⇒ 零影响）──
+        #   在 `_leaf_values` 里把叶子分数加成 `V(leaf) + α × (my_coins/300)`。
+        #   读 env 与"显式构造参数"同优先级：None ⇒ 读 env（不设 = "0"）。
+        if leaf_coin_alpha is None:
+            leaf_coin_alpha = _os.environ.get("AZAI_LEAF_COIN_ALPHA", "0")
+        self.leaf_coin_alpha = float(leaf_coin_alpha)
         if eval_mode == "net" and value_model is None:
             raise ValueError("eval_mode='net' 需要 value_model（load_three_models 的第三个返回值）")
         if eval_mode == "net" and feature_extractor is None:
@@ -439,7 +451,12 @@ class FlatRolloutGreedy(BundleMCTS):
 
     # ── 叶子评估 ────────────────────────────────────────────────────────────
     def _leaf_values(self, states: list, root_player: int) -> np.ndarray:
-        """给一批叶子状态打分（从 root_player 视角，量纲 ≈ [-1, 1]）。"""
+        """给一批叶子状态打分（从 root_player 视角，量纲 ≈ [-1, 1]）。
+
+        2026-11-02：末尾**可选**加一项"己方金币"（`AZAI_LEAF_COIN_ALPHA`，默认 0 ⇒
+        与改动前逐位一致）：`leaf_value = V(leaf) + α × (my_coins / 300)`。
+        `my_coins/300` 与值网输入 stats[22]（`features.py:227 state.coins[player]/300.0`）同尺度。
+        """
         values = np.zeros(len(states), dtype=np.float64)
         pending, pending_index = [], []
         for index, state in enumerate(states):
@@ -448,37 +465,40 @@ class FlatRolloutGreedy(BundleMCTS):
             else:
                 pending.append(state)
                 pending_index.append(index)
-        if not pending:
-            return values
 
-        if self.eval_mode == "hand":
-            from my_ai.distill_top2.lure_value_eval import evaluate_terminal
-            for index, state in zip(pending_index, pending):
-                raw = float(evaluate_terminal(state, root_player))
-                # 手写价值量纲 ~1e4，线性归一到 [-1,1]（与值网同尺度，便于共用阈值）
-                values[index] = float(np.clip((raw - 10_000.0) / 2_000.0, -1.0, 1.0))
-            return values
+        if pending:
+            if self.eval_mode == "hand":
+                from my_ai.distill_top2.lure_value_eval import evaluate_terminal
+                for index, state in zip(pending_index, pending):
+                    raw = float(evaluate_terminal(state, root_player))
+                    # 手写价值量纲 ~1e4，线性归一到 [-1,1]（与值网同尺度，便于共用阈值）
+                    values[index] = float(np.clip((raw - 10_000.0) / 2_000.0, -1.0, 1.0))
+            else:
+                import torch
+                zeros = np.zeros(96)
+                for start in range(0, len(pending), self.value_batch):
+                    chunk = pending[start:start + self.value_batch]
+                    boards, stats = [], []
+                    for state in chunk:
+                        obs = self.feature_extractor.encode_observation(state, root_player, zeros)
+                        boards.append(obs["board"])
+                        stats.append(obs["stats"])
+                    board = torch.from_numpy(np.stack(boards)).float()
+                    stat = torch.from_numpy(np.stack(stats)).float()
+                    if next(self.value_model.parameters()).is_cuda:
+                        board, stat = board.cuda(), stat.cuda()
+                    with torch.no_grad():
+                        raw = value_of(self.value_model(board, stat)).squeeze(-1)
+                    if self.value_tanh:
+                        raw = torch.tanh(raw)
+                    for offset, value in enumerate(raw.detach().cpu().numpy().tolist()):
+                        values[pending_index[start + offset]] = float(value)
 
-        import torch
-        zeros = np.zeros(96)
-        for start in range(0, len(pending), self.value_batch):
-            chunk = pending[start:start + self.value_batch]
-            boards, stats = [], []
-            for state in chunk:
-                obs = self.feature_extractor.encode_observation(state, root_player, zeros)
-                boards.append(obs["board"])
-                stats.append(obs["stats"])
-            board = torch.from_numpy(np.stack(boards)).float()
-            stat = torch.from_numpy(np.stack(stats)).float()
-            if next(self.value_model.parameters()).is_cuda:
-                board, stat = board.cuda(), stat.cuda()
-            with torch.no_grad():
-                out = float("nan")
-                raw = value_of(self.value_model(board, stat)).squeeze(-1)
-            if self.value_tanh:
-                raw = torch.tanh(raw)
-            for offset, value in enumerate(raw.detach().cpu().numpy().tolist()):
-                values[pending_index[start + offset]] = float(value)
+        # ── 叶子金币项（默认 α=0 ⇒ 下面整段跳过，与现役逐字一致）────────────────
+        if self.leaf_coin_alpha != 0.0:
+            _coins = np.array([float(st.coins[root_player]) for st in states],
+                              dtype=np.float64) / 300.0
+            values = values + self.leaf_coin_alpha * _coins
         return values
 
     @staticmethod
