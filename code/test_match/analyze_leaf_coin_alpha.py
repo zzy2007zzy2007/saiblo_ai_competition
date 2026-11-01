@@ -227,7 +227,7 @@ def analyze_alpha(alpha: str, seeds: list[int], out_root: Path, ladder) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--alphas", default="0,0.02,0.037,0.07,0.15,0.30")
-    ap.add_argument("--seeds", default="100-101")
+    ap.add_argument("--seeds", default="100-103")
     ap.add_argument("--out-root", default=str(REPO / "match_results" / "leaf_coin_alpha"))
     ap.add_argument("--json", default="")
     args = ap.parse_args()

@@ -18,8 +18,8 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 export PYTHONIOENCODING=utf-8
 P="${PYTHON:-D:/anaconda3/envs/pytorch-gpu/python.exe}"
-JOBS="${JOBS:-8}"
-SEEDS="${SEEDS:-100 101}"
+JOBS="${JOBS:-6}"
+SEEDS="${SEEDS:-100 101 102 103}"
 RETRY="${RETRY:-1}"
 GAME_TIMEOUT_S="${GAME_TIMEOUT_S:-7200}"
 ALPHAS="${ALPHAS:-0 0.02 0.037 0.07 0.15 0.30}"
