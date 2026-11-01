@@ -31,7 +31,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 OUTDIR = REPO / "match_results" / "noupg_ab"
 VALID_VERDICT = "engine"
-STDERR_TAG = "_noupg"
+STDERR_TAG = "noupg"
 
 for _s in (sys.stdout, sys.stderr):
     try:
