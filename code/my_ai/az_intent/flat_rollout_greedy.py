@@ -67,7 +67,7 @@ class FlatRolloutGreedy(BundleMCTS):
                  # `advance_round()` 是确定性的 ⇒ N 次采样得到同一个叶子，采样纯浪费
                  # （实测 samples=1/16/64 的分数逐位相同，耗时 177/919/3548 ms）。
                  # 亚军的 `simulate_round(rng)` 就是带随机性的；这里用"随机出招"近似。
-                 rollout_mode: str = "idle",        # idle=现状(双方不出招) / random=随机出招
+                 rollout_mode: str = "idle",        # idle=双方不出招 / random=对手随机建塔·降级 / lightning=我方随机放闪电
                  rollout_random_side: str = "opponent",  # opponent=只随机对手(推荐) / both=双方
                  # 2026-10-23：随机概率随回合衰减（避免整段 churn 污染叶子状态）
                  rollout_prob_mode: str = "const",   # const | decay | first
@@ -111,7 +111,7 @@ class FlatRolloutGreedy(BundleMCTS):
         self.value_batch = int(value_batch)
         self.value_tanh = bool(value_tanh)
         self.eval_mode = eval_mode
-        assert rollout_mode in ("idle", "random"), rollout_mode
+        assert rollout_mode in ("idle", "random", "lightning"), rollout_mode
         self.rollout_mode = rollout_mode
         self.rollout_act_prob = float(rollout_act_prob)
         self.rollout_build_ratio = float(rollout_build_ratio)
@@ -248,8 +248,8 @@ class FlatRolloutGreedy(BundleMCTS):
         2026-10-23：从 `_random_actions` 拆出来，供前缀树实现复用（先决策、查缓存、再决定是否真模拟）。
         概率按 `rollout_prob_mode`（const / decay / first）逐回合计算。
         """
-        if self.rollout_mode != "random":
-            # 2026-10-27：只有 `rollout_mode="random"` 才出随机招。
+        if self.rollout_mode not in ("random", "lightning"):
+            # 2026-10-27：只有 `rollout_mode="random"` 才出随机招；2026-11-02 加 `lightning`。
             # 原来这里没判 rollout_mode（因为前缀树路径只在 random 时进），现在
             # "仅 RNG 消费"也要走前缀树 ⇒ 必须显式判。对现有配置是 no-op
             # （_tree_rollout_value 只在 rollout_mode=="random" 时被调用）。
@@ -261,9 +261,39 @@ class FlatRolloutGreedy(BundleMCTS):
         from SDK.utils.constants import OperationType
 
         _sides = (0, 1)
-        if self.rollout_random_side == "opponent" and root_player is not None:
+        if self.rollout_mode == "lightning":
+            # 2026-11-02：lightning 模式的随机侧**固定为我方**（root_player）——忽略
+            # `rollout_random_side`。语义 = "我方在 rollout 里随机放闪电"，对手不动。
+            if root_player is not None:
+                _sides = (int(root_player),)
+        elif self.rollout_random_side == "opponent" and root_player is not None:
             _sides = (1 - int(root_player),)
         out = []
+        if self.rollout_mode == "lightning":
+            # 2026-11-02：`AZAI_FLAT_ROLLOUT_MODE=lightning` —— **我方**随机放闪电
+            # （class 17 = `USE_LIGHTNING_STORM`）。与 random 的差别有**两处**：
+            # ① 侧：random = 对手(1-root_player)随机建塔/降级；lightning = 我方(root_player)随机放闪电；
+            # ② 类：建塔/降级 → 闪电（落点 = 该侧合法高地格随机，复用 build 的 `ctx["cells"]` 随机位置逻辑）。
+            # 闪电有 cd==0 + 金币≥90 的合法性约束 ⇒ 不满足时**空过**（这一模式只有闪电一种动作，
+            # 不建塔也不降级）。概率调度（decay(1,3)）/ seed 与 random 逐字共用。
+            from SDK.utils.constants import SUPER_WEAPON_STATS, SuperWeaponType
+            _sw = int(SuperWeaponType.LIGHTNING_STORM)
+            _cost = int(SUPER_WEAPON_STATS[SuperWeaponType.LIGHTNING_STORM].cost)
+            for _pl in _sides:
+                if rng.random() >= _p:
+                    continue
+                try:
+                    _cd = int(sim.weapon_cooldowns[_pl][_sw])
+                    _coins = int(sim.coins[_pl])
+                except Exception:
+                    _cd, _coins = 1, -1
+                if _cd != 0 or _coins < _cost:
+                    continue
+                _cand = list(ctx["cells"][_pl])
+                if _cand:
+                    _x, _y = _cand[int(rng.integers(len(_cand)))]
+                    out.append((_pl, int(OperationType.USE_LIGHTNING_STORM), int(_x), int(_y)))
+            return out
         for _pl in _sides:
             if rng.random() >= _p:
                 continue
@@ -602,8 +632,9 @@ class FlatRolloutGreedy(BundleMCTS):
                                 dtype=np.float64)
 
         # 2026-10-23：随机出招 rollout 的上下文（**只在这里算一次**，rollout 内复用）
+        # 2026-11-02：`lightning` 也用 `_rctx`（随机落点要读 `cells`）；其余语义与 random 一致。
         _rctx = None
-        if self.rollout_mode == "random":
+        if self.rollout_mode in ("random", "lightning"):
             try:
                 from SDK.utils.constants import HIGHLAND_CELLS as _HC
                 _rctx = {"cells": {0: list(_HC[0]), 1: list(_HC[1])}}

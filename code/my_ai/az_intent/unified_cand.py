@@ -789,10 +789,16 @@ def make_unified_searcher_class():
             #   阶段 2 仍是父类 FlatRolloutGreedy.search()。这里**无条件**打一行，证明阶段 2
             #   参数 = 部署 BASE 的 flat 参数（rollouts/horizon/batch/mode/side/prob/rounds/seed/
             #   share_prefix/eval/k 全原样从 self 读），便于与 pin/unified 的 stderr 对表。
-            if self.cand_mode == "shape_pin":
-                print(f"[shape_pin] engine=flat rollouts={self.rollouts_per_candidate} "
+            if self.cand_mode in ("unified", "shape_pin"):
+                # 2026-11-02：unified 也打这一行（原来只 shape_pin 打），证明阶段 2 的
+                #   flat 参数（rollout_mode 等）确实 = 部署 BASE / 本实验的 lightning 臂。
+                #   ⚠️ lightning 模式忽略 rollout_random_side、固定随机侧=我方 ⇒ 侧这里
+                #   要显示成"我方"，否则 stderr 会打出误导性的 `side=opponent`。
+                _side_disp = ("ours(root)" if self.rollout_mode == "lightning"
+                              else self.rollout_random_side)
+                print(f"[{self.cand_mode}] engine=flat rollouts={self.rollouts_per_candidate} "
                       f"horizon={self.horizon} batch={self.value_batch} "
-                      f"rollout_mode={self.rollout_mode} side={self.rollout_random_side} "
+                      f"rollout_mode={self.rollout_mode} side={_side_disp} "
                       f"prob={self.rollout_prob_mode}({self.rollout_decay_c},"
                       f"{self.rollout_decay_k}) rounds={self.max_total_rounds} "
                       f"seed={self.rollout_seed} share_prefix={int(self.rollout_share_prefix)} "
