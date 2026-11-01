@@ -13961,3 +13961,14 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261101_151146_lightning_rollout_ab/output.log`
 - **result**: unified(+我方放闪电rollout) vs pin+random 16 局（seeds 100..107×2 座位，verdict=engine 16/16、illegal 全 0）：**unified+lightning 0W-16L，胜率 0%（Wilson [0%,19.4%]）；血差 Δhp = −20.9（配对 t95 [−24.6,−17.3]）**。行为：A 臂攒到 90 金币的决策只占 4.2%（245/5854）、放闪电 55 次；pin 是 43.7%（2560/5853）、147 次 ⇒ "我方 rollout 随机放闪电"没让 unified 更爱攒钱/放闪电，反而更回避。详见 `docs/lightning_rollout_mode_20261102.md`。
+
+## 2026-11-01 16:34:16 — noupg_ab
+
+- **commit**: `c141986` (dirty: 3 files)
+- **exit**: 0，用时 6734s
+- **cmd**:
+  ```bash
+  bash code/test_match/_noupg_ab.sh
+  ```
+- **output**: `training_history/runs/20261101_163416_noupg_ab/output.log`
+- **result**: unified_noupg（候选层删升级） vs pin+random 16 局（seeds 100..107×2 座位，verdict=engine 16/16、illegal 全 0）：**unified_noupg 0W-16L，胜率 0%（Wilson [0%,19.4%]）；血差 Δhp = −22.4（配对 t95 [−26.1,−18.8]）**。行为：541/5573 决策删过升级、共删 7023 条升级候选；删完后 A 臂放闪电 36 次（pin 139）、攒到 90 金币只占 2.2%（121/5573，pin 47.4%），替代是偏转15+闪避5 这些超武 ⇒ 删升级没让搜索更爱攒钱/放闪电，反而更回避。详见 `docs/noupg_mode_20261102.md`。
