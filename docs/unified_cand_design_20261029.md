@@ -116,7 +116,9 @@ argmax→rank k+1）直接取前 k 个**，不再按 s1 给所有候选排序。
 rounds=49152 / seed=53 / share_prefix=1 / eval=net / k=48），由 shape_pin 侧 stderr 的
 `[shape_pin] engine=flat ...` 行证明。
 
-**实验结果**（16 局 vs pin+flat，seeds 100..107 × 2 座位）：_待补_。
+**实验结果**（16 局 vs pin+flat，seeds 100..107 × 2 座位）：**1W-15L，胜率 6.25%（Wilson [1.1%, 28.3%]）；
+血差 Δhp = −18.5（配对 t95 [−27.1, −9.9]）** ⇒ shape_pin 显著劣于 pin。61.7% 决策 s1 第一名是 HOLD、
+锁定序列最多是降级 ⇒ "s1 只选组"仍被弱评估器的 HOLD/降级偏好拖垮（详见 `docs/shape_pin_mode_20261102.md`）。
 
 ## 3. 与 flat 评估器的衔接
 

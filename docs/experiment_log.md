@@ -13928,3 +13928,25 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261030_231753_collect_v2_s1_full/output.log`
 - **result**: _待填_
+
+## 2026-11-01 12:56:53 — lightning_rollout_ab
+
+- **commit**: `1e0d461` (dirty: 2 files)
+- **exit**: 1，用时 455s
+- **cmd**:
+  ```bash
+  bash code/test_match/_lightning_rollout_ab.sh
+  ```
+- **output**: `training_history/runs/20261101_125653_lightning_rollout_ab/output.log`
+- **result**: _待填_
+
+## 2026-11-01 12:28:40 — shape_pin_ab
+
+- **commit**: `7d859f8` (dirty: 2 files)
+- **exit**: 0，用时 9422s
+- **cmd**:
+  ```bash
+  bash code/test_match/_shape_pin_ab.sh
+  ```
+- **output**: `training_history/runs/20261101_122840_shape_pin_ab/output.log`
+- **result**: shape_pin vs pin+flat 16 局（seeds 100..107×2 座位，verdict=engine 16/16、illegal 全 0）：**shape_pin 1W-15L，胜率 6.25%（Wilson [1.1%,28.3%]）；血差 Δhp = −18.5（配对 t95 [−27.1,−9.9]）**。座位拆分 P0 −21.2 / P1 −15.8（都负）。候选构成：61.7% 决策锁定 HOLD、其次降级 633 / 降级+降级 159 / 建塔 123；n_cand p50=1（pin p50=1）p95=33（pin 48）；长度分布 shape_pin 极偏 len=1（27730 vs pin 9112）、len=3 几乎消失（874 vs 13676）。结论：shape_pin 显著劣于 pin，"s1 只选组 + 位置交回位置网"不成立（s1 弱评估器选不出好类）。详见 `docs/shape_pin_mode_20261102.md`。

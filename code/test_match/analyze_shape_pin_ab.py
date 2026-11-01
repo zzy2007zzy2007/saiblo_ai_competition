@@ -245,7 +245,7 @@ def main() -> int:
                         m = re.search(r"\[shape_pin\] locked_seq=(\S+) ", ln)
                         if m:
                             sp_locked[m.group(1)] += 1
-                        m2 = re.search(r"\[cand\] mode=shape_pin .*? n_cand=(\d+) .*? 含HOLD=(\d+) 含升级=(\d+).*? 长度分布=\{([^}]*)\}", ln)
+                        m2 = re.search(r"\[cand\] mode=shape_pin .*?n_cand=(\d+).*?含HOLD=(\d+).*?含升级=(\d+).*?长度分布=\{([^}]*)\}", ln)
                         if m2:
                             n_sp_dec += 1
                             sp_ncand.append(int(m2.group(1)))
@@ -257,7 +257,7 @@ def main() -> int:
                                     sp_sizes[int(k.strip())] += int(v.strip())
                 else:
                     for ln in txt.splitlines():
-                        m = re.search(r"\[cand\] mode=pin .*? n_cand=(\d+) .*? 长度分布=\{([^}]*)\}", ln)
+                        m = re.search(r"\[cand\] mode=pin .*?n_cand=(\d+).*?长度分布=\{([^}]*)\}", ln)
                         if m:
                             n_pin_dec += 1
                             pin_ncand.append(int(m.group(1)))
