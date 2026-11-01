@@ -1308,37 +1308,42 @@ def build_engine(seed: int, player: int):
     #   与默认 BundleMCTS（depth=4、iterations 次展开、每次展开一次 net_fn）共用
     #   **同一份候选集 / 类判定 / 值网**，只有"评估器"不同 ⇒ 干净的树 vs 扁平等预算消融。
     _search_kind = _env("AZAI_SEARCH", "mcts")
-    # ── 统一候选生成（2026-10-29，`AZAI_CAND_MODE=pin|unified`，**默认 pin ⇒ 逐位不变**）──────
+    # ── 统一候选生成（2026-10-29，`AZAI_CAND_MODE=pin|unified|shape_pin`，**默认 pin ⇒ 逐位不变**）──
     #   设计（冻结）：docs/unified_cand_design_20261029.md；实现/读数：docs/unified_cand_impl_20261029.md
     #   `unified` = 候选来源换成"类 UCB bandit + 位置游标"（`my_ai/az_intent/unified_cand.py`），
     #   **评估器（阶段 2）仍是 flat 随机化 rollout，一行不动** ⇒ 组合必须 `AZAI_SEARCH=flat`。
+    #   `shape_pin`（2026-11-02）= 介于 pin 与 unified 之间：阶段 1 照跑 unified 的 bandit + 游标，
+    #   但阶段 1 结束后**锁定 s1 第一名候选的有序类序列**，只在该序列内按位置游标顺序取前 k 个
+    #   位置进阶段 2（见 docs/shape_pin_mode_20261102.md）。阶段 2 仍是 flat 一字不动。
     #   ⚠️ `pin` 时这里**只多读一个环境变量**，构造的仍是原来那行 `FlatRolloutGreedy(`。
     _cand_mode = _env("AZAI_CAND_MODE", "pin").strip().lower()
-    if _cand_mode not in ("pin", "unified"):
+    if _cand_mode not in ("pin", "unified", "shape_pin"):
         _log(f"[cand] ⚠️ AZAI_CAND_MODE={_cand_mode!r} 不认识 ⇒ 按 pin（现役行为）处理")
         _cand_mode = "pin"
-    if _cand_mode == "unified" and _search_kind != "flat":
-        _log(f"[cand] ⚠️ AZAI_CAND_MODE=unified 只与 AZAI_SEARCH=flat 组合"
+    _is_unified_cand = _cand_mode in ("unified", "shape_pin")
+    if _is_unified_cand and _search_kind != "flat":
+        _log(f"[cand] ⚠️ AZAI_CAND_MODE={_cand_mode} 只与 AZAI_SEARCH=flat 组合"
              f"（阶段 2 必须是现役 flat rollout）；当前 AZAI_SEARCH={_search_kind} ⇒ 忽略，按 pin 跑")
         _cand_mode = "pin"
-    if _cand_mode == "unified":
+        _is_unified_cand = False
+    if _is_unified_cand:
         # 设计 §3：固定 `AZAI_K=48`，用 top-k 截断（不要动态扩 k）。
-        # `AZAI_K` 不设时 pin 的默认是 1（BundleMCTS 的 k）⇒ unified 下改成 48，否则只有 1 条候选。
+        # `AZAI_K` 不设时 pin 的默认是 1（BundleMCTS 的 k）⇒ unified/shape_pin 下改成 48，否则只有 1 条候选。
         if not _env("AZAI_K", "").strip():
             _kw["k"] = 48
-            _log("[cand] AZAI_K 未设 ⇒ unified 模式按默认 k=48（设计 §3）")
-        # 设计 §4.6：unified 直接接管候选生成，下面这些"候选补丁"开关不再生效（避免双重路径）。
+            _log(f"[cand] AZAI_K 未设 ⇒ {_cand_mode} 模式按默认 k=48（设计 §3）")
+        # 设计 §4.6：unified/shape_pin 直接接管候选生成，下面这些"候选补丁"开关不再生效（避免双重路径）。
         #   ⚠️ 注入类（`AZAI_ORACLE_INJECT*`）**不忽略**：设计 §3 要求"与 unified 候选合并后一起去重"，
         #   它们走的是 `set_extra_bundles` 那条独立通道。
         _ignored = [k for k in ("AZAI_PIN_K", "AZAI_ALWAYS_HOLD", "AZAI_MC_UPG",
                                 "AZAI_MC_CELLS", "AZAI_UPG_BUNDLES")
                     if _env(k, "").strip() not in ("", "0")]
         if _ignored:
-            _log(f"[cand] ⚠️ unified 模式下这些候选补丁开关**不再生效**：{_ignored}"
+            _log(f"[cand] ⚠️ {_cand_mode} 模式下这些候选补丁开关**不再生效**：{_ignored}"
                  f"（候选由统一生成器独占）")
         if _env("AZAI_ONLY_EXTRA", "").strip() not in ("", "0"):
-            _log("[cand] ⚠️ AZAI_ONLY_EXTRA 会**丢掉** unified 候选（候选集=只有额外候选）⇒ 两者别同时用")
-        _log(f"[cand] mode=unified k={_env('AZAI_K', '48')} beta={_env('AZAI_CAND_BETA','3.0')} "
+            _log(f"[cand] ⚠️ AZAI_ONLY_EXTRA 会**丢掉** {_cand_mode} 候选（候选集=只有额外候选）⇒ 两者别同时用")
+        _log(f"[cand] mode={_cand_mode} k={_env('AZAI_K', '48')} beta={_env('AZAI_CAND_BETA','3.0')} "
              f"ucb_c={_env('AZAI_CAND_UCBC','1.0')} pool={_env('AZAI_CAND_POOL','1.5')} "
              f"tau={_env('AZAI_CAND_TAU','1.0')} steps={_env('AZAI_CAND_STEPS','12')} "
              f"steps_total={_env('AZAI_CAND_STEPS_TOTAL','0')} "
@@ -1354,9 +1359,9 @@ def build_engine(seed: int, player: int):
         _value_model.eval()
         if _vdesc(_value_model):
             _log(_vdesc(_value_model))
-        # ⚠️ 只有 `AZAI_CAND_MODE=unified` 才换类；pin 时**就是** `FlatRolloutGreedy`（同一个类）。
+        # ⚠️ 只有 `AZAI_CAND_MODE=unified|shape_pin` 才换类；pin 时**就是** `FlatRolloutGreedy`（同一个类）。
         _searcher_cls = FlatRolloutGreedy
-        if _cand_mode == "unified":
+        if _is_unified_cand:
             from my_ai.az_intent.unified_cand import make_unified_searcher_class
             _searcher_cls = make_unified_searcher_class()
         mcts = _searcher_cls(
@@ -1380,6 +1385,7 @@ def build_engine(seed: int, player: int):
             rollout_decay_k=float(_env("AZAI_FLAT_DECAY_K", "3.0")),
             rollout_share_prefix=bool(int(_env("AZAI_FLAT_SHARE_PREFIX", "0"))),
             rollout_dedupe_weight=bool(int(_env("AZAI_FLAT_DEDUPE", "0"))),
+            **({} if not _is_unified_cand else {"cand_mode": _cand_mode}),
             **_kw,
         )
         # ⚠️ pin 时这一行与改动前**逐字相同**（`cand_mode=` 只在 unified 下追加，免得日志也变）
@@ -1387,7 +1393,7 @@ def build_engine(seed: int, player: int):
              f"horizon={_env('AZAI_FLAT_HORIZON','64')} "
              f"batch={_env('AZAI_FLAT_BATCH','32')} eval={_env('AZAI_FLAT_EVAL','net')} "
              f"rounds={_env('AZAI_FLAT_ROUNDS','39000')}"
-             + (f" cand_mode={_cand_mode}" if _cand_mode == "unified" else ""))
+             + (f" cand_mode={_cand_mode}" if _cand_mode in ("unified", "shape_pin") else ""))
     elif _search_kind == "unified":
         # **统一动作搜索**（2026-10-21）：不做类仲裁，直接枚举原子动作
         # （建塔/升级/降级/闪电/HOLD）逐个 rollout 打分，剩余预算复评 top-k。

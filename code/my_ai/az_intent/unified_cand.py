@@ -217,7 +217,15 @@ class UnifiedCandidateGen:
                  steps_total: int = 0,
                  seed: int = 0,
                  decode_mode: str = "legacy",
+                 mode: str = "unified",
                  verbose: bool = False) -> None:
+        # 2026-11-02（shape_pin）：候选生成模式。
+        #   `unified`（默认）= 阶段 1 按 s1 取 top-k（现役统一候选，行为逐位不变）；
+        #   `shape_pin` = 阶段 1 结束后**锁定 s1 第一名候选的有序类序列**，只在该序列内按
+        #     位置游标顺序（网络先验 argmax→rank k+1）取前 k 个位置进阶段 2（介于 pin 与
+        #     unified 之间）。默认关 ⇒ 不影响现役 unified/pin。见 docs/shape_pin_mode_20261102.md。
+        assert mode in ("unified", "shape_pin"), mode
+        self.mode = str(mode)
         self.k = max(1, int(k))
         self.beta = float(beta)
         self.ucb_c = float(ucb_c)
@@ -452,9 +460,15 @@ class UnifiedCandidateGen:
         return pos_t
 
     # ── ③ 解码 + 逐条 can_apply ───────────────────────────────────────────
-    def _decode_group(self, group: tuple, positions: tuple) -> tuple:
-        """把 (类, 位置) 组解成 op 序列；**逐条 `can_apply` 过滤**（含与已 pending 的冲突）。"""
+    def _decode_group(self, group: tuple, positions: tuple):
+        """把 (类, 位置) 组解成 op 序列；**逐条 `can_apply` 过滤**（含与已 pending 的冲突）。
+
+        返回 `(ops, classes)`：`classes[i]` = 产出 `ops[i]` 的通道号（**按 decode 顺序**）。
+        2026-11-02（shape_pin）：下游要锁定 s1 第一名候选的"有序类序列"，必须知道每个 op
+        来自哪个类、且保持 decode 顺序 ⇒ 这里顺带把通道号带出来（unified 路径忽略 `classes`）。
+        """
         ops: list = []
+        classes: list = []
         pending: list = []
         seen: set = set()
         for ch, cell in zip(group, positions):
@@ -476,9 +490,67 @@ class UnifiedCandidateGen:
             if not ok:
                 continue
             ops.append(t)
+            classes.append(int(ch))
             seen.add(t)
             pending.append(op)
-        return tuple(ops)
+        return tuple(ops), tuple(classes)
+
+    # ── ③b shape_pin：锁定有序类序列 → 按位置游标顺序取前 k 个位置 ──────────────
+    def _shape_pin_topk(self, seq: tuple, k: int):
+        """锁定有序类序列 `seq`，按**位置游标顺序**（混合进制，槽 0 变化最快，步 0 = 全体
+        argmax，即"网络先验 argmax→rank k+1"）枚举其位置组合，取前 k 个**合法**候选。
+
+        与阶段 1 共用 cache：新位置未缓存 ⇒ 跑一次确定性 idle rollout 填 s1（与阶段 1 同款）；
+        已缓存 ⇒ 复用（计入 `n_dup`）。解不出任何 op 的位置组合**跳过**（不把"该位置全非法"
+        当 HOLD）；canon_ops 去重。枚举上限 = min(k, 位置组合总数) ⇒ "凑不满就少输出"。
+
+        返回 `(bundles, keys, scores, classes_list, n_enum, n_dup)`。
+        """
+        seq = tuple(seq)
+        cells = [self.cells.get(c) for c in seq]
+        ns = [len(cc) if cc is not None else 1 for cc in cells]
+        total = 1
+        for n in ns:
+            total *= int(n)
+        limit = min(int(k), total)
+        bundles: list = []
+        keys: list = []
+        scores: list = []
+        cls: list = []
+        n_enum = 0
+        n_dup = 0
+        seen: set = set()
+        for t in range(limit):
+            r = t
+            pos: list = []
+            for cc, n in zip(cells, ns):
+                kk = r % int(n)
+                r //= int(n)
+                pos.append(cc.kth_cell(kk) if cc is not None else NO_POSITION)
+            n_enum += 1
+            ops, _cs = self._decode_group(seq, tuple(pos))
+            if not ops:
+                continue                       # 该位置组合解不出任何合法 op ⇒ 跳过
+            key = canon_ops(ops)
+            if key in seen:
+                continue
+            seen.add(key)
+            vals = self.cache.get(key)
+            if vals is None:
+                if self.rollout_fn is not None:
+                    vals = list(np.asarray(self.rollout_fn(self.state, self.player, [ops]),
+                                           dtype=np.float64).tolist())
+                    self.cache[key] = vals
+                else:
+                    vals = []
+            else:
+                n_dup += 1
+            score = float(np.mean(vals)) if vals else 0.0
+            bundles.append(ops)
+            keys.append(key)
+            scores.append(score)
+            cls.append(list(_cs))
+        return bundles, keys, scores, cls, n_enum, n_dup
 
     # ── ④ 主流程 ──────────────────────────────────────────────────────────
     def generate(self, state, player: int, net_out: dict, k: int | None = None) -> dict:
@@ -500,7 +572,7 @@ class UnifiedCandidateGen:
         # 类采样的随机流：**由状态指纹种子化** ⇒ 同局面同结果（可复现，且不依赖调用顺序/时间）
         self._rng = np.random.default_rng(self._seed_of(net_out))
         rng = self._rng
-        picked_out: list = []          # [(key, bundle, score, pos_score_text)]
+        picked_out: list = []          # [(key, bundle, score, classes)]（classes = 有序类序列）
         n_dup = 0                      # **缓存命中次数**（复用分数 + 推进游标，不 rollout）
         n_attempts = 0
         n_steps = 0                    # 位置组合推进总步数
@@ -512,8 +584,12 @@ class UnifiedCandidateGen:
             """（转调外层方法，便于单测；语义见 `UnifiedCandidateGen._credit`。）"""
             self._credit(shape, score)
 
-        def _emit(bundle: tuple, shape: tuple) -> bool:
-            """缓存未命中 ⇒ rollout 收下（True）；命中 ⇒ 复用分数 + 计入 Q（False）。"""
+        def _emit(bundle: tuple, shape: tuple, classes: tuple = ()) -> bool:
+            """缓存未命中 ⇒ rollout 收下（True）；命中 ⇒ 复用分数 + 计入 Q（False）。
+
+            2026-11-02（shape_pin）：`classes` = 该 bundle 的有序类序列（decode 顺序），
+            供 shape_pin 锁定 s1 第一名候选的类序列用。unified 路径只把它存进 picked_out。
+            """
             nonlocal n_dup
             key = canon_ops(bundle)
             vals = self.cache.get(key)
@@ -526,7 +602,7 @@ class UnifiedCandidateGen:
             self.cache[key] = vals
             score = float(np.mean(vals)) if vals else 0.0
             _credit(shape, score)
-            picked_out.append((key, bundle, score))
+            picked_out.append((key, bundle, score, classes))
             return True
 
         def _advance_shape(shape: tuple) -> bool:
@@ -543,8 +619,8 @@ class UnifiedCandidateGen:
                     self.dead.add(shape)       # 该形状位置已穷尽
                     return False
                 n_steps += 1
-                bundle = self._decode_group(shape, pos)
-                if _emit(bundle, shape):
+                bundle, classes = self._decode_group(shape, pos)
+                if _emit(bundle, shape, classes):
                     return True
             return False
 
@@ -587,10 +663,32 @@ class UnifiedCandidateGen:
                               f" 穷尽={len(self.dead)}）", file=sys.stderr, flush=True)
                     break
 
-        # ③ 按阶段 1 分数取 top-k（设计 §2 阶段 1：确定性 idle rollout 分）
-        picked_out.sort(key=lambda x: (-x[2], x[0]))
-        bundles = [b for (_k, b, _s) in picked_out[:k]]
-        keys = [kk for (kk, _b, _s) in picked_out[:k]]
+        # ── ③ 阶段 1 → 阶段 2 的候选选择 ───────────────────────────────────────
+        #   unified（默认）：按阶段 1 分数取 top-k（设计 §2：确定性 idle rollout 分）。
+        #   shape_pin（2026-11-02）：**锁定 s1 第一名候选的有序类序列**，再按位置游标顺序
+        #     （网络先验 argmax→rank k+1）取该序列的前 k 个位置，**不按 s1 排序**。
+        locked_seq: tuple = ()
+        locked_score = 0.0
+        n_locked_enum = 0
+        n_locked_dup = 0
+        if self.mode == "shape_pin":
+            if picked_out:
+                _best = max(picked_out, key=lambda x: x[2])   # (key, bundle, score, classes)
+                locked_seq = tuple(int(c) for c in (_best[3] or ()))
+                locked_score = float(_best[2])
+            if not locked_seq:
+                # s1 第一名是 HOLD（空束）⇒ 锁定"空序列" = pin 到 HOLD：候选 = 仅 HOLD 一条
+                bundles = [()]
+                keys = [()]
+                scores = [float(max((x[2] for x in picked_out), default=0.0))]
+            else:
+                bundles, keys, scores, _cls, n_locked_enum, n_locked_dup = \
+                    self._shape_pin_topk(locked_seq, k)
+        else:
+            picked_out.sort(key=lambda x: (-x[2], x[0]))
+            bundles = [b for (_k, b, _s, _cs) in picked_out[:k]]
+            keys = [kk for (kk, _b, _s, _cs) in picked_out[:k]]
+            scores = [s for (_k, _b, s, _cs) in picked_out[:k]]
         n_upg = sum(1 for b in bundles if any(int(o[0]) == 12 for o in b))
         has_hold = int(any(len(b) == 0 for b in bundles))
         sizes: dict = {}
@@ -616,7 +714,12 @@ class UnifiedCandidateGen:
             "n_multi_same": int(n_multi_same), "multi_same_examples": multi_same_examples,
             # `q_entries` = Σ_c |Q[c]|：缓存命中**也**计入 Q ⇒ 这个数远大于池大小（命中语义的读数）
             "q_entries": int(sum(len(v) for v in self.Q.values())),
-            "keys": keys, "scores": [s for (_k, _b, s) in picked_out[:k]],
+            "keys": keys, "scores": scores,
+            # shape_pin 专用读数（unified 下 locked_seq 恒空、n_locked_enum=0 ⇒ 零影响）
+            "locked_seq": list(locked_seq),
+            "locked_score": float(locked_score),
+            "n_locked_enum": int(n_locked_enum),
+            "n_locked_dup": int(n_locked_dup),
             # 2026-10-31（用户要求的可解释性埋点）：把进 top-k 的**真实 bundle**（下发顺序）
             #   与生成器内部状态一起交给 `search()` 打 `[candq]`。只在 verbose 时会被打印，
             #   但列表本身**总是**填（48 个小元组，零成本）—— 免得"verbose 与非 verbose 走不同分支"。
@@ -627,11 +730,13 @@ class UnifiedCandidateGen:
             "beta": float(self.beta), "ucb_c": float(self.ucb_c),
         }
         if self.verbose:
-            print(f"[cand] gen 池={len(picked_out)} 取={len(bundles)} 缓存命中={n_dup} "
-                  f"步数={n_steps} 形状={len(self.cursor)}(穷尽{len(self.dead)}) "
+            _sp = (f" 锁定序列={locked_seq}(枚举{n_locked_enum},缓存命中{n_locked_dup})"
+                   if self.mode == "shape_pin" else "")
+            print(f"[cand] gen mode={self.mode} 池={len(picked_out)} 取={len(bundles)} "
+                  f"缓存命中={n_dup} 步数={n_steps} 形状={len(self.cursor)}(穷尽{len(self.dead)}) "
                   f"重复类形状={n_rep} 同类型多op={n_multi_same} Q条目={self.last_stats['q_entries']} "
                   f"HOLD={has_hold}(兜底{hold_forced}) 升级={n_upg} 长度分布={sizes} "
-                  f"{p1_ms:.0f} ms", file=sys.stderr, flush=True)
+                  f"{p1_ms:.0f} ms{_sp}", file=sys.stderr, flush=True)
         return {"bundles": bundles, "stats": dict(self.last_stats)}
 
 
@@ -671,6 +776,7 @@ def make_unified_searcher_class():
                 steps_total=int(_env("AZAI_CAND_STEPS_TOTAL", "0")),
                 seed=int(_env("AZAI_CAND_SEED", "0")),
                 decode_mode=_env("AZAI_CAND_DECODE", "legacy").strip().lower(),
+                mode=self.cand_mode,
                 verbose=self.cand_verbose,
             )
             self.cand_gen.k = int(self.k)
@@ -679,6 +785,19 @@ def make_unified_searcher_class():
             self.cand_gen.rollout_fn = self.idle_rollout_values
             self._p1_cache = None          # 阶段 1 的 {规范化 bundle: [value]}（给阶段 2 复用）
             self._phase2_cache = None      # 只在 P1/P2 估计器一致时非 None
+            # 2026-11-02（父任务硬约束）：shape_pin 只在"阶段 1 → 阶段 2 选候选"这一处动刀，
+            #   阶段 2 仍是父类 FlatRolloutGreedy.search()。这里**无条件**打一行，证明阶段 2
+            #   参数 = 部署 BASE 的 flat 参数（rollouts/horizon/batch/mode/side/prob/rounds/seed/
+            #   share_prefix/eval/k 全原样从 self 读），便于与 pin/unified 的 stderr 对表。
+            if self.cand_mode == "shape_pin":
+                print(f"[shape_pin] engine=flat rollouts={self.rollouts_per_candidate} "
+                      f"horizon={self.horizon} batch={self.value_batch} "
+                      f"rollout_mode={self.rollout_mode} side={self.rollout_random_side} "
+                      f"prob={self.rollout_prob_mode}({self.rollout_decay_c},"
+                      f"{self.rollout_decay_k}) rounds={self.max_total_rounds} "
+                      f"seed={self.rollout_seed} share_prefix={int(self.rollout_share_prefix)} "
+                      f"eval={self.eval_mode} k={self.k} decode={self.cand_gen.decode_mode}",
+                      file=sys.stderr, flush=True)
 
         # ── 候选来源：统一生成器（`bundle_mcts._expand` 的 pin 路径原样保留、不经过这里）──
         def _expand(self, node, k: int) -> float:
@@ -816,7 +935,7 @@ def make_unified_searcher_class():
                                          "chosen_hold": chosen_hold,
                                          "decide_ms": dt_ms})
             if self.cand_verbose:
-                print(f"[cand] mode=unified n_cand={n_cand} 含HOLD={has_hold} 含升级={n_upg} "
+                print(f"[cand] mode={self.cand_mode} n_cand={n_cand} 含HOLD={has_hold} 含升级={n_upg} "
                       f"decode={self.cand_gen.decode_mode} "
                       f"池={st.get('n_pool', 0)} 缓存命中={st.get('n_dup', 0)} "
                       f"步数={st.get('steps', 0)} 形状={st.get('shapes', 0)}"
@@ -832,6 +951,14 @@ def make_unified_searcher_class():
                           file=sys.stderr, flush=True)
                 self._emit_candq(st, res, n_cand)
                 self._emit_candcursor()
+                if self.cand_mode == "shape_pin":
+                    # 2026-11-02（shape_pin 逐决策读数）：锁定的是哪个有序类序列 + 枚举了多少位置。
+                    #   供离线聚合"shape_pin 的候选构成"（docs/shape_pin_mode_20261102.md）。
+                    print(f"[shape_pin] locked_seq={self._shape_str(tuple(st.get('locked_seq', ())))} "
+                          f"locked_score={float(st.get('locked_score', float('nan'))):+.4f} "
+                          f"n_cand={n_cand} n_enum={st.get('n_locked_enum', 0)} "
+                          f"cache_hit={st.get('n_locked_dup', 0)} n_pool={st.get('n_pool', 0)}",
+                          file=sys.stderr, flush=True)
             return res
 
         # ── 游标推进深度（`AZAI_CAND_VERBOSE=1` 才打；只读 `cand_gen.cursor`，不改任何决策）──
