@@ -1317,10 +1317,10 @@ def build_engine(seed: int, player: int):
     #   位置进阶段 2（见 docs/shape_pin_mode_20261102.md）。阶段 2 仍是 flat 一字不动。
     #   ⚠️ `pin` 时这里**只多读一个环境变量**，构造的仍是原来那行 `FlatRolloutGreedy(`。
     _cand_mode = _env("AZAI_CAND_MODE", "pin").strip().lower()
-    if _cand_mode not in ("pin", "unified", "shape_pin"):
+    if _cand_mode not in ("pin", "unified", "shape_pin", "unified_noupg"):
         _log(f"[cand] ⚠️ AZAI_CAND_MODE={_cand_mode!r} 不认识 ⇒ 按 pin（现役行为）处理")
         _cand_mode = "pin"
-    _is_unified_cand = _cand_mode in ("unified", "shape_pin")
+    _is_unified_cand = _cand_mode in ("unified", "shape_pin", "unified_noupg")
     if _is_unified_cand and _search_kind != "flat":
         _log(f"[cand] ⚠️ AZAI_CAND_MODE={_cand_mode} 只与 AZAI_SEARCH=flat 组合"
              f"（阶段 2 必须是现役 flat rollout）；当前 AZAI_SEARCH={_search_kind} ⇒ 忽略，按 pin 跑")
@@ -1393,7 +1393,7 @@ def build_engine(seed: int, player: int):
              f"horizon={_env('AZAI_FLAT_HORIZON','64')} "
              f"batch={_env('AZAI_FLAT_BATCH','32')} eval={_env('AZAI_FLAT_EVAL','net')} "
              f"rounds={_env('AZAI_FLAT_ROUNDS','39000')}"
-             + (f" cand_mode={_cand_mode}" if _cand_mode in ("unified", "shape_pin") else ""))
+             + (f" cand_mode={_cand_mode}" if _cand_mode in ("unified", "shape_pin", "unified_noupg") else ""))
     elif _search_kind == "unified":
         # **统一动作搜索**（2026-10-21）：不做类仲裁，直接枚举原子动作
         # （建塔/升级/降级/闪电/HOLD）逐个 rollout 打分，剩余预算复评 top-k。

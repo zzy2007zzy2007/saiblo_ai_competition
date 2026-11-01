@@ -757,6 +757,9 @@ def make_unified_searcher_class():
         def __init__(self, *args, cand_mode: str = "unified", cand_gen=None, **kwargs):
             super().__init__(*args, **kwargs)
             self.cand_mode = str(cand_mode)
+            # 2026-11-02：unified_noupg = unified + 阶段1→阶段2 之间删掉含升级(op12)的候选。
+            #   默认 False（unified/shape_pin 逐字不变）；见 `_expand` 的过滤 + docs/noupg 文档。
+            self.cand_no_upgrade = (str(cand_mode) == "unified_noupg")
             self.last_cand_stats: dict = {}
             # 2026-11-01（用户要求）：**游标推进深度**的跨决策累计（`AZAI_CAND_VERBOSE=1` 才填）。
             #   `cursor_agg[shape_str] = {"n_trials": 该形状累计被提议的步数,
@@ -764,6 +767,9 @@ def make_unified_searcher_class():
             #                             "t": [每决策的 t（推进步数）, ...]}`
             #   用途：回答"被选得多的形状，游标推到几格？是卡在 steps_per_shape 还是更浅？"
             self.cursor_agg: dict = {}
+            # 2026-11-02：unified_noupg 的**阶段1 生成器**与 unified 完全相同（bandit + 游标），
+            #   差异只在 `_expand` 里"阶段1→阶段2 之间删升级候选" ⇒ 生成器 mode 用 "unified"。
+            _gen_mode = "unified" if self.cand_mode == "unified_noupg" else self.cand_mode
             self.cand_gen = cand_gen if cand_gen is not None else UnifiedCandidateGen(
                 k=self.k,
                 beta=float(_env("AZAI_CAND_BETA", "3.0")),
@@ -776,7 +782,7 @@ def make_unified_searcher_class():
                 steps_total=int(_env("AZAI_CAND_STEPS_TOTAL", "0")),
                 seed=int(_env("AZAI_CAND_SEED", "0")),
                 decode_mode=_env("AZAI_CAND_DECODE", "legacy").strip().lower(),
-                mode=self.cand_mode,
+                mode=_gen_mode,
                 verbose=self.cand_verbose,
             )
             self.cand_gen.k = int(self.k)
@@ -789,7 +795,7 @@ def make_unified_searcher_class():
             #   阶段 2 仍是父类 FlatRolloutGreedy.search()。这里**无条件**打一行，证明阶段 2
             #   参数 = 部署 BASE 的 flat 参数（rollouts/horizon/batch/mode/side/prob/rounds/seed/
             #   share_prefix/eval/k 全原样从 self 读），便于与 pin/unified 的 stderr 对表。
-            if self.cand_mode in ("unified", "shape_pin"):
+            if self.cand_mode in ("unified", "shape_pin", "unified_noupg"):
                 # 2026-11-02：unified 也打这一行（原来只 shape_pin 打），证明阶段 2 的
                 #   flat 参数（rollout_mode 等）确实 = 部署 BASE / 本实验的 lightning 臂。
                 #   ⚠️ lightning 模式忽略 rollout_random_side、固定随机侧=我方 ⇒ 侧这里
@@ -818,6 +824,16 @@ def make_unified_searcher_class():
             res = self.cand_gen.generate(node.state, node.player, net_out, k=int(k))
             bundles = list(res["bundles"])
             self.last_cand_stats = dict(res["stats"])
+            # 2026-11-02：unified_noupg —— **只在"阶段1 结束、top-k 已生成、阶段2 之前"** 删掉
+            #   含升级(op12)的候选；阶段1 bandit/cursor 与阶段2 flat rollout 都一字不动。
+            #   兜底：全被删 ⇒ 退化为 HOLD（空束）。理论上有 force_hold=1 兜底所以罕见。
+            if self.cand_no_upgrade:
+                _n_before = len(bundles)
+                bundles = [b for b in bundles
+                           if not any(int(o[0]) == 12 for o in (b or ()))]
+                if not bundles:
+                    bundles = [()]
+                self.last_cand_stats["n_upg_removed"] = _n_before - len(bundles)
             self._p1_cache = dict(self.cand_gen.cache)
             # 阶段 2 复用：**只有两个估计器完全一致时**才允许（默认 idle vs random 不一致）
             self._phase2_cache = (self._p1_cache
@@ -942,7 +958,7 @@ def make_unified_searcher_class():
                                          "decide_ms": dt_ms})
             if self.cand_verbose:
                 print(f"[cand] mode={self.cand_mode} n_cand={n_cand} 含HOLD={has_hold} 含升级={n_upg} "
-                      f"decode={self.cand_gen.decode_mode} "
+                      f"删升级={st.get('n_upg_removed', 0)} decode={self.cand_gen.decode_mode} "
                       f"池={st.get('n_pool', 0)} 缓存命中={st.get('n_dup', 0)} "
                       f"步数={st.get('steps', 0)} 形状={st.get('shapes', 0)}"
                       f"(穷尽{st.get('dead_shapes', 0)}) 重复类形状={st.get('n_rep', 0)} "
