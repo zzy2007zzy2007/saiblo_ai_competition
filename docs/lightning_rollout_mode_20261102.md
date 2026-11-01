@@ -83,20 +83,50 @@ unified 侧 stderr 的 `[unified] engine=flat ... rollout_mode=lightning ...` �
 | 记录 | `bash code/run_logged.sh lightning_rollout_ab bash code/test_match/_lightning_rollout_ab.sh`（WMI detached） |
 | 有效性 | 只算 `verdict=engine`；stderr 唯一后缀 `_lightning` |
 
-## 5. 结果
+## 5. 结果（16 局 = seeds 100..107 × 2 座位，`verdict=engine` 16/16、illegal 全 0）
 
-> 16 局 A/B 跑完后填：unified(闪电rollout) vs pin 的胜率（Wilson CI）+ 血差 Δhp（t CI）。
+| 主读数 | 值 |
+|---|---|
+| **胜率** | **0W-16L / 16 = 0.0%**，Wilson 95% = **[0.0%, 19.4%]** |
+| **血差 Δhp = A − B** | 按 seed 配对（n=8 对）：**mean = −20.9**，**t95 = [−24.6, −17.3]**（se=1.6） |
+| 血差（16 局不配对） | mean −20.9，median −19.5，min −30，max −10 |
+| 座位拆分 | A 坐 P0（n=8）：Δhp −21.0；坐 P1（n=8）：Δhp −20.9（**两个座位都负、几乎无座位偏**） |
 
-_待补_
+逐局 Δhp（A − B）：−18 / −15 / −19 / −19 / −25 / −24 / −26 / −24 / −18 / −30 / −20 / −18 / −18 / −10 / −24 / −27。
+**16 局里 A 的基地血量全是 0**（被平推）。
+
+**结论**：`AZAI_FLAT_ROLLOUT_MODE=lightning`（我方在 rollout 里以 decay(1,3) 概率随机放闪电）**显著劣于**现役
+`random`（对手随机建塔/降级）。胜率 0%、血差 t95 整段在 0 以下，且无座位偏 ⇒ 不是先手噪声。
 
 ## 6. 关键观察（unified 侧放闪电/攒钱行为有没有变）
 
-> 跑完后填：对比 shape_pin 那批（unified 侧攒不到 90 放闪电），本批 unified 侧
-> 放闪电次数 / 攒到 90 的决策 / `[act]` 里的 op21 频率。
+（口径：A 臂 5854 决策 vs B 臂 5854 决策，同批对局 stderr `[act]` / `round=` 聚合）
 
-_待补_
+| 行为 | A（unified+我方放闪电rollout） | B（pin+对手建塔/降级rollout） |
+|---|---|---|
+| 闪电 op21 发出次数 | **55** | **147** |
+| 建塔 op11 | 1430 | 1559 |
+| 升级 op12 | 100 | 0 |
+| 降级 op13 | 1426 | 1461 |
+| HOLD（空束）回合 | 3511 | 3887 |
+| **金币≥90 的决策（攒到 90）** | **245/5854 = 4.2%** | **2560/5853 = 43.7%** |
 
-## 7. commit
+**结论：没有。而且是反方向。** 我方在 rollout 里随机放闪电，**没有**让 unified 侧更爱攒钱/更爱放闪电——它
+攒到 90 的决策占比反而掉到 **4.2%**（pin 是 43.7%），真的放闪电 **55 次**（pin 是 147 次）。
+
+机理解释（与 `docs/lightning_diagnostic_summary_20261102.md` 一致）：值网是**静态叶子评估器**，在 rollout 里
+我方随机花 90 金币放闪电 ⇒ 叶子态里"我方更穷 + 闪电冷却中" ⇒ 值网把"攒钱/放闪电"的未来打得更低 ⇒ 搜索更
+回避闪电。**想用"给 rollout 塞闪电"来教值网认可闪电，方向反了** —— 随机放闪电是个亏本动作，值网如实学到的
+是"别这么干"。
+
+## 7. 对称性（与 shape_pin 对照）
+
+shape_pin 改的是 **s1**（阶段1 候选生成）：s1 的弱评估器因为"对手不动"选不出好类 ⇒ 偏好 HOLD/降级（1W-15L，
+Δhp −18.5）。本实验改的是 **s2**（阶段2 rollout 随机动作）：把"对手随机 churn"换成"我方随机放闪电" ⇒ 0W-16L，
+Δhp −20.9。**两端都更差**，说明：s1 的"对手不动"和 s2 的"对手 churn"都不是统一的瓶颈——两个偏是独立的，且
+各自都让评估器更失真。
+
+## 8. commit
 
 - `1e0d461` 加 flat rollout 新模式 lightning（默认关）+ unified(闪电rollout) vs pin A/B 驱动/冒烟
 - `6917d6b` ab_search_modes 加 `AB_SEARCH_SUFFIX_TAG`（默认空）避免并发批次 stderr 覆盖
