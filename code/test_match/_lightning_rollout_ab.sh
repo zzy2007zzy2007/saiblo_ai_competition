@@ -61,7 +61,9 @@ echo "=============================================================="
 
 # MVS_STDERR_SUFFIX=1：同 seed 两局（P0/P1 并发）的 stderr 必须带 _p0/_p1 后缀，否则互相覆盖
 #   （match_via_sdk.py 只在该开关=1 时把 DSH_PROGRESS_SUFFIX 拼进 stderr 文件名）。
+# AB_SEARCH_SUFFIX_TAG=_lightning：与并发批次（如 shape_pin）的 stderr 区分开，避免互相覆盖。
 export MVS_STDERR_SUFFIX=1
+export AB_SEARCH_SUFFIX_TAG="_lightning"
 
 "$P" -u code/test_match/ab_search_modes.py \
     --seeds $SEEDS --jobs "$JOBS" --paired-sides \

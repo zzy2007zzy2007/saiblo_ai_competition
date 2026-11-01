@@ -411,8 +411,13 @@ def main() -> int:
                f"--ai1-env={env1}",
                str(seed)]
         # 2026-10-23：配对模式同一 seed 打两局 ⇒ 进度文件必须带座位后缀，否则互相覆盖
+        # 2026-11-02：`AB_SEARCH_SUFFIX_TAG`（默认空 ⇒ 逐字不变）给并发批次加唯一前缀，
+        #   避免多个 A/B 批次（如 shape_pin 与 lightning）写同一个
+        #   `ai?_az_bridge_ai_seed<N>_p0.stderr.log` 互相覆盖（stderr 行为分析被污染）。
         env_game = dict(env_base)
-        env_game["DSH_PROGRESS_SUFFIX"] = "" if flat_side_in is None else f"_p{0 if flat_is_p0 else 1}"
+        _st_tag = os.environ.get("AB_SEARCH_SUFFIX_TAG", "")
+        _st_suf = "" if flat_side_in is None else f"{_st_tag}_p{0 if flat_is_p0 else 1}"
+        env_game["DSH_PROGRESS_SUFFIX"] = _st_suf
         t0 = time.time()
         wd = {"fired": False, "hard": False}
         with sem:
