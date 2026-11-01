@@ -155,6 +155,12 @@ class FlatRolloutGreedy(BundleMCTS):
         self.last_timing = {}
         self.last_rollouts = 0
         self.last_rounds = 0
+        # ── 前缀树 dump（**只读诊断**，默认关；`AZAI_FLAT_DUMP_TREE=1` 或 `self._dump_tree=True` 才记录）──
+        #   动机：`AZAI_FLAT_ROLLOUTS=64` 全看不可能，但要把 flat rollout 的**前缀树**（共享前缀、
+        #   分叉点、每条 rollout 的叶子值网分）扒出来解释"为什么某候选 s2 低"。
+        #   ⚠️ 默认关 ⇒ 对现役搜索的数值行为逐位零影响（只是 `_tree_rollout_value` 里多一次 bool 判空）。
+        self._dump_tree = False
+        self._tree_dump = None
         # ── 引擎 RNG 消费开关（默认关 ⇒ 下面所有 `if self._rng_on` 分支都不执行）──
         #   `AZAI_FLAT_RNG_PERTURB=1` 时自动打开（命令行/构造参数也可显式给）。
         if rollout_rng_perturb is None:
@@ -301,6 +307,12 @@ class FlatRolloutGreedy(BundleMCTS):
         from SDK.backend.model import Operation
         from SDK.utils.constants import OperationType, HIGHLAND_CELLS
 
+        # ── 前缀树 dump（只读诊断，默认关 ⇒ 与改动前逐位一致）────────────────
+        _dump = bool(getattr(self, "_dump_tree", False)) or _os.environ.get("AZAI_FLAT_DUMP_TREE", "0") == "1"
+        if _dump:
+            self._tree_dump = {"nodes": {0: {"parent": -1, "depth": 0, "token": None}},
+                               "paths": []}
+
         ctx = {"cells": {0: list(HIGHLAND_CELLS[0]), 1: list(HIGHLAND_CELLS[1])}}
         # node_id -> state（state 已推进到该节点回合结束）
         states = {0: child.clone()}
@@ -319,6 +331,7 @@ class FlatRolloutGreedy(BundleMCTS):
                 rng, rng_p = _item, None
             cur = 0
             _seq = []
+            _path = [] if _dump else None
             for _r in range(self.horizon):
                 st = states[cur]
                 if st.terminal:
@@ -359,16 +372,27 @@ class FlatRolloutGreedy(BundleMCTS):
                     next_id += 1
                     states[nxt] = sim
                     edges[key] = nxt
+                    if _dump:
+                        self._tree_dump["nodes"][nxt] = {
+                            "parent": int(cur), "depth": int(_r) + 1,
+                            "token": [list(t) for t in token]}
                 cur = nxt
+                if _dump:
+                    _path.append((int(_r), [list(t) for t in token], int(cur)))
                 # 去重加权按"轨迹签名"分组：消费次数也必须进签名（否则两条
                 # 消费模式不同的轨迹会被当成同一条）
                 _seq.append((token, _k) if _k else token)
             leaf_states.append(states[cur])
             leaf_tokens.append(tuple(_seq))
+            if _dump:
+                self._tree_dump["paths"].append(_path)
         self.last_tree_nodes = getattr(self, "last_tree_nodes", 0) + next_id
         if not leaf_states:
             return 0.0
         _lv = self._leaf_values(leaf_states, player)     # ← 批量评估（与朴素路径一致）
+        if _dump:
+            self._tree_dump["leaf_values"] = [float(v) for v in _lv]
+            self._tree_dump["score"] = float(np.mean(_lv))
         if _REC_SAMPLES:
             self.last_tree_stats = (len(states), len(leaf_states), len(set(leaf_tokens)))
             self.last_leaf_tokens = list(leaf_tokens)
