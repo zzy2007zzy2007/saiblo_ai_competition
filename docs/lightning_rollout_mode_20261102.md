@@ -78,7 +78,7 @@ unified 侧 stderr 的 `[unified] engine=flat ... rollout_mode=lightning ...` �
 | B 臂 | `AZAI_CAND_MODE=pin` + BASE 自带 `AZAI_FLAT_ROLLOUT_MODE=random` |
 | 两臂唯一差别 | 候选生成（unified vs pin）+ 随机动作的侧/类（我方闪电 vs 对手建塔/降级） |
 | 对局 | 16 局 = seeds 100..107 × 2 座位（镜像配对，抵消先手偏） |
-| 并行 | `--jobs 4`（留 CPU 给别的） |
+| 并行 | `--jobs 8`（串行：shape_pin 跑完让出 6 进程后开 8，总 ≤ 16 核纪律） |
 | 驱动 | `code/test_match/_lightning_rollout_ab.sh` → `ab_search_modes.py`（ai0/ai1 都指 az_bridge_ai.py） |
 | 记录 | `bash code/run_logged.sh lightning_rollout_ab bash code/test_match/_lightning_rollout_ab.sh`（WMI detached） |
 | 有效性 | 只算 `verdict=engine`；stderr 唯一后缀 `_lightning` |
