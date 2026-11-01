@@ -434,6 +434,10 @@ class FlatRolloutGreedy(BundleMCTS):
         _lv = self._leaf_values(leaf_states, player)     # ← 批量评估（与朴素路径一致）
         if _dump:
             self._tree_dump["leaf_values"] = [float(v) for v in _lv]
+            # 2026-11-02（叶子金币项离线预检用）：每条 rollout 叶子的"己方金币"（raw coins），
+            # 供离线脚本算 `mean(coins)/300` 后套 `s2' = s2 + α·(coins/300)`（与 _leaf_values
+            # 同尺度）。纯只读、只在 _dump 时填 ⇒ 默认路径零影响。
+            self._tree_dump["leaf_coins"] = [int(st.coins[player]) for st in leaf_states]
             self._tree_dump["score"] = float(np.mean(_lv))
         if _REC_SAMPLES:
             self.last_tree_stats = (len(states), len(leaf_states), len(set(leaf_tokens)))
