@@ -809,7 +809,8 @@ def make_unified_searcher_class():
                       f"{self.rollout_decay_k}) rounds={self.max_total_rounds} "
                       f"seed={self.rollout_seed} share_prefix={int(self.rollout_share_prefix)} "
                       f"eval={self.eval_mode} k={self.k} decode={self.cand_gen.decode_mode} "
-                      f"leaf_coin_alpha={self.leaf_coin_alpha}",
+                      f"leaf_coin_alpha={self.leaf_coin_alpha} "
+                      f"leaf_coin_mode={self.leaf_coin_mode}",
                       file=sys.stderr, flush=True)
 
         # ── 候选来源：统一生成器（`bundle_mcts._expand` 的 pin 路径原样保留、不经过这里）──

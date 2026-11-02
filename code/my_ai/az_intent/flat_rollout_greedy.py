@@ -101,12 +101,14 @@ class FlatRolloutGreedy(BundleMCTS):
                  rollout_rng_key: str = "state",
                  max_total_rounds: int = DEFAULT_MAX_TOTAL_ROUNDS,
                  verbose: bool = False,
-                 # ── 叶子金币项（2026-11-02）：leaf_value = V(leaf) + α × (my_coins/300) ──
+                 # ── 叶子金币项（2026-11-02）：leaf_value = V(leaf) + α·bonus(coins) ──
                  #   `AZAI_LEAF_COIN_ALPHA`（默认 0 ⇒ 与现役逐字一致，零影响）。
                  #   "己方金币"用归一化 `coins/300`（与值网输入 stats[22] 同尺度，
                  #   见 `Ant-Game/SDK/utils/features.py:227`），故 α 的量纲 = 每单位
                  #   coins/300 的 V 增量（V 单位 = 1，×20 = HP）。正值 ⇒ 让金币更值钱。
+                 #   模式由 `leaf_coin_mode` 决定（见下；linear = 现值网同尺度线性项）。
                  leaf_coin_alpha: float = None,
+                 leaf_coin_mode: str = None,
                  **kwargs):
         super().__init__(*args, **kwargs)
         assert eval_mode in ("net", "hand"), eval_mode
@@ -185,11 +187,19 @@ class FlatRolloutGreedy(BundleMCTS):
             self._rng_enabled_engine = _rng_engine.enable(verbose=self.verbose or True)
             self._rng_on = bool(self._rng_enabled_engine)
         # ── 叶子金币项（2026-11-02）：`AZAI_LEAF_COIN_ALPHA`（默认 0 ⇒ 零影响）──
-        #   在 `_leaf_values` 里把叶子分数加成 `V(leaf) + α × (my_coins/300)`。
-        #   读 env 与"显式构造参数"同优先级：None ⇒ 读 env（不设 = "0"）。
+        #   在 `_leaf_values` 里把叶子分数加成 `V(leaf) + α·bonus(coins)`。
+        #   读 env 与"显式构造参数"同优先级：None ⇒ 读 env（alpha 不设 = "0"）。
+        #   模式 `leaf_coin_mode`（`AZAI_LEAF_COIN_MODE`，默认 "linear"）：
+        #     · linear = α·(coins/300)（现值网同尺度线性项）
+        #     · hinge90 = α·min(coins,90)/300（分段：<90 斜率 α 激励攒钱；≥90 封顶，
+        #       放闪电花 90 不再被惩罚 ⇒ 把"金币价值"做成"攒到 90 能放闪电"的期权结构）
         if leaf_coin_alpha is None:
             leaf_coin_alpha = _os.environ.get("AZAI_LEAF_COIN_ALPHA", "0")
         self.leaf_coin_alpha = float(leaf_coin_alpha)
+        if leaf_coin_mode is None:
+            leaf_coin_mode = _os.environ.get("AZAI_LEAF_COIN_MODE", "linear")
+        assert leaf_coin_mode in ("linear", "hinge90"), leaf_coin_mode
+        self.leaf_coin_mode = str(leaf_coin_mode)
         if eval_mode == "net" and value_model is None:
             raise ValueError("eval_mode='net' 需要 value_model（load_three_models 的第三个返回值）")
         if eval_mode == "net" and feature_extractor is None:
@@ -501,8 +511,10 @@ class FlatRolloutGreedy(BundleMCTS):
         # ── 叶子金币项（默认 α=0 ⇒ 下面整段跳过，与现役逐字一致）────────────────
         if self.leaf_coin_alpha != 0.0:
             _coins = np.array([float(st.coins[root_player]) for st in states],
-                              dtype=np.float64) / 300.0
-            values = values + self.leaf_coin_alpha * _coins
+                              dtype=np.float64)
+            if self.leaf_coin_mode == "hinge90":
+                _coins = np.minimum(_coins, 90.0)     # 分段：≥90 封顶 ⇒ 放闪电不被惩罚
+            values = values + self.leaf_coin_alpha * (_coins / 300.0)
         return values
 
     @staticmethod
