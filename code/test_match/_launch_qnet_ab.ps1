@@ -1,7 +1,7 @@
 # Launch Q-net bias A/B experiment detached (via WMI Win32_Process Create) so it
 # survives the agent turn. Keep this file PURE ASCII.
 param(
-    [string]$Mode = 'classprior',   # classprior | s2mix | combo
+    [string]$Mode = 'classprior',   # classprior | s2mix | combo | prioronly
     [string]$Seeds = '100 101',
     [int]$Jobs = 2,
     [string]$Qnets = 'terminal kgeo50',
@@ -34,6 +34,9 @@ if ($Mode -eq 'classprior') {
     $env:W = $W
     $name = if ($Tag) { $Tag } else { 'qnet_combo_ab_small' }
     & $Bash code/run_logged.sh $name bash code/test_match/_qnet_combo_ab.sh *>> $marker
+} elseif ($Mode -eq 'prioronly') {
+    $name = if ($Tag) { $Tag } else { 'qnet_prioronly_ab_small' }
+    & $Bash code/run_logged.sh $name bash code/test_match/_qnet_prioronly_ab.sh *>> $marker
 } else {
     $env:W = $W
     $name = if ($Tag) { $Tag } else { 'qnet_s2mix_ab_small' }
