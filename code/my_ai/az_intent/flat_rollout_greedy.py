@@ -52,6 +52,16 @@ from my_ai.az_intent.value_override import value_of  # noqa: E402
 DEFAULT_MAX_TOTAL_ROUNDS = 39_000
 
 
+def _zscore(x) -> np.ndarray:
+    """安全 z-score（NaN 用 nan 统计；std≈0 ⇒ 返回全 0）。给 Q 网 s2 混合用。"""
+    x = np.asarray(x, dtype=np.float64)
+    mu = float(np.nanmean(x))
+    sd = float(np.nanstd(x))
+    if not np.isfinite(sd) or sd < 1e-12:
+        return np.zeros_like(x)
+    return (x - mu) / sd
+
+
 class FlatRolloutGreedy(BundleMCTS):
     """一次扩张出候选 + 每候选 N 次 h 回合 rollout 打分（无树）。"""
 
@@ -109,6 +119,9 @@ class FlatRolloutGreedy(BundleMCTS):
                  #   模式由 `leaf_coin_mode` 决定（见下；linear = 现值网同尺度线性项）。
                  leaf_coin_alpha: float = None,
                  leaf_coin_mode: str = None,
+                 # 2026-11-02（Q 网 s2 混合，实验 B）：`QNetScorer`；默认 None ⇒ 零影响。
+                 #   权重读 `AZAI_QNET_S2_MIX`（默认 0 = 关）。见 `search()` 末尾的混合块。
+                 qnet_scorer=None,
                  **kwargs):
         super().__init__(*args, **kwargs)
         assert eval_mode in ("net", "hand"), eval_mode
@@ -200,6 +213,11 @@ class FlatRolloutGreedy(BundleMCTS):
             leaf_coin_mode = _os.environ.get("AZAI_LEAF_COIN_MODE", "linear")
         assert leaf_coin_mode in ("linear", "hinge90"), leaf_coin_mode
         self.leaf_coin_mode = str(leaf_coin_mode)
+        # ── Q 网 s2 混合（2026-11-02，实验 B）：`AZAI_QNET_S2_MIX=w`（默认 0 ⇒ 零影响）──
+        #   `qnet_scorer` 为 None 或 w=0 时，`search()` 里混合块一步都不执行。
+        self.qnet_scorer = qnet_scorer
+        self.qnet_s2_mix = float(_os.environ.get("AZAI_QNET_S2_MIX", "0"))
+        self.last_qnet_mix = None
         if eval_mode == "net" and value_model is None:
             raise ValueError("eval_mode='net' 需要 value_model（load_three_models 的第三个返回值）")
         if eval_mode == "net" and feature_extractor is None:
@@ -517,6 +535,13 @@ class FlatRolloutGreedy(BundleMCTS):
             values = values + self.leaf_coin_alpha * (_coins / 300.0)
         return values
 
+    def _qnet_candidate_values(self, state, player: int, bundles: list) -> np.ndarray:
+        """每条候选 bundle 的 Q(s, a_candidate)：动作多重集向量**直接前向**（不用偏导）。"""
+        from my_ai.az_intent.qnet_action import encode_ops
+        vecs = np.stack([np.asarray(encode_ops(list(b or ())), dtype=np.float32)
+                         for b in bundles])
+        return np.asarray(self.qnet_scorer.score_actions(state, player, vecs), dtype=np.float64)
+
     @staticmethod
     def _size_hist(bundles) -> dict:
         """候选长度直方图（只给 `AZAI_CAND_VERBOSE` 的日志用，纯只读）。"""
@@ -791,11 +816,28 @@ class FlatRolloutGreedy(BundleMCTS):
             print(f"[flat] 候选 {n_cand} 个 × {n_rollouts} 次 × {self.horizon} 回合 "
                   f"= {total_rounds} 回合（约 {total_rounds * 62.7 / 1e6:.2f} s）", flush=True)
 
+        # ── Q 网 s2 混合（2026-11-02，实验 B；`AZAI_QNET_S2_MIX=w`，默认 w=0 ⇒ 零影响）──
+        #   每条候选：s2' = zscore(s2) + w × zscore(Q(s, a_candidate))；再按 s2' argmax。
+        #   Q(s,a_candidate) = 该候选动作多重集向量的**直接前向**（encode_ops，不用偏导）。
+        #   z-score 在**本决策的候选集内**（全局）做；std=0/NaN 安全（_zscore 返回 0）。
+        _selection = scores
+        self.last_qnet_mix = None
+        if self.qnet_s2_mix != 0.0 and self.qnet_scorer is not None and n_cand > 1:
+            _qvals = self._qnet_candidate_values(state, player, bundles)
+            _s2z = _zscore(scores)
+            _qz = _zscore(_qvals)
+            _selection = _s2z + self.qnet_s2_mix * _qz
+            self.last_qnet_mix = {"q": _qvals, "s2z": _s2z, "qz": _qz, "mixed": _selection}
+            if getattr(self, "cand_verbose", False):
+                _dbg = " ".join(f"[{_i},{_qvals[_i]:+.3f}]" for _i in range(n_cand)[:8])
+                print(f"[qnet_mix] w={self.qnet_s2_mix} 候选Q(前8)={_dbg}",
+                      file=sys.stderr, flush=True)
+
         # 退化保护：全 NaN / 全相等时退回先验（沿用 Depth0Greedy 的做法）
-        if not np.isfinite(scores).any() or np.nanmax(scores) - np.nanmin(scores) < 1e-9:
+        if not np.isfinite(_selection).any() or np.nanmax(_selection) - np.nanmin(_selection) < 1e-9:
             best = int(np.argmax(priors)) if priors.size else 0
         else:
-            best = int(np.nanargmax(np.where(np.isfinite(scores), scores, -np.inf)))
+            best = int(np.nanargmax(np.where(np.isfinite(_selection), _selection, -np.inf)))
 
         policy = np.zeros(n_cand, dtype=np.float32)
         policy[best] = 1.0

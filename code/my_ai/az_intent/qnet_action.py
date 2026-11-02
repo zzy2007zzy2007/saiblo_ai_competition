@@ -167,6 +167,50 @@ class QActionNet(nn.Module):
         return [p for p in self.parameters() if p.requires_grad]
 
 
+# ----------------------------------------------------------------- 部署：Q 网打分器
+class QNetScorer:
+    """部署用：给一个局面 + 一批动作多重集向量**直接前向**求 Q(s,a)（不取偏导）。
+
+    state_emb 只算一次（encoder 与 action 无关），动作向量批量过 `action_mlp` + `q_head`。
+    """
+
+    def __init__(self, model: "QActionNet", feature_extractor, device):
+        self.model = model                  # QActionNet（已 eval）
+        self.feat = feature_extractor
+        self.device = torch.device(device)
+        self._zeros = np.zeros(96)
+
+    @torch.no_grad()
+    def score_actions(self, state, player: int, action_vecs) -> np.ndarray:
+        """`action_vecs`: (N, 24) float32/float64 → (N,) float64 Q(s,a)。"""
+        obs = self.feat.encode_observation(state, int(player), self._zeros)
+        board = torch.from_numpy(obs["board"]).unsqueeze(0).float().to(self.device)
+        stats = torch.from_numpy(obs["stats"]).unsqueeze(0).float().to(self.device)
+        se = self.model.state_embed(board, stats)          # (1, state_dim)
+        a = torch.from_numpy(np.asarray(action_vecs, dtype=np.float32)).to(self.device)
+        act_emb = self.model.action_mlp(a)                 # (N, action_emb)
+        x = torch.cat([se.expand(act_emb.shape[0], -1), act_emb], dim=1)
+        return self.model.q_head(x).squeeze(-1).cpu().numpy().astype(np.float64)
+
+
+def load_qnet_scorer(model_path: str, feature_extractor, device: str = "cpu") -> QNetScorer:
+    """从 Q 网 checkpoint 建部署打分器（device 默认 cpu，与 flat 搜索逐位一致）。
+
+    checkpoint 里记录了 `encoder_ckpt`（Q 网训练时冻结的那个值网 encoder）⇒ 从这里重载，
+    不依赖调用方的 `AZAI_CKPT`/`AZAI_VALUE_CKPT` 覆盖。
+    """
+    dev = torch.device(device)
+    sd = torch.load(model_path, map_location="cpu", weights_only=False)
+    encoder_ckpt = sd.get("encoder_ckpt", "checkpoints/posnet_A_k5_m32.pt")
+    from my_ai.az_intent.az_selfplay import load_three_models
+    _, _, value_model = load_three_models(encoder_ckpt)
+    model = QActionNet(value_model).to(dev)
+    model.action_mlp.load_state_dict(sd["action_mlp"])
+    model.q_head.load_state_dict(sd["q_head"])
+    model.eval()
+    return QNetScorer(model, feature_extractor, dev)
+
+
 # ----------------------------------------------------------------------------- 数据
 
 def _iter_games(data_dir: Path):

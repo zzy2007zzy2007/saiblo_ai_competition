@@ -218,7 +218,8 @@ class UnifiedCandidateGen:
                  seed: int = 0,
                  decode_mode: str = "legacy",
                  mode: str = "unified",
-                 verbose: bool = False) -> None:
+                 verbose: bool = False,
+                 class_prior_fn=None) -> None:
         # 2026-11-02（shape_pin）：候选生成模式。
         #   `unified`（默认）= 阶段 1 按 s1 取 top-k（现役统一候选，行为逐位不变）；
         #   `shape_pin` = 阶段 1 结束后**锁定 s1 第一名候选的有序类序列**，只在该序列内按
@@ -257,6 +258,10 @@ class UnifiedCandidateGen:
         # 类采样的随机流种子（默认 0；实际种子 = 本值 ⊕ **状态指纹** ⇒ 同局面结果可复现）
         self.cand_seed = int(seed)
         self.verbose = bool(verbose)
+        # 类先验（2026-11-02，`AZAI_QNET_CLASS_PRIOR=1` 时由搜索器注入；默认 None ⇒ 零影响）：
+        #   `(state, player, classes) -> {class: float}`。`_reset_decision` 里用它把
+        #   `Q[c]` 初始成 `[Q(s, a_c)]`（而不是空表=均匀），让 bandit 一开始偏向值钱类。
+        self.class_prior_fn = class_prior_fn
         # 阶段 1 的 rollout 函数（由搜索器注入：`(state, player, bundles) -> np.ndarray`）
         self.rollout_fn = None
         # 缓存：规范化 bundle → [value]（同一 bundle 只算一次；也给阶段 2 复用；**跨形状共享**）
@@ -316,6 +321,32 @@ class UnifiedCandidateGen:
         self.legal = [c for c in range(min(N_CHANNELS, int(self.cmask.shape[0])))
                       if bool(self.cmask[c])]
         self.Q = {c: [] for c in self.legal}
+        # 2026-11-02（Q 网类先验，默认 class_prior_fn=None ⇒ 跳过、零影响）：
+        #   初始 Q[c] = [Q(s, a_c)]，a_c = 第 c 类=1 的 one-hot 多重集向量。
+        #   ⚠️ Q 网输出量纲 = 终局血差 clip(±1)，与阶段1 rollout 分数（值网 tanh）不同尺度/偏移，
+        #   直接塞进 `_q_util` 的玻尔兹曼加权会被第一个 rollout 分数淹没 ⇒ 这里先做**决策内 z-score**
+        #   （跨 legal 类）再去当初始 Q[c]（保留"闪电>>其它"的相对排序，去掉量纲/偏移）。
+        #   UCB 的 `n<=0 → +inf` 分支不动 ⇒ 先验只影响"已试过臂"的利用项（`_q_util`）。
+        self.last_class_prior = {}
+        if self.class_prior_fn is not None and self.legal:
+            _priors = self.class_prior_fn(self.state, self.player, list(self.legal))
+            if isinstance(_priors, dict):
+                _raw = {}
+                for _c in self.legal:
+                    _v = _priors.get(int(_c))
+                    if _v is not None and np.isfinite(float(_v)):
+                        _raw[int(_c)] = float(_v)
+                if _raw:
+                    _xs = np.asarray([_raw[_c] for _c in self.legal if _c in _raw],
+                                     dtype=np.float64)
+                    _mu, _sd = float(_xs.mean()), float(_xs.std())
+                    _sd = _sd if _sd > 1e-9 else 1.0
+                    for _c in self.legal:
+                        if _c in _raw:
+                            self.Q[_c] = [float((_raw[_c] - _mu) / _sd)]
+                    self.last_class_prior = {
+                        int(_c): {"raw": _raw[_c], "z": float((_raw[_c] - _mu) / _sd)}
+                        for _c in self.legal if _c in _raw}
         self.N = {c: 0 for c in self.legal}
         self.N_total = 0
 
@@ -789,6 +820,19 @@ def make_unified_searcher_class():
             self.cand_gen.verbose = self.cand_verbose
             # 阶段 1 的 rollout 函数 = 本类的**确定性 idle** 实现（现役 idle 语义）
             self.cand_gen.rollout_fn = self.idle_rollout_values
+            # 2026-11-02（Q 网类先验，实验 A）：`AZAI_QNET_CLASS_PRIOR=1` + qnet_scorer 已注入时，
+            #   给 bandit 的 Q[c] 注入 Q(s, a_c) 先验（默认关 ⇒ 零影响）。
+            self.qnet_class_prior = _env("AZAI_QNET_CLASS_PRIOR", "0") == "1"
+            if self.qnet_class_prior:
+                _qs = getattr(self, "qnet_scorer", None)
+                if _qs is not None:
+                    self.cand_gen.class_prior_fn = self._make_class_prior_fn()
+                    if self.cand_verbose:
+                        print(f"[qnet_prior] AZAI_QNET_CLASS_PRIOR=1 ⇒ Q[c] 用 Q(s,a_c) 初始化",
+                              file=sys.stderr, flush=True)
+                else:
+                    print("[qnet_prior] ⚠️ AZAI_QNET_CLASS_PRIOR=1 但 qnet_scorer 未加载 ⇒ 忽略",
+                          file=sys.stderr, flush=True)
             self._p1_cache = None          # 阶段 1 的 {规范化 bundle: [value]}（给阶段 2 复用）
             self._phase2_cache = None      # 只在 P1/P2 估计器一致时非 None
             # 2026-11-02（父任务硬约束）：shape_pin 只在"阶段 1 → 阶段 2 选候选"这一处动刀，
@@ -812,6 +856,20 @@ def make_unified_searcher_class():
                       f"leaf_coin_alpha={self.leaf_coin_alpha} "
                       f"leaf_coin_mode={self.leaf_coin_mode}",
                       file=sys.stderr, flush=True)
+
+        # ── 类先验打分（2026-11-02，实验 A）：classes → {c: Q(s, a_c)} ────────────────
+        def _make_class_prior_fn(self):
+            """返回 `(state, player, classes) -> {class: float}`；a_c = 第 c 类=1 的 one-hot。"""
+            import numpy as _np
+            _scorer = self.qnet_scorer
+
+            def _fn(state, player, classes):
+                _vecs = _np.zeros((len(classes), 24), dtype=_np.float32)
+                for _i, _c in enumerate(classes):
+                    _vecs[_i, int(_c)] = 1.0
+                _vals = _scorer.score_actions(state, player, _vecs)
+                return {int(_c): float(_v) for _c, _v in zip(classes, _vals)}
+            return _fn
 
         # ── 候选来源：统一生成器（`bundle_mcts._expand` 的 pin 路径原样保留、不经过这里）──
         def _expand(self, node, k: int) -> float:

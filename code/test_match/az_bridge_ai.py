@@ -1186,6 +1186,21 @@ def build_engine(seed: int, player: int):
     from my_ai.az_intent.menu3_candidates import make_menu3_fn as _menu3_fn
 
     feat = FeatureExtractor(max_actions=96)
+    # ── Q 网偏置（2026-11-02，实验 A/B）：`AZAI_QNET_CKPT` 指向训练好的 Q 网 checkpoint ──
+    #   · 实验 A：`AZAI_QNET_CLASS_PRIOR=1` ⇒ bandit 的 Q[c] 用 Q(s,a_c) 初始化（类先验）。
+    #   · 实验 B：`AZAI_QNET_S2_MIX=w` ⇒ 阶段2 排序分混合 w×zscore(Q(s,a_candidate))。
+    #   默认不设 ⇒ 完全不加载、零影响。Q 网 encoder 用 ckpt 内记录的 `encoder_ckpt` 重载，
+    #   不依赖本进程的 `AZAI_CKPT`/`AZAI_VALUE_CKPT` 覆盖（保证与训练时逐位一致）。
+    _qnet_scorer = None
+    _qnet_ckpt = _env("AZAI_QNET_CKPT", "")
+    if _qnet_ckpt:
+        _qp = Path(_qnet_ckpt)
+        _qnet_ckpt = str(_qp if _qp.is_absolute() else (Path(MVS.REPO_ROOT) / _qp).resolve())
+        from my_ai.az_intent.qnet_action import load_qnet_scorer
+        _qnet_scorer = load_qnet_scorer(_qnet_ckpt, feat, device="cpu")
+        _log(f"qnet bias: loaded {_qnet_ckpt} "
+             f"(class_prior={_env('AZAI_QNET_CLASS_PRIOR', '0')} "
+             f"s2_mix={_env('AZAI_QNET_S2_MIX', '0')})")
     model, net_fn = make_net_fn_from_ckpt(
         ckpt, feat,
         value_tanh=bool(int(_env("AZAI_VALUE_TANH", "1"))),
@@ -1386,6 +1401,7 @@ def build_engine(seed: int, player: int):
             rollout_share_prefix=bool(int(_env("AZAI_FLAT_SHARE_PREFIX", "0"))),
             rollout_dedupe_weight=bool(int(_env("AZAI_FLAT_DEDUPE", "0"))),
             **({} if not _is_unified_cand else {"cand_mode": _cand_mode}),
+            qnet_scorer=_qnet_scorer,
             **_kw,
         )
         # ⚠️ pin 时这一行与改动前**逐字相同**（`cand_mode=` 只在 unified 下追加，免得日志也变）
