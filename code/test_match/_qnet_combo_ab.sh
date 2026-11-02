@@ -48,7 +48,8 @@ for ARM in $ARMS; do
     OUTDIR="$OUTROOT/${ARM}"
     mkdir -p "$OUTDIR"
     FLAT_ENV="$BASE;AZAI_CAND_MODE=unified;AZAI_CAND_VERBOSE=1;AZAI_QNET_CKPT=$CKPT$QEXTRA$STEPS"
-    MCTS_ENV="$BASE;AZAI_CAND_MODE=pin;AZAI_CAND_VERBOSE=1"
+    # 对手 = 原版 unified（只差那个 Q 网/游标开关；BASE 其余逐字一致）⇒ 直接看 delta
+    MCTS_ENV="$BASE;AZAI_CAND_MODE=unified;AZAI_CAND_VERBOSE=1"
     export MVS_STDERR_SUFFIX=1
     export AB_SEARCH_SUFFIX_TAG="_$TAG"
     echo ""
