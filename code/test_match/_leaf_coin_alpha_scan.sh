@@ -23,7 +23,7 @@ SEEDS="${SEEDS:-100 101 102 103}"
 RETRY="${RETRY:-1}"
 GAME_TIMEOUT_S="${GAME_TIMEOUT_S:-7200}"
 ALPHAS="${ALPHAS:-0 0.02 0.037 0.07 0.15 0.30}"
-OUTROOT="match_results/leaf_coin_alpha"
+MODE="${MODE:-linear}"   # linear | hinge90（分段版：bonus=α·min(coins,90)/300）
 
 # BASE：与 `_us_vs_external.sh:68` 逐字相同（历史批次可比性的锚点）
 BASE="$(sed -n 's/^BASE="\(.*\)"$/\1/p' code/test_match/_us_vs_external.sh)"
@@ -36,27 +36,34 @@ case "$BASE" in
     *) echo "[lca] !! BASE 里没有 AZAI_FLAT_ROLLOUT_MODE=random ⇒ 停" >&2; exit 2 ;;
 esac
 
+# mode → 输出目录 / stderr tag / 额外 env
+case "$MODE" in
+    linear)  OUTROOT="match_results/leaf_coin_alpha";  TAG_PREFIX="lca";  MODE_ENV="" ;;
+    hinge90) OUTROOT="match_results/leaf_coin_hinge90"; TAG_PREFIX="lcah"; MODE_ENV=";AZAI_LEAF_COIN_MODE=hinge90" ;;
+    *) echo "[lca] !! MODE=$MODE 不认识（linear|hinge90）" >&2; exit 2 ;;
+esac
+
 mkdir -p "$OUTROOT"
 echo "=============================================================="
-echo "[lca] α 扫描：unified(+leaf_coin_alpha) vs pin+random"
+echo "[lca] α 扫描：unified(+leaf_coin_alpha) vs pin+random  mode=$MODE"
 echo "[lca] alphas=[$ALPHAS]  seeds=[$SEEDS]  jobs=$JOBS  retry=$RETRY"
 echo "[lca] BASE 与 _us_vs_external.sh:68 逐字相同（${#BASE} 字符）"
 echo "[lca] $(date '+%F %T')"
 echo "=============================================================="
 
 for ALPHA in $ALPHAS; do
-    TAG="lca${ALPHA}"
+    TAG="${TAG_PREFIX}${ALPHA}"
     OUTDIR="$OUTROOT/a${ALPHA}"
     mkdir -p "$OUTDIR"
     # A 臂：unified + 叶子金币项（α 覆盖 BASE 里没有的键；AZAI_CAND_VERBOSE=1 只为行为日志）
-    FLAT_ENV="$BASE;AZAI_CAND_MODE=unified;AZAI_CAND_VERBOSE=1;AZAI_LEAF_COIN_ALPHA=$ALPHA"
+    FLAT_ENV="$BASE;AZAI_CAND_MODE=unified;AZAI_CAND_VERBOSE=1;AZAI_LEAF_COIN_ALPHA=$ALPHA$MODE_ENV"
     MCTS_ENV="$BASE;AZAI_CAND_MODE=pin;AZAI_CAND_VERBOSE=1"
     # 每个 α 用唯一 stderr 后缀，避免串行批次之间互相覆盖（并方便分析端按 α 归档）
     export MVS_STDERR_SUFFIX=1
     export AB_SEARCH_SUFFIX_TAG="_$TAG"
     echo ""
     echo "[lca] ── α=$ALPHA → $OUTDIR  seeds=[$SEEDS] jobs=$JOBS ──"
-    echo "[lca] A env: ... AZAI_CAND_MODE=unified AZAI_LEAF_COIN_ALPHA=$ALPHA"
+    echo "[lca] A env: ... AZAI_CAND_MODE=unified AZAI_LEAF_COIN_ALPHA=$ALPHA mode=$MODE"
     echo "[lca] B env: ... AZAI_CAND_MODE=pin"
     "$P" -u code/test_match/ab_search_modes.py \
         --seeds $SEEDS --jobs "$JOBS" --paired-sides \
@@ -73,6 +80,6 @@ echo "=============================================================="
 echo "[lca] 全部 α 跑完 $(date '+%F %T')"
 echo "[lca] 分析："
 echo "  $P -u code/test_match/analyze_leaf_coin_alpha.py \\"
-echo "      --alphas $(echo $ALPHAS | tr ' ' ',') --seeds $(echo $SEEDS | tr ' ' ',') \\"
+echo "      --alphas $(echo $ALPHAS | tr ' ' ',') --seeds $(echo $SEEDS | tr ' ' ',') --mode $MODE \\"
 echo "      --json $OUTROOT/summary.json"
 echo "=============================================================="

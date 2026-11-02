@@ -136,9 +136,10 @@ def _behavior(stderr_path: Path, seat: int) -> dict:
     return out
 
 
-def analyze_alpha(alpha: str, seeds: list[int], out_root: Path, ladder) -> dict:
+def analyze_alpha(alpha: str, seeds: list[int], out_root: Path, ladder,
+                  tag_prefix: str = "lca") -> dict:
     a_dir = out_root / f"a{alpha}"
-    tag = f"lca{alpha}"
+    tag = f"{tag_prefix}{alpha}"
     rows: list[dict] = []
     missing: list[str] = []
     invalid: list[tuple[str, str]] = []
@@ -228,21 +229,31 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--alphas", default="0,0.02,0.037,0.07,0.15,0.30")
     ap.add_argument("--seeds", default="100-103")
-    ap.add_argument("--out-root", default=str(REPO / "match_results" / "leaf_coin_alpha"))
+    ap.add_argument("--mode", default="linear", help="linear | hinge90")
+    ap.add_argument("--out-root", default="")
     ap.add_argument("--json", default="")
     args = ap.parse_args()
 
+    mode = args.mode
+    if mode == "hinge90":
+        tag_prefix = "lcah"
+        default_out = str(REPO / "match_results" / "leaf_coin_hinge90")
+    else:
+        tag_prefix = "lca"
+        default_out = str(REPO / "match_results" / "leaf_coin_alpha")
+
     alphas = _parse_alphas(args.alphas)
     seeds = _parse_seeds(args.seeds)
-    out_root = Path(args.out_root)
+    out_root = Path(args.out_root or default_out)
     if not out_root.is_absolute():
         out_root = REPO / out_root
     ladder = _load_ladder()
 
-    results = [analyze_alpha(a, seeds, out_root, ladder) for a in alphas]
+    results = [analyze_alpha(a, seeds, out_root, ladder, tag_prefix=tag_prefix)
+               for a in alphas]
 
     print("=== 叶子金币项 α 扫描：unified(+AZAI_LEAF_COIN_ALPHA=α) vs pin+flat "
-          f"（seeds {seeds[0]}..{seeds[-1]} × 2 座位）===")
+          f"mode={mode}（seeds {seeds[0]}..{seeds[-1]} × 2 座位）===")
     print(f"α ∈ {alphas}   有效局/α 以日志 verdict=engine 为准\n")
 
     # ── 主表 ──
