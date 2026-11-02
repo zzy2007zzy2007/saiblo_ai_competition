@@ -13972,3 +13972,58 @@ bridge 的 dump 也加上 `visits_raw`（**不覆盖旧字段** ⇒ 任何既有
   ```
 - **output**: `training_history/runs/20261101_163416_noupg_ab/output.log`
 - **result**: unified_noupg（候选层删升级） vs pin+random 16 局（seeds 100..107×2 座位，verdict=engine 16/16、illegal 全 0）：**unified_noupg 0W-16L，胜率 0%（Wilson [0%,19.4%]）；血差 Δhp = −22.4（配对 t95 [−26.1,−18.8]）**。行为：541/5573 决策删过升级、共删 7023 条升级候选；删完后 A 臂放闪电 36 次（pin 139）、攒到 90 金币只占 2.2%（121/5573，pin 47.4%），替代是偏转15+闪避5 这些超武 ⇒ 删升级没让搜索更爱攒钱/放闪电，反而更回避。详见 `docs/noupg_mode_20261102.md`。
+
+## 2026-11-01 20:52:12 — leaf_coin_alpha_scan
+
+- **commit**: `044b88d` (dirty: 3 files)
+- **exit**: 0，用时 40407s
+- **cmd**:
+  ```bash
+  bash code/test_match/_leaf_coin_alpha_scan.sh
+  ```
+- **output**: `training_history/runs/20261101_205212_leaf_coin_alpha_scan/output.log`
+- **result**: _待填_
+
+## 2026-11-02 11:48:21 — qnet_classprior_ab_small
+
+- **commit**: `cce2028` (dirty: 3 files)
+- **exit**: 0，用时 123s
+- **cmd**:
+  ```bash
+  bash code/test_match/_qnet_classprior_ab.sh
+  ```
+- **output**: `training_history/runs/20261102_114821_qnet_classprior_ab_small/output.log`
+- **result**: _待填_
+
+## 2026-11-02 08:06:10 — leaf_coin_alpha_rescan
+
+- **commit**: `b539f1f` (dirty: 3 files)
+- **exit**: 0，用时 30787s
+- **cmd**:
+  ```bash
+  bash code/test_match/_leaf_coin_alpha_scan.sh
+  ```
+- **output**: `training_history/runs/20261102_080609_leaf_coin_alpha_rescan/output.log`
+- **result**: _待填_
+
+## 2026-11-02 13:09:18 — qnet_classprior_ab_small
+
+- **commit**: `0c6c906` (dirty: 3 files)
+- **exit**: 0，用时 19875s
+- **cmd**:
+  ```bash
+  bash code/test_match/_qnet_classprior_ab.sh
+  ```
+- **output**: `training_history/runs/20261102_130918_qnet_classprior_ab_small/output.log`
+- **result**: _待填_
+
+## 2026-11-02 13:30:41 — leaf_coin_hinge90_scan
+
+- **commit**: `569d509` (dirty: 3 files)
+- **exit**: 0，用时 25636s
+- **cmd**:
+  ```bash
+  bash code/test_match/_leaf_coin_alpha_scan.sh
+  ```
+- **output**: `training_history/runs/20261102_133041_leaf_coin_hinge90_scan/output.log`
+- **result**: _待填_
