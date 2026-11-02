@@ -202,6 +202,12 @@ def load_qnet_scorer(model_path: str, feature_extractor, device: str = "cpu") ->
     dev = torch.device(device)
     sd = torch.load(model_path, map_location="cpu", weights_only=False)
     encoder_ckpt = sd.get("encoder_ckpt", "checkpoints/posnet_A_k5_m32.pt")
+    # ⚠️ 训练时 `encoder_ckpt` 存的是相对仓库根的路径（如 `checkpoints/posnet_A_k5_m32.pt`），
+    #   而部署时 bridge 的 cwd = code/test_match ⇒ 相对路径会解析错。这里按仓库根重解。
+    _ec = Path(encoder_ckpt)
+    if not _ec.is_absolute():
+        _ec = (_REPO / _ec).resolve()
+        encoder_ckpt = str(_ec)
     from my_ai.az_intent.az_selfplay import load_three_models
     _, _, value_model = load_three_models(encoder_ckpt)
     model = QActionNet(value_model).to(dev)
