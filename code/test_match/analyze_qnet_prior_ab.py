@@ -224,11 +224,13 @@ def main() -> int:
     agg = {"A": dict(decisions=0, holds=0, ops=collections.Counter(), n90=0, n_coins=0),
            "B": dict(decisions=0, holds=0, ops=collections.Counter(), n90=0, n_coins=0)}
     per_game: list[dict] = []
+    # stderr 落点固定是 `match_results/`（match_via_sdk.py 的 keep_dir），与 out-dir 深度无关。
+    _stderr_dir = REPO / "match_results"
     for seed in seeds:
         for side in (0, 1):
             a_seat = side
-            a_file = out_dir.parent / (f"ai{a_seat}_az_bridge_ai_seed{seed}_{args.stderr_tag}_p{side}.stderr.log")
-            b_file = out_dir.parent / (f"ai{1 - a_seat}_az_bridge_ai_seed{seed}_{args.stderr_tag}_p{side}.stderr.log")
+            a_file = _stderr_dir / (f"ai{a_seat}_az_bridge_ai_seed{seed}_{args.stderr_tag}_p{side}.stderr.log")
+            b_file = _stderr_dir / (f"ai{1 - a_seat}_az_bridge_ai_seed{seed}_{args.stderr_tag}_p{side}.stderr.log")
             ba = _behavior(a_file, a_seat)
             bb = _behavior(b_file, 1 - a_seat)
             for k, v in ba.items():
