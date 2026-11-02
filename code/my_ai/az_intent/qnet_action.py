@@ -60,6 +60,7 @@ N_CLASS = 24
 HOLD = 23
 DOWNGRADE = 16
 LIGHTNING = 17
+CD_IDX = 26     # stats 里"己方闪电冷却"的索引（features.py encode_stats: extras[4]=cd/cooldown → stats[22+4]）
 BUILD_OP, UPGRADE_OP, DOWNGRADE_OP = 11, 12, 13
 SUPER_OP = {21: 17, 22: 18, 23: 19, 24: 20}   # op_type -> class（闪电/EMP/偏转/急避）
 BASE_OP = {31: 21, 32: 22}                     # op_type -> class（基地升级）
@@ -381,6 +382,22 @@ def _grad_batch(model, bb, ss, aa):
     return q.detach(), g
 
 
+def _mixed_deriv_batch(model, bb, ss, aa):
+    """混合二阶导：∂²Q/∂(动作数量)∂(闪电冷却 stats[CD_IDX])。
+
+    让 stats 也 requires_grad，encoder 直接前向（不经 no_grad，其参数冻结但输入可微），
+    先对 action 求一阶（create_graph），再对 stats 的 cd 分量求导。返回 (d2build, d2upg)。
+    """
+    state_emb = model.encoder(bb, ss)["state_emb"]          # 梯度可流回 ss
+    a = model.action_mlp(aa)
+    q = model.q_head(torch.cat([state_emb, a], dim=1)).squeeze(-1)
+    g_a = torch.autograd.grad(q.sum(), aa, create_graph=True, retain_graph=True)[0]  # (B,24)
+    d2_build = torch.autograd.grad(g_a[:, 0].sum(), ss, retain_graph=True)[0][:, CD_IDX]
+    g_upg = g_a[:, list(UPGRADE_SEEN_CLASSES)].mean(dim=1)
+    d2_upg = torch.autograd.grad(g_upg.sum(), ss)[0][:, CD_IDX]
+    return d2_build.detach(), d2_upg.detach()
+
+
 def probe_main(args) -> None:
     dev = torch.device(args.device if args.device != "auto"
                        else ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -391,6 +408,7 @@ def probe_main(args) -> None:
     print(f"[qnet:probe] device={dev}  label={args.label_mode}  model={args.model}  N={N}", flush=True)
 
     coins_np = np.asarray(coins)
+    cd_np = np.asarray(cd)
     chosen_vec = np.asarray(a)
     is_build = chosen_vec[:, 0] > 0
     is_upg = chosen_vec[:, 1:16].sum(axis=1) > 0
@@ -483,6 +501,63 @@ def probe_main(args) -> None:
               f"{ord_['light_build_frac']*100:5.0f}% {ord_['light_build_upg_frac']*100:6.0f}% "
               f"{ord_['light_first_frac']*100:6.0f}%", flush=True)
 
+    # ── 冷却分层：∂Q/∂(建塔/升级) 随闪电冷却 cd 怎么变 ──────────────────────
+    # 推测："闪电已好(cd=0) 时花钱建塔/升级更不值（挤占现在就放闪电的机会）"。
+    print("\n===== ∂Q/∂a 随闪电冷却 cd 分桶（HOLD 参考点）=====", flush=True)
+    cd_buckets = [("cd=0(已好)", 0, 0), ("cd1-15(刚放)", 1, 15), ("cd16-35(冷却中)", 16, 35)]
+    res["cd_buckets"] = {}
+    for name, clo, chi in cd_buckets:
+        m = (cd_np >= clo) & (cd_np <= chi)
+        idx = sample(np.nonzero(m)[0], args.per_scene * 3)
+        if len(idx) == 0:
+            print(f"  {name}: 无样本", flush=True)
+            continue
+        Q, G = grads_for(idx)
+        g_build = G[:, 0]
+        g_upg = G[:, list(UPGRADE_SEEN_CLASSES)].mean(axis=1)
+        g_light = G[:, LIGHTNING]
+        res["cd_buckets"][name] = {"n": len(idx), "build": float(g_build.mean()),
+                                   "upg_seen": float(g_upg.mean()), "lightning": float(g_light.mean())}
+        print(f"  {name:>14} n={len(idx):>6}  建塔(0)={g_build.mean():+.5f}  "
+              f"升级(见)={g_upg.mean():+.5f}  闪电(17)={g_light.mean():+.5f}", flush=True)
+
+    # ── 联合分层：金币≥90 子集里，cd=0 vs cd>0 ──────────────────────────────
+    print("\n===== 金币≥90 子集：cd=0 vs cd>0（建塔/升级偏导）=====", flush=True)
+    res["cd_joint"] = {}
+    for name, m in (("ge90&cd=0", (coins_np >= 90) & (cd_np == 0)),
+                    ("ge90&cd>0", (coins_np >= 90) & (cd_np > 0))):
+        idx = sample(np.nonzero(m)[0], args.per_scene * 3)
+        if len(idx) == 0:
+            print(f"  {name}: 无样本", flush=True)
+            continue
+        Q, G = grads_for(idx)
+        g_build = G[:, 0]
+        g_upg = G[:, list(UPGRADE_SEEN_CLASSES)].mean(axis=1)
+        res["cd_joint"][name] = {"n": len(idx), "build": float(g_build.mean()),
+                                 "upg_seen": float(g_upg.mean())}
+        print(f"  {name:>12} n={len(idx):>6}  建塔(0)={g_build.mean():+.5f}  "
+              f"升级(见)={g_upg.mean():+.5f}", flush=True)
+
+    # ── 混合二阶导 ∂²Q/∂(建塔|升级)∂(cd)（可选）──────────────────────────────
+    # stats[CD_IDX]=闪电cd/cooldown。符号>0 ⇒ cd 越大（越冷却）花钱边际越高 = 闪电好时花钱更不值。
+    print("\n===== 混合二阶导 ∂²Q/∂(动作)∂(cd)（全量抽样）=====", flush=True)
+    mix_idx = np.random.default_rng(1).choice(N, min(N, 8000), replace=False)
+    d2_builds = np.zeros(len(mix_idx), dtype=np.float32)
+    d2_upgs = np.zeros(len(mix_idx), dtype=np.float32)
+    for i in range(0, len(mix_idx), args.batch_size):
+        j = mix_idx[i:i + args.batch_size]
+        bb = torch.from_numpy(np.asarray(b[j], dtype=np.float32)).to(dev)
+        ss = torch.from_numpy(np.asarray(s[j], dtype=np.float32)).to(dev).requires_grad_(True)
+        aa = torch.from_numpy(np.tile(ref, (len(j), 1))).to(dev).requires_grad_(True)
+        d2b, d2u = _mixed_deriv_batch(model, bb, ss, aa)
+        d2_builds[i:i + len(j)] = d2b.cpu().numpy()
+        d2_upgs[i:i + len(j)] = d2u.cpu().numpy()
+    res["mixed"] = {"n": len(mix_idx), "d2build_mean": float(d2_builds.mean()),
+                    "d2build_pos": float((d2_builds > 0).mean()),
+                    "d2upg_mean": float(d2_upgs.mean()), "d2upg_pos": float((d2_upgs > 0).mean())}
+    print(f"  ∂²Q/∂(建塔)∂(cd)  mean={d2_builds.mean():+.5f}  正占比 {(d2_builds>0).mean()*100:.0f}%", flush=True)
+    print(f"  ∂²Q/∂(升级)∂(cd)  mean={d2_upgs.mean():+.5f}  正占比 {(d2_upgs>0).mean()*100:.0f}%", flush=True)
+
     # 全量抽 2 万做 §3 每类偏导表 + 全局排序
     all_idx = np.random.default_rng(0).choice(N, min(N, 20000), replace=False)
     Q, G = grads_for(all_idx)
@@ -490,7 +565,8 @@ def probe_main(args) -> None:
                   **ordering(G)}
 
     np.savez(args.out, all_mean=res["all"]["mean"], all_sign_frac=res["all"]["sign_frac"],
-             buckets=res["buckets"], all_ordering={k: res["all"][k] for k in
+             buckets=res["buckets"], cd_buckets=res["cd_buckets"], cd_joint=res["cd_joint"],
+             mixed=res["mixed"], all_ordering={k: res["all"][k] for k in
              ("light_build_frac", "light_build_upg_frac", "light_first_frac",
               "mean_rank_light", "mean_rank_build", "mean_rank_upg")})
     print(f"[qnet:probe] 结果 → {args.out}", flush=True)
